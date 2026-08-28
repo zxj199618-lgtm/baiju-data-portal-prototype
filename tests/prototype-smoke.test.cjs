@@ -131,4 +131,20 @@ assert(portalBridge.includes('default: "assets/nav-push-default.svg"'), "推送�
 assert(!portalBridge.includes("data:image/"), "门户桥接脚本不应再内嵌 data URL 图片");
 assert(!portalVue.includes("data:image/png;base64") && !portalVue.includes("data:image/jpeg;base64"), "门户 Vue 模块不应再内嵌品牌图");
 
+assert(portalBridge.includes('name: "维表管理"') && portalBridge.includes('name: "字典管理"'), "数据资产应包含维表管理与字典管理菜单");
+assert(portalBridge.includes('name: "API配置", badge: "2.0"'), "API配置应标记 2.0");
+assert(portalBridge.includes('name: "表管理", badge: ["2.0", "3.0", "4.0"]'), "表管理应同时标记 2.0 / 3.0 / 4.0");
+assert(portalBridge.includes('name: "标签管理", badge: "3.0"'), "标签管理应标记 3.0");
+assert(portalBridge.includes('badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }]'), "数据推送应标记 3.0");
+assert(portalVue.includes("navBadges("), "侧栏应支持同一菜单展示多个版本角标");
+assert(!portalBridge.includes("isNew: true") && !portalVue.includes(">NEW</el-tag>"), "菜单不应再使用 NEW 角标");
+assert(portalVue.includes("设为维表") && portalVue.includes("关联字典") && portalVue.includes("portal-vue-dict-preview"), "表管理应支持设为维表并在关联字典时悬停预览");
+assert(portalVue.includes("设为标签表，保存后出现在「标签管理」"), "新建表应支持设为标签表且不配置导出字段");
+assert(!portalVue.includes("字典转换预览"), "字段列表不应再展示字典转换预览列");
+assert(!portalVue.includes("导入维表数据") && !portalVue.includes("importVisible"), "维表数据维护不应再提供导入");
+assert(portalVue.includes("新增维表") && portalVue.includes("维护数据") && portalVue.includes("维护枚举值"), "维表与字典应提供独立维护入口");
+assert(portalBridge.includes("dataDictionaries") && portalVue.includes("state.dictionaries"), "字典数据应通过门户状态共享");
+assert(portalVue.includes("共 {{ refList(scope.row).length }} 个字段") && portalVue.includes("portal-vue-ref-tooltip"), "字典列表应展示引用表和字段，并支持悬停换行");
+assert(html.includes('id="dimensionView"') && html.includes('id="dictionaryView"') && html.includes('id="dimensionDataView"'), "入口应挂载维表和字典页面");
+
 console.log("观星台原型 smoke test: passed");

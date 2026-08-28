@@ -2,9 +2,9 @@
     (() => {
       const simpleNav = [
         { group: "数据看板", icon: "dashboard", items: [{ name: "数据看板" }] },
-        { group: "数据服务", icon: "gateway", isNew: true, items: [{ name: "人群包管理", isNew: true }, { name: "API配置" }] },
-        { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理" }, { name: "标签管理", isNew: true }] },
-        { group: "数据推送", icon: "push", isNew: true, items: [{ name: "人群包推送渠道", isNew: true }] },
+        { group: "数据服务", icon: "gateway", badge: "3.0", items: [{ name: "人群包管理", badge: "3.0" }, { name: "API配置", badge: "2.0" }] },
+        { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: ["2.0", "3.0", "4.0"] }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }, { name: "标签管理", badge: "3.0" }] },
+        { group: "数据推送", icon: "push", badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] }
       ];
       const boardCategories = [
@@ -1189,7 +1189,7 @@
       window.simpleUsers = simpleUsers;
 
       const permissionGroups = [
-        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["数据看板", "数据服务", "人群包管理", "API配置", "数据资产", "看板管理", "表管理", "标签管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], status: "启用" },
+        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["数据看板", "数据服务", "人群包管理", "API配置", "数据资产", "看板管理", "表管理", "维表管理", "字典管理", "标签管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], status: "启用" },
         { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["数据看板"], boards: ["CPA事业部", "大盘数据"], status: "启用" },
         { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["数据看板"], boards: ["CPA事业部", "新媒体"], status: "启用" },
         { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["数据看板"], boards: ["大盘数据", "产品运营部"], status: "启用" },
@@ -1295,12 +1295,125 @@
         ]
       }));
 
+      const dataDictionaries = [
+        {
+          dictId: "DICT001", code: "media_source", name: "媒体来源",
+          desc: "投放媒体编码对照，广告计划、消耗汇总等表共用。", owner: "黄佩贤", status: "启用", updatedAt: "2026-08-20 11:20",
+          items: [
+            { code: "ocean", name: "巨量", sort: 1, enabled: true },
+            { code: "gdt", name: "广点通", sort: 2, enabled: true },
+            { code: "kuaishou", name: "快手", sort: 3, enabled: true },
+            { code: "oppo", name: "OPPO", sort: 4, enabled: true },
+            { code: "vivo", name: "VIVO", sort: 5, enabled: true }
+          ]
+        },
+        {
+          dictId: "DICT002", code: "channel_type", name: "渠道类型",
+          desc: "线上/线下/代理等渠道类型，维表与明细表共用。", owner: "谭嘉颖", status: "启用", updatedAt: "2026-08-18 16:40",
+          items: [
+            { code: "online", name: "线上渠道", sort: 1, enabled: true },
+            { code: "offline", name: "线下渠道", sort: 2, enabled: true },
+            { code: "agent", name: "代理渠道", sort: 3, enabled: true }
+          ]
+        },
+        {
+          dictId: "DICT003", code: "biz_line", name: "业务线",
+          desc: "权益、号卡、存量等业务线编码。", owner: "李雨航", status: "启用", updatedAt: "2026-08-16 09:12",
+          items: [
+            { code: "equity", name: "权益", sort: 1, enabled: true },
+            { code: "haoka", name: "号卡", sort: 2, enabled: true },
+            { code: "stock", name: "存量", sort: 3, enabled: true },
+            { code: "insure", name: "保险", sort: 4, enabled: true }
+          ]
+        },
+        {
+          dictId: "DICT004", code: "row_status", name: "启用状态",
+          desc: "维表行是否启用的通用状态字典。", owner: "林金维", status: "启用", updatedAt: "2026-08-12 14:05",
+          items: [
+            { code: "1", name: "启用", sort: 1, enabled: true },
+            { code: "0", name: "停用", sort: 2, enabled: true }
+          ]
+        }
+      ];
+
       dataAssets.forEach((asset, assetIndex) => {
         asset.assetId = asset.assetId || String(assetIndex + 1).padStart(3, "0");
         asset.externalName = asset.externalName || `open_${asset.table}`;
         asset.source = asset.source === "StarRocks-拉端" || asset.source === "StarRocks-存量"
           ? asset.source
           : asset.database === "prod_callup" ? "StarRocks-拉端" : "StarRocks-存量";
+        asset.dimension = !!asset.dimension;
+        asset.maintainMode = asset.maintainMode || "sync";
+        asset.rows = Array.isArray(asset.rows) ? asset.rows : [];
+        asset.lastMaintained = asset.lastMaintained || "";
+        asset.maintainer = asset.maintainer || "";
+        asset.fields.forEach(field => { if (!field.dictId) field.dictId = ""; });
+      });
+
+      const adPlanAsset = dataAssets.find(asset => asset.table === "dm_ad_plan_daily_media_account_product_performance_detail");
+      const mediaField = adPlanAsset?.fields.find(field => field.name === "media_source");
+      if (mediaField) mediaField.dictId = "DICT001";
+
+      const accountAsset = dataAssets.find(asset => asset.table === "dwd_ad_account_daily");
+      if (accountAsset) {
+        accountAsset.dimension = true;
+        accountAsset.lastMaintained = "2026-08-21 15:10";
+        accountAsset.maintainer = "黄佩贤";
+        accountAsset.fields = [
+          { name: "account_id", type: "VARCHAR", comment: "账户 ID", remark: "投放账户主键", dictId: "" },
+          { name: "account_name", type: "VARCHAR", comment: "账户名称", remark: "", dictId: "" },
+          { name: "media_source", type: "VARCHAR", comment: "媒体来源", remark: "关联媒体来源字典", dictId: "DICT001" },
+          { name: "biz_line", type: "VARCHAR", comment: "业务线", remark: "", dictId: "DICT003" },
+          { name: "owner_name", type: "VARCHAR", comment: "负责人", remark: "", dictId: "" },
+          { name: "row_status", type: "VARCHAR", comment: "状态", remark: "", dictId: "DICT004" }
+        ];
+        accountAsset.rows = [
+          { account_id: "ACC1001", account_name: "巨量-权益投放户", media_source: "ocean", biz_line: "equity", owner_name: "黄佩贤", row_status: "1" },
+          { account_id: "ACC1002", account_name: "广点通-号卡投放户", media_source: "gdt", biz_line: "haoka", owner_name: "谭嘉颖", row_status: "1" },
+          { account_id: "ACC1003", account_name: "快手-存量复投户", media_source: "kuaishou", biz_line: "stock", owner_name: "林金维", row_status: "0" }
+        ];
+      }
+
+      dataAssets.push({
+        assetId: "T101", source: "门户维护", database: "portal_dim", table: "dim_channel",
+        externalName: "open_dim_channel", cnName: "渠道维表",
+        desc: "业务渠道主数据，支持在线增删改查，渠道类型引用共用字典。",
+        serviceStatus: "启用", status: "同步成功", lastSync: "2026-08-22 10:18", lastSuccessSync: "2026-08-22 10:18",
+        nextSync: "按维护写入", owner: "谭嘉颖", dimension: true, maintainMode: "portal",
+        lastMaintained: "2026-08-22 10:18", maintainer: "谭嘉颖",
+        fields: [
+          { name: "channel_id", type: "VARCHAR", comment: "渠道 ID", remark: "主键", dictId: "" },
+          { name: "channel_name", type: "VARCHAR", comment: "渠道名称", remark: "", dictId: "" },
+          { name: "channel_type", type: "VARCHAR", comment: "渠道类型", remark: "关联渠道类型字典", dictId: "DICT002" },
+          { name: "biz_line", type: "VARCHAR", comment: "业务线", remark: "", dictId: "DICT003" },
+          { name: "owner_name", type: "VARCHAR", comment: "负责人", remark: "", dictId: "" },
+          { name: "row_status", type: "VARCHAR", comment: "状态", remark: "", dictId: "DICT004" }
+        ],
+        rows: [
+          { channel_id: "CH001", channel_name: "信息流-巨量", channel_type: "online", biz_line: "equity", owner_name: "黄佩贤", row_status: "1" },
+          { channel_id: "CH002", channel_name: "应用商店-OPPO", channel_type: "online", biz_line: "haoka", owner_name: "李雨航", row_status: "1" },
+          { channel_id: "CH003", channel_name: "线下门店-华南", channel_type: "offline", biz_line: "stock", owner_name: "林金维", row_status: "1" },
+          { channel_id: "CH004", channel_name: "代理-保险专项", channel_type: "agent", biz_line: "insure", owner_name: "谭嘉颖", row_status: "0" }
+        ]
+      });
+      dataAssets.push({
+        assetId: "T102", source: "门户维护", database: "portal_dim", table: "dim_product",
+        externalName: "open_dim_product", cnName: "产品维表",
+        desc: "可投放产品清单，由运营在门户维护。",
+        serviceStatus: "启用", status: "同步成功", lastSync: "2026-08-19 18:40", lastSuccessSync: "2026-08-19 18:40",
+        nextSync: "按维护写入", owner: "李雨航", dimension: true, maintainMode: "portal",
+        lastMaintained: "2026-08-19 18:40", maintainer: "李雨航",
+        fields: [
+          { name: "product_id", type: "VARCHAR", comment: "产品 ID", remark: "", dictId: "" },
+          { name: "product_name", type: "VARCHAR", comment: "产品名称", remark: "", dictId: "" },
+          { name: "biz_line", type: "VARCHAR", comment: "业务线", remark: "", dictId: "DICT003" },
+          { name: "row_status", type: "VARCHAR", comment: "状态", remark: "", dictId: "DICT004" }
+        ],
+        rows: [
+          { product_id: "P001", product_name: "权益会员包", biz_line: "equity", row_status: "1" },
+          { product_id: "P002", product_name: "电竞流量包", biz_line: "haoka", row_status: "1" },
+          { product_id: "P003", product_name: "存量通话包", biz_line: "stock", row_status: "1" }
+        ]
       });
 
       const apiConfigs = [
@@ -1379,6 +1492,9 @@
         "数据看板": ["数据看板", "", "新增看板入口"],
         "看板管理": ["看板管理", "", "新增看板"],
         "表管理": ["表管理", "同步来自 StarRocks 的表和字段元数据，沉淀可对外服务的数据资产。", "新增表"],
+        "维表管理": ["维表管理", "在线维护可编辑的业务维表数据，可由表管理标记或在此直接新建。", "新增维表"],
+        "维表数据维护": ["维表数据维护", "按字段维护维表行数据，保存后写回门户维表。", ""],
+        "字典管理": ["字典管理", "维护多表共用的编码字典和枚举值，供表字段关联后转成中文。", "新增字典"],
         "API配置": ["API配置", "选择数据资产和授权字段，生成 API 网关调用 token。", "新增 API"],
         "新增API": ["新增 API", "选择多张已启用数据表，配置返回字段与调用频次。", ""],
         "人群包管理": ["人群包管理", "", "新建人群包"],
@@ -1545,7 +1661,7 @@
       function pageIcon(page) {
         if (page === "数据看板" || page === "Quick BI 展示") return "dashboard";
         if (page === "看板管理") return "asset";
-        if (page === "表管理") return "asset";
+        if (page === "表管理" || page === "维表管理" || page === "维表数据维护" || page === "字典管理") return "asset";
         if (page === "API配置" || page === "新增API") return "gateway";
         if (page === "人群包管理" || page === "新建人群包") return "gateway";
         if (page === "标签管理") return "asset";
@@ -1619,13 +1735,24 @@
         pageSubtitle.textContent = meta[1];
         primaryAction.textContent = meta[2];
         primaryAction.classList.toggle("hidden", !meta[2]);
-        if (!["Quick BI 展示", "新增API", "新建人群包"].includes(page)) upsertTab({ name: meta[0], page, icon: pageIcon(page), closable: page !== "数据看板" });
+        if (!["Quick BI 展示", "新增API", "新建人群包", "维表数据维护"].includes(page)) upsertTab({ name: meta[0], page, icon: pageIcon(page), closable: page !== "数据看板" });
         tabsBar.innerHTML = simpleTabs.map(tab => `
           <button class="tab ${tab.page === page && (!Object.prototype.hasOwnProperty.call(tab, "boardIndex") || activeBoard.name === tab.name) ? "active" : ""}" data-simple-tab="${safeText(tab.name)}">
             <img class="nav-icon ${tab.icon}" src="${navIconPath(tab.icon, tab.page === page)}" alt="" aria-hidden="true" /><span>${safeText(tab.name)}</span>
             ${tab.closable ? `<span class="tab-close" data-close-simple-tab="${safeText(tab.name)}">×</span>` : ""}
           </button>
         `).join("");
+      }
+
+      function navBadgeList(entry) {
+        if (Array.isArray(entry?.badge)) return entry.badge;
+        return entry?.badge ? [entry.badge] : [];
+      }
+
+      function navBadgeHtml(entry) {
+        const badges = navBadgeList(entry);
+        if (!badges.length) return "";
+        return `<span class="nav-badge-group">${badges.map(badge => `<span class="nav-new-badge nav-ver-${String(badge).replace(".", "")}">${badge}</span>`).join("")}</span>`;
       }
 
       function renderSimpleNav() {
@@ -1636,14 +1763,14 @@
             <button class="nav-head ${isActive ? "active" : ""}" data-title="${safeText(section.group)}" ${section.items.length === 1 ? `data-simple-page="${section.items[0].name}"` : `data-simple-group="${section.group}"`}>
               <img class="nav-icon ${section.icon}" src="${navIconPath(section.icon, isActive)}" alt="" aria-hidden="true" />
               <span class="nav-title">${section.group}</span>
-              ${section.isNew ? `<span class="nav-new-badge">NEW</span>` : ""}
+              ${navBadgeHtml(section)}
               ${section.items.length > 1 ? `<span class="nav-arrow">⌄</span>` : ""}
             </button>
             ${section.items.length > 1 ? `<div class="subnav" data-title="${section.group}">
               ${section.items.map(item => `
                 <button class="${item.name === activePage ? "active" : ""}" data-simple-page="${item.name}">
                   <span>${item.name}</span>
-                  ${item.isNew ? `<span class="nav-new-badge">NEW</span>` : ""}
+                  ${navBadgeHtml(item)}
                 </button>
               `).join("")}
             </div>` : ""}
@@ -2607,7 +2734,7 @@
         return [
           { name: "数据看板", children: [] },
           { name: "数据服务", children: ["人群包管理", "API配置"] },
-          { name: "数据资产", children: ["看板管理", "表管理", "标签管理"] },
+          { name: "数据资产", children: ["看板管理", "表管理", "维表管理", "字典管理", "标签管理"] },
           { name: "数据推送", children: ["人群包推送渠道"] },
           { name: "权限管理", children: ["用户管理", "权限组"] }
         ];
@@ -2847,6 +2974,9 @@
         dataBoardView.classList.toggle("hidden", page !== "数据看板");
         document.getElementById("boardManagementView").classList.toggle("hidden", page !== "看板管理");
         document.getElementById("dataAssetView").classList.toggle("hidden", page !== "表管理");
+        document.getElementById("dimensionView")?.classList.toggle("hidden", page !== "维表管理");
+        document.getElementById("dimensionDataView")?.classList.toggle("hidden", page !== "维表数据维护");
+        document.getElementById("dictionaryView")?.classList.toggle("hidden", page !== "字典管理");
         document.getElementById("apiConfigView").classList.toggle("hidden", page !== "API配置");
         document.getElementById("apiCreateView").classList.toggle("hidden", page !== "新增API");
         userManagementView.classList.toggle("hidden", page !== "用户管理");
@@ -2889,6 +3019,9 @@
         dataBoardView.classList.add("hidden");
         document.getElementById("boardManagementView").classList.add("hidden");
         document.getElementById("dataAssetView").classList.add("hidden");
+        document.getElementById("dimensionView")?.classList.add("hidden");
+        document.getElementById("dimensionDataView")?.classList.add("hidden");
+        document.getElementById("dictionaryView")?.classList.add("hidden");
         document.getElementById("apiConfigView").classList.add("hidden");
         document.getElementById("apiCreateView").classList.add("hidden");
         userManagementView.classList.add("hidden");
@@ -3410,6 +3543,7 @@
         boardCategories,
         favorites: favoriteBoardIds,
         assets: dataAssets,
+        dictionaries: dataDictionaries,
         apis: apiConfigs,
         users: simpleUsers,
         groups: permissionGroups,
@@ -3425,7 +3559,9 @@
         showNoPermissionPage,
         toast: showToast,
         copyToken: copyTokenValue,
-        notifyDataChange: () => window.dispatchEvent(new CustomEvent("portal:data-change"))
+        notifyDataChange: () => window.dispatchEvent(new CustomEvent("portal:data-change")),
+        getDimensionAssetId: () => window.portalDimensionAssetId || "",
+        setDimensionAssetId: value => { window.portalDimensionAssetId = value; }
       };
 
       renderSimpleUsers();

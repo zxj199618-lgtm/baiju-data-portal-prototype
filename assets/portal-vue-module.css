@@ -79,7 +79,7 @@
 .portal-vue-menu { border-right: 0 !important; background: transparent !important; padding: 12px; }
 .portal-vue-menu.el-menu--collapse { width: 100%; padding: 12px 10px; }
 .portal-vue-menu .el-menu-item,
-.portal-vue-menu .el-sub-menu__title { height: 42px; line-height: 42px; margin: 2px 0; padding-right: 12px !important; padding-left: 14px !important; border-radius: 8px; font-weight: 650; }
+.portal-vue-menu .el-sub-menu__title { height: 42px; line-height: 42px; margin: 2px 0; padding-right: 12px !important; padding-left: 14px !important; border-radius: 8px; font-weight: 650; display: flex; align-items: center; }
 .portal-vue-menu .el-menu-item.is-active,
 .portal-vue-menu .el-sub-menu.is-active > .el-sub-menu__title { color: #1677ff; background: #edf5ff; }
 .portal-vue-menu .el-sub-menu .el-menu-item { min-width: 0; padding-left: 42px !important; background: transparent; }
@@ -89,7 +89,39 @@
 .portal-nav-icon.asset { padding: 1px; }
 .portal-nav-icon.push { padding: 2px; opacity: .86; }
 .portal-vue-menu.el-menu--collapse .portal-nav-icon { margin-right: 0; }
-.portal-nav-new { margin-left: auto; color: #f04438; background: #fff0ee; border: 0; }
+.portal-nav-badges { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto; }
+.portal-nav-new { height: 18px; padding: 0 5px; border: 0; font-size: 10px; font-weight: 750; line-height: 18px; --el-tag-border-color: transparent; }
+.portal-nav-badge--v40 { color: #f04438; background: #fff0ee; --el-tag-bg-color: #fff0ee; --el-tag-text-color: #f04438; }
+.portal-nav-badge--v30 { color: #dc6803; background: #fff6ed; --el-tag-bg-color: #fff6ed; --el-tag-text-color: #dc6803; }
+.portal-nav-badge--v20 { color: #667085; background: #f2f4f7; --el-tag-bg-color: #f2f4f7; --el-tag-text-color: #667085; }
+.portal-vue-menu.el-menu--collapse .portal-nav-badges { display: none; }
+.portal-vue-type-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.portal-vue-type-checks { display: grid; gap: 8px; }
+.portal-vue-add-field { margin-top: 10px; }
+.portal-vue-dict-option { display: flex; flex-direction: column; gap: 2px; line-height: 1.3; }
+.portal-vue-dict-option small { color: #98a2b3; font-size: 12px; font-weight: 400; }
+.portal-vue-dict-preview { max-width: 280px; }
+.portal-vue-dict-preview strong { display: block; margin-bottom: 4px; }
+.portal-vue-dict-preview span { display: block; color: #c5d0de; font-size: 12px; margin-bottom: 8px; }
+.portal-vue-dict-preview p { margin: 0; padding: 2px 0; line-height: 1.5; }
+.portal-vue-dict-popper { z-index: 4100 !important; }
+.portal-vue-dict-select .el-select-dropdown__item { height: auto !important; line-height: 1.4; padding-top: 8px; padding-bottom: 8px; }
+.portal-vue-field-dict { margin-left: 6px; vertical-align: middle; }
+.portal-vue-ref-trigger { color: #1677ff; cursor: default; }
+.portal-vue-ref-tooltip { max-width: 420px !important; white-space: normal !important; }
+.portal-vue-ref-tooltip p { margin: 0; padding: 3px 0; line-height: 1.55; white-space: normal; overflow-wrap: anywhere; }
+.portal-vue-dim-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 18px;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid #e9edf4;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+.portal-vue-dim-meta span { display: block; color: #98a2b3; font-size: 12px; margin-bottom: 4px; }
+.portal-vue-dict-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) 76px 32px; align-items: center; gap: 8px; }
 
 .portal-vue-topbar { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .portal-vue-tabs { min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
@@ -140,6 +172,7 @@
 .portal-vue-search { width: 240px; }
 .portal-vue-filter { width: 150px; }
 .portal-vue-filter-wide { width: 190px; }
+.portal-vue-table { width: 100%; }
 .portal-vue-table .el-table__header th.el-table__cell { height: 52px; padding: 0; background: #fbfcfe; color: #5d6675; font-size: 14px; font-weight: 720; }
 .portal-vue-table .el-table__body td.el-table__cell { height: 56px; padding: 0; color: #3f4857; font-size: 14px; }
 .portal-vue-table .cell { padding: 0 12px; line-height: 1.5; }

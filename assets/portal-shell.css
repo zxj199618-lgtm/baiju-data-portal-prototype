@@ -207,6 +207,22 @@
       text-align: left;
     }
 
+    .subnav button span:first-child {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .nav-badge-group,
+    .subnav .nav-badge-group {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      flex: 0 0 auto;
+    }
+
     .subnav button:hover {
       background: #f1f5fb;
     }
@@ -244,11 +260,15 @@
       font-weight: 750;
       line-height: 1;
     }
+    .nav-ver-20 { background: #f2f4f7; color: #667085; }
+    .nav-ver-30 { background: #fff6ed; color: #dc6803; }
+    .nav-ver-40 { background: #fff1f0; color: #f04438; }
 
     .sidebar.collapsed .brand-title,
     .sidebar.collapsed .nav-title,
     .sidebar.collapsed .nav-arrow,
     .sidebar.collapsed .nav-new-badge,
+    .sidebar.collapsed .nav-badge-group,
     .sidebar.collapsed .tag-p0 {
       display: none;
     }
