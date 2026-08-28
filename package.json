@@ -1,0 +1,9 @@
+{
+  "name": "baiju-data-portal-prototype",
+  "private": true,
+  "description": "观星台管理后台交互原型",
+  "scripts": {
+    "test": "node tests/prototype-smoke.test.cjs",
+    "build:standalone": "node scripts/build-standalone.cjs"
+  }
+}

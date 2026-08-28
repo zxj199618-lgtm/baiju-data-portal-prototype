@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>观星台 - 管理后台原型</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/momentx-observatory-favicon-32.png" />
+  <link rel="stylesheet" href="assets/vendor/element-plus.css" />
+  <link rel="stylesheet" href="assets/cp-vue-module.css" />
+  <link rel="stylesheet" href="assets/portal-vue-module.css" />
+  <link rel="stylesheet" href="assets/portal-shell.css" />
+</head>
+<body>
+  <section class="login-view" id="loginView">
+    <div class="login-art">
+      <div>
+        <h1>观星台</h1>
+        <p>统一承接 Quick BI 看板、飞书用户身份和权限组配置，让业务成员只看到自己权限内的数据。</p>
+      </div>
+      <img src="assets/home-hero.png" alt="观星台产品图" />
+    </div>
+    <aside class="login-panel">
+      <div>
+        <div class="login-product">
+          <h1>观星台</h1>
+        </div>
+        <div class="login-card">
+          <div class="login-tabs">
+            <span>密码登录</span>
+            <span>扫码登录</span>
+          </div>
+          <div class="login-provider">
+            <span>企业微信</span>
+            <span>飞书</span>
+          </div>
+          <button class="btn primary feishu-btn" id="feishuLoginBtn">飞书快捷登录</button>
+          <button class="mock-login-btn" id="noPermissionLoginBtn">模拟无权限登录</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <div class="app hidden" id="portalApp">
+    <aside class="sidebar" id="sidebar">
+      <button class="collapse-btn" id="collapseBtn" title="收起侧边栏">‹</button>
+      <div class="brand">
+        <img class="brand-logo" src="assets/momentx-observatory-logo.jpg" alt="观星台" />
+        <img class="brand-logo-icon" src="assets/momentx-observatory-icon.png" alt="" aria-hidden="true" />
+      </div>
+      <nav class="nav" id="nav"></nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="crumbs">
+          <span class="crumb">首页</span>
+          <div id="tabsBar"></div>
+        </div>
+        <div class="userbar">
+          <div class="user-menu-wrap">
+            <button class="user-menu-trigger" id="userMenuTrigger">
+              <div class="avatar">曾</div>
+              <strong style="color: var(--blue)">曾祥竞</strong>
+            </button>
+            <div class="user-menu" id="userMenu">
+              <button id="logoutBtn">退出系统</button>
+            </div>
+          </div>
+          <button class="btn ghost hidden" id="refreshBtn">刷新</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="page-head">
+          <div>
+            <h1 id="pageTitle">数据看板</h1>
+            <p class="page-subtitle" id="pageSubtitle"></p>
+          </div>
+          <div class="page-head-actions" id="pageHeadActions">
+            <div class="search-wrap hidden" id="boardTitleSearch">
+              <input class="global-search" id="globalSearch" placeholder="搜索看板" autocomplete="off" />
+              <button class="search-clear hidden" id="clearBoardSearch" type="button">×</button>
+            </div>
+            <div class="actions hidden">
+              <button class="btn ghost" id="exportBtn">导出总览</button>
+              <button class="btn primary" id="primaryAction">新增看板入口</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="hidden" id="dashboardView">
+          <div class="filters">
+            <div class="field">
+              <label>业务域：</label>
+              <select id="domainFilter">
+                <option>全部</option>
+                <option>增长</option>
+                <option>投放</option>
+                <option>用户</option>
+                <option>交易</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>周期：</label>
+              <select id="periodFilter">
+                <option>近 7 天</option>
+                <option>近 30 天</option>
+                <option>本月</option>
+                <option>本季度</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>负责人：</label>
+              <input id="ownerFilter" placeholder="请输入" />
+            </div>
+            <div class="field">
+              <label>优先级：</label>
+              <select id="priorityFilter">
+                <option>全部</option>
+                <option>P0</option>
+                <option>P1</option>
+                <option>P2</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+          <section>
+            <div class="summary" id="summaryCards"></div>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div class="panel-title">核心链路趋势</div>
+                <div class="segmented" id="chartTabs">
+                  <button class="active" data-range="7">7天</button>
+                  <button data-range="30">30天</button>
+                  <button data-range="90">90天</button>
+                </div>
+              </div>
+              <div class="chart-wrap">
+                <div>
+                  <div class="line-chart">
+                    <svg viewBox="0 0 760 270" preserveAspectRatio="none" aria-label="趋势图">
+                      <defs>
+                        <linearGradient id="areaBlue" x1="0" x2="0" y1="0" y2="1">
+                          <stop offset="0%" stop-color="#0066FF" stop-opacity=".18" />
+                          <stop offset="100%" stop-color="#0066FF" stop-opacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <path id="areaPath" d="M0,208 C80,175 120,178 190,142 C260,108 305,128 380,96 C465,60 520,84 590,54 C660,26 705,48 760,36 L760,270 L0,270 Z" fill="url(#areaBlue)" />
+                      <path id="linePath" d="M0,208 C80,175 120,178 190,142 C260,108 305,128 380,96 C465,60 520,84 590,54 C660,26 705,48 760,36" fill="none" stroke="#0066FF" stroke-width="4" stroke-linecap="round" />
+                      <path d="M0,226 C90,218 150,224 230,206 C320,184 386,196 458,172 C548,145 640,158 760,132" fill="none" stroke="#13c2a3" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 8" />
+                    </svg>
+                  </div>
+                  <div class="chart-labels">
+                    <span>06-09</span><span>06-10</span><span>06-11</span><span>06-12</span><span>06-13</span><span>06-14</span><span>06-15</span>
+                  </div>
+                </div>
+                <div class="stack-list">
+                  <div class="stack-row">
+                    <div class="stack-meta"><span>看板访问覆盖</span><strong>86%</strong></div>
+                    <div class="bar"><span style="width:86%"></span></div>
+                  </div>
+                  <div class="stack-row">
+                    <div class="stack-meta"><span>资产治理完成</span><strong>72%</strong></div>
+                    <div class="bar"><span style="width:72%;background:var(--green)"></span></div>
+                  </div>
+                  <div class="stack-row">
+                    <div class="stack-meta"><span>实验上线进度</span><strong>64%</strong></div>
+                    <div class="bar"><span style="width:64%;background:var(--purple)"></span></div>
+                  </div>
+                  <div class="stack-row">
+                    <div class="stack-meta"><span>网关健康度</span><strong>91%</strong></div>
+                    <div class="bar"><span style="width:91%;background:var(--blue)"></span></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div class="panel-title">模块总览</div>
+                <button class="btn text" id="viewAllModules">查看全部模块</button>
+              </div>
+              <div class="overview-modules" id="moduleOverview"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div class="panel-title">从发现到处理</div>
+                <span class="pill blue">可点击问题进入详情</span>
+              </div>
+              <div class="flow">
+                <div class="flow-step"><b>发现问题</b><span>汇总 P0、异常指标、失败任务和权限风险。</span></div>
+                <div class="flow-step"><b>定位模块</b><span>按看板、资产、实验、网关自动归因。</span></div>
+                <div class="flow-step"><b>查看详情</b><span>点击右侧提醒进入问题上下文。</span></div>
+                <div class="flow-step"><b>分派责任人</b><span>确认负责人、影响范围与处理时限。</span></div>
+                <div class="flow-step"><b>跟踪闭环</b><span>处理完成后回写门户健康分。</span></div>
+              </div>
+            </section>
+          </section>
+
+          <aside class="right-rail">
+            <section class="panel health-score">
+              <div class="panel-title">门户健康度</div>
+              <div class="score-ring"><b id="healthScore">82</b></div>
+              <div class="health-list">
+                <div class="health-item"><span>正常模块</span><strong>15</strong></div>
+                <div class="health-item"><span>待处理问题</span><strong class="warn">6</strong></div>
+                <div class="health-item"><span>P0 风险</span><strong class="bad">2</strong></div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div class="panel-title">健康提醒</div>
+                <button class="btn text" id="clearIssues">标记已读</button>
+              </div>
+              <div class="issue-list" id="issueList"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div class="panel-title">快捷入口</div>
+              </div>
+              <div class="issue-list">
+                <div class="issue-item" data-route="看板管理"><div class="issue-main"><strong>新建数据看板</strong><span>配置首页或专题分析看板</span></div><span>›</span></div>
+                <div class="issue-item" data-route="指标管理"><div class="issue-main"><strong>登记核心指标</strong><span>补充口径、负责人和血缘</span></div><span>›</span></div>
+                <div class="issue-item" data-route="AB实验配置"><div class="issue-main"><strong>创建 AB 实验</strong><span>设置实验组、指标与观察周期</span></div><span>›</span></div>
+              </div>
+            </section>
+          </aside>
+          </div>
+        </div>
+
+        <div id="dataBoardView">
+          <div class="dashboard-directory">
+            <aside class="board-tree-panel">
+              <div class="board-tree-head">数据看板 <span class="board-tree-count" id="boardTreeCount"></span></div>
+              <input class="board-tree-search" id="boardTreeSearch" placeholder="输入关键字搜索" />
+              <div class="board-tree-body" id="boardTree"></div>
+            </aside>
+            <section class="board-pane" id="boardPane"></section>
+          </div>
+        </div>
+
+        <div class="manager-view hidden" id="boardManagementView">
+          <section class="panel">
+            <div class="list-status-tabs" id="boardStatusTabs">
+              <button class="active" data-board-status-filter="已上线">已上线</button>
+              <button data-board-status-filter="已下线">已下线</button>
+            </div>
+            <div class="board-manager-toolbar">
+              <div class="toolbar-left">
+                <input class="toolbar-input" id="boardManageSearch" placeholder="搜索看板名称、Quick BI ID" />
+                <select class="toolbar-select" id="boardManageCategory"></select>
+                <select class="toolbar-select" id="boardManageOwner"></select>
+              </div>
+              <div class="actions">
+                <button class="btn ghost" id="manageCategoryBtn">管理分类</button>
+                <button class="btn primary" id="createBoardAssetBtn">新增看板</button>
+              </div>
+            </div>
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>看板名称</th>
+                    <th>所属分类</th>
+                    <th>Quick BI 看板 ID</th>
+                    <th>看板说明</th>
+                    <th>可查看权限组</th>
+                    <th>负责人</th>
+                    <th>状态</th>
+                    <th>更新时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="boardManageBody"></tbody>
+              </table>
+            </div>
+            <div class="pagination-bar" id="boardPagination"></div>
+          </section>
+        </div>
+
+        <div class="manager-view hidden" id="dataAssetView">
+          <section class="panel">
+            <div class="list-status-tabs" id="assetStatusTabs">
+              <button class="active" data-asset-service-filter="启用">启用中</button>
+              <button data-asset-service-filter="停用">已停用</button>
+            </div>
+            <div class="board-manager-toolbar">
+              <div class="toolbar-left">
+                <input class="toolbar-input" id="assetSearch" placeholder="搜索表名、对外表名、表中文名" />
+                <select class="toolbar-select" id="assetSourceFilter"><option value="">全部数据源</option></select>
+                <select class="toolbar-select" id="assetDatabaseFilter"><option value="">全部库名</option></select>
+              </div>
+              <div class="actions">
+                <button class="btn primary" id="syncTableBtn">新增表</button>
+              </div>
+            </div>
+            <div class="data-table-wrap">
+              <table class="data-table asset-manage-table">
+                <thead>
+                  <tr>
+                    <th class="asset-id-col">表编号</th>
+                    <th class="asset-external-name-col">对外表名</th>
+                    <th>表名</th>
+                    <th>数据源</th>
+                    <th>库名</th>
+                    <th>表中文名</th>
+                    <th>表描述</th>
+                    <th>字段数</th>
+                    <th>服务状态</th>
+                    <th>最近同步时间</th>
+                    <th>最近30日调用次数</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="assetTableBody"></tbody>
+              </table>
+            </div>
+            <div class="pagination-bar" id="assetPagination"></div>
+          </section>
+        </div>
+
+        <div class="manager-view hidden" id="apiConfigView">
+          <section class="panel">
+            <div class="list-status-tabs" id="apiStatusTabs">
+              <button class="active" data-api-status-filter="启用">启用中</button>
+              <button data-api-status-filter="停用">已停用</button>
+            </div>
+            <div class="board-manager-toolbar">
+              <div class="toolbar-left">
+                <input class="toolbar-input" id="apiSearch" placeholder="搜索接口名称、表名" />
+              </div>
+              <div class="actions">
+                <button class="btn primary" id="createApiBtn">新增 API</button>
+              </div>
+            </div>
+            <div class="data-table-wrap">
+              <table class="data-table api-config-table">
+                <thead>
+                  <tr>
+                    <th>接口名称</th>
+                    <th>关联表</th>
+                    <th>授权字段</th>
+                    <th>使用场景</th>
+                    <th>最近30日调用次数</th>
+                    <th>token 状态</th>
+                    <th>创建人</th>
+                    <th>最近调用</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTableBody"></tbody>
+              </table>
+            </div>
+            <div class="pagination-bar" id="apiPagination"></div>
+          </section>
+        </div>
+
+        <div class="manager-view hidden" id="apiCreateView">
+          <div class="api-create-page">
+            <div class="api-create-layout">
+              <section class="api-picker-panel">
+                <div class="api-picker-head">
+                  <strong>选择数据表</strong>
+                  <span class="pill blue" id="selectedApiTableCount">0 张</span>
+                </div>
+                <div class="api-picker-body">
+                  <input class="toolbar-input" id="newApiTableSearch" placeholder="搜索库名、表名、表中文名" />
+                  <div class="api-table-options" id="newApiTableList" style="margin-top:12px"></div>
+                </div>
+              </section>
+              <section class="api-config-panel">
+                <div class="api-config-head"><strong>接口配置</strong></div>
+                <div class="api-config-body">
+                  <div class="form-field required" data-field-wrap="newApiName" style="margin-bottom:12px">
+                    <label>接口名称</label>
+                    <input class="toolbar-input" id="newApiName" placeholder="例如：广告投放日报接口" />
+                    <span class="field-error">请输入接口名称</span>
+                  </div>
+                  <div class="form-field required" data-field-wrap="newApiUsage">
+                    <label>使用场景</label>
+                    <textarea class="toolbar-input" id="newApiUsage" style="height:86px;padding-top:10px;resize:vertical" placeholder="说明调用系统、业务用途和责任人"></textarea>
+                    <span class="field-error">请输入使用场景</span>
+                  </div>
+                  <div class="form-field" data-field-wrap="newApiAsset" style="margin-top:18px">
+                    <label>授权字段</label>
+                    <span class="field-error">至少选择 1 张数据表</span>
+                    <div class="api-selected-tables" id="newApiFieldList"></div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="api-create-footer">
+              <button class="btn ghost" id="cancelCreateApi">取消</button>
+              <button class="btn primary" id="confirmCreateApi">生成 Token</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="cpVueModule" data-vue-powered="false">
+        <!-- ============ 人群包列表 ============ -->
+        <div class="manager-view hidden" id="cpListView">
+          <section class="panel">
+            <div class="list-status-tabs" id="cpStatusTabs">
+              <button class="active" data-cp-status="启用">启用中</button>
+              <button data-cp-status="停用">已停用</button>
+            </div>
+            <div class="board-manager-toolbar">
+              <div class="toolbar-left">
+                <input class="toolbar-input" id="cpSearch" placeholder="搜索人群包名称" />
+                <select class="toolbar-select" id="cpOwnerFilter"><option value="">全部需求来源</option></select>
+                <select class="toolbar-select" id="cpCategoryFilter"><option value="">全部分类</option><option value="定向包">定向包</option><option value="排除包">排除包</option></select>
+                <select class="toolbar-select" id="cpModeFilter"><option value="">全部圈选方式</option><option value="ui">标签圈选</option><option value="sql">SQL 模式</option></select>
+                <select class="toolbar-select" id="cpTableFilter"><option value="">全部圈选表</option></select>
+                <select class="toolbar-select" id="cpDeliveryFilter"><option value="">全部交付方式</option><option value="巨量DMP-OSS">巨量DMP-OSS</option><option value="广点通-OSS">广点通-OSS</option><option value="手动下载">手动下载</option></select>
+              </div>
+              <div class="actions">
+                <button class="btn primary" id="cpCreateBtn">新建人群包</button>
+              </div>
+            </div>
+            <div class="data-table-wrap">
+              <table class="data-table cp-manage-table">
+                <thead>
+                  <tr>
+                    <th>人群包名称</th><th>人群包分类</th><th>需求分类</th><th>需求来源</th><th>人群包说明</th><th>状态</th><th>圈选方式</th><th>圈选表</th><th>预估人数 / 覆盖率</th>
+                    <th>输出字段</th><th>加密方式</th><th>交付方式</th><th>推送频次</th><th>调度时间</th><th>运行次数</th><th>使用次数</th><th>上次运行</th><th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="cpTableBody"></tbody>
+              </table>
+            </div>
+            <div class="pagination-bar" id="cpPagination"></div>
+          </section>
+        </div>
+
+        <!-- ============ 新建人群包 ============ -->
+        <div class="manager-view hidden" id="cpCreateView">
+          <div class="api-create-page">
+            <div class="cp-form">
+              <section class="panel cp-section">
+                <div class="cp-section-head">1 · 基本信息</div>
+                <div class="cp-section-body">
+                  <div class="form-field required" data-field-wrap="cpName" style="margin-bottom:14px">
+                    <label>人群包名称</label>
+                    <input class="toolbar-input" id="cpName" placeholder="例如：权益核心付费用户" />
+                    <span class="field-error">请输入人群包名称</span>
+                  </div>
+                  <div class="form-field required" data-field-wrap="cpCategory" style="margin-bottom:14px">
+                    <label>人群包分类</label>
+                    <input type="hidden" id="cpCategory" />
+                    <div class="cp-category-cards" id="cpCategoryCards"><button class="cp-category-card" data-cp-category="定向包" type="button">定向包</button><button class="cp-category-card" data-cp-category="排除包" type="button">排除包</button></div>
+                    <span class="field-error">请选择人群包分类</span>
+                  </div>
+                  <div class="form-field required" data-field-wrap="cpRequirementCategory" style="margin-bottom:14px">
+                    <label>需求分类</label>
+                    <input class="toolbar-input" id="cpRequirementCategory" list="cpRequirementCategoryOptions" placeholder="选择或输入需求分类" />
+                    <datalist id="cpRequirementCategoryOptions"><option value="权益"></option><option value="存量"></option><option value="号卡"></option><option value="保险"></option><option value="达人"></option></datalist>
+                    <span class="field-error">请选择或输入需求分类</span>
+                  </div>
+                  <div class="form-field" style="margin-bottom:14px"><label>人群包说明</label><textarea class="toolbar-input" id="cpDesc" style="height:64px;padding-top:9px;resize:vertical" placeholder="说明人群用途或适用场景"></textarea></div>
+                  <div class="form-field"><label>需求来源</label><div class="cp-user-picker" id="cpOwnerPicker"><input class="toolbar-input" id="cpOwner" autocomplete="off" placeholder="搜索用户作为需求来源" /><div class="cp-user-menu" id="cpOwnerMenu"></div></div></div>
+                </div>
+              </section>
+
+              <section class="panel cp-section">
+                <div class="cp-section-head">2 · 圈选规则</div>
+                <div class="cp-section-body">
+                  <div class="cp-mode-field">
+                    <span class="cp-mode-label">圈选方式</span>
+                    <span class="cp-mode-tabs" id="cpModeTabs">
+                      <button class="active" data-cp-mode="ui" type="button">标签圈选</button>
+                      <button data-cp-mode="sql" type="button">SQL 模式</button>
+                    </span>
+                  </div>
+                  <div id="cpUiMode">
+                    <div class="form-field required" data-field-wrap="cpTable" style="max-width:420px;margin-bottom:16px">
+                      <label>选择圈选表</label>
+                      <select class="toolbar-select" id="cpTable" style="width:100%"></select>
+                      <span class="field-error">请选择圈选表</span>
+                    </div>
+                    <div class="cp-rule-builder">
+                      <button class="cp-relation-bracket" id="cpAndor" type="button" aria-label="切换条件关系">
+                        <span data-andor="AND" class="active">且</span>
+                        <span data-andor="OR">或</span>
+                      </button>
+                      <div class="cp-rule-lines">
+                        <div id="cpCondList"></div>
+                        <button class="btn text" id="cpAddCond" type="button">+ 添加条件</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div id="cpSqlMode" class="hidden">
+                    <div class="cp-sql-note">结果集必须返回一个标识列。支持多表 join / 聚合；分区、日期范围与加密方式均由 SQL 自行处理，平台在校验时自动识别结果标识。</div>
+                    <div class="cp-sql-editor">
+                      <pre class="cp-sql-highlight" aria-hidden="true"><code id="cpSqlHighlight"></code></pre>
+                      <textarea class="cp-sql" id="cpSqlText" spellcheck="false" autocomplete="off" placeholder="SELECT DISTINCT phone&#10;FROM dwd_equity_shop_order_f_d&#10;WHERE dt = :max_pt AND pay_channel IN ('宝付','易付宝')&#10;GROUP BY phone HAVING COUNT(1) > 0"></textarea>
+                    </div>
+                    <div class="cp-params hidden" id="cpSqlParams">
+                      <div class="cp-cond-head"><span>运行参数</span><button class="btn text" id="cpAddParam" type="button">+ 添加参数</button></div>
+                      <div id="cpParamList"></div>
+                    </div>
+                  </div>
+
+                </div>
+              </section>
+
+              <section class="panel cp-section">
+                <div class="cp-section-head">3 · 输出字段与格式</div>
+                <div class="cp-section-body">
+                  <div class="form-field required cp-output-field" id="cpOutputFieldWrap" data-field-wrap="cpFieldSelect" style="margin-bottom:16px">
+                    <label>输出字段</label>
+                    <select class="toolbar-select" id="cpFieldSelect"></select>
+                    <span class="field-error">请选择输出字段</span>
+                  </div>
+                  <div class="form-field" id="cpEncryptWrap" style="margin-bottom:16px">
+                    <label>加密方式</label>
+                    <div class="cp-radio-row" id="cpEncrypt">
+                      <label><input type="radio" name="cpenc" value="不加密" checked /> 不加密</label>
+                      <label><input type="radio" name="cpenc" value="MD5" /> MD5</label>
+                      <label><input type="radio" name="cpenc" value="SHA256" /> SHA256</label>
+                    </div>
+                  </div>
+                  <div class="form-field">
+                    <label>文件格式</label>
+                    <div class="cp-radio-row" id="cpFormat">
+                      <label><input type="radio" name="cpfmt" value="txt" checked /> txt（适合广点通）</label>
+                      <label><input type="radio" name="cpfmt" value="dmp" /> dmp（适合头条）</label>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="panel cp-section">
+                <div class="cp-section-head">4 · 交付方式</div>
+                <div class="cp-section-body">
+                  <div class="form-field" style="margin-bottom:16px;max-width:520px">
+                    <label>推送频次</label>
+                    <div class="cp-radio-row" id="cpFreq">
+                      <label><input type="radio" name="cpfreq" value="每日推送" checked /> 每日推送</label>
+                      <label><input type="radio" name="cpfreq" value="每小时推送" /> 每小时推送</label>
+                      <label><input type="radio" name="cpfreq" value="手动下载" /> 不推送（手动下载）</label>
+                    </div>
+                  </div>
+                  <div class="form-field" id="cpScheduleWrap" style="margin-bottom:16px;max-width:420px">
+                    <label>调度时间 <i>*</i></label>
+                    <div class="cp-schedule-row" id="cpDailySchedule"><span>每天</span><input id="cpDailyTime" type="time" value="03:00" step="60" /><span>推送</span></div>
+                    <div class="cp-schedule-row hidden" id="cpHourlySchedule"><span>每小时第</span><input id="cpHourlyMinute" type="number" min="0" max="59" step="1" value="0" /><span>分钟推送</span></div>
+                  </div>
+                  <div class="form-field" id="cpChannelWrap" style="max-width:420px">
+                    <label>推送渠道</label>
+                    <select class="toolbar-select" id="cpChannel" style="width:100%"></select>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="api-create-footer">
+              <button class="btn ghost" id="cpCancelCreate">取消</button>
+              <button class="btn primary" id="cpSaveCreate">校验并保存</button>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <!-- ============ 标签管理 ============ -->
+        <div class="manager-view hidden" id="tagCatalogView">
+          <section class="panel">
+            <div class="board-manager-toolbar">
+              <div class="toolbar-left">
+                <span class="cp-subject-label">标签主体</span>
+                <select class="toolbar-select" id="tagSubject" style="min-width:220px"></select>
+                <input class="toolbar-input" id="tagSearch" placeholder="搜索标签名、字段名" />
+              </div>
+              <div class="actions"><span class="cp-pending-hint" id="tagPendingHint"></span></div>
+            </div>
+            <div class="data-table-wrap">
+              <table class="data-table" style="min-width:1240px">
+                <thead>
+                  <tr><th>标签名（中文名）</th><th>字段名</th><th>类型</th><th>标签定义</th><th>枚举值</th><th>计算逻辑</th><th>更新频率</th><th>覆盖率</th><th>操作</th></tr>
+                </thead>
+                <tbody id="tagTableBody"></tbody>
+              </table>
+            </div>
+            <div class="pagination-bar" id="tagPagination"></div>
+          </section>
+        </div>
+
+        <!-- ============ 推送目标 ============ -->
+        <div class="manager-view hidden" id="pushTargetView">
+          <section class="panel">
+            <div class="list-status-tabs" id="targetStatusTabs">
+              <button class="active" data-target-status="启用">启用中</button>
+              <button data-target-status="停用">已停用</button>
+            </div>
+            <div class="board-manager-toolbar">
+              <div class="toolbar-left"><input class="toolbar-input" id="targetSearch" placeholder="搜索目标名称" /></div>
+              <div class="actions"><button class="btn primary" id="addTargetBtn">新增推送目标</button></div>
+            </div>
+            <div class="data-table-wrap">
+              <table class="data-table" style="min-width:900px">
+                <thead><tr><th>目标名称</th><th>类型</th><th>地址</th><th>被引用</th><th>最近使用</th><th>状态</th></tr></thead>
+                <tbody id="targetTableBody"></tbody>
+              </table>
+            </div>
+            <div class="pagination-bar" id="targetPagination"></div>
+          </section>
+        </div>
+
+        <!-- 人群包：模态框 / 抽屉 / toast -->
+        <div class="cp-mask" id="cpMask"></div>
+        <aside class="cp-drawer" id="cpRunDrawer">
+          <div class="cp-drawer-head"><h2 id="cpRunTitle">运行历史</h2><button class="cp-x" id="cpRunClose">×</button></div>
+          <div class="cp-drawer-body" id="cpRunBody"></div>
+        </aside>
+        <div class="cp-modal" id="cpTargetModal">
+          <div class="cp-modal-card">
+            <h3>新增推送目标</h3>
+            <div class="form-field required" data-field-wrap="tgtName" style="margin-bottom:12px"><label>目标名称</label><input class="toolbar-input" id="tgtName" style="width:100%" placeholder="例如：巨量DMP-OSS" /><span class="field-error">请输入名称</span></div>
+            <div class="form-field" style="margin-bottom:12px"><label>存储桶名称（bucket_name）</label><input class="toolbar-input" id="tgtBucket" style="width:100%" placeholder="flink-baiju-prod" /></div>
+            <div class="form-field" style="margin-bottom:12px"><label>地域（region）</label><input class="toolbar-input" id="tgtRegion" style="width:100%" placeholder="cn-shenzhen" /></div>
+            <div class="form-field" style="margin-bottom:12px"><label>访问域名（endpoint）</label><input class="toolbar-input" id="tgtEndpoint" style="width:100%" placeholder="https://oss-cn-shenzhen.aliyuncs.com" /></div>
+            <div class="form-field" style="margin-bottom:12px"><label>访问密钥 ID（access_key_id）</label><input class="toolbar-input" id="tgtAk" style="width:100%" placeholder="LTAI5t8Z…" /></div>
+            <div class="form-field"><label>访问密钥 Secret（access_key_secret）</label><input class="toolbar-input" id="tgtSk" type="password" style="width:100%" placeholder="密文存储，仅后端可见" /></div>
+            <div class="cp-modal-actions"><button class="btn ghost" id="tgtCancel">取消</button><button class="btn primary" id="tgtSave">保存目标</button></div>
+          </div>
+        </div>
+        <div class="cp-modal" id="cpConfirmModal">
+          <div class="cp-modal-card">
+            <h3 id="cpConfirmTitle">确认操作</h3>
+            <p class="cp-confirm-text" id="cpConfirmText"></p>
+            <div class="cp-modal-actions"><button class="btn ghost" id="cpConfirmCancel">取消</button><button class="btn primary" id="cpConfirmOk">确认</button></div>
+          </div>
+        </div>
+        <div class="cp-modal" id="tagEditModal">
+          <div class="cp-modal-card">
+            <h3>编辑标签 · <span id="tagEditName"></span></h3>
+            <div class="cp-sql-note" id="tagEditAuto" style="margin-bottom:14px"></div>
+            <div class="form-field" style="margin-bottom:12px"><label>标签定义</label><textarea class="toolbar-input" id="tagEditDef" style="width:100%;height:56px;padding:8px 10px" placeholder="这个标签的业务含义"></textarea></div>
+            <div class="form-field" style="margin-bottom:12px"><label>枚举值（逗号分隔，可选）</label><input class="toolbar-input" id="tagEditEnum" style="width:100%" placeholder="如：男,女,未知" /></div>
+            <div class="form-field" style="margin-bottom:12px"><label>计算逻辑</label><textarea class="toolbar-input" id="tagEditCalc" style="width:100%;height:56px;padding:8px 10px" placeholder="口径 / SQL 逻辑说明"></textarea></div>
+            <div class="form-field"><label>更新频率</label>
+              <div class="cp-radio-row" id="tagEditFreq"><label><input type="radio" name="tagfreq" value="实时" /> 实时</label><label><input type="radio" name="tagfreq" value="离线" checked /> 离线</label></div>
+            </div>
+            <div class="cp-modal-actions"><button class="btn ghost" id="tagEditCancel">取消</button><button class="btn primary" id="tagEditSave">保存</button></div>
+          </div>
+        </div>
+        <div class="cp-toast" id="cpToast">已完成</div>
+
+        <div class="hidden" id="quickBiView">
+          <div class="quickbi-shell">
+            <div class="quickbi-frame">
+              <div>
+                <strong id="quickBiTitle">Quick BI 看板</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state hidden" id="noPermissionView">
+          <div class="no-permission-card">
+            <div class="no-permission-icon">!</div>
+            <h2>暂无访问权限</h2>
+            <p>请联系数据部门开通权限。</p>
+            <button class="btn ghost" id="backToLoginFromNoPermission">退出系统</button>
+          </div>
+        </div>
+
+        <div class="manager-view hidden" id="userManagementView">
+          <div class="dashboard-directory">
+            <aside class="category-list" id="userGroupList"></aside>
+            <section class="panel">
+              <div class="table-toolbar">
+                <div class="toolbar-left">
+                  <input class="toolbar-input" id="userSearch" placeholder="搜索姓名、邮箱、部门" />
+                  <select class="toolbar-select" id="userStatusFilter">
+                    <option>全部状态</option>
+                    <option>已停用</option>
+                    <option>启用中</option>
+                  </select>
+                </div>
+                <div class="actions hidden">
+                  <button class="btn ghost" id="syncFeishuBtn">同步飞书</button>
+                  <button class="btn primary" id="assignGroupBtn">分配权限组</button>
+                </div>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>用户</th>
+                      <th>部门组织</th>
+                      <th>岗位角色</th>
+                      <th>邮箱</th>
+                      <th>所属权限组</th>
+                      <th>账号状态</th>
+                      <th>最近登录</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="userTableBody"></tbody>
+                </table>
+              </div>
+              <div class="pagination-bar" id="userPagination"></div>
+            </section>
+          </div>
+        </div>
+
+        <div class="hidden" id="permissionGroupView">
+          <div class="permission-group-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <div class="panel-title">权限组</div>
+                <button class="btn text" id="createGroupBtn">新增</button>
+              </div>
+              <div class="group-list" id="permissionGroupList"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <div class="panel-title" id="groupDetailTitle">权限组详情</div>
+                </div>
+                <div class="actions">
+                  <button class="btn primary" id="saveGroupBtn" disabled style="opacity:.45;cursor:not-allowed">保存</button>
+                </div>
+              </div>
+              <div class="group-detail-grid" id="permissionGroupDetail"></div>
+            </section>
+          </div>
+        </div>
+
+        <div class="hidden" id="permissionConfigView">
+          <div class="permission-toolbar">
+            <button class="btn ghost" id="permissionBackBtn">返回用户管理</button>
+            <span class="pill blue">编辑权限</span>
+          </div>
+          <div class="permission-page">
+            <aside class="permission-user-card" id="permissionUserCard"></aside>
+            <section class="permission-groups">
+              <section class="panel">
+                <div class="panel-head">
+                  <div class="panel-title">菜单权限</div>
+                </div>
+                <div class="checkbox-list" id="menuPermissionList"></div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <div class="panel-title">看板权限</div>
+                </div>
+                <div class="checkbox-list" id="boardPermissionList"></div>
+              </section>
+              <div class="permission-save-bar">
+                <button class="btn ghost" id="cancelPermissionBtn">取消</button>
+                <button class="btn primary" id="savePermissionBtn">保存权限</button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="drawer-mask" id="drawerMask"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-head">
+      <strong id="drawerTitle">问题详情</strong>
+      <button class="close-btn" id="drawerClose">×</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </aside>
+  <div class="toast" id="toast">已完成</div>
+  <div class="api-asset-tooltip-list" id="apiAssetTooltip" role="tooltip"></div>
+  <div class="modal" id="confirmModal">
+    <div class="modal-card">
+      <h3 id="confirmTitle">确认操作</h3>
+      <p id="confirmText">请确认是否继续。</p>
+      <div class="modal-actions">
+        <button class="btn ghost" id="confirmCancel">取消</button>
+        <button class="btn primary" id="confirmOk">确认</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal" id="formModal">
+    <div class="modal-card">
+      <h3 id="formTitle">表单</h3>
+      <div id="formBody"></div>
+    </div>
+  </div>
+
+  <script src="assets/portal-bridge.js"></script>
+  <script src="assets/cp-bridge.js"></script>
+  <script src="assets/vendor/vue.global.prod.js"></script>
+  <script src="assets/vendor/element-plus.full.min.js"></script>
+  <script src="assets/vendor/element-plus.zh-cn.min.js"></script>
+  <script src="assets/cp-vue-module.js"></script>
+  <script src="assets/portal-vue-module.js"></script>
+</body>
+</html>

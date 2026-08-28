@@ -1,0 +1,900 @@
+(() => {
+  "use strict";
+
+  const bridge = window.portalVueBridge;
+  const cpBridge = window.cpVueBridge;
+  const ep = window.ElementPlus;
+  const vue = window.Vue;
+  if (!bridge || !cpBridge || !ep || !vue) return;
+
+  const { createApp, reactive, ref, computed } = vue;
+  const locale = window.ElementPlusLocaleZhCn || undefined;
+  const currentPage = ref(bridge.getPage());
+  const refreshTick = ref(0);
+  const mountedApps = [];
+  const state = reactive({
+    nav: bridge.nav,
+    tabs: bridge.tabs,
+    boards: bridge.boards,
+    categories: bridge.boardCategories,
+    favorites: bridge.favorites,
+    assets: bridge.assets,
+    apis: bridge.apis,
+    users: bridge.users,
+    groups: bridge.groups,
+    tables: cpBridge.tables,
+    targets: cpBridge.targets
+  });
+
+  function mount(selector, component, name) {
+    const root = document.querySelector(selector);
+    if (!root) return null;
+    const app = createApp(component);
+    app.mixin({ data: () => ({ locale }) });
+    app.use(ep);
+    const vm = app.mount(root);
+    root.dataset.elementComponent = name;
+    mountedApps.push(app);
+    return vm;
+  }
+
+  function notify(message) {
+    refreshTick.value += 1;
+    bridge.notifyDataChange();
+    if (message) ep.ElMessage.success(message);
+  }
+
+  async function confirmAction(title, message, confirmButtonText = "确认") {
+    try {
+      await ep.ElMessageBox.confirm(message, title, {
+        confirmButtonText,
+        cancelButtonText: "取消",
+        type: "warning",
+        autofocus: false
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function paginate(rows, page, size) {
+    const totalPages = Math.max(1, Math.ceil(rows.length / size));
+    const safePage = Math.min(page, totalPages);
+    return { totalPages, safePage, rows: rows.slice((safePage - 1) * size, safePage * size) };
+  }
+
+  function boardSeed(value) {
+    let hash = 0;
+    for (let index = 0; index < value.length; index += 1) hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+    return hash;
+  }
+
+  function humanCount(value) {
+    if (value >= 10000) return `${(value / 10000).toFixed(1)}万`;
+    return Number(value || 0).toLocaleString();
+  }
+
+  window.addEventListener("portal:page-change", event => {
+    currentPage.value = event.detail?.page || bridge.getPage();
+    refreshTick.value += 1;
+  });
+  window.addEventListener("portal:data-change", () => { refreshTick.value += 1; });
+
+  const SidebarApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <div class="portal-vue-sidebar">
+          <button class="portal-vue-collapse" type="button" :title="collapsed ? '展开侧边栏' : '收起侧边栏'" @click="toggleCollapse">{{ collapsed ? '›' : '‹' }}</button>
+          <div class="portal-vue-brand"><img :src="collapsed ? 'assets/momentx-observatory-icon.png' : 'assets/momentx-observatory-logo.jpg'" alt="观星台" /></div>
+          <el-scrollbar class="portal-vue-nav-scroll">
+            <el-menu class="portal-vue-menu" :collapse="collapsed" :default-active="menuActive" :default-openeds="openGroups" @select="selectPage">
+              <template v-for="section in sections" :key="section.group">
+                <el-menu-item v-if="section.items.length === 1" :index="section.items[0].name">
+                  <img class="portal-nav-icon" :class="section.icon" :src="iconPath(section)" alt="" />
+                  <template #title><span>{{ section.group }}</span><el-tag v-if="section.isNew" class="portal-nav-new" size="small">NEW</el-tag></template>
+                </el-menu-item>
+                <el-sub-menu v-else :index="section.group">
+                  <template #title>
+                    <img class="portal-nav-icon" :class="section.icon" :src="iconPath(section)" alt="" />
+                    <span>{{ section.group }}</span><el-tag v-if="section.isNew" class="portal-nav-new" size="small">NEW</el-tag>
+                  </template>
+                  <el-menu-item v-for="item in section.items" :key="item.name" :index="item.name">
+                    <span>{{ item.name }}</span><el-tag v-if="item.isNew" class="portal-nav-new" size="small">NEW</el-tag>
+                  </el-menu-item>
+                </el-sub-menu>
+              </template>
+            </el-menu>
+          </el-scrollbar>
+        </div>
+      </el-config-provider>
+    `,
+    data: () => ({ collapsed: false }),
+    computed: {
+      sections() { refreshTick.value; return state.nav; },
+      page() { return currentPage.value; },
+      menuActive() {
+        if (this.page === "新增API") return "API配置";
+        if (this.page === "新建人群包") return "人群包管理";
+        if (this.page === "Quick BI 展示") return "数据看板";
+        if (this.page === "配置权限") return "用户管理";
+        return this.page;
+      },
+      openGroups() { return state.nav.filter(section => section.items.length > 1).map(section => section.group); }
+    },
+    methods: {
+      isActive(section) { return section.items.some(item => item.name === this.menuActive); },
+      iconPath(section) { return bridge.navIconPath(section.icon, this.isActive(section)); },
+      selectPage(page) { bridge.setPage(page); },
+      toggleCollapse() {
+        this.collapsed = !this.collapsed;
+        document.getElementById("sidebar").classList.toggle("collapsed", this.collapsed);
+      }
+    }
+  };
+
+  const TopbarApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <div class="portal-vue-topbar">
+          <div class="portal-vue-tabs">
+            <span class="portal-vue-home">首页</span>
+            <button v-for="tab in tabs" :key="tab.name" class="portal-vue-tab" :class="{active:isActive(tab)}" type="button" @click="openTab(tab)">
+              <img :src="bridge.navIconPath(tab.icon, isActive(tab))" alt="" /><span>{{ tab.name }}</span>
+              <span v-if="tab.closable" class="portal-vue-tab-close" title="关闭" @click.stop="closeTab(tab)">×</span>
+            </button>
+          </div>
+          <el-dropdown trigger="click" @command="handleUserCommand">
+            <span class="portal-vue-user"><el-avatar :size="34" style="background:#1677ff">曾</el-avatar><span>曾祥竞</span></span>
+            <template #dropdown><el-dropdown-menu><el-dropdown-item command="logout">退出系统</el-dropdown-item></el-dropdown-menu></template>
+          </el-dropdown>
+        </div>
+      </el-config-provider>
+    `,
+    data: () => ({ bridge }),
+    computed: {
+      tabs() { refreshTick.value; return state.tabs; },
+      page() { return currentPage.value; },
+      activeBoard() { refreshTick.value; return bridge.getActiveBoard(); }
+    },
+    methods: {
+      isActive(tab) { return tab.page === this.page && (tab.boardIndex === undefined || tab.name === this.activeBoard?.name); },
+      openTab(tab) { tab.boardIndex === undefined ? bridge.setPage(tab.page) : bridge.openQuickBi(tab.boardIndex); },
+      closeTab(tab) {
+        const index = state.tabs.indexOf(tab);
+        if (index < 0) return;
+        const wasActive = this.isActive(tab);
+        state.tabs.splice(index, 1);
+        if (wasActive) {
+          const next = state.tabs[Math.max(0, index - 1)] || state.tabs[0];
+          if (next) this.openTab(next);
+        }
+        refreshTick.value += 1;
+      },
+      handleUserCommand(command) {
+        if (command !== "logout") return;
+        document.getElementById("portalApp").classList.add("hidden");
+        document.getElementById("loginView").classList.remove("hidden");
+        ep.ElMessage.success("已退出系统");
+      }
+    }
+  };
+
+  const PageHeadApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <div v-if="visible" class="portal-vue-page-head">
+          <div><h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p></div>
+        </div>
+      </el-config-provider>
+    `,
+    computed: {
+      page() { return currentPage.value; },
+      meta() { refreshTick.value; return bridge.pageMeta[this.page] || bridge.pageMeta["数据看板"]; },
+      visible() { return !["新增API", "新建人群包", "Quick BI 展示", "配置权限", "无权限"].includes(this.page); },
+      title() { return this.meta?.[0] || this.page; },
+      subtitle() { return this.meta?.[1] || ""; }
+    },
+    watch: { visible(value) { document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", !value); } },
+    mounted() { document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", !this.visible); }
+  };
+
+  const DataBoardApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <div class="portal-vue-directory" :class="{collapsed:directoryCollapsed}">
+          <aside class="portal-vue-directory-aside" :class="{collapsed:directoryCollapsed}">
+            <button class="portal-vue-directory-collapse" type="button" :title="directoryCollapsed ? '展开看板目录' : '向左折叠看板目录'" @click="directoryCollapsed=!directoryCollapsed">{{ directoryCollapsed ? '›' : '‹' }}</button>
+            <div v-show="!directoryCollapsed" class="portal-vue-directory-content">
+              <div class="portal-vue-directory-head"><span>数据看板</span><el-tag size="small" effect="plain">{{ onlineBoards.length }}</el-tag></div>
+              <el-input v-model="keyword" clearable placeholder="输入分类或看板名称搜索"></el-input>
+              <el-scrollbar class="portal-vue-board-scroll">
+              <div v-if="favorites.length" class="portal-vue-board-group">
+                <div class="portal-vue-board-group-title"><span>★ 我的收藏</span><span>{{ favorites.length }}</span></div>
+                <el-popover v-for="item in favorites" :key="'fav-'+item.board.quickBiId" placement="right" trigger="hover" :width="340" :show-after="300" :hide-after="80" popper-class="portal-vue-board-popover">
+                  <template #reference><button class="portal-vue-board-item" :class="{active:item.index===activeIndex}" type="button" @click="activeIndex=item.index"><span class="portal-vue-board-title">{{ item.board.name }}</span><span class="portal-vue-star active" title="取消收藏" @click.stop="toggleFavorite(item.board)">★</span></button></template>
+                  <div class="portal-vue-board-popover-content"><strong class="portal-vue-board-popover-title">{{ item.board.name }}</strong><dl class="portal-vue-board-popover-meta"><dt>备注</dt><dd>{{ item.board.desc || '暂无备注' }}</dd><dt>看板负责人</dt><dd>{{ item.board.owner || '—' }}</dd></dl></div>
+                </el-popover>
+              </div>
+              <div v-for="group in groupedBoards" :key="group.category" class="portal-vue-board-group">
+                <div class="portal-vue-board-group-title"><span>{{ group.category }}</span><span>{{ group.items.length }}</span></div>
+                <el-popover v-for="item in group.items" :key="item.board.quickBiId" placement="right" trigger="hover" :width="340" :show-after="300" :hide-after="80" popper-class="portal-vue-board-popover">
+                  <template #reference><button class="portal-vue-board-item" :class="{active:item.index===activeIndex}" type="button" @click="activeIndex=item.index"><span class="portal-vue-board-title">{{ item.board.name }}</span><span class="portal-vue-star" :class="{active:isFavorite(item.board)}" :title="isFavorite(item.board)?'取消收藏':'收藏'" @click.stop="toggleFavorite(item.board)">★</span></button></template>
+                  <div class="portal-vue-board-popover-content"><strong class="portal-vue-board-popover-title">{{ item.board.name }}</strong><dl class="portal-vue-board-popover-meta"><dt>备注</dt><dd>{{ item.board.desc || '暂无备注' }}</dd><dt>看板负责人</dt><dd>{{ item.board.owner || '—' }}</dd></dl></div>
+                </el-popover>
+              </div>
+              </el-scrollbar>
+            </div>
+          </aside>
+          <section v-if="activeBoard" class="portal-vue-board-pane">
+            <div class="portal-vue-board-hero">
+              <div><el-tag size="small" effect="plain">{{ activeBoard.category }}</el-tag><h2>{{ activeBoard.name }}</h2><p>Quick BI 嵌入 · 负责人 {{ activeBoard.owner }} · 已按登录身份加载行级权限</p></div>
+              <el-button @click="openFull">全屏打开</el-button>
+            </div>
+            <div class="portal-vue-kpis">
+              <div v-for="kpi in kpis" :key="kpi.label" class="portal-vue-kpi"><span>{{ kpi.label }}</span><strong>{{ kpi.value }}</strong></div>
+            </div>
+            <div class="portal-vue-chart-grid">
+              <section class="portal-vue-chart"><h3>媒体渠道消耗</h3><div class="portal-vue-bars"><div v-for="bar in bars" :key="bar.name" class="portal-vue-bar" :style="{height:bar.height+'px'}"><span>{{ bar.name }}</span></div></div></section>
+              <section class="portal-vue-chart"><h3>近 7 日趋势</h3><svg class="portal-vue-line" viewBox="0 0 420 190" preserveAspectRatio="none"><polyline :points="linePoints" fill="none" stroke="#1677ff" stroke-width="3"></polyline><circle v-for="point in pointList" :key="point.x" :cx="point.x" :cy="point.y" r="4" fill="#1677ff"></circle></svg></section>
+            </div>
+          </section>
+          <el-empty v-else description="暂无匹配看板"></el-empty>
+        </div>
+      </el-config-provider>
+    `,
+    data: () => ({ keyword: "", activeIndex: 0, directoryCollapsed: false }),
+    computed: {
+      onlineBoards() { refreshTick.value; return state.boards.filter(board => board.status === "已上线"); },
+      indexedBoards() {
+        const keyword = this.keyword.trim().toLowerCase();
+        return state.boards.map((board, index) => ({ board, index })).filter(item => item.board.status === "已上线" && (!keyword || `${item.board.category} ${item.board.name} ${item.board.quickBiId}`.toLowerCase().includes(keyword)));
+      },
+      groupedBoards() { return state.categories.filter(category => category !== "全部").map(category => ({ category, items: this.indexedBoards.filter(item => item.board.category === category) })).filter(group => group.items.length); },
+      favorites() { return this.indexedBoards.filter(item => state.favorites.has(item.board.quickBiId)); },
+      activeBoard() { return state.boards[this.activeIndex] || this.indexedBoards[0]?.board || null; },
+      seed() { return boardSeed(this.activeBoard?.name || "观星台"); },
+      kpis() { return [{ label: "消耗", value: `¥${((this.seed % 800000 + 180000) / 10000).toFixed(1)}万` }, { label: "转化数", value: humanCount(this.seed % 26000 + 9000) }, { label: "ROI", value: ((this.seed % 260) / 100 + .9).toFixed(2) }, { label: "触达用户", value: `${((this.seed % 620000 + 260000) / 10000).toFixed(1)}万` }]; },
+      bars() { const names = ["巨量", "广点通", "快手", "OPPO", "VIVO"]; return names.map((name, index) => ({ name, height: 50 + ((this.seed >> index) % 120) })); },
+      pointList() { return Array.from({ length: 7 }, (_, index) => ({ x: 28 + index * 58, y: 140 - ((this.seed >> index) % 85) })); },
+      linePoints() { return this.pointList.map(point => `${point.x},${point.y}`).join(" "); }
+    },
+    methods: {
+      isFavorite(board) { return state.favorites.has(board.quickBiId); },
+      toggleFavorite(board) { state.favorites.has(board.quickBiId) ? state.favorites.delete(board.quickBiId) : state.favorites.add(board.quickBiId); refreshTick.value += 1; },
+      openFull() { const index = state.boards.indexOf(this.activeBoard); if (index >= 0) bridge.openQuickBi(index); }
+    }
+  };
+
+  const BoardManagementApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <el-tabs v-model="status" class="portal-vue-status-tabs" @tab-change="resetPage"><el-tab-pane label="已上线" name="已上线"></el-tab-pane><el-tab-pane label="已下线" name="已下线"></el-tab-pane></el-tabs>
+          <div class="portal-vue-toolbar">
+            <div class="portal-vue-toolbar-left">
+              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索看板名称、Quick BI ID" @input="resetPage"></el-input>
+              <el-select v-model="category" class="portal-vue-filter" placeholder="全部分类" @change="resetPage"><el-option label="全部分类" value="全部分类"></el-option><el-option v-for="item in categories" :key="item" :label="item" :value="item"></el-option></el-select>
+              <el-select v-model="owner" class="portal-vue-filter" placeholder="全部负责人" @change="resetPage"><el-option label="全部负责人" value="全部负责人"></el-option><el-option v-for="item in owners" :key="item" :label="item" :value="item"></el-option></el-select>
+            </div>
+            <div><el-button @click="categoryDialog=true">管理分类</el-button><el-button type="primary" @click="openForm()">新增看板</el-button></div>
+          </div>
+          <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无看板">
+            <el-table-column label="看板名称" width="200" fixed="left" show-overflow-tooltip><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+            <el-table-column prop="category" label="所属分类" width="120"></el-table-column>
+            <el-table-column prop="quickBiId" label="Quick BI 看板 ID" width="160"><template #default="scope"><code class="portal-vue-code">{{ scope.row.quickBiId }}</code></template></el-table-column>
+            <el-table-column prop="desc" label="看板说明" min-width="210" show-overflow-tooltip><template #default="scope">{{ scope.row.desc || '—' }}</template></el-table-column>
+            <el-table-column label="可查看权限组" width="150" show-overflow-tooltip><template #default="scope">{{ scope.row.groups.join('、') }}</template></el-table-column>
+            <el-table-column label="可查看用户" width="190">
+              <template #default="scope">
+                <el-popover v-if="boardViewers(scope.row).length" placement="right" trigger="hover" :width="340" popper-class="portal-vue-viewer-popover">
+                  <template #reference>
+                    <div class="portal-vue-viewer-summary">
+                      <div class="portal-vue-avatar-stack"><el-avatar v-for="user in boardViewers(scope.row).slice(0,3)" :key="user.feishu || user.name" :size="28" :style="avatarStyle(user.name)">{{ avatarText(user.name) }}</el-avatar></div>
+                      <span>{{ boardViewers(scope.row).length }} 人</span>
+                      <el-tag v-if="boardViewers(scope.row).length>3" size="small" effect="plain">+{{ boardViewers(scope.row).length-3 }}</el-tag>
+                    </div>
+                  </template>
+                  <div class="portal-vue-viewer-head"><strong>可查看用户</strong><span>{{ boardViewers(scope.row).length }} 人</span></div>
+                  <el-scrollbar max-height="260px">
+                    <div v-for="user in boardViewers(scope.row)" :key="user.feishu || user.name" class="portal-vue-viewer-item">
+                      <el-avatar :size="30" :style="avatarStyle(user.name)">{{ avatarText(user.name) }}</el-avatar>
+                      <div><strong>{{ user.name }}</strong><span>{{ user.dept || '未挂部门' }}</span></div>
+                    </div>
+                  </el-scrollbar>
+                </el-popover>
+                <span v-else class="portal-vue-muted">暂无</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
+            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :model-value="scope.row.status==='已上线'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
+            <el-table-column prop="updatedAt" label="更新时间" width="170"></el-table-column>
+            <el-table-column label="操作" width="96" fixed="right"><template #default="scope"><el-button link type="primary" @click="openForm(scope.row)">编辑</el-button></template></el-table-column>
+          </el-table>
+          <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
+        </section>
+
+        <el-dialog v-model="formVisible" :title="editingIndex<0?'新增看板':'编辑看板'" width="620px" destroy-on-close>
+          <el-form class="portal-vue-dialog-form" label-position="top">
+            <el-form-item label="看板名称" required><el-input v-model="form.name" placeholder="请输入看板名称"></el-input></el-form-item>
+            <el-form-item label="Quick BI 看板 ID" required><el-input v-model="form.quickBiId" placeholder="例如：QB_073"></el-input></el-form-item>
+            <el-form-item label="所属分类" required><el-select v-model="form.category"><el-option v-for="item in categories" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
+            <el-form-item label="负责人" required><el-select v-model="form.owner" filterable><el-option v-for="item in userNames" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
+            <el-form-item label="看板说明"><el-input v-model="form.desc" type="textarea" :rows="3" placeholder="说明看板用途和数据口径"></el-input></el-form-item>
+            <el-form-item label="可查看权限组" required><el-select v-model="form.groups" multiple><el-option v-for="item in groupNames" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button type="primary" @click="saveBoard">保存</el-button></template>
+        </el-dialog>
+
+        <el-dialog v-model="categoryDialog" title="管理看板分类" width="520px">
+          <div style="display:flex;gap:10px;margin-bottom:16px"><el-input v-model="newCategory" placeholder="输入新分类名称" @keyup.enter="addCategory"></el-input><el-button type="primary" @click="addCategory">新增</el-button></div>
+          <div v-for="item in categories" :key="item" style="display:flex;align-items:center;justify-content:space-between;min-height:44px;border-top:1px solid #eef1f5"><span>{{ item }}</span><el-button link type="danger" @click="deleteCategory(item)">删除</el-button></div>
+        </el-dialog>
+      </el-config-provider>
+    `,
+    data: () => ({ status: "已上线", keyword: "", category: "全部分类", owner: "全部负责人", page: 1, pageSize: 10, formVisible: false, editingIndex: -1, categoryDialog: false, newCategory: "", form: {} }),
+    computed: {
+      categories() { refreshTick.value; return state.categories.filter(item => item !== "全部"); },
+      owners() { return [...new Set(state.boards.map(board => board.owner))]; },
+      userNames() { return state.users.map(user => user.name); },
+      groupNames() { return state.groups.map(group => group.name); },
+      filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.boards.filter(board => board.status === this.status && (this.category === "全部分类" || board.category === this.category) && (this.owner === "全部负责人" || board.owner === this.owner) && (!keyword || `${board.name} ${board.quickBiId}`.toLowerCase().includes(keyword))); },
+      pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
+      rangeText() { if (!this.filteredRows.length) return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; }
+    },
+    mounted() { this.primaryHandler = event => { if (event.detail?.page === "看板管理") this.openForm(); }; window.addEventListener("portal:primary-action", this.primaryHandler); },
+    beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); },
+    methods: {
+      resetPage() { this.page = 1; },
+      boardViewers(board) {
+        const directGroups = Array.isArray(board.groups) ? board.groups : [];
+        const visibleGroups = new Set(state.groups.filter(group => directGroups.includes(group.name)
+          || group.boards.includes("全部看板")
+          || group.boards.includes(board.name)
+          || group.boards.includes(board.category)).map(group => group.name));
+        return state.users.filter(user => user.status !== "已停用" && visibleGroups.has(user.group));
+      },
+      avatarText(name) { return String(name || "用").slice(0,1); },
+      avatarStyle(name) { const colors = ["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"]; const seed = [...String(name || "")].reduce((total,char)=>total+char.charCodeAt(0),0); return { background: colors[seed % colors.length], color: "#fff" }; },
+      openForm(board = null) { this.editingIndex = board ? state.boards.indexOf(board) : -1; this.form = board ? { ...board, groups: [...board.groups] } : { name: "", quickBiId: `QB_${String(state.boards.length + 1).padStart(3,"0")}`, category: this.categories[0] || "", owner: "曾祥竞", desc: "", groups: ["门户管理员"], status: "已上线", updatedAt: "2026-07-15 10:00" }; this.formVisible = true; },
+      saveBoard() {
+        if (!this.form.name.trim() || !this.form.quickBiId.trim() || !this.form.category || !this.form.owner || !this.form.groups.length) return ep.ElMessage.warning("请补全看板必填信息");
+        const payload = { ...this.form, name: this.form.name.trim(), quickBiId: this.form.quickBiId.trim(), updatedAt: "2026-07-15 10:00" };
+        if (this.editingIndex < 0) state.boards.unshift(payload); else Object.assign(state.boards[this.editingIndex], payload);
+        this.formVisible = false; notify(`看板「${payload.name}」已保存`);
+      },
+      async toggleStatus(board, enabled) { const next = enabled ? "已上线" : "已下线"; if (!await confirmAction(enabled ? "上线看板" : "下线看板", `确认${enabled ? "上线" : "下线"}「${board.name}」？`)) return; board.status = next; board.updatedAt = "2026-07-15 10:00"; notify(`看板已${enabled ? "上线" : "下线"}`); },
+      addCategory() { const name = this.newCategory.trim(); if (!name) return ep.ElMessage.warning("请输入分类名称"); if (state.categories.includes(name)) return ep.ElMessage.warning("分类已存在"); state.categories.push(name); this.newCategory = ""; notify("分类已新增"); },
+      async deleteCategory(name) { if (state.boards.some(board => board.category === name)) return ep.ElMessage.warning("该分类下仍有看板，不能删除"); if (!await confirmAction("删除分类", `确认删除「${name}」？`)) return; state.categories.splice(state.categories.indexOf(name),1); notify("分类已删除"); }
+    }
+  };
+
+  const AssetManagementApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <el-tabs v-model="status" class="portal-vue-status-tabs" @tab-change="resetPage"><el-tab-pane label="启用中" name="启用"></el-tab-pane><el-tab-pane label="已停用" name="停用"></el-tab-pane></el-tabs>
+          <div class="portal-vue-toolbar">
+            <div class="portal-vue-toolbar-left">
+              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索表名、对外表名、表中文名" @input="resetPage"></el-input>
+              <el-select v-model="source" class="portal-vue-filter" placeholder="全部数据源" @change="changeSource"><el-option label="全部数据源" value=""></el-option><el-option v-for="item in sources" :key="item" :label="item" :value="item"></el-option></el-select>
+              <el-select v-model="database" class="portal-vue-filter" placeholder="全部库名" @change="resetPage"><el-option label="全部库名" value=""></el-option><el-option v-for="item in databases" :key="item" :label="item" :value="item"></el-option></el-select>
+              <el-select v-model="owner" class="portal-vue-filter" placeholder="全部表负责人" @change="resetPage"><el-option label="全部表负责人" value=""></el-option><el-option v-for="item in owners" :key="item" :label="item" :value="item"></el-option></el-select>
+            </div>
+            <el-button type="primary" @click="openCreate">新增表</el-button>
+          </div>
+          <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无数据表">
+            <el-table-column prop="assetId" label="表编号" width="92" fixed="left"></el-table-column>
+            <el-table-column label="对外表名" width="210" fixed="left" show-overflow-tooltip><template #default="scope"><span class="portal-vue-name">{{ scope.row.externalName }}</span></template></el-table-column>
+            <el-table-column prop="table" label="表名" width="300" show-overflow-tooltip><template #default="scope"><code class="portal-vue-code">{{ scope.row.table }}</code><el-tag v-if="isTagTable(scope.row)" size="small" style="margin-left:6px">标签表</el-tag></template></el-table-column>
+            <el-table-column prop="source" label="数据源" width="120"></el-table-column>
+            <el-table-column prop="database" label="库名" width="150"></el-table-column>
+            <el-table-column prop="cnName" label="表中文名" width="170" show-overflow-tooltip></el-table-column>
+            <el-table-column prop="desc" label="表描述" min-width="260" show-overflow-tooltip></el-table-column>
+            <el-table-column prop="owner" label="表负责人" width="120" show-overflow-tooltip></el-table-column>
+            <el-table-column label="字段数" width="86" align="center"><template #default="scope">{{ scope.row.fields.length }}</template></el-table-column>
+            <el-table-column label="服务状态" width="92" align="center"><template #default="scope"><el-switch :model-value="scope.row.serviceStatus==='启用'" @change="value=>toggleService(scope.row,value)"></el-switch></template></el-table-column>
+            <el-table-column prop="lastSync" label="最近同步时间" width="170"></el-table-column>
+            <el-table-column label="最近30日调用次数" width="150" align="right"><template #default="scope">{{ callCount(scope.row).toLocaleString() }}</template></el-table-column>
+            <el-table-column label="操作" width="88" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button></div></template></el-table-column>
+          </el-table>
+          <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
+        </section>
+
+        <el-dialog v-model="createVisible" title="新增数据表" width="620px">
+          <el-form class="portal-vue-dialog-form" label-position="top">
+            <el-form-item label="数据源" required><el-select v-model="createForm.source"><el-option label="StarRocks-拉端" value="StarRocks-拉端"></el-option><el-option label="StarRocks-存量" value="StarRocks-存量"></el-option></el-select></el-form-item>
+            <el-form-item label="库名" required><el-input v-model="createForm.database" placeholder="例如：prod_cloud"></el-input></el-form-item>
+            <el-form-item label="表名" required><el-input v-model="createForm.table" placeholder="小写字母与下划线"></el-input></el-form-item>
+            <el-form-item label="对外表名" required><el-input v-model="createForm.externalName" placeholder="例如：open_user_profile_tag"></el-input></el-form-item>
+            <el-form-item label="表中文名" required><el-input v-model="createForm.cnName" placeholder="请输入表中文名"></el-input></el-form-item>
+            <el-form-item label="表描述"><el-input v-model="createForm.desc" type="textarea" :rows="3"></el-input></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button type="primary" @click="saveCreate">保存</el-button></template>
+        </el-dialog>
+
+          <el-drawer v-model="detailVisible" :title="detail ? (detail.cnName || detail.table) + ' · 表详情' : '表详情'" size="720px" destroy-on-close :close-on-click-modal="true">
+          <template v-if="detail">
+            <div class="portal-vue-detail-grid portal-vue-asset-detail-meta">
+              <div v-for="item in detailMeta" :key="item.label" class="portal-vue-detail-item"><span>{{ item.label }}</span><strong :class="{'portal-vue-code':item.code}">{{ item.value }}</strong></div>
+            </div>
+            <div class="portal-vue-section-line">
+              <h3>基本信息</h3>
+              <el-form class="portal-vue-dialog-form portal-vue-asset-basic-form" label-position="top">
+                <el-form-item label="表负责人" required>
+                  <el-select v-model="detailDraft.owner" filterable placeholder="请选择表负责人">
+                    <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name">
+                      <div class="portal-vue-asset-owner-option"><span>{{ user.name }}</span><small>{{ user.dept }} · {{ user.role }}</small></div>
+                    </el-option>
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="表描述"><el-input v-model="detailDraft.desc" type="textarea" :rows="3" placeholder="请输入表描述"></el-input></el-form-item>
+              </el-form>
+            </div>
+            <div class="portal-vue-section-line"><h3>标签表设置</h3><el-checkbox v-model="detailDraft.tagTable">设为标签表</el-checkbox></div>
+            <div v-if="detailDraft.tagTable" class="portal-vue-section-line"><h3>人群包导出字段配置</h3><el-checkbox-group v-model="detailDraft.exportFields" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px"><el-checkbox v-for="field in detail.fields" :key="field.name" :value="field.name">{{ field.name }} / {{ field.comment || field.type }}</el-checkbox></el-checkbox-group></div>
+            <div class="portal-vue-section-line"><h3>字段列表</h3><el-table :data="detailDraft.fields" class="portal-vue-table" border><el-table-column prop="name" label="字段名称" width="190"></el-table-column><el-table-column prop="type" label="字段类型" width="120"></el-table-column><el-table-column prop="comment" label="字段中文名" width="150"></el-table-column><el-table-column label="字段备注" min-width="220"><template #default="scope"><el-input v-model="scope.row.remark"></el-input></template></el-table-column></el-table></div>
+          </template>
+          <template #footer><el-button @click="detailVisible=false">关闭</el-button><el-button type="primary" @click="saveDetail">保存配置</el-button></template>
+        </el-drawer>
+      </el-config-provider>
+    `,
+    data: () => ({ status: "启用", keyword: "", source: "", database: "", owner: "", page: 1, pageSize: 10, createVisible: false, createForm: {}, detailVisible: false, detail: null, detailDraft: {} }),
+    computed: {
+      sources() { refreshTick.value; return [...new Set(state.assets.map(item => item.source))]; },
+      databases() { return [...new Set(state.assets.filter(item => !this.source || item.source === this.source).map(item => item.database))]; },
+      owners() { return [...new Set(state.assets.map(item => item.owner).filter(Boolean))].sort((left, right) => left.localeCompare(right, "zh-CN")); },
+      filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.assets.filter(item => (item.serviceStatus || "启用") === this.status && (!this.source || item.source === this.source) && (!this.database || item.database === this.database) && (!this.owner || item.owner === this.owner) && (!keyword || `${item.table} ${item.externalName} ${item.cnName}`.toLowerCase().includes(keyword))); },
+      pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
+      rangeText() { if (!this.filteredRows.length) return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; },
+      detailMeta() { if (!this.detail) return []; return [{label:"表编号",value:this.detail.assetId || "—"},{label:"对外表名",value:this.detail.externalName || "—"},{label:"数据源",value:this.detail.source},{label:"库名",value:this.detail.database},{label:"表名",value:this.detail.table,code:true},{label:"最近同步时间",value:this.detail.lastSuccessSync || "—"},{label:"字段数量",value:this.detail.fields.length},{label:"近30日调用次数",value:this.callCount(this.detail).toLocaleString()}]; },
+      activeUsers() { return state.users.filter(user => user.status !== "已停用"); }
+    },
+    mounted() { this.primaryHandler = event => { if (event.detail?.page === "表管理") this.openCreate(); }; window.addEventListener("portal:primary-action", this.primaryHandler); },
+    beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); },
+    methods: {
+      resetPage() { this.page = 1; },
+      changeSource() { if (this.database && !this.databases.includes(this.database)) this.database = ""; this.resetPage(); },
+      apiAssets(api) { return Array.isArray(api.assets) && api.assets.length ? api.assets : [{ database: api.database, table: api.assetTable }]; },
+      callCount(asset) { return state.apis.filter(api => this.apiAssets(api).some(item => item.database === asset.database && item.table === asset.table)).reduce((sum,api)=>sum+Number(api.callCount30d || api.callCount || 0),0); },
+      isTagTable(asset) { return state.tables.some(table => table.name === asset.table); },
+      openCreate() { this.createForm = { source: "StarRocks-拉端", database: "", table: "", externalName: "", cnName: "", desc: "" }; this.createVisible = true; },
+      saveCreate() {
+        const form = this.createForm;
+        if (![form.source,form.database,form.table,form.externalName,form.cnName].every(value => String(value).trim())) return ep.ElMessage.warning("请补全数据表必填信息");
+        if (!/^[a-z]+(?:_[a-z0-9]+)*$/.test(form.table)) return ep.ElMessage.warning("表名仅支持小写字母、数字与下划线");
+        if (state.assets.some(item => item.database === form.database && item.table === form.table)) return ep.ElMessage.warning("该数据表已存在");
+        state.assets.unshift({ ...form, assetId:`T${String(state.assets.length+1).padStart(3,"0")}`, desc:form.desc || `${form.cnName}，用于数据服务与分析。`, serviceStatus:"启用", status:"同步成功", lastSync:"2026-07-15 10:00", lastSuccessSync:"2026-07-15 10:00", nextSync:"每日 02:30", owner:"曾祥竞", fields:[] });
+        this.createVisible = false; notify(`数据表「${form.externalName}」已新增`);
+      },
+      openDetail(asset) { this.detail = asset; const tag = state.tables.find(table => table.name === asset.table); this.detailDraft = { owner:asset.owner || "", desc:asset.desc || "", tagTable:!!tag, exportFields:[...(tag?.exportFields || [])], fields:asset.fields.map(field => ({...field})) }; this.detailVisible = true; },
+      semanticType(type) { const value = String(type || "").toUpperCase(); if (/DATE|TIME/.test(value)) return "日期"; if (/BOOL/.test(value)) return "布尔"; if (/ARRAY/.test(value)) return "数组"; if (/INT|DECIMAL|DOUBLE|FLOAT|BIGINT|NUMERIC/.test(value)) return "数值"; return "文本"; },
+      saveDetail() {
+        if (!this.detailDraft.owner) return ep.ElMessage.warning("请选择表负责人");
+        this.detail.owner = this.detailDraft.owner; this.detail.desc = this.detailDraft.desc.trim(); this.detail.fields.splice(0,this.detail.fields.length,...this.detailDraft.fields.map(field=>({...field})));
+        const tagIndex = state.tables.findIndex(table => table.name === this.detail.table);
+        if (this.detailDraft.tagTable && tagIndex < 0) state.tables.push({ name:this.detail.table, cn:this.detail.cnName || this.detail.table, exportFields:[...this.detailDraft.exportFields], fields:this.detail.fields.map(field=>({name:field.name,cn:field.comment||field.name,type:this.semanticType(field.type),cov:80,def:"",calc:"",freq:"",enumv:""})) });
+        else if (this.detailDraft.tagTable && tagIndex >= 0) state.tables[tagIndex].exportFields = [...this.detailDraft.exportFields];
+        else if (!this.detailDraft.tagTable && tagIndex >= 0) state.tables.splice(tagIndex,1);
+        this.detailVisible = false; notify("表详情配置已保存");
+      },
+      async toggleService(asset, enabled) { if (enabled && asset.status !== "同步成功") return ep.ElMessage.warning("同步成功后才能启用该表"); const related = state.apis.filter(api => api.tokenStatus === "启用" && this.apiAssets(api).some(item => item.database===asset.database && item.table===asset.table)).length; const note = !enabled && related ? `，当前有 ${related} 个启用中的 API 关联该表` : ""; if (!await confirmAction(enabled?"启用数据表":"停用数据表",`确认${enabled?"启用":"停用"}「${asset.table}」${note}？`)) return; asset.serviceStatus = enabled?"启用":"停用"; notify(`数据表已${asset.serviceStatus}`); }
+    }
+  };
+
+  const ApiManagementApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <el-tabs v-model="status" class="portal-vue-status-tabs" @tab-change="page=1"><el-tab-pane label="启用中" name="启用"></el-tab-pane><el-tab-pane label="已停用" name="停用"></el-tab-pane></el-tabs>
+          <div class="portal-vue-toolbar"><div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索接口名称、表名" @input="page=1"></el-input></div><el-button type="primary" @click="openEditor(-1)">新增 API</el-button></div>
+          <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无 API">
+            <el-table-column label="接口名称" width="190" fixed="left" show-overflow-tooltip><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+            <el-table-column label="关联表" width="130"><template #default="scope"><el-tooltip placement="top" :content="assetTooltip(scope.row)"><span>共 {{ apiAssets(scope.row).length }} 张表</span></el-tooltip></template></el-table-column>
+            <el-table-column label="授权字段" width="100" align="center"><template #default="scope">{{ fieldCount(scope.row) }} 个</template></el-table-column>
+            <el-table-column prop="usage" label="使用场景" min-width="230" show-overflow-tooltip></el-table-column>
+            <el-table-column label="最近30日调用次数" width="150" align="right"><template #default="scope">{{ Number(scope.row.callCount30d || scope.row.callCount || 0).toLocaleString() }}</template></el-table-column>
+            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :model-value="scope.row.tokenStatus==='启用'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
+            <el-table-column prop="creator" label="创建人" width="100"></el-table-column>
+            <el-table-column prop="lastCall" label="最近调用" width="170"></el-table-column>
+            <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openEditor(state.apis.indexOf(scope.row))">编辑</el-button><el-button link type="primary" @click="copyToken(scope.row)">复制 Token</el-button></div></template></el-table-column>
+          </el-table>
+          <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
+        </section>
+      </el-config-provider>
+    `,
+    data: () => ({ status:"启用", keyword:"", page:1, pageSize:10, state }),
+    computed: {
+      filteredRows() { refreshTick.value; const keyword=this.keyword.trim().toLowerCase(); return state.apis.filter(api=>api.tokenStatus===this.status && (!keyword || `${api.name} ${this.apiAssets(api).map(item=>item.table).join(" ")}`.toLowerCase().includes(keyword))); },
+      pagedRows() { const result=paginate(this.filteredRows,this.page,this.pageSize); if(result.safePage!==this.page)this.page=result.safePage; return result.rows; },
+      rangeText() { if(!this.filteredRows.length)return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; }
+    },
+    mounted() { this.primaryHandler=event=>{if(event.detail?.page==="API配置")this.openEditor(-1);}; window.addEventListener("portal:primary-action",this.primaryHandler); },
+    beforeUnmount() { window.removeEventListener("portal:primary-action",this.primaryHandler); },
+    methods: {
+      apiAssets(api) { return Array.isArray(api.assets)&&api.assets.length?api.assets:[{database:api.database,table:api.assetTable,fieldNames:api.fieldNames||[]}]; },
+      fieldCount(api) { return this.apiAssets(api).reduce((sum,item)=>sum+(item.fieldNames||[]).length,0); },
+      assetTooltip(api) { return this.apiAssets(api).map(item=>{const asset=state.assets.find(row=>row.database===item.database&&row.table===item.table);return `${asset?.externalName||item.table}（${asset?.cnName||"—"}）`;}).join("\n"); },
+      openEditor(index) { window.portalApiEditingIndex=index; bridge.setPage("新增API"); },
+      copyToken(api) { bridge.copyToken(api.token); ep.ElMessage.success("Token 已复制"); },
+      async toggleStatus(api,enabled) { if(!await confirmAction(enabled?"启用 API":"停用 API",`确认${enabled?"启用":"停用"}「${api.name}」？${enabled?"":"停用后该 Token 将无法继续调用。"}`))return; api.tokenStatus=enabled?"启用":"停用"; notify(`${api.name} 已${api.tokenStatus}`); }
+    }
+  };
+
+  const ApiCreateApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <div class="portal-vue-form-page">
+          <el-page-header class="portal-vue-form-header" title="返回" :content="editingIndex<0?'新增 API':'编辑 API'" @back="back"></el-page-header>
+          <div class="portal-vue-api-layout">
+            <section class="portal-vue-api-picker">
+              <div class="portal-vue-form-panel-head"><span>选择数据表</span><el-tag size="small">{{ selected.length }} 张</el-tag></div>
+              <div class="portal-vue-form-panel-body"><el-input v-model="tableKeyword" clearable placeholder="搜索库名、表名、表中文名"></el-input><div v-for="asset in availableAssets" :key="asset.database+'.'+asset.table" class="portal-vue-source-item"><el-checkbox :model-value="isSelected(asset)" @change="value=>toggleAsset(asset,value)"><el-tooltip :content="(asset.externalName || asset.table) + '（' + asset.cnName + '）'" placement="right" :show-after="300"><strong>{{ asset.externalName || asset.table }}</strong></el-tooltip><small>{{ asset.cnName }} · {{ asset.fields.length }} 字段</small></el-checkbox></div></div>
+            </section>
+            <section class="portal-vue-api-config">
+              <div class="portal-vue-form-panel-head"><span>接口配置</span></div>
+              <div class="portal-vue-form-panel-body">
+                <el-form label-position="top" class="portal-vue-dialog-form">
+                  <el-form-item label="接口名称" required><el-input v-model="form.name" placeholder="例如：广告投放日报接口"></el-input></el-form-item>
+                  <el-form-item label="使用场景" required><el-input v-model="form.usage" type="textarea" :rows="3" placeholder="说明调用系统、业务用途和责任人"></el-input></el-form-item>
+                </el-form>
+                <div v-for="item in selected" :key="item.database+'.'+item.table" class="portal-vue-selected-table">
+                  <div class="portal-vue-selected-head"><div><span class="portal-vue-name">{{ assetFor(item)?.externalName || item.table }}</span><div class="portal-vue-muted" style="margin-top:4px">{{ assetFor(item)?.cnName }}</div></div><div style="display:flex;align-items:center;gap:8px"><span>调用频次</span><el-input-number v-model="item.rateLimit" :min="1" :controls="false"></el-input-number><span>次/分钟</span></div></div>
+                  <div class="portal-vue-field-grid"><el-checkbox v-for="field in assetFor(item)?.fields || []" :key="field.name" :model-value="item.fieldNames.includes(field.name)" @change="value=>toggleField(item,field.name,value)">{{ field.name }} / {{ field.comment }}</el-checkbox></div>
+                </div>
+                <el-empty v-if="!selected.length" description="请先从左侧选择数据表"></el-empty>
+              </div>
+            </section>
+          </div>
+          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button type="primary" :loading="saving" @click="save">{{ editingIndex<0?'生成 Token':'保存修改' }}</el-button></div>
+        </div>
+        <el-dialog v-model="tokenVisible" title="Token 生成成功" width="560px" :close-on-click-modal="false"><el-alert title="请妥善保存 Token，调用数据服务时需作为身份凭证。" type="success" :closable="false"></el-alert><div class="portal-vue-detail-grid" style="margin-top:16px"><div class="portal-vue-detail-item"><span>API 名称</span><strong>{{ savedApi?.name }}</strong></div><div class="portal-vue-detail-item"><span>授权范围</span><strong>{{ selected.length }} 张表 / {{ selectedFieldCount }} 个字段</strong></div></div><el-input :model-value="savedApi?.token" readonly><template #append><el-button @click="copySavedToken">复制</el-button></template></el-input><template #footer><el-button type="primary" @click="finish">完成</el-button></template></el-dialog>
+      </el-config-provider>
+    `,
+    data: () => ({ editingIndex:-1, tableKeyword:"", form:{name:"",usage:""}, selected:[], saving:false, tokenVisible:false, savedApi:null }),
+    computed: {
+      availableAssets() { refreshTick.value; const keyword=this.tableKeyword.trim().toLowerCase(); return state.assets.filter(asset=>asset.status==="同步成功"&&(asset.serviceStatus||"启用")==="启用"&&(!keyword||`${asset.database} ${asset.table} ${asset.externalName} ${asset.cnName}`.toLowerCase().includes(keyword))); },
+      selectedFieldCount() { return this.selected.reduce((sum,item)=>sum+item.fieldNames.length,0); }
+    },
+    mounted() { this.pageHandler=event=>{if(event.detail?.page==="新增API")this.load();}; window.addEventListener("portal:page-change",this.pageHandler); this.load(); },
+    beforeUnmount() { window.removeEventListener("portal:page-change",this.pageHandler); },
+    methods: {
+      apiAssets(api) { return Array.isArray(api?.assets)&&api.assets.length?api.assets:[{database:api?.database,table:api?.assetTable,fieldNames:api?.fieldNames||[],rateLimit:Number(String(api?.rateLimit||"").match(/\d+/)?.[0])||60}]; },
+      load() { this.editingIndex=Number.isInteger(window.portalApiEditingIndex)?window.portalApiEditingIndex:-1; const api=state.apis[this.editingIndex]; this.form=api?{name:api.name,usage:api.usage}:{name:"",usage:""}; this.selected=api?this.apiAssets(api).map(item=>({database:item.database,table:item.table,fieldNames:[...(item.fieldNames||[])],rateLimit:Number(item.rateLimit)||60})):[]; this.tableKeyword=""; },
+      assetFor(item) { return state.assets.find(asset=>asset.database===item.database&&asset.table===item.table); },
+      isSelected(asset) { return this.selected.some(item=>item.database===asset.database&&item.table===asset.table); },
+      toggleAsset(asset,checked) { const index=this.selected.findIndex(item=>item.database===asset.database&&item.table===asset.table); if(checked&&index<0)this.selected.push({database:asset.database,table:asset.table,fieldNames:asset.fields.slice(0,3).map(field=>field.name),rateLimit:60}); else if(!checked&&index>=0)this.selected.splice(index,1); },
+      toggleField(item,name,checked) { const index=item.fieldNames.indexOf(name); if(checked&&index<0)item.fieldNames.push(name); else if(!checked&&index>=0)item.fieldNames.splice(index,1); },
+      back() { window.portalApiEditingIndex=-1; bridge.setPage("API配置"); },
+      save() {
+        if(!this.form.name.trim()||!this.form.usage.trim())return ep.ElMessage.warning("请填写接口名称和使用场景");
+        if(!this.selected.length)return ep.ElMessage.warning("请至少选择 1 张数据表");
+        if(this.selected.some(item=>!item.fieldNames.length))return ep.ElMessage.warning("每张数据表至少授权 1 个字段");
+        this.saving=true;
+        window.setTimeout(()=>{
+          const first=this.selected[0]; const existing=state.apis[this.editingIndex]; const payload={name:this.form.name.trim(),usage:this.form.usage.trim(),assetTable:first.table,database:first.database,fieldNames:[...first.fieldNames],assets:this.selected.map(item=>({...item,fieldNames:[...item.fieldNames]})),rateLimit:`每分钟 ${first.rateLimit} 次`,tokenStatus:existing?.tokenStatus||"启用",creator:existing?.creator||"曾祥竞",createdAt:existing?.createdAt||"2026-07-15 10:00",lastCall:existing?.lastCall||"尚未调用",callCount:existing?.callCount||0,callCount30d:existing?.callCount30d||0,token:existing?.token||`bjgw_live_${Date.now().toString(36)}****`};
+          if(this.editingIndex<0)state.apis.unshift(payload);else Object.assign(existing,payload);
+          this.savedApi=payload;this.saving=false;notify();
+          if(this.editingIndex<0)this.tokenVisible=true;else{ep.ElMessage.success("API 配置已保存");this.back();}
+        },700);
+      },
+      copySavedToken(){if(this.savedApi)bridge.copyToken(this.savedApi.token);ep.ElMessage.success("Token 已复制");},
+      finish(){this.tokenVisible=false;this.back();}
+    }
+  };
+
+  const TagManagementApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <div class="portal-vue-toolbar">
+            <div class="portal-vue-toolbar-left"><span style="color:#566174;font-weight:650">标签主体</span><el-select v-model="subject" class="portal-vue-filter-wide" @change="page=1"><el-option v-for="table in tables" :key="table.name" :label="table.cn+'（'+table.name+'）'" :value="table.name"></el-option></el-select><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索标签名、字段名" @input="page=1"></el-input></div>
+            <el-tag effect="plain">{{ currentTable?.fields.length || 0 }} 个标签字段</el-tag>
+          </div>
+          <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无标签字段">
+            <el-table-column prop="name" label="字段名" width="190" fixed="left"><template #default="scope"><code class="portal-vue-code">{{ scope.row.name }}</code></template></el-table-column>
+            <el-table-column prop="cn" label="标签名称" width="160"><template #default="scope"><span class="portal-vue-name">{{ scope.row.cn }}</span></template></el-table-column>
+            <el-table-column prop="type" label="标签类型" width="110"></el-table-column>
+            <el-table-column label="枚举值" width="210" show-overflow-tooltip><template #default="scope">{{ scope.row.enumv || (scope.row.values || []).join('，') || '—' }}</template></el-table-column>
+            <el-table-column prop="def" label="业务定义" min-width="220" show-overflow-tooltip><template #default="scope">{{ scope.row.def || '—' }}</template></el-table-column>
+            <el-table-column prop="calc" label="计算口径" min-width="240" show-overflow-tooltip><template #default="scope">{{ scope.row.calc || '—' }}</template></el-table-column>
+            <el-table-column prop="freq" label="更新频率" width="100"><template #default="scope">{{ scope.row.freq || '—' }}</template></el-table-column>
+            <el-table-column label="覆盖率" width="100" align="right"><template #default="scope">{{ scope.row.cov ?? '—' }}<span v-if="scope.row.cov!==undefined">%</span></template></el-table-column>
+            <el-table-column label="操作" width="88" fixed="right"><template #default="scope"><el-button link type="primary" @click="openEdit(scope.row)">编辑</el-button></template></el-table-column>
+          </el-table>
+          <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
+        </section>
+        <el-drawer v-model="editVisible" title="编辑标签信息" direction="rtl" size="680px" class="tag-enum-drawer" :close-on-click-modal="true">
+          <el-form v-if="editForm" class="tag-enum-drawer-form" label-position="top">
+            <el-form-item label="字段名"><el-input :model-value="editForm.name" disabled></el-input></el-form-item>
+            <el-form-item label="标签名称" required><el-input v-model="editForm.cn"></el-input></el-form-item>
+            <el-form-item label="业务定义"><el-input v-model="editForm.def" type="textarea" :rows="2"></el-input></el-form-item>
+            <el-form-item label="计算口径"><el-input v-model="editForm.calc" type="textarea" :rows="2"></el-input></el-form-item>
+            <section class="tag-enum-section">
+              <div class="tag-enum-section-head"><strong>枚举值</strong><el-button v-if="editForm.enumMode==='manual'" link type="primary" @click="addEnumValue">添加枚举值</el-button></div>
+              <el-radio-group v-model="editForm.enumMode" class="tag-enum-mode"><el-radio value="manual">手动添加</el-radio><el-radio value="upload">上传枚举值</el-radio></el-radio-group>
+              <div v-if="editForm.enumMode==='upload'" class="tag-enum-import">
+                <div class="tag-enum-import-copy"><strong>上传枚举值</strong><span>仅支持 UTF-8 TXT 格式，每行一个枚举值；不允许空行、重复值或逗号分隔。</span></div>
+                <input ref="enumFileInput" class="tag-enum-file-input" type="file" accept=".txt,text/plain" @change="importEnumFile">
+                <div class="tag-enum-import-actions"><el-button link type="primary" @click="downloadEnumTemplate">下载模板</el-button><el-button @click="triggerEnumFileInput">选择文件</el-button></div>
+              </div>
+              <div v-if="editForm.enumMode==='upload'&&editForm.enumImportedFileName" class="tag-enum-import-status"><strong>已导入 {{ editForm.enumValues.length }} 个枚举值</strong><span>{{ editForm.enumImportedFileName }}</span><el-button link type="danger" title="删除上传文件" @click="removeImportedEnumFile">删除</el-button></div>
+              <div v-else-if="editForm.enumMode==='manual'" class="tag-enum-list">
+                <div v-for="(value,index) in editForm.enumValues" :key="index" class="tag-enum-row">
+                  <span class="tag-enum-row-index">{{ index + 1 }}</span>
+                  <el-input v-model="editForm.enumValues[index]" :placeholder="'请输入第 ' + (index + 1) + ' 个枚举值'"></el-input>
+                  <el-button text type="danger" title="删除枚举值" :disabled="editForm.enumValues.length===1" @click="removeEnumValue(index)">×</el-button>
+                </div>
+              </div>
+            </section>
+            <el-form-item label="更新频率" class="tag-enum-section"><el-select v-model="editForm.freq"><el-option label="实时" value="实时"></el-option><el-option label="小时" value="小时"></el-option><el-option label="离线" value="离线"></el-option></el-select></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveEdit">保存</el-button></template>
+        </el-drawer>
+      </el-config-provider>
+    `,
+    data: () => ({ subject:state.tables[0]?.name||"",keyword:"",page:1,pageSize:10,editVisible:false,editForm:null,editTarget:null }),
+    computed: {
+      tables(){refreshTick.value;if(!state.tables.some(table=>table.name===this.subject))this.subject=state.tables[0]?.name||"";return state.tables;},
+      currentTable(){return state.tables.find(table=>table.name===this.subject);},
+      filteredRows(){refreshTick.value;const keyword=this.keyword.trim().toLowerCase();return (this.currentTable?.fields||[]).filter(field=>!keyword||`${field.name} ${field.cn}`.toLowerCase().includes(keyword));},
+      pagedRows(){const result=paginate(this.filteredRows,this.page,this.pageSize);if(result.safePage!==this.page)this.page=result.safePage;return result.rows;},
+      rangeText(){if(!this.filteredRows.length)return "0-0";return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`;}
+    },
+    methods:{
+      normalizeEnumValues(values){return [...new Set((values||[]).map(value=>String(value).trim()).filter(Boolean))];},
+      openEdit(field){const values=this.normalizeEnumValues(field.values?.length?field.values:String(field.enumv||"").split(/[，,]/));this.editTarget=field;this.editForm={...field,enumMode:"manual",enumValues:values.length?values:[""],enumImportedFileName:""};this.editVisible=true;},
+      addEnumValue(){this.editForm?.enumValues.push("");},
+      removeEnumValue(index){if(!this.editForm||this.editForm.enumValues.length===1)return;this.editForm.enumValues.splice(index,1);},
+      triggerEnumFileInput(){this.$refs.enumFileInput?.click();},
+      downloadEnumTemplate(){const content="枚举值示例 1\n枚举值示例 2\n";const url=URL.createObjectURL(new Blob([content],{type:"text/plain;charset=utf-8"}));const link=document.createElement("a");link.href=url;link.download="标签枚举值模板.txt";document.body.appendChild(link);link.click();link.remove();},
+      validateEnumFileContent(content){const source=String(content||"").replace(/^\uFEFF/,"");if(!source.trim())return {error:"文件内容为空，请按每行一个枚举值填写"};if(source.includes("\uFFFD"))return {error:"文件编码异常，请使用 UTF-8 编码的 TXT 文件"};const rows=source.split(/\r?\n/);if(rows.length>1&&rows.at(-1)==="")rows.pop();const values=[];const seen=new Map();for(let index=0;index<rows.length;index+=1){const lineNumber=index+1;const raw=rows[index];const value=raw.trim();if(!value)return {error:`第 ${lineNumber} 行为空，请保证每行只填写一个枚举值`};if(/[，,；;]/.test(raw))return {error:`第 ${lineNumber} 行包含分隔符，请每行只填写一个枚举值`};if(/[\t\f\v]/.test(raw))return {error:`第 ${lineNumber} 行包含制表符或特殊分隔符，请每行只填写一个枚举值`};if(seen.has(value))return {error:`第 ${lineNumber} 行与第 ${seen.get(value)} 行重复，请删除重复枚举值`};seen.set(value,lineNumber);values.push(value);}return {values};},
+      async importEnumFile(event){const file=event.target?.files?.[0];if(!file)return;if(!/\.txt$/i.test(file.name)&&file.type!=="text/plain"){ep.ElMessage.warning("请上传 TXT 格式文件");event.target.value="";return;}const result=this.validateEnumFileContent(await file.text());event.target.value="";if(result.error){ep.ElMessage.error(`枚举值文件格式校验失败：${result.error}`);return;}this.editForm.enumValues=result.values;this.editForm.enumImportedFileName=file.name;ep.ElMessage.success(`枚举值文件格式校验通过，已导入 ${result.values.length} 个枚举值`);},
+      removeImportedEnumFile(){if(!this.editForm)return;this.editForm.enumValues=[];this.editForm.enumImportedFileName="";ep.ElMessage.success("已删除上传的枚举值文件");},
+      saveEdit(){if(!this.editForm?.cn.trim())return ep.ElMessage.warning("请输入标签名称");if(this.editForm.enumMode==="upload"&&!this.editForm.enumImportedFileName)return ep.ElMessage.warning("请上传 TXT 枚举值文件");const values=this.normalizeEnumValues(this.editForm.enumValues);Object.assign(this.editTarget,this.editForm,{values,enumv:values.join("，")});this.editVisible=false;notify("标签信息已保存");}
+    }
+  };
+
+  const TargetManagementApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <el-tabs v-model="status" class="portal-vue-status-tabs" @tab-change="page=1"><el-tab-pane label="启用中" name="启用"></el-tab-pane><el-tab-pane label="已停用" name="停用"></el-tab-pane></el-tabs>
+          <div class="portal-vue-toolbar"><div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索目标名称、存储桶" @input="page=1"></el-input></div><el-button type="primary" @click="openCreate">新增推送目标</el-button></div>
+          <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无推送目标">
+            <el-table-column label="目标名称" width="190" fixed="left"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+            <el-table-column label="类型" width="90"><template #default><el-tag effect="plain">OSS</el-tag></template></el-table-column>
+            <el-table-column prop="bucket" label="存储桶名称" min-width="200" show-overflow-tooltip><template #default="scope"><code class="portal-vue-code">{{ scope.row.bucket }}</code></template></el-table-column>
+            <el-table-column prop="region" label="存储地域" width="150"></el-table-column>
+            <el-table-column prop="endpoint" label="访问域名" min-width="260" show-overflow-tooltip></el-table-column>
+            <el-table-column prop="refs" label="被引用" width="100" align="right"><template #default="scope">{{ scope.row.refs || 0 }} 个人群包</template></el-table-column>
+            <el-table-column prop="last" label="最近使用" width="170"></el-table-column>
+            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :model-value="(scope.row.status||'启用')==='启用'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
+          </el-table>
+          <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
+        </section>
+        <el-dialog v-model="createVisible" title="新增推送目标" width="620px" @closed="resetCreateForm">
+          <el-form ref="targetFormRef" :model="form" :rules="targetRules" class="portal-vue-dialog-form" label-position="top">
+            <el-form-item label="目标名称" prop="name"><el-input v-model="form.name" placeholder="例如：巨量DMP-OSS"></el-input></el-form-item>
+            <el-form-item label="存储桶名称（bucket_name）" prop="bucket"><el-input v-model="form.bucket"></el-input></el-form-item>
+            <el-form-item label="存储地域（Region）" prop="region"><el-input v-model="form.region" placeholder="例如：cn-shenzhen"></el-input></el-form-item>
+            <el-form-item label="访问域名（endpoint）" prop="endpoint"><el-input v-model="form.endpoint"></el-input></el-form-item>
+            <el-form-item label="访问密钥 ID（access_key_id）" prop="ak"><el-input v-model="form.ak"></el-input></el-form-item>
+            <el-form-item label="访问密钥 Secret（access_key_secret）" prop="sk"><el-input v-model="form.sk" type="password" show-password></el-input></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button type="primary" @click="saveCreate">保存目标</el-button></template>
+        </el-dialog>
+      </el-config-provider>
+    `,
+    data:()=>({
+      status:"启用",
+      keyword:"",
+      page:1,
+      pageSize:10,
+      createVisible:false,
+      form:{name:"",bucket:"",region:"",endpoint:"",ak:"",sk:""},
+      targetRules:{
+        name:[{required:true,whitespace:true,message:"请输入目标名称",trigger:"blur"}],
+        bucket:[{required:true,whitespace:true,message:"请输入存储桶名称",trigger:"blur"}],
+        region:[{required:true,whitespace:true,message:"请输入存储地域",trigger:"blur"}],
+        endpoint:[{required:true,whitespace:true,message:"请输入访问域名",trigger:"blur"}],
+        ak:[{required:true,whitespace:true,message:"请输入访问密钥 ID",trigger:"blur"}],
+        sk:[{required:true,whitespace:true,message:"请输入访问密钥 Secret",trigger:"blur"}]
+      }
+    }),
+    computed:{
+      filteredRows(){refreshTick.value;const keyword=this.keyword.trim().toLowerCase();return state.targets.filter(item=>(item.status||"启用")===this.status&&(!keyword||`${item.name} ${item.bucket}`.toLowerCase().includes(keyword)));},
+      pagedRows(){const result=paginate(this.filteredRows,this.page,this.pageSize);if(result.safePage!==this.page)this.page=result.safePage;return result.rows;},
+      rangeText(){if(!this.filteredRows.length)return "0-0";return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`;}
+    },
+    mounted(){this.primaryHandler=event=>{if(event.detail?.page==="人群包推送渠道")this.openCreate();};window.addEventListener("portal:primary-action",this.primaryHandler);},
+    beforeUnmount(){window.removeEventListener("portal:primary-action",this.primaryHandler);},
+    methods:{
+      openCreate(){this.form={name:"",bucket:"flink-baiju-prod",region:"cn-shenzhen",endpoint:"https://oss-cn-shenzhen.aliyuncs.com",ak:"",sk:""};this.createVisible=true;this.$nextTick(()=>this.$refs.targetFormRef?.clearValidate());},
+      resetCreateForm(){this.$refs.targetFormRef?.resetFields();},
+      async saveCreate(){const valid=await this.$refs.targetFormRef?.validate().catch(()=>false);if(!valid)return;const payload=Object.fromEntries(Object.entries(this.form).map(([key,value])=>[key,String(value).trim()]));state.targets.unshift({...payload,sk:"********",refs:0,last:"尚未使用",status:"启用"});this.createVisible=false;notify(`推送目标「${payload.name}」已保存`);},
+      async toggleStatus(target,enabled){const refs=Number(target.refs||0);const note=!enabled&&refs?`，当前有 ${refs} 个人群包正在引用` : "";if(!await confirmAction(enabled?"启用推送目标":"停用推送目标",`确认${enabled?"启用":"停用"}「${target.name}」${note}？`))return;target.status=enabled?"启用":"停用";notify(`推送目标已${target.status}`);}
+    }
+  };
+
+  const UserManagementApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <div class="portal-vue-user-layout">
+          <aside class="portal-vue-user-groups"><button v-for="item in groupOptions" :key="item.name" class="portal-vue-user-group" :class="{active:item.name===group}" type="button" @click="selectGroup(item.name)"><span>{{ item.name }}</span><span>{{ item.count }}</span></button></aside>
+          <section class="portal-vue-user-main">
+            <div class="portal-vue-toolbar"><div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索姓名、邮箱、部门" @input="page=1"></el-input><el-select v-model="status" class="portal-vue-filter" @change="page=1"><el-option label="全部状态" value="全部状态"></el-option><el-option label="启用中" value="启用中"></el-option><el-option label="已停用" value="已停用"></el-option></el-select></div><el-button @click="syncUsers">同步飞书用户</el-button></div>
+            <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无用户">
+              <el-table-column label="用户" width="140" fixed="left"><template #default="scope"><div class="portal-vue-user-cell"><el-avatar :size="30">{{ scope.row.name.slice(0,1) }}</el-avatar><span class="portal-vue-name">{{ scope.row.name }}</span></div></template></el-table-column>
+              <el-table-column prop="dept" label="部门组织" min-width="220" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="role" label="岗位角色" width="130"></el-table-column>
+              <el-table-column prop="email" label="邮箱" width="210" show-overflow-tooltip></el-table-column>
+              <el-table-column label="所属权限组" width="130"><template #default="scope"><el-tag :type="scope.row.group==='未分配'?'warning':'primary'" effect="light">{{ scope.row.group }}</el-tag></template></el-table-column>
+              <el-table-column label="账号状态" width="100"><template #default="scope"><el-tag :type="scope.row.status==='已停用'?'info':'success'" effect="plain">{{ scope.row.status==='已停用'?'已停用':'启用中' }}</el-tag></template></el-table-column>
+              <el-table-column prop="login" label="最近登录" width="170"></el-table-column>
+              <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openAssign(scope.row)">设置权限组</el-button><el-button link type="primary" @click="openPermission(scope.row)">配置权限</el-button></div></template></el-table-column>
+            </el-table>
+            <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
+          </section>
+        </div>
+        <el-dialog v-model="assignVisible" :title="assignUser ? assignUser.name + ' · 设置权限组' : '设置权限组'" width="520px"><div v-if="assignUser" class="portal-vue-detail-grid"><div class="portal-vue-detail-item"><span>部门组织</span><strong>{{ assignUser.dept }}</strong></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ assignUser.role }}</strong></div></div><el-form label-position="top" class="portal-vue-dialog-form"><el-form-item label="选择权限组"><el-select v-model="assignGroup"><el-option label="未分配" value="未分配"></el-option><el-option v-for="item in state.groups" :key="item.name" :label="item.name" :value="item.name"></el-option></el-select></el-form-item></el-form><template #footer><el-button @click="assignVisible=false">取消</el-button><el-button type="primary" @click="saveAssign">保存权限组</el-button></template></el-dialog>
+      </el-config-provider>
+    `,
+    data:()=>({keyword:"",status:"全部状态",group:"全部权限组",page:1,pageSize:10,assignVisible:false,assignUser:null,assignGroup:"",state}),
+    computed:{
+      groupOptions(){refreshTick.value;return ["全部权限组","未分配",...state.groups.map(item=>item.name)].map(name=>({name,count:name==="全部权限组"?state.users.length:state.users.filter(user=>user.group===name).length}));},
+      filteredRows(){refreshTick.value;const keyword=this.keyword.trim().toLowerCase();return state.users.filter(user=>(this.group==="全部权限组"||user.group===this.group)&&(this.status==="全部状态"||(this.status==="已停用"?user.status==="已停用":user.status!=="已停用"))&&(!keyword||`${user.name} ${user.email} ${user.dept} ${user.role}`.toLowerCase().includes(keyword)));},
+      pagedRows(){const result=paginate(this.filteredRows,this.page,this.pageSize);if(result.safePage!==this.page)this.page=result.safePage;return result.rows;},
+      rangeText(){if(!this.filteredRows.length)return "0-0";return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`;}
+    },
+    methods:{
+      selectGroup(name){this.group=name;this.page=1;},syncUsers(){ep.ElMessage.success("已发起飞书用户同步");},openAssign(user){this.assignUser=user;this.assignGroup=user.group;this.assignVisible=true;},saveAssign(){this.assignUser.group=this.assignGroup;this.assignVisible=false;notify(`${this.assignUser.name} 已分配到「${this.assignGroup}」`);},openPermission(user){bridge.setActiveUserIndex(state.users.indexOf(user));bridge.setPage("配置权限");}
+    }
+  };
+
+  const PermissionGroupApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <div class="portal-vue-split">
+          <aside class="portal-vue-split-left">
+            <div class="portal-vue-split-head"><strong>权限组</strong><el-button link type="primary" @click="openCreate">新增</el-button></div>
+            <el-scrollbar height="558px"><div class="portal-vue-split-body"><article v-for="(item,index) in state.groups" :key="item.name" class="portal-vue-group-card" :class="{active:index===selectedIndex}" @click="selectGroup(index)"><div class="portal-vue-group-meta"><div><h3>{{ item.name }}</h3><span class="portal-vue-muted">{{ userCount(item.name) }} 人</span></div><el-dropdown trigger="click" @command="command=>groupCommand(command,index)" @click.stop><el-button text circle title="更多操作">⋮</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="edit">编辑</el-dropdown-item><el-dropdown-item command="delete" divided>删除</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><p>{{ item.desc }}</p><div class="portal-vue-muted" style="margin-top:8px">{{ item.boards.includes('全部看板')?'全部看板':item.boards.length+' 个看板' }}</div></article></div></el-scrollbar>
+          </aside>
+          <section class="portal-vue-split-right">
+            <div class="portal-vue-split-head"><strong>{{ activeGroup?.name || '权限组详情' }}</strong><div class="portal-vue-group-detail-actions"><el-button class="portal-vue-member-entry" @click="memberDrawer=true">成员 <el-tag size="small" round>{{ activeGroupUsers.length }}</el-tag></el-button><el-button type="primary" :disabled="!dirty" @click="saveGroup">保存</el-button></div></div>
+            <div class="portal-vue-permission-body">
+              <el-tabs v-model="activeTab" class="portal-vue-group-tabs"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane name="boards"><template #label>看板查看范围 <el-tag size="small" round>{{ boardBadge }}</el-tag></template></el-tab-pane></el-tabs>
+              <section v-show="activeTab==='menus'" class="portal-vue-group-permission-panel">
+                <div class="portal-vue-permission-card-grid portal-vue-menu-card-grid">
+                  <article v-for="section in state.nav" :key="section.group" class="portal-vue-group-permission-card">
+                    <el-checkbox class="portal-vue-parent-check" :model-value="sectionChecked(section)" :indeterminate="sectionIndeterminate(section)" @change="value=>toggleSection(section,value)">{{ section.group }}</el-checkbox>
+                    <div v-if="section.items.length>1" class="portal-vue-child-checks"><el-checkbox v-for="item in section.items" :key="item.name" :model-value="selectedMenus.includes(item.name)" @change="value=>toggleMenu(item.name,value)">{{ item.name }}</el-checkbox></div>
+                  </article>
+                </div>
+              </section>
+              <section v-show="activeTab==='boards'" class="portal-vue-group-permission-panel">
+                <div class="portal-vue-board-range-toolbar"><span>按看板分类配置可查看范围</span><el-checkbox v-model="allBoards" @change="toggleAllBoards">全部看板</el-checkbox></div>
+                <div class="portal-vue-permission-card-grid portal-vue-board-card-grid">
+                  <article v-for="group in boardGroups" :key="group.category" class="portal-vue-group-permission-card">
+                    <strong class="portal-vue-permission-card-title">{{ group.category }}</strong>
+                    <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="board in group.boards" :key="board.name" :disabled="allBoards" :model-value="selectedBoards.includes(board.name)" @change="value=>toggleBoard(board.name,value)">{{ board.name }}</el-checkbox></div>
+                  </article>
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
+        <el-drawer v-model="memberDrawer" :title="(activeGroup?.name || '权限组') + ' · 成员'" size="760px" class="portal-vue-member-drawer" :close-on-click-modal="true">
+          <div class="portal-vue-member-toolbar"><div><strong>拥有此权限组的人</strong><span>共 {{ activeGroupUsers.length }} 人</span></div><el-button type="primary" @click="openMemberDialog">添加成员</el-button></div>
+          <el-table :data="activeGroupUsers" class="portal-vue-table portal-vue-member-table" border max-height="calc(100vh - 190px)" empty-text="该权限组暂无成员">
+            <el-table-column label="用户" min-width="180"><template #default="scope"><div class="portal-vue-member-user"><el-avatar :size="30" :style="avatarStyle(scope.row.name)">{{ avatarText(scope.row.name) }}</el-avatar><div><strong>{{ scope.row.name }}</strong><span>{{ scope.row.email || '—' }}</span></div></div></template></el-table-column>
+            <el-table-column prop="dept" label="组织" min-width="220" show-overflow-tooltip></el-table-column>
+            <el-table-column prop="role" label="角色" width="120"></el-table-column>
+            <el-table-column label="操作" width="90" align="center"><template #default="scope"><el-button link type="danger" @click="removeMember(scope.row)">移除</el-button></template></el-table-column>
+          </el-table>
+        </el-drawer>
+        <el-dialog v-model="formVisible" :title="editingIndex<0?'新增权限组':'编辑权限组'" width="560px"><el-form class="portal-vue-dialog-form" label-position="top"><el-form-item label="权限组名称" required><el-input v-model="groupForm.name"></el-input></el-form-item><el-form-item label="描述"><el-input v-model="groupForm.desc" type="textarea" :rows="3"></el-input></el-form-item></el-form><template #footer><el-button @click="formVisible=false">取消</el-button><el-button type="primary" @click="saveGroupForm">保存</el-button></template></el-dialog>
+        <el-dialog v-model="memberVisible" title="添加权限组成员" width="620px">
+          <el-form class="portal-vue-dialog-form" label-position="top"><el-form-item label="选择用户"><el-select v-model="memberSelection" multiple filterable collapse-tags collapse-tags-tooltip :max-collapse-tags="3" placeholder="搜索姓名或组织"><el-option v-for="user in availableUsers" :key="user.feishu || user.name" :label="user.name + ' · ' + (user.dept || '未挂部门')" :value="user.feishu || user.name"><div class="portal-vue-member-option"><span>{{ user.name }}</span><small>{{ user.dept || '未挂部门' }} · 当前 {{ user.group || '未分配' }}</small></div></el-option></el-select></el-form-item></el-form>
+          <template #footer><el-button @click="memberVisible=false">取消</el-button><el-button type="primary" :disabled="!memberSelection.length" @click="addMembers">添加成员</el-button></template>
+        </el-dialog>
+      </el-config-provider>
+    `,
+    data:()=>({state,selectedIndex:0,activeTab:"menus",selectedMenus:[],selectedBoards:[],allBoards:false,dirty:false,formVisible:false,editingIndex:-1,groupForm:{},memberDrawer:false,memberVisible:false,memberSelection:[]}),
+    computed:{
+      activeGroup(){refreshTick.value;return state.groups[this.selectedIndex]||state.groups[0];},
+      boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
+      boardBadge(){if(this.allBoards)return state.boards.filter(board=>board.status==="已上线").length;return this.selectedBoards.length;},
+      activeGroupUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return groupName?state.users.filter(user=>user.group===groupName):[];},
+      availableUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return state.users.filter(user=>user.group!==groupName&&user.status!=="已停用");}
+    },
+    mounted(){this.loadGroup();this.primaryHandler=event=>{if(event.detail?.page==="权限组")this.openCreate();};window.addEventListener("portal:primary-action",this.primaryHandler);},
+    beforeUnmount(){window.removeEventListener("portal:primary-action",this.primaryHandler);},
+    methods:{
+      userCount(name){return state.users.filter(user=>user.group===name).length;},
+      avatarText(name){return String(name||"用").slice(0,1);},
+      avatarStyle(name){const colors=["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"];const seed=[...String(name||"")].reduce((total,char)=>total+char.charCodeAt(0),0);return{background:colors[seed%colors.length],color:"#fff"};},
+      selectGroup(index){this.selectedIndex=index;this.activeTab="menus";this.memberDrawer=false;this.loadGroup();},
+      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);this.dirty=false;},
+      sectionNames(section){return section.items.length===1?[section.items[0].name]:[section.group,...section.items.map(item=>item.name)];},
+      sectionChecked(section){const names=this.sectionNames(section);return names.every(name=>this.selectedMenus.includes(name));},
+      sectionIndeterminate(section){const names=this.sectionNames(section);const count=names.filter(name=>this.selectedMenus.includes(name)).length;return count>0&&count<names.length;},
+      toggleSection(section,checked){this.sectionNames(section).forEach(name=>this.toggleMenu(name,checked,false));this.dirty=true;},
+      toggleMenu(name,checked,mark=true){const index=this.selectedMenus.indexOf(name);if(checked&&index<0)this.selectedMenus.push(name);else if(!checked&&index>=0)this.selectedMenus.splice(index,1);if(mark)this.dirty=true;},
+      toggleAllBoards(value){this.allBoards=value;if(value)this.selectedBoards=[];this.dirty=true;},
+      toggleBoard(name,checked){const index=this.selectedBoards.indexOf(name);if(checked&&index<0)this.selectedBoards.push(name);else if(!checked&&index>=0)this.selectedBoards.splice(index,1);this.dirty=true;},
+      saveGroup(){this.activeGroup.menus=[...this.selectedMenus];this.activeGroup.boards=this.allBoards?["全部看板"]:[...this.selectedBoards];this.dirty=false;notify("权限组配置已保存");},
+      openMemberDialog(){this.memberSelection=[];this.memberVisible=true;},
+      addMembers(){if(!this.memberSelection.length)return;const groupName=this.activeGroup?.name;if(!groupName)return;const selected=new Set(this.memberSelection);let count=0;state.users.forEach(user=>{if(selected.has(user.feishu||user.name)){user.group=groupName;if(user.status!=="已停用")user.status="启用";count+=1;}});this.memberVisible=false;this.memberSelection=[];notify(`已添加 ${count} 名成员到「${groupName}」`);},
+      async removeMember(user){const groupName=this.activeGroup?.name;if(!groupName||!await confirmAction("移除权限组成员",`确认将「${user.name}」从「${groupName}」移除？`))return;user.group="未分配";if(user.status!=="已停用")user.status="未分配权限组";notify(`已从「${groupName}」移除 ${user.name}`);},
+      openCreate(){this.editingIndex=-1;this.groupForm={name:"",desc:""};this.formVisible=true;},
+      openEdit(index){this.editingIndex=index;this.groupForm={name:state.groups[index].name,desc:state.groups[index].desc};this.formVisible=true;},
+      async groupCommand(command,index){if(command==="edit")return this.openEdit(index);const group=state.groups[index];if(this.userCount(group.name)>0)return ep.ElMessage.warning("该权限组下仍有用户，不能删除");if(!await confirmAction("删除权限组",`确认删除「${group.name}」？`))return;state.groups.splice(index,1);this.selectedIndex=Math.max(0,Math.min(this.selectedIndex,state.groups.length-1));this.loadGroup();notify("权限组已删除");},
+      saveGroupForm(){const name=this.groupForm.name.trim();if(!name)return ep.ElMessage.warning("请输入权限组名称");if(state.groups.some((group,index)=>index!==this.editingIndex&&group.name===name))return ep.ElMessage.warning("权限组名称已存在");if(this.editingIndex<0){state.groups.push({name,desc:this.groupForm.desc.trim()||"自定义权限组。",menus:["数据看板"],boards:[],status:"启用"});this.selectedIndex=state.groups.length-1;}else{const group=state.groups[this.editingIndex];const oldName=group.name;group.name=name;group.desc=this.groupForm.desc.trim()||"自定义权限组。";state.users.forEach(user=>{if(user.group===oldName)user.group=name;});}this.formVisible=false;this.loadGroup();notify("权限组已保存");}
+    }
+  };
+
+  const PermissionConfigApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <div class="portal-vue-form-page">
+          <el-page-header class="portal-vue-form-header" title="返回用户管理" content="配置用户权限" @back="back"></el-page-header>
+          <div class="portal-vue-split" style="grid-template-columns:280px minmax(0,1fr)">
+            <aside class="portal-vue-split-left"><div class="portal-vue-split-body" v-if="user"><div style="display:flex;align-items:center;gap:12px;margin-bottom:18px"><el-avatar :size="42">{{ user.name.slice(0,1) }}</el-avatar><div><span class="portal-vue-name">{{ user.name }}</span><div class="portal-vue-muted" style="margin-top:4px">{{ user.dept }}</div></div></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ user.role }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>当前权限组</span><strong>{{ user.group }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>账号状态</span><strong>{{ user.status }}</strong></div></div></aside>
+            <section class="portal-vue-split-right"><div class="portal-vue-permission-body"><el-tabs v-model="activeTab"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane label="看板权限" name="boards"></el-tab-pane></el-tabs><div v-show="activeTab==='menus'" class="portal-vue-permission-grid"><div v-for="section in state.nav" :key="section.group" class="portal-vue-permission-block"><strong>{{ section.group }}</strong><el-checkbox v-for="item in section.items" :key="item.name" v-model="selectedMenus" :value="item.name" style="display:flex;margin:8px 0">{{ item.name }}</el-checkbox></div></div><div v-show="activeTab==='boards'" class="portal-vue-permission-grid"><div v-for="group in boardGroups" :key="group.category" class="portal-vue-permission-block"><strong>{{ group.category }}</strong><el-checkbox v-for="board in group.boards" :key="board.name" v-model="selectedBoards" :value="board.name" style="display:flex;margin:8px 0">{{ board.name }}</el-checkbox></div></div></div></section>
+          </div>
+          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button type="primary" @click="save">保存权限</el-button></div>
+        </div>
+      </el-config-provider>
+    `,
+    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedBoards:[]}),
+    computed:{
+      user(){refreshTick.value;return state.users[bridge.getActiveUserIndex()]||state.users[0];},
+      group(){return state.groups.find(group=>group.name===this.user?.group);},
+      boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);}
+    },
+    mounted(){this.pageHandler=event=>{if(event.detail?.page==="配置权限")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
+    beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
+    methods:{load(){this.selectedMenus=[...(this.group?.menus||[])];this.selectedBoards=this.group?.boards?.includes("全部看板")?state.boards.filter(board=>board.status==="已上线").map(board=>board.name):[...(this.group?.boards||[])];},back(){bridge.setPage("用户管理");},save(){notify(`${this.user.name} 的权限配置已保存`);this.back();}}
+  };
+
+  const QuickBiApp = {
+    template:`
+      <el-config-provider :locale="locale">
+        <div class="portal-vue-form-page">
+          <el-page-header class="portal-vue-form-header" title="返回数据看板" :content="board?.name || 'Quick BI 展示'" @back="back"></el-page-header>
+          <section v-if="board" class="portal-vue-board-pane" style="padding:20px 0"><div class="portal-vue-board-hero"><div><el-tag>{{ board.category }}</el-tag><h2>{{ board.name }}</h2><p>Quick BI 看板 ID：{{ board.quickBiId }} · 负责人 {{ board.owner }}</p></div><el-button type="primary">打开 Quick BI</el-button></div><div class="portal-vue-kpis"><div v-for="item in kpis" :key="item.label" class="portal-vue-kpi"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div><div class="portal-vue-chart-grid"><section class="portal-vue-chart"><h3>核心指标趋势</h3><svg class="portal-vue-line" viewBox="0 0 420 190" preserveAspectRatio="none"><polyline :points="linePoints" fill="none" stroke="#1677ff" stroke-width="3"></polyline></svg></section><section class="portal-vue-chart"><h3>渠道结构</h3><div class="portal-vue-bars"><div v-for="bar in bars" :key="bar.name" class="portal-vue-bar" :style="{height:bar.height+'px'}"><span>{{ bar.name }}</span></div></div></section></div></section>
+        </div>
+      </el-config-provider>`,
+    computed:{board(){refreshTick.value;return bridge.getActiveBoard();},seed(){return boardSeed(this.board?.name||"");},kpis(){return [{label:"消耗",value:`¥${((this.seed%800000+180000)/10000).toFixed(1)}万`},{label:"转化数",value:humanCount(this.seed%26000+9000)},{label:"ROI",value:((this.seed%260)/100+.9).toFixed(2)},{label:"触达用户",value:`${((this.seed%620000+260000)/10000).toFixed(1)}万`}];},points(){return Array.from({length:7},(_,index)=>({x:28+index*58,y:140-((this.seed>>index)%85)}));},linePoints(){return this.points.map(point=>`${point.x},${point.y}`).join(" ");},bars(){return ["巨量","广点通","快手","OPPO","VIVO"].map((name,index)=>({name,height:50+((this.seed>>index)%120)}));}},methods:{back(){bridge.setPage("数据看板");}}
+  };
+
+  const NoPermissionApp = {
+    template:`<el-config-provider :locale="locale"><el-result icon="warning" title="暂无访问权限" sub-title="当前飞书账号尚未分配门户权限组，请联系管理员处理。"><template #extra><el-button type="primary" @click="logout">退出系统</el-button></template></el-result></el-config-provider>`,
+    methods:{logout(){document.getElementById("portalApp").classList.remove("no-permission-mode");document.getElementById("portalApp").classList.add("hidden");document.getElementById("loginView").classList.remove("hidden");}}
+  };
+
+  mount("#sidebar", SidebarApp, "sidebar");
+  mount(".topbar", TopbarApp, "topbar");
+  mount(".page-head", PageHeadApp, "page-head");
+  mount("#dataBoardView", DataBoardApp, "data-board");
+  mount("#boardManagementView", BoardManagementApp, "board-management");
+  mount("#dataAssetView", AssetManagementApp, "asset-management");
+  mount("#apiConfigView", ApiManagementApp, "api-management");
+  mount("#apiCreateView", ApiCreateApp, "api-create");
+  mount("#tagCatalogView", TagManagementApp, "tag-management");
+  mount("#pushTargetView", TargetManagementApp, "target-management");
+  mount("#userManagementView", UserManagementApp, "user-management");
+  mount("#permissionGroupView", PermissionGroupApp, "permission-groups");
+  mount("#permissionConfigView", PermissionConfigApp, "permission-config");
+  mount("#quickBiView", QuickBiApp, "quick-bi");
+  mount("#noPermissionView", NoPermissionApp, "no-permission");
+
+  document.getElementById("portalApp").dataset.elementMigrated = "true";
+  document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", ["新增API","新建人群包","Quick BI 展示","配置权限","无权限"].includes(currentPage.value));
+  window.portalVueModuleApi = {
+    refresh(page = bridge.getPage()) { currentPage.value = page; refreshTick.value += 1; },
+    state
+  };
+  window.dispatchEvent(new CustomEvent("portal:page-change", { detail: { page: bridge.getPage() } }));
+})();
