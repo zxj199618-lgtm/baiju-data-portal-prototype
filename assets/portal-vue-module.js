@@ -1097,7 +1097,7 @@
             <el-table-column prop="name" label="字典名称" width="160"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
             <el-table-column prop="desc" label="说明" min-width="240" show-overflow-tooltip></el-table-column>
             <el-table-column label="枚举值数" width="100" align="right"><template #default="scope">{{ scope.row.items.length }}</template></el-table-column>
-            <el-table-column label="被引用" width="128"><template #default="scope"><el-tooltip v-if="refList(scope.row).length" placement="left" :show-after="200" :hide-after="80" popper-class="portal-vue-ref-tooltip"><template #content><p v-for="item in refList(scope.row)" :key="item.key">{{ item.line }}</p></template><span class="portal-vue-ref-trigger">共 {{ refList(scope.row).length }} 个字段</span></el-tooltip><span v-else class="portal-vue-muted">—</span></template></el-table-column>
+            <el-table-column label="被引用" width="128"><template #default="scope"><el-tooltip v-if="refList(scope.row).length" placement="left" :show-after="200" :hide-after="80" popper-class="portal-vue-ref-tooltip"><template #content><p v-for="item in refList(scope.row)" :key="item.key">{{ item.line }}</p></template><span class="portal-vue-ref-trigger">被 {{ refList(scope.row).length }} 处引用</span></el-tooltip><span v-else class="portal-vue-muted">—</span></template></el-table-column>
             <el-table-column prop="owner" label="负责人" width="110"></el-table-column>
             <el-table-column prop="updatedAt" label="更新时间" width="170"></el-table-column>
             <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :model-value="scope.row.status==='启用'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
@@ -1171,7 +1171,7 @@
       async toggleStatus(dict, enabled) {
         const refs = this.refCount(dict);
         if (!enabled && refs) {
-          if (!await confirmAction("停用字典", `「${dict.name}」仍被 ${refs} 个字段引用，确认停用？停用后这些字段将无法继续转中文。`)) return;
+          if (!await confirmAction("停用字典", `「${dict.name}」仍被 ${refs} 处引用，确认停用？停用后这些字段将无法继续转中文。`)) return;
         } else if (!await confirmAction(enabled ? "启用字典" : "停用字典", `确认${enabled ? "启用" : "停用"}「${dict.name}」？`)) return;
         dict.status = enabled ? "启用" : "停用";
         dict.updatedAt = "2026-08-28 16:40";
