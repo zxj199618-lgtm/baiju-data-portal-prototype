@@ -1117,8 +1117,9 @@
       const override = localStorage.getItem("portalGatewayBase");
       if (override !== null) return override.replace(/\/$/, "");
     } catch (error) { /* 忽略隐私模式异常 */ }
-    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && location.port !== "8787") return "http://localhost:8787";
-    return `${location.protocol}//${location.hostname}:8787`;
+    // 页面可能部署在 https（GitHub Pages 等），网关固定跑在本机 8787；
+    // 远程部署时用 localStorage.portalGatewayBase 覆盖。
+    return "http://localhost:8787";
   })();
 
   const analysisScenarios = [
