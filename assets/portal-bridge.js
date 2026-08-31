@@ -1513,7 +1513,7 @@
         "Quick BI 展示": ["Quick BI 展示", "展示已迁移的 Quick BI 看板内容。", "打开 Quick BI"]
       };
 
-      let activePage = "数据看板";
+      let activePage = "分析工作台";
       let activeCategory = "全部";
       let activeBoardManageCategory = "全部分类";
       let activeBoardManageOwner = "全部负责人";
@@ -1534,7 +1534,7 @@
       let apiManagePageSize = 10;
       let activeAssetServiceStatus = "启用";
       let activeApiStatus = "启用";
-      const simpleTabs = [{ name: "数据看板", page: "数据看板", icon: "dashboard", closable: false }];
+      const simpleTabs = [{ name: "分析工作台", page: "分析工作台", icon: "analysis", closable: false }];
       const nav = document.getElementById("nav");
       const pageTitle = document.getElementById("pageTitle");
       const pageSubtitle = document.getElementById("pageSubtitle");
@@ -3299,7 +3299,7 @@
         document.getElementById("loginView").classList.add("hidden");
         document.getElementById("portalApp").classList.remove("hidden");
         document.getElementById("sidebar").classList.remove("hidden");
-        setSimplePage("数据看板");
+        setSimplePage("分析工作台");
       });
       const sidebar = document.getElementById("sidebar");
       const collapseBtn = document.getElementById("collapseBtn");
@@ -3584,6 +3584,6 @@
       renderBoardManagement();
       renderDataAssets();
       renderApiConfigs();
-      setSimplePage("数据看板");
+      setSimplePage("分析工作台");
     })();
   
