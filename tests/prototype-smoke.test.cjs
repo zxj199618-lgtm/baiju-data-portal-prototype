@@ -160,5 +160,7 @@ assert(html.includes('id="menuManagementView"') && portalVue.includes("mount(\"#
 assert(portalVue.includes("MenuManagementApp") && portalVue.includes("权限标识") && portalVue.includes("组件路径"), "菜单管理应提供层级树/组件路径/权限标识配置");
 assert(html.includes('id="skillManagementView"') && portalVue.includes("mount(\"#skillManagementView\""), "Skill 配置应挂载独立视图");
 assert(portalVue.includes("SkillManagementApp") && portalVue.includes("提示词") && portalVue.includes("沙箱试跑") && portalVue.includes("回滚到此版本"), "Skill 配置应支持提示词编辑/版本回滚/沙箱试跑");
+assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("ModelConfigApp") && portalVue.includes("modelConfigView"), "系统管理应提供模型配置页");
+assert(portalVue.includes("v1/model-config") && portalVue.includes("已禁用"), "模型配置应支持禁用历史模型并持久化到网关");
 
 console.log("观星台原型 smoke test: passed");

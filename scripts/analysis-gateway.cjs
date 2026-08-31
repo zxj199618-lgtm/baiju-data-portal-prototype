@@ -25,6 +25,7 @@ const RELAY_API_KEYS = (process.env.RELAY_API_KEY || "").split(",").map(key => k
 const PORT = Number(process.env.PORT || 8787);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 const PERMISSIONS_FILE = path.join(DATA_DIR, "user-permissions.json");
+const MODEL_CONFIG_FILE = path.join(DATA_DIR, "model-config.json");
 const SAMPLE_DATA_FILE = path.join(DATA_DIR, "sample-data.json");
 const DEFAULT_MODEL = "gpt-5.4-mini";
 const TODAY = "2026-08-31";
@@ -728,6 +729,17 @@ function savePermissionOverrides(overrides) {
   fs.renameSync(tmp, PERMISSIONS_FILE);
 }
 
+function loadModelConfig() {
+  try { return JSON.parse(fs.readFileSync(MODEL_CONFIG_FILE, "utf8")); } catch { return { disabled: {} }; }
+}
+
+function saveModelConfig(config) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const tmp = `${MODEL_CONFIG_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(config, null, 2));
+  fs.renameSync(tmp, MODEL_CONFIG_FILE);
+}
+
 function userTables(userName) {
   const user = users.find(item => item.name === userName);
   if (!user) return [];
@@ -863,10 +875,40 @@ const server = http.createServer(async (req, res) => {
     try {
       const ids = await relayAllModels();
       const usable = ids.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id));
-      return sendJson(res, 200, { models: usable.sort(), default: DEFAULT_MODEL });
+      const disabled = loadModelConfig().disabled || {};
+      return sendJson(res, 200, {
+        models: usable.filter(id => !disabled[id]).sort(),
+        allModels: usable.sort().map(id => ({ id, enabled: !disabled[id], reason: disabled[id]?.reason || "" })),
+        default: DEFAULT_MODEL
+      });
     } catch (error) {
       return sendJson(res, 502, { error: `中转站不可达：${error.message}` });
     }
+  }
+
+  if (req.method === "GET" && url.pathname === "/v1/model-config") {
+    try {
+      const ids = await relayAllModels();
+      const usable = ids.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id));
+      const disabled = loadModelConfig().disabled || {};
+      return sendJson(res, 200, {
+        models: usable.sort().map(id => ({ id, enabled: !disabled[id], reason: disabled[id]?.reason || "", disabledAt: disabled[id]?.disabledAt || "" }))
+      });
+    } catch (error) {
+      return sendJson(res, 502, { error: `中转站不可达：${error.message}` });
+    }
+  }
+
+  const modelConfigMatch = url.pathname.match(/^\/v1\/model-config\/(.+)$/);
+  if (req.method === "PUT" && modelConfigMatch) {
+    const modelId = decodeURIComponent(modelConfigMatch[1]);
+    const config = loadModelConfig();
+    config.disabled = config.disabled || {};
+    const body = await readBody(req);
+    if (body.enabled) delete config.disabled[modelId];
+    else config.disabled[modelId] = { reason: String(body.reason || "").slice(0, 200), disabledAt: new Date().toISOString() };
+    saveModelConfig(config);
+    return sendJson(res, 200, { model: modelId, enabled: !config.disabled[modelId] });
   }
 
   if (req.method === "GET" && url.pathname === "/v1/catalog") {
@@ -911,6 +953,11 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     const { user = "曾祥竞", question = "", scenario = "single", tables: requestedTables = [], model = DEFAULT_MODEL } = body;
     if (!question.trim()) return sendJson(res, 400, { error: "问题不能为空" });
+
+    const modelConfig = loadModelConfig();
+    if (modelConfig.disabled?.[model]) {
+      return sendJson(res, 403, { error: `模型「${model}」已被管理员禁用${modelConfig.disabled[model].reason ? `：${modelConfig.disabled[model].reason}` : ""}，请在右下角切换其他模型` });
+    }
 
     const allowed = userTables(user);
     const wanted = requestedTables.length ? requestedTables.slice(0, 3) : [];
