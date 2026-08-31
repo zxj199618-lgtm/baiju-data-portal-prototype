@@ -1173,6 +1173,56 @@
     })
   ];
 
+  let analysisReportSeq = 0;
+  function createAnalysisReport(seed) {
+    return {
+      id: seed.id || `RPT${Date.now()}${analysisReportSeq += 1}`,
+      title: seed.title,
+      scenario: seed.scenario,
+      channel: seed.channel || "工作台对话",
+      time: seed.time,
+      tables: seed.tables || [],
+      summary: seed.summary || "",
+      messages: seed.messages ? seed.messages.map(msg => ({ ...msg, lines: msg.lines ? [...msg.lines] : undefined, refs: msg.refs ? [...msg.refs] : undefined })) : [],
+      starred: seed.starred || false
+    };
+  }
+
+  const analysisReportsSeed = [
+    createAnalysisReport({
+      id: "RPT20260831001", title: "近 7 天媒体消耗趋势报告", scenario: "单表分析", channel: "飞书机器人", time: "2026-08-31 10:24", tables: ["广告计划日报表"], starred: true,
+      summary: "近 7 天总消耗 286.4 万元，环比上涨 12.3%；巨量渠道 CPA 上升 18%，建议关注「小说推文」计划组。",
+      messages: [
+        { role: "user", lines: ["近 7 天各媒体消耗趋势如何？CPA 有没有异常波动？"] },
+        { role: "assistant", lines: ["近 7 天总消耗 286.4 万元，环比上涨 12.3%。", "巨量渠道 CPA 上升 18%，主要来自「小说推文」计划组，建议关注。"], refs: ["广告计划日报表"] }
+      ]
+    }),
+    createAnalysisReport({
+      id: "RPT20260830002", title: "CPA 环比上涨归因报告", scenario: "归因分析", channel: "飞书机器人", time: "2026-08-30 09:12", tables: ["广告计划日报表"],
+      summary: "按媒体拆解：巨量贡献 78% 的涨幅；按产品拆解：「网赚-02」新上 3 条计划拉高整体成本。",
+      messages: [
+        { role: "user", lines: ["本周 CPA 环比上涨的原因是什么？"] },
+        { role: "assistant", lines: ["按媒体拆解：巨量贡献 78% 的涨幅；按产品拆解：「网赚-02」产品新上 3 条计划拉高整体成本。"], refs: ["广告计划日报表"] }
+      ]
+    }),
+    createAnalysisReport({
+      id: "RPT20260829003", title: "tag_value 字段血缘影响报告", scenario: "数据血缘分析", channel: "工作台对话", time: "2026-08-29 15:40", tables: ["用户画像标签明细表"],
+      summary: "下游影响 2 张表：「用户画像标签明细表」API 服务、「用户生命周期日报」ETL 任务。",
+      messages: [
+        { role: "user", lines: ["如果修改 tag_value 字段长度，会影响哪些下游？"] },
+        { role: "assistant", lines: ["下游影响 2 张表：「用户画像标签明细表」API 服务接口、「用户生命周期日报」ETL 任务。建议同步负责人调整。"], refs: ["用户画像标签明细表"] }
+      ]
+    }),
+    createAnalysisReport({
+      id: "RPT20260828004", title: "渠道归因资产盘点报告", scenario: "数据资产问答", channel: "工作台对话", time: "2026-08-28 11:05", tables: ["渠道归因明细"],
+      summary: "渠道归因相关表 2 张，推荐「渠道归因明细」做渠道效果分析，口径见 activate_cnt 字段注释。",
+      messages: [
+        { role: "user", lines: ["有哪些表可以看渠道归因？"] },
+        { role: "assistant", lines: ["找到 2 张相关表：「渠道归因明细」（负责人 李雨航）和「广告计划日报表」中 activate_cnt 字段（按归因口径统计）。"], refs: ["渠道归因明细", "广告计划日报表"] }
+      ]
+    })
+  ];
+
   const AnalysisWorkbenchApp = {
     template: `
       <el-config-provider :locale="locale">
@@ -1180,16 +1230,27 @@
           <div class="portal-vue-ai-layout">
             <aside class="portal-vue-ai-side">
               <el-button class="portal-vue-ai-new" type="primary" plain @click="newSession">＋ 新的分析</el-button>
-              <el-scrollbar height="calc(100vh - 320px)">
+              <div class="portal-vue-ai-asset-tree">
+                <p class="portal-vue-ai-group-label">分析资产 <span>{{ archivedReports.length }} 份报告</span></p>
+                <el-tree :data="assetTree" :props="{ label: 'label', children: 'children' }" default-expand-all :expand-on-click-node="true" @node-click="node=>openAsset(node)">
+                  <template #default="{ data }">
+                    <span class="portal-vue-ai-asset-node" :class="{ report: data.reportId }">
+                      <span class="portal-vue-ai-asset-icon">{{ data.type === 'scenario' ? '📁' : '📄' }}</span>
+                      <span class="portal-vue-ai-asset-label">{{ data.label }}</span>
+                      <span v-if="data.count" class="portal-vue-ai-asset-count">{{ data.count }}</span>
+                    </span>
+                  </template>
+                </el-tree>
+              </div>
+              <el-scrollbar height="calc(100vh - 560px)">
                 <div class="portal-vue-ai-sessions">
+                  <p class="portal-vue-ai-group-label">会话记录 <span>含飞书机器人</span></p>
                   <template v-if="ongoingSessions.length">
-                    <p class="portal-vue-ai-group-label">进行中</p>
                     <article v-for="session in ongoingSessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId }" @click="openSession(session.id)">
                       <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time>{{ session.time.slice(5, 16) }}</time></div>
                       <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span>{{ session.scenario }}</span><span class="portal-vue-ai-session-status running">{{ session.status }}</span></div>
                     </article>
                   </template>
-                  <p class="portal-vue-ai-group-label">历史记录 <span>含飞书机器人会话</span></p>
                   <article v-for="session in historySessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId }" @click="openSession(session.id)">
                     <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time>{{ session.time.slice(5, 16) }}</time></div>
                     <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span>{{ session.scenario }}</span></div>
@@ -1244,6 +1305,27 @@
               </div>
             </section>
           </div>
+          <el-drawer v-model="reportDrawer" :title="(activeReport()?.title || '分析报告')" size="560px" :close-on-click-modal="true">
+            <div v-if="activeReport()" class="portal-vue-ai-report-drawer">
+              <div class="portal-vue-ai-report-head">
+                <el-tag size="small" :type="activeReport().channel === '飞书机器人' ? 'success' : 'primary'" :effect="activeReport().channel === '飞书机器人' ? 'plain' : 'light'">{{ activeReport().channel }}</el-tag>
+                <el-tag size="small" effect="plain">{{ activeReport().scenario }}</el-tag>
+                <time>{{ activeReport().time }}</time>
+                <el-button link :type="activeReport().starred ? 'warning' : 'primary'" @click="toggleStar(activeReport())">{{ activeReport().starred ? "★ 已收藏" : "☆ 收藏" }}</el-button>
+                <el-button link type="danger" @click="removeReport(activeReport())">删除</el-button>
+              </div>
+              <div v-if="activeReport().summary" class="portal-vue-ai-report-summary"><span>结论摘要</span><p>{{ activeReport().summary }}</p></div>
+              <div v-if="activeReport().tables.length" class="portal-vue-ai-refs"><el-tag v-for="table in activeReport().tables" :key="table" size="small" effect="plain">{{ table }}</el-tag></div>
+              <div class="portal-vue-ai-report-history">
+                <div v-for="(msg, index) in activeReport().messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
+                  <div class="portal-vue-ai-bubble">
+                    <p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p>
+                    <div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-drawer>
         </section>
       </el-config-provider>
     `,
@@ -1260,6 +1342,9 @@
       model: "",
       sessions: analysisSessionsSeed.map(session => createAnalysisSession(session)),
       gatewayTables: [],
+      reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
+      reportDrawer: false,
+      activeReportId: "",
       activeId: analysisSessionsSeed[0]?.id || "",
       suggests: ["近 7 天各媒体消耗趋势如何？", "哪些计划 CPA 超过目标值？", "本周消耗环比上涨的原因是什么？", "有哪些表可以看渠道归因？"]
     }),
@@ -1280,7 +1365,18 @@
         return this.myTables.filter(table=>!keyword||table.toLowerCase().includes(keyword));
       },
       ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
-      historySessions(){return this.sessions.filter(item=>item.status!=="进行中");}
+      historySessions(){return this.sessions.filter(item=>item.status!=="进行中");},
+      archivedReports(){refreshTick.value;return this.reports;},
+      assetTree(){
+        const groups={};
+        this.reports.forEach(report=>{
+          (groups[report.scenario]=groups[report.scenario]||[]).push(report);
+        });
+        return Object.entries(groups).map(([scenario,list])=>({
+          id:`folder-${scenario}`,label:scenario,type:"scenario",count:list.length,
+          children:list.map(report=>({id:report.id,label:report.title,type:"report",reportId:report.id}))
+        }));
+      }
     },
     mounted(){
       this.pageHandler=event=>{if(event.detail?.page==="分析工作台"){this.loadMyTables();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
@@ -1325,6 +1421,34 @@
         this.scenario=key;
         const session=this.activeSession;
         if(session&&!session.messages.length&&!session.suggested)session.scenario=this.scenarioName;
+      },
+      openAsset(node){
+        if(node.type!=="report"||!node.reportId)return;
+        this.activeReportId=node.reportId;
+        this.reportDrawer=true;
+      },
+      activeReport(){return this.reports.find(item=>item.id===this.activeReportId);},
+      async removeReport(report){
+        if(!await confirmAction("删除报告",`确认从分析资产中删除「${report.title}」？`))return;
+        this.reports=this.reports.filter(item=>item.id!==report.id);
+        this.reportDrawer=false;
+        notify(`报告「${report.title}」已删除`);
+      },
+      toggleStar(report){
+        report.starred=!report.starred;
+        notify(report.starred?"已收藏":"已取消收藏");
+      },
+      archiveReport(session,question,reportData){
+        const report=createAnalysisReport({
+          title:`${session.title} · 报告`,
+          scenario:session.scenario,
+          channel:session.channel==="飞书机器人"?"飞书机器人":"工作台对话",
+          time:session.time,
+          tables:reportData.tablesUsed||[],
+          summary:reportData.summary,
+          messages:session.messages.filter(msg=>msg.role==="user"||msg.html||msg.lines?.length).map(msg=>({role:msg.role,lines:msg.lines||[],refs:msg.refs}))
+        });
+        this.reports.unshift(report);
       },
       onEnter(event){
         if(event.shiftKey)return;
@@ -1383,6 +1507,8 @@
             const meta=data.meta||{};
             const metaLine=`${meta.scenario||""} · ${meta.model||""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;
             session.messages.push({role:"assistant",html:this.renderMarkdown(data.report||""),meta:metaLine,lines:[]});
+            const plainSummary=String(data.report||"").replace(/[#*`|>\-]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,2).join("；").slice(0,120);
+            this.archiveReport(session,question,{tablesUsed:meta.tablesUsed||[],summary:plainSummary});
           }
         }catch(error){
           session.status="已完成";
