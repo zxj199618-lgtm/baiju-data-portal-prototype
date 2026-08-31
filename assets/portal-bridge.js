@@ -1204,7 +1204,7 @@
           source: "StarRocks",
           database: "prod_callup",
           table: "dm_ad_plan_daily_media_account_product_performance_detail",
-          cnName: "广告计划日报表",
+          cnName: "广告计划日报表", bizLine: "权益",
           desc: "广告计划日粒度消耗、转化和成本数据，用于对外提供投放日报。",
           serviceStatus: "启用",
           status: "同步成功",
@@ -1236,7 +1236,7 @@
           source: "StarRocks",
           database: "prod_cloud",
           table: "dwd_user_profile_tag",
-          cnName: "用户画像标签明细表",
+          cnName: "用户画像标签明细表", bizLine: "存量",
           desc: "用户画像标签明细表，用于用户细查和外部系统标签查询。",
           serviceStatus: "启用",
           status: "同步成功",
@@ -1261,7 +1261,7 @@
           source: "StarRocks",
           database: "prod_callup",
           table: "ads_rta_request_hour",
-          cnName: "RTA 请求小时监控表",
+          cnName: "RTA 请求小时监控表", bizLine: "号卡",
           desc: "RTA 小时级请求、命中、耗时监控表。",
           serviceStatus: "停用",
           status: "同步失败",
@@ -1275,17 +1275,17 @@
       ];
 
       [
-        ["prod_callup", "dwd_ad_account_daily", "广告账户日报"],
-        ["prod_callup", "dwd_campaign_conversion_daily", "广告组转化日报"],
-        ["prod_callup", "ads_media_cost_summary", "媒体消耗汇总"],
-        ["prod_cloud", "dwd_user_device_relation", "用户设备关系明细"],
-        ["prod_cloud", "dwd_user_order_detail", "用户订单明细"],
-        ["prod_cloud", "dm_user_lifecycle_daily", "用户生命周期日报"],
-        ["prod_callup", "ads_product_roi_daily", "产品 ROI 日报"],
-        ["prod_cloud", "dwd_channel_attribution_detail", "渠道归因明细"],
-        ["prod_callup", "dm_media_account_health", "媒体账户健康度"]
-      ].forEach(([database, table, cnName], demoIndex) => dataAssets.push({
-        source: "StarRocks", database, table, cnName,
+        ["prod_callup", "dwd_ad_account_daily", "广告账户日报", "权益"],
+        ["prod_callup", "dwd_campaign_conversion_daily", "广告组转化日报", "权益"],
+        ["prod_callup", "ads_media_cost_summary", "媒体消耗汇总", "权益"],
+        ["prod_cloud", "dwd_user_device_relation", "用户设备关系明细", "存量"],
+        ["prod_cloud", "dwd_user_order_detail", "用户订单明细", "号卡"],
+        ["prod_cloud", "dm_user_lifecycle_daily", "用户生命周期日报", "存量"],
+        ["prod_callup", "ads_product_roi_daily", "产品 ROI 日报", "权益"],
+        ["prod_cloud", "dwd_channel_attribution_detail", "渠道归因明细", "保险"],
+        ["prod_callup", "dm_media_account_health", "媒体账户健康度", "权益"]
+      ].forEach(([database, table, cnName, bizLine], demoIndex) => dataAssets.push({
+        source: "StarRocks", database, table, cnName, bizLine,
         desc: `${cnName}，用于接口服务与数据分析。`, serviceStatus: demoIndex === 7 ? "停用" : "启用", status: "同步成功",
         lastSync: "2026-06-26 09:30", lastSuccessSync: "2026-06-26 09:30", nextSync: "每日 02:30", owner: "黄佩贤",
         fields: [
@@ -1379,7 +1379,7 @@
 
       dataAssets.push({
         assetId: "T101", source: "门户维护", database: "portal_dim", table: "dim_channel",
-        externalName: "open_dim_channel", cnName: "渠道维表",
+        externalName: "open_dim_channel", cnName: "渠道维表", bizLine: "权益",
         desc: "业务渠道主数据，支持在线增删改查，渠道类型引用共用字典。",
         serviceStatus: "启用", status: "同步成功", lastSync: "2026-08-22 10:18", lastSuccessSync: "2026-08-22 10:18",
         nextSync: "按维护写入", owner: "谭嘉颖", dimension: true, maintainMode: "portal",
@@ -1401,7 +1401,7 @@
       });
       dataAssets.push({
         assetId: "T102", source: "门户维护", database: "portal_dim", table: "dim_product",
-        externalName: "open_dim_product", cnName: "产品维表",
+        externalName: "open_dim_product", cnName: "产品维表", bizLine: "号卡",
         desc: "可投放产品清单，由运营在门户维护。",
         serviceStatus: "启用", status: "同步成功", lastSync: "2026-08-19 18:40", lastSuccessSync: "2026-08-19 18:40",
         nextSync: "按维护写入", owner: "李雨航", dimension: true, maintainMode: "portal",

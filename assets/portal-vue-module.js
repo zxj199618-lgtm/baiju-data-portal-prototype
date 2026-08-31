@@ -409,6 +409,7 @@
               <el-select v-model="source" class="portal-vue-filter" placeholder="全部数据源" @change="changeSource"><el-option label="全部数据源" value=""></el-option><el-option v-for="item in sources" :key="item" :label="item" :value="item"></el-option></el-select>
               <el-select v-model="database" class="portal-vue-filter" placeholder="全部库名" @change="resetPage"><el-option label="全部库名" value=""></el-option><el-option v-for="item in databases" :key="item" :label="item" :value="item"></el-option></el-select>
               <el-select v-model="owner" class="portal-vue-filter" placeholder="全部表负责人" @change="resetPage"><el-option label="全部表负责人" value=""></el-option><el-option v-for="item in owners" :key="item" :label="item" :value="item"></el-option></el-select>
+              <el-select v-model="bizLine" class="portal-vue-filter" placeholder="全部业务线" @change="resetPage"><el-option label="全部业务线" value=""></el-option><el-option v-for="item in bizLines" :key="item" :label="item" :value="item"></el-option></el-select>
             </div>
             <el-button type="primary" @click="openCreate">新增表</el-button>
           </div>
@@ -417,6 +418,7 @@
             <el-table-column label="对外表名" width="210" fixed="left" show-overflow-tooltip><template #default="scope"><span class="portal-vue-name">{{ scope.row.externalName }}</span></template></el-table-column>
             <el-table-column prop="table" label="表名" width="300" show-overflow-tooltip><template #default="scope"><code class="portal-vue-code">{{ scope.row.table }}</code></template></el-table-column>
             <el-table-column label="表类型" width="120"><template #default="scope"><div class="portal-vue-type-tags"><el-tag v-if="scope.row.dimension" size="small" type="warning" effect="light">维表</el-tag><el-tag v-if="isTagTable(scope.row)" size="small" effect="plain">标签表</el-tag><span v-if="!scope.row.dimension && !isTagTable(scope.row)" class="portal-vue-muted">数仓表</span></div></template></el-table-column>
+            <el-table-column label="业务线" width="100"><template #default="scope"><el-tag v-if="scope.row.bizLine" size="small" effect="plain">{{ scope.row.bizLine }}</el-tag><span v-else class="portal-vue-muted">—</span></template></el-table-column>
             <el-table-column prop="source" label="数据源" width="120"></el-table-column>
             <el-table-column prop="database" label="库名" width="150"></el-table-column>
             <el-table-column prop="cnName" label="表中文名" width="170" show-overflow-tooltip></el-table-column>
@@ -438,6 +440,7 @@
             <el-form-item label="表名" required><el-input v-model="createForm.table" placeholder="小写字母与下划线"></el-input></el-form-item>
             <el-form-item label="对外表名" required><el-input v-model="createForm.externalName" placeholder="例如：open_user_profile_tag"></el-input></el-form-item>
             <el-form-item label="表中文名" required><el-input v-model="createForm.cnName" placeholder="请输入表中文名"></el-input></el-form-item>
+            <el-form-item label="业务线" required><el-select v-model="createForm.bizLine" placeholder="选择表所属业务线"><el-option v-for="item in bizLines" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
             <el-form-item label="表描述"><el-input v-model="createForm.desc" type="textarea" :rows="3"></el-input></el-form-item>
             <el-form-item label="表类型">
               <div class="portal-vue-type-checks">
@@ -476,16 +479,17 @@
         </el-drawer>
       </el-config-provider>
     `,
-    data: () => ({ status: "启用", keyword: "", source: "", database: "", owner: "", page: 1, pageSize: 10, createVisible: false, createForm: {}, detailVisible: false, detail: null, detailDraft: {} }),
+    data: () => ({ status: "启用", keyword: "", source: "", database: "", owner: "", bizLine: "", page: 1, pageSize: 10, createVisible: false, createForm: {}, detailVisible: false, detail: null, detailDraft: {} }),
     computed: {
       sources() { refreshTick.value; return [...new Set(state.assets.map(item => item.source))]; },
       databases() { return [...new Set(state.assets.filter(item => !this.source || item.source === this.source).map(item => item.database))]; },
       owners() { return [...new Set(state.assets.map(item => item.owner).filter(Boolean))].sort((left, right) => left.localeCompare(right, "zh-CN")); },
-      filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.assets.filter(item => (item.serviceStatus || "启用") === this.status && (!this.source || item.source === this.source) && (!this.database || item.database === this.database) && (!this.owner || item.owner === this.owner) && (!keyword || `${item.table} ${item.externalName} ${item.cnName}`.toLowerCase().includes(keyword))); },
+      bizLines() { refreshTick.value; return [...new Set(state.assets.map(item => item.bizLine).filter(Boolean))]; },
+      filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.assets.filter(item => (item.serviceStatus || "启用") === this.status && (!this.source || item.source === this.source) && (!this.database || item.database === this.database) && (!this.owner || item.owner === this.owner) && (!this.bizLine || item.bizLine === this.bizLine) && (!keyword || `${item.table} ${item.externalName} ${item.cnName}`.toLowerCase().includes(keyword))); },
       pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
       rangeText() { if (!this.filteredRows.length) return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; },
       enabledDicts() { refreshTick.value; return state.dictionaries.filter(item => item.status === "启用"); },
-      detailMeta() { if (!this.detail) return []; return [{label:"表编号",value:this.detail.assetId || "—"},{label:"对外表名",value:this.detail.externalName || "—"},{label:"数据源",value:this.detail.source},{label:"库名",value:this.detail.database},{label:"表名",value:this.detail.table,code:true},{label:"最近同步时间",value:this.detail.lastSuccessSync || "—"},{label:"字段数量",value:this.detail.fields.length},{label:"近30日调用次数",value:this.callCount(this.detail).toLocaleString()}]; },
+      detailMeta() { if (!this.detail) return []; return [{label:"表编号",value:this.detail.assetId || "—"},{label:"对外表名",value:this.detail.externalName || "—"},{label:"数据源",value:this.detail.source},{label:"业务线",value:this.detail.bizLine || "—"},{label:"库名",value:this.detail.database},{label:"表名",value:this.detail.table,code:true},{label:"最近同步时间",value:this.detail.lastSuccessSync || "—"},{label:"字段数量",value:this.detail.fields.length},{label:"近30日调用次数",value:this.callCount(this.detail).toLocaleString()}]; },
       activeUsers() { return state.users.filter(user => user.status !== "已停用"); }
     },
     mounted() { this.primaryHandler = event => { if (event.detail?.page === "表管理") this.openCreate(); }; window.addEventListener("portal:primary-action", this.primaryHandler); },
@@ -498,14 +502,14 @@
       isTagTable(asset) { return state.tables.some(table => table.name === asset.table); },
       enabledDictItems,
       dictHint,
-      openCreate() { this.createForm = { source: "StarRocks-拉端", database: "", table: "", externalName: "", cnName: "", desc: "", dimension: false, tagTable: false }; this.createVisible = true; },
+      openCreate() { this.createForm = { source: "StarRocks-拉端", database: "", table: "", externalName: "", cnName: "", bizLine: "", desc: "", dimension: false, tagTable: false }; this.createVisible = true; },
       saveCreate() {
         const form = this.createForm;
-        if (![form.source,form.database,form.table,form.externalName,form.cnName].every(value => String(value).trim())) return ep.ElMessage.warning("请补全数据表必填信息");
+        if (![form.source,form.database,form.table,form.externalName,form.cnName,form.bizLine].every(value => String(value).trim())) return ep.ElMessage.warning("请补全数据表必填信息");
         if (!/^[a-z]+(?:_[a-z0-9]+)*$/.test(form.table)) return ep.ElMessage.warning("表名仅支持小写字母、数字与下划线");
         if (state.assets.some(item => item.database === form.database && item.table === form.table)) return ep.ElMessage.warning("该数据表已存在");
         const notes = [];
-        state.assets.unshift({ assetId:`T${String(state.assets.length+1).padStart(3,"0")}`, source:form.source, database:form.database, table:form.table, externalName:form.externalName, cnName:form.cnName, desc:form.desc || `${form.cnName}，用于数据服务与分析。`, serviceStatus:"启用", status:"同步成功", lastSync:"2026-07-15 10:00", lastSuccessSync:"2026-07-15 10:00", nextSync:"每日 02:30", owner:"曾祥竞", dimension:!!form.dimension, maintainMode:"sync", rows:[], lastMaintained:"", maintainer:"", fields:[] });
+        state.assets.unshift({ assetId:`T${String(state.assets.length+1).padStart(3,"0")}`, source:form.source, database:form.database, table:form.table, externalName:form.externalName, cnName:form.cnName, bizLine:form.bizLine, desc:form.desc || `${form.cnName}，用于数据服务与分析。`, serviceStatus:"启用", status:"同步成功", lastSync:"2026-07-15 10:00", lastSuccessSync:"2026-07-15 10:00", nextSync:"每日 02:30", owner:"曾祥竞", dimension:!!form.dimension, maintainMode:"sync", rows:[], lastMaintained:"", maintainer:"", fields:[] });
         if (form.dimension) notes.push("已加入维表管理");
         if (form.tagTable) {
           if (!state.tables.some(table => table.name === form.table)) state.tables.push({ name:form.table, cn:form.cnName, exportFields:[], fields:[] });
@@ -1294,9 +1298,13 @@
                 <div class="portal-vue-ai-composer">
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
+                    <el-select v-model="activeBizLine" class="portal-vue-ai-chip-select portal-vue-ai-chip-bizline" size="small" filterable clearable placeholder="全部业务线" popper-class="portal-vue-ai-select-popper" @change="onBizLineChange">
+                      <template #prefix><span class="portal-vue-ai-chip-label">线</span></template>
+                      <el-option v-for="item in bizLineOptions" :key="item" :label="item" :value="item"></el-option>
+                    </el-select>
                     <el-select v-model="activeTable" class="portal-vue-ai-chip-select" size="small" filterable clearable placeholder="选择数据表" popper-class="portal-vue-ai-select-popper">
                       <template #prefix><span class="portal-vue-ai-chip-label">表</span></template>
-                      <el-option v-for="table in myTables" :key="table" :label="table" :value="table"></el-option>
+                      <el-option v-for="table in tableOptions" :key="table" :label="table" :value="table"></el-option>
                     </el-select>
                     <el-select v-model="model" class="portal-vue-ai-chip-select portal-vue-ai-chip-model" size="small" :loading="modelsLoading" :disabled="!models.length" no-data-text="启动本地网关后可用" popper-class="portal-vue-ai-select-popper">
                       <template #prefix><span class="portal-vue-ai-chip-label">模型</span></template>
@@ -1345,6 +1353,7 @@
       model: "",
       sessions: analysisSessionsSeed.map(session => createAnalysisSession(session)),
       gatewayTables: [],
+      activeBizLine: "",
       reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
       reportDrawer: false,
       activeReportId: "",
@@ -1366,6 +1375,17 @@
       mentionTables(){
         const keyword=this.mentionKeyword.trim().toLowerCase();
         return this.myTables.filter(table=>!keyword||table.toLowerCase().includes(keyword));
+      },
+      bizLineMeta(){
+        const meta={};
+        state.assets.forEach(table=>{if(table.bizLine)meta[table.cnName]=table.bizLine;});
+        return meta;
+      },
+      bizLineOptions(){
+        return [...new Set(this.myTables.map(table=>this.bizLineMeta[table]).filter(Boolean))];
+      },
+      tableOptions(){
+        return this.activeBizLine?this.myTables.filter(table=>this.bizLineMeta[table]===this.activeBizLine):this.myTables;
       },
       ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
       historySessions(){return this.sessions.filter(item=>item.status!=="进行中");},
@@ -1419,6 +1439,9 @@
         const session=this.sessions.find(item=>item.id===id);
         if(session)this.scenario=analysisScenarios.find(scene=>scene.name===session.scenario)?.key||"single";
         this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));
+      },
+      onBizLineChange(){
+        if(this.activeTable&&this.tableOptions&&!this.tableOptions.includes(this.activeTable))this.activeTable="";
       },
       setScenario(key){
         this.scenario=key;

@@ -162,5 +162,7 @@ assert(html.includes('id="skillManagementView"') && portalVue.includes("mount(\"
 assert(portalVue.includes("SkillManagementApp") && portalVue.includes("提示词") && portalVue.includes("沙箱试跑") && portalVue.includes("回滚到此版本"), "Skill 配置应支持提示词编辑/版本回滚/沙箱试跑");
 assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("ModelConfigApp") && portalVue.includes("modelConfigView"), "系统管理应提供模型配置页");
 assert(portalVue.includes("v1/model-config") && portalVue.includes("已禁用"), "模型配置应支持禁用历史模型并持久化到网关");
+assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("bizLineOptions") && portalVue.includes("activeBizLine"), "数据表应支持业务线维度，分析工作台应支持先选业务线再选表");
+assert(portalVue.includes('label="业务线"') && portalVue.includes("bizLines()"), "表管理应提供业务线列与筛选");
 
 console.log("观星台原型 smoke test: passed");
