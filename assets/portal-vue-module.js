@@ -1492,7 +1492,7 @@
         this.modelsLoading=true;
         try{
           const response=await fetch(`${analysisGatewayBase}/v1/models`);
-          if(response.ok){const data=await response.json();this.models=data.models||[];this.defaultModel=data.default||this.models[0]||"";this.model=data.default||this.models[0]||"";}
+          if(response.ok){const data=await response.json();this.models=data.models||[];this.defaultModel=data.default||this.models[0]||"";if(!this.models.includes(this.model))this.model=this.defaultModel;}
         }catch(error){/* 网关未启动时保持空列表，界面显示提示 */}
         this.modelsLoading=false;
       },

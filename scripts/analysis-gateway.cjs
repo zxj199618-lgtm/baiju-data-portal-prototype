@@ -923,10 +923,12 @@ const server = http.createServer(async (req, res) => {
       const ids = await relayAllModels();
       const usable = ids.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id));
       const disabled = loadModelConfig().disabled || {};
+      const enabledModels = usable.filter(id => !disabled[id]).sort();
+      const defaultModel = enabledModels.includes(DEFAULT_MODEL) ? DEFAULT_MODEL : enabledModels[0] || DEFAULT_MODEL;
       return sendJson(res, 200, {
-        models: usable.filter(id => !disabled[id]).sort(),
+        models: enabledModels,
         allModels: usable.sort().map(id => ({ id, enabled: !disabled[id], reason: disabled[id]?.reason || "" })),
-        default: DEFAULT_MODEL
+        default: defaultModel
       });
     } catch (error) {
       return sendJson(res, 502, { error: `中转站不可达：${error.message}` });
