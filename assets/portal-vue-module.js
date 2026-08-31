@@ -1201,9 +1201,9 @@
                   </div>
                 </div>
                 <div v-for="(msg, index) in activeSession.messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
-                  <div class="portal-vue-ai-bubble">
-                    <p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p>
-                    <div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div>
+                  <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html }">
+                    <template v-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
+                    <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div>
                 <div v-if="thinking" class="portal-vue-ai-message assistant"><div class="portal-vue-ai-bubble"><p class="portal-vue-muted">正在基于你有权限的数据表进行分析…</p></div></div>
@@ -1217,7 +1217,15 @@
                   </div>
                 </div>
                 <div class="portal-vue-ai-input-row">
+                  <el-select v-model="activeTable" class="portal-vue-ai-table-select" size="default" filterable clearable placeholder="切换分析表" popper-class="portal-vue-ai-select-popper">
+                    <template #prefix><span class="portal-vue-ai-select-label">表</span></template>
+                    <el-option v-for="table in myTables" :key="table" :label="table" :value="table"></el-option>
+                  </el-select>
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
+                  <el-select v-model="model" class="portal-vue-ai-model-select" size="default" :loading="modelsLoading" :disabled="!models.length" no-data-text="启动本地网关后可用" popper-class="portal-vue-ai-select-popper">
+                    <template #prefix><span class="portal-vue-ai-select-label">模型</span></template>
+                    <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
+                  </el-select>
                   <el-button type="primary" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
                 </div>
               </div>
@@ -1233,6 +1241,10 @@
       thinking: false,
       mentionOpen: false,
       mentionKeyword: "",
+      activeTable: "",
+      models: [],
+      modelsLoading: false,
+      model: "",
       sessions: analysisSessionsSeed.map(session => createAnalysisSession(session)),
       activeId: analysisSessionsSeed[0]?.id || "",
       suggests: ["近 7 天各媒体消耗趋势如何？", "哪些计划 CPA 超过目标值？", "本周消耗环比上涨的原因是什么？", "有哪些表可以看渠道归因？"]
@@ -1259,9 +1271,18 @@
     mounted(){
       this.pageHandler=event=>{if(event.detail?.page==="分析工作台")this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));};
       window.addEventListener("portal:page-change",this.pageHandler);
+      this.loadModels();
     },
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
+      async loadModels(){
+        this.modelsLoading=true;
+        try{
+          const response=await fetch("http://localhost:8787/v1/models");
+          if(response.ok){const data=await response.json();this.models=data.models||[];this.model=data.default||this.models[0]||"";}
+        }catch(error){/* 网关未启动时保持空列表，界面显示提示 */}
+        this.modelsLoading=false;
+      },
       newSession(){
         const session=createAnalysisSession({title:"新的分析",scenario:this.scenarioName});
         session.status="进行中";
@@ -1296,7 +1317,7 @@
         this.mentionOpen=false;
         this.mentionKeyword="";
       },
-      sendMessage(){
+      async sendMessage(){
         const question=this.input.trim();
         if(!question||this.thinking)return;
         let session=this.activeSession;
@@ -1305,25 +1326,78 @@
           this.sessions.unshift(session);
           this.activeId=session.id;
         }
-        const mentionedTables=this.myTables.filter(table=>question.includes(`@${table}`));
+        const mentionedTables=[...new Set([...this.myTables.filter(table=>question.includes(`@${table}`)),...(this.activeTable?[this.activeTable]:[])])];
         session.messages.push({role:"user",lines:[question],refs:mentionedTables.length?mentionedTables:undefined});
         session.title=session.title==="新的分析"?question.slice(0,18):session.title;
         this.input="";
         this.mentionOpen=false;
         this.thinking=true;
-        const scenarioName=session.scenario;
-        setTimeout(()=>{
+        const gatewayAvailable=this.models.length>0;
+        if(!gatewayAvailable){
+          await new Promise(resolve=>setTimeout(resolve,700));
           this.thinking=false;
           session.status="已完成";
           session.time=new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-");
-          const lines=mentionedTables.length
-            ?[`已完成「${scenarioName}」分析（原型演示回复）。`,`本次分析基于你引用的 ${mentionedTables.length} 张数据表：${mentionedTables.join("、")}。`,`接入 WorkBuddy skill 后，这里将返回真实的分析结论、图表与引用明细。`]
-            :this.myTables.length
-              ?[`已完成「${scenarioName}」分析（原型演示回复）。`,`本次分析在你有权限的 ${this.myTables.length} 张数据表范围内执行。`,`可用输入框中的 @ 精确引用数据表，接入 skill 后将返回真实结论与图表。`]
-              :["当前权限组未配置数据表权限，无法发起分析，请联系管理员在「权限组 → 数据表权限」中授权。"];
+          const lines=this.myTables.length
+            ?["本地分析网关未启动（scripts/analysis-gateway.cjs），当前为原型演示回复。","启动方式：RELAY_API_KEY=<中转站Key> node scripts/analysis-gateway.cjs，刷新后即可获得真实分析报告。"]
+            :["当前权限组未配置数据表权限，无法发起分析，请联系管理员在「权限组 → 数据表权限」中授权。"];
           session.messages.push({role:"assistant",lines,refs:(mentionedTables.length?mentionedTables:this.myTables).slice(0,3)});
-          this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
-        },900);
+          return this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
+        }
+        try{
+          const response=await fetch("http://localhost:8787/v1/analyze",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,tables:mentionedTables,model:this.model})
+          });
+          const data=await response.json();
+          session.status="已完成";
+          session.time=new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-");
+          if(!response.ok){
+            session.messages.push({role:"assistant",lines:[`分析失败：${data.error||"未知错误"}`]});
+          }else{
+            const meta=data.meta||{};
+            const metaLine=`${meta.scenario||""} · ${meta.model||""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;
+            session.messages.push({role:"assistant",html:this.renderMarkdown(data.report||""),meta:metaLine,lines:[]});
+          }
+        }catch(error){
+          session.status="已完成";
+          session.messages.push({role:"assistant",lines:[`分析请求失败：${error.message}。请确认本地网关已启动（node scripts/analysis-gateway.cjs）。`]});
+        }
+        this.thinking=false;
+        this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
+      },
+      renderMarkdown(markdown){
+        const escape=value=>String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        const lines=String(markdown).split(/\r?\n/);
+        let html="",inCode=false,inTable=false,inList=false;
+        const inline=value=>escape(value)
+          .replace(/`([^`]+)`/g,"<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+        const closeList=()=>{if(inList){html+="</ul>";inList=false;}};
+        const closeTable=()=>{if(inTable){html+="</tbody></table>";inTable=false;}};
+        lines.forEach(raw=>{
+          const line=raw.trimEnd();
+          if(/^```/.test(line)){closeList();closeTable();if(inCode){html+="</code></pre>";inCode=false;}else{html+='<pre><code>';inCode=true;}return;}
+          if(inCode){html+=escape(raw)+"\n";return;}
+          if(/^\|.*\|$/.test(line)){
+            const cells=line.replace(/^\||\|$/g,"").split("|");
+            if(cells.every(cell=>/^\s*:?-{2,}:?\s*$/.test(cell)))return;
+            if(!inTable){html+='<table class="portal-vue-ai-report-table"><tbody>';inTable=true;}
+            html+="<tr>"+cells.map((cell,index)=>`<${inTable&&html.endsWith("<tbody>")?"th":"td"}>${inline(cell.trim())}</${inTable&&html.endsWith("<tbody>")?"th":"td"}>`).join("")+"</tr>";
+            return;
+          }
+          closeTable();
+          if(/^#{1,4}\s/.test(line)){closeList();const level=line.match(/^#+/)[0].length;html+=`<h${level+2}>${inline(line.replace(/^#+\s*/,""))}</h${level+2}>`;return;}
+          if(/^[-*]\s/.test(line)){if(!inList){html+="<ul>";inList=true;}html+=`<li>${inline(line.replace(/^[-*]\s*/,""))}</li>`;return;}
+          if(/^\d+\.\s/.test(line)){closeList();html+=`<p class="portal-vue-ai-report-ol">${inline(line)}</p>`;return;}
+          closeList();
+          if(!line.trim())return;
+          html+=`<p>${inline(line)}</p>`;
+        });
+        closeList();closeTable();
+        if(inCode)html+="</code></pre>";
+        return html;
       }
     }
   };
