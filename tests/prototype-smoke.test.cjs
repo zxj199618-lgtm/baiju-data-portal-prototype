@@ -41,7 +41,7 @@ assert(html.includes('href="assets/portal-shell.css"'), "入口应加载公共�
   "assets/cp-vue-module.js",
   "assets/portal-vue-module.js"
 ].reduce((lastIndex, source) => {
-  const index = html.indexOf(`src="${source}"`);
+  const index = html.indexOf(`src="${source}"`) !== -1 ? html.indexOf(`src="${source}"`) : html.indexOf(`src="${source}?`);
   assert(index > lastIndex, `脚本加载顺序错误或缺失: ${source}`);
   return index;
 }, -1);
