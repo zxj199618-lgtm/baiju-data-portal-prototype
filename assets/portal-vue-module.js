@@ -1291,17 +1291,19 @@
                     <p v-if="!mentionTables.length" class="portal-vue-muted">没有匹配的数据表，或当前权限组未配置数据表权限。</p>
                   </div>
                 </div>
-                <div class="portal-vue-ai-input-row">
-                  <el-select v-model="activeTable" class="portal-vue-ai-table-select" size="default" filterable clearable placeholder="切换分析表" popper-class="portal-vue-ai-select-popper">
-                    <template #prefix><span class="portal-vue-ai-select-label">表</span></template>
-                    <el-option v-for="table in myTables" :key="table" :label="table" :value="table"></el-option>
-                  </el-select>
+                <div class="portal-vue-ai-composer">
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
-                  <el-select v-model="model" class="portal-vue-ai-model-select" size="default" :loading="modelsLoading" :disabled="!models.length" no-data-text="启动本地网关后可用" popper-class="portal-vue-ai-select-popper">
-                    <template #prefix><span class="portal-vue-ai-select-label">模型</span></template>
-                    <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
-                  </el-select>
-                  <el-button type="primary" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
+                  <div class="portal-vue-ai-composer-bar">
+                    <el-select v-model="activeTable" class="portal-vue-ai-chip-select" size="small" filterable clearable placeholder="选择数据表" popper-class="portal-vue-ai-select-popper">
+                      <template #prefix><span class="portal-vue-ai-chip-label">表</span></template>
+                      <el-option v-for="table in myTables" :key="table" :label="table" :value="table"></el-option>
+                    </el-select>
+                    <el-select v-model="model" class="portal-vue-ai-chip-select portal-vue-ai-chip-model" size="small" :loading="modelsLoading" :disabled="!models.length" no-data-text="启动本地网关后可用" popper-class="portal-vue-ai-select-popper">
+                      <template #prefix><span class="portal-vue-ai-chip-label">模型</span></template>
+                      <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
+                    </el-select>
+                    <el-button type="primary" size="small" class="portal-vue-ai-composer-send" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
+                  </div>
                 </div>
               </div>
             </section>

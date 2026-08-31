@@ -389,7 +389,7 @@
 .portal-vue-ai-bubble p { margin: 0 0 4px; }
 .portal-vue-ai-bubble p:last-child { margin-bottom: 0; }
 .portal-vue-ai-refs { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
-.portal-vue-ai-input { border-top: 1px solid #e9edf4; background: #fbfcfe; padding: 10px 12px 12px; }
+.portal-vue-ai-input { border-top: 1px solid #e9edf4; background: #fbfcfe; padding: 12px 14px 14px; }
 .portal-vue-ai-mention { margin-bottom: 8px; padding: 8px 10px; border: 1px solid #dbe8fb; border-radius: 8px; background: #fff; }
 .portal-vue-ai-mention-head { display: flex; justify-content: space-between; font-size: 12px; color: #3f4857; margin-bottom: 6px; }
 .portal-vue-ai-mention-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto; }
@@ -404,11 +404,16 @@
 }
 .portal-vue-ai-group-label { margin: 2px 0 -2px; display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; color: #8a94a6; }
 .portal-vue-ai-group-label span { font-size: 11px; color: #b3bcc9; }
-.portal-vue-ai-input-row { display: flex; gap: 8px; align-items: flex-end; }
-.portal-vue-ai-input-row .el-textarea { flex: 1; }
-.portal-vue-ai-table-select { width: 190px; flex-shrink: 0; }
-.portal-vue-ai-model-select { width: 180px; flex-shrink: 0; }
-.portal-vue-ai-select-label { color: #8a94a6; font-size: 12px; }
+.portal-vue-ai-composer { border: 1px solid #dcdfe6; border-radius: 12px; background: #fff; transition: border-color .15s, box-shadow .15s; }
+.portal-vue-ai-composer:focus-within { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(22,119,255,.08); }
+.portal-vue-ai-composer .el-textarea__inner { border: 0; box-shadow: none; background: transparent; padding: 12px 14px 4px; font-size: 13.5px; }
+.portal-vue-ai-composer-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px 8px; }
+.portal-vue-ai-chip-select { width: auto; min-width: 150px; max-width: 230px; }
+.portal-vue-ai-chip-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; min-height: 30px; }
+.portal-vue-ai-chip-select .el-select__wrapper.is-hovering, .portal-vue-ai-chip-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }
+.portal-vue-ai-chip-model { min-width: 170px; }
+.portal-vue-ai-chip-label { color: #1677ff; font-size: 12px; font-weight: 600; margin-right: 2px; }
+.portal-vue-ai-composer-send { margin-left: auto; border-radius: 999px; padding-left: 18px; padding-right: 18px; }
 .portal-vue-ai-report { max-width: 92%; }
 .portal-vue-ai-report-body { font-size: 13px; line-height: 1.75; color: #2a3446; overflow-x: auto; }
 .portal-vue-ai-report-body p { margin: 6px 0; }
