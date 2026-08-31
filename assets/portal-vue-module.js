@@ -1975,7 +1975,7 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({skills:skillRegistrySeed.map(item=>({...item,versions:item.versions.map(version=>({...version}))})),keyword:"",promptVisible:false,versionsVisible:false,testVisible:false,displayVisible:false,displayForm:{},activeSkill:null,promptDraft:"",testQuestion:"",testOutput:"",testing:false}),
+    data:()=>({skills:skillRegistrySeed,keyword:"",promptVisible:false,versionsVisible:false,testVisible:false,displayVisible:false,displayForm:{},activeSkill:null,promptDraft:"",testQuestion:"",testOutput:"",testing:false}),
     computed:{
       filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));}
     },
