@@ -1126,11 +1126,9 @@
     return "http://localhost:8787";
   })();
 
-  const analysisScenarios = [
-    { key: "single", name: "单表分析", desc: "趋势、分布与异常", icon: "📊" },
-    { key: "lineage", name: "数据血缘分析", desc: "上下游依赖与影响面", icon: "🔗" },
-    { key: "asset", name: "数据资产问答", desc: "有哪些表、口径、负责人", icon: "📚" },
-    { key: "attribution", name: "归因分析", desc: "指标异动拆解与定位", icon: "🎯" }
+  // 工作台场景卡片由「Skill 配置」驱动：icon/标题/描述/排序均来自 skill 注册表
+  const skillScenarioFallback = [
+    { id: "single", icon: "📊", title: "单表分析", displayDesc: "趋势、分布与异常", sort: 10 }
   ];
 
   let analysisSeq = 100;
@@ -1361,8 +1359,13 @@
       suggests: ["近 7 天各媒体消耗趋势如何？", "哪些计划 CPA 超过目标值？", "本周消耗环比上涨的原因是什么？", "有哪些表可以看渠道归因？"]
     }),
     computed:{
-      scenarios(){return analysisScenarios;},
-      scenarioName(){return analysisScenarios.find(item => item.key === this.scenario)?.name || "单表分析";},
+      scenarios(){refreshTick.value;return this.skillScenarios;},
+      skillScenarios(){
+        const source = typeof skillRegistrySeed !== "undefined" ? skillRegistrySeed : skillScenarioFallback;
+        return source.filter(item=>item.enabled!==false&&item.status!=="已停用").sort((a,b)=>(a.sort||99)-(b.sort||99)).map(item=>({key:item.scenarioKey||item.id,id:item.id,icon:item.icon||"✦",name:item.title||item.name,desc:item.displayDesc||item.desc||""}));
+      },
+      activeSkill(){return this.skillScenarios.find(item=>item.key===this.scenario);},
+      scenarioName(){return this.activeSkill?.name||"单表分析";},
       activeSession(){return this.sessions.find(item => item.id === this.activeId) || this.sessions[0] || { messages: [] };},
       currentUser(){refreshTick.value;return state.users.find(user=>user.name==="曾祥竞")||state.users[0];},
       myTables(){refreshTick.value;return this.gatewayTables.length?this.gatewayTables:this.fallbackTables;},
@@ -1437,7 +1440,7 @@
       openSession(id){
         this.activeId=id;
         const session=this.sessions.find(item=>item.id===id);
-        if(session)this.scenario=analysisScenarios.find(scene=>scene.name===session.scenario)?.key||"single";
+        if(session)this.scenario=this.skillScenarios.find(scene=>scene.name===session.scenario)?.key||this.skillScenarios[0]?.key||"single";
         this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));
       },
       onBizLineChange(){
@@ -1862,6 +1865,7 @@
   const skillRegistrySeed = [
     {
       id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100,
+      icon: "📊", title: "单表分析", displayDesc: "趋势、分布与异常", sort: 10, scenarioKey: "single", enabled: true,
       desc: "将 DataWorks 生产 SQL、SQLGlot 静态分析和只读元数据组织成可复核的口径文档。",
       scenarios: "表名解释 / 业务口径问答 / 血缘上下游",
       model: "gpt-5.4-mini",
@@ -1876,6 +1880,7 @@
     },
     {
       id: "asset-qa", name: "数据资产问答 Skill", source: "asset-qa", version: "v0.9", status: "灰度中", traffic: 20,
+      icon: "📚", title: "数据资产问答", displayDesc: "有哪些表、口径、负责人", sort: 30, scenarioKey: "asset", enabled: true,
       desc: "基于表资产元数据回答有哪些表、口径是什么、负责人是谁。",
       scenarios: "资产检索 / 口径问答",
       model: "gpt-5.4-mini",
@@ -1885,6 +1890,26 @@
         { version: "v0.8", time: "2026-08-12 15:00", operator: "曾祥竞", note: "首版灰度" }
       ],
       stats: { calls: 42, successRate: "100%", avgLatency: "6.8s", tokens: "9.1万" }
+    },
+    {
+      id: "lineage-analyst", name: "数据血缘分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100,
+      icon: "🔗", title: "数据血缘分析", displayDesc: "上下游依赖与影响面", sort: 20, scenarioKey: "lineage", enabled: true,
+      desc: "基于 SQL 语料与 AST 解析输出表/字段的上下游血缘与变更影响面。",
+      scenarios: "血缘上下游 / 变更影响分析",
+      model: "gpt-5.4-mini",
+      prompt: "你是观星台数据平台的血缘分析助手。\n基于提供的表上下游血缘证据，输出 Markdown 报告。",
+      versions: [{ version: "v1.2-portal", time: "2026-08-31 16:10", operator: "曾祥竞", note: "复用数仓语料血缘能力", current: true }],
+      stats: { calls: 87, successRate: "97.7%", avgLatency: "11.5s", tokens: "21.3万" }
+    },
+    {
+      id: "attribution-analyst", name: "归因分析 Skill", source: "attribution-analyst", version: "v0.5", status: "已发布", traffic: 100,
+      icon: "🎯", title: "归因分析", displayDesc: "指标异动拆解与定位", sort: 40, scenarioKey: "attribution", enabled: true,
+      desc: "对指标异动做维度拆解（媒体/产品/计划），定位贡献度与原因。",
+      scenarios: "指标异动 / 维度拆解",
+      model: "gpt-5.4-mini",
+      prompt: "你是观星台数据平台的归因分析助手。\n基于聚合统计对指标异动做维度拆解，所有数字必须来自证据。",
+      versions: [{ version: "v0.5", time: "2026-08-29 14:00", operator: "曾祥竞", note: "接入聚合证据层", current: true }],
+      stats: { calls: 56, successRate: "100%", avgLatency: "13.8s", tokens: "15.7万" }
     }
   ];
 
@@ -1899,12 +1924,13 @@
           <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无 Skill">
             <el-table-column label="Skill" min-width="240"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.desc }}</div></div></template></el-table-column>
             <el-table-column prop="source" label="来源包" width="230"><template #default="scope"><code class="portal-vue-code">{{ scope.row.source }}</code></template></el-table-column>
+            <el-table-column label="工作台展示" min-width="200"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:6px"><span>{{ scope.row.icon }}</span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">不展示</span></template></el-table-column>
             <el-table-column prop="version" label="当前版本" width="120"></el-table-column>
             <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="scope.row.status==='已发布'?'success':'warning'" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
             <el-table-column label="灰度" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:8px"><el-progress :percentage="scope.row.traffic" :stroke-width="6" :show-text="false" style="flex:1"></el-progress><span class="portal-vue-muted">{{ scope.row.traffic }}%</span></div></template></el-table-column>
             <el-table-column prop="model" label="模型" width="140"></el-table-column>
             <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
-            <el-table-column label="操作" width="290" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openPrompt(scope.row)">提示词</el-button><el-button link type="primary" @click="openVersions(scope.row)">版本</el-button><el-button link type="primary" @click="toggleStatus(scope.row)">{{ scope.row.status==='已发布'?'灰度调整':'发布' }}</el-button><el-button link type="primary" @click="testRun(scope.row)">试跑</el-button></div></template></el-table-column>
+            <el-table-column label="操作" width="360" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openDisplay(scope.row)">展示设置</el-button><el-button link type="primary" @click="openPrompt(scope.row)">提示词</el-button><el-button link type="primary" @click="openVersions(scope.row)">版本</el-button><el-button link type="primary" @click="toggleStatus(scope.row)">{{ scope.row.status==='已发布'?'灰度调整':'发布' }}</el-button><el-button link type="primary" @click="testRun(scope.row)">试跑</el-button></div></template></el-table-column>
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">Skill 以 ZIP 包（SKILL.md + 脚本 + 依赖清单）上传到网关统一执行；提示词与版本更新即时生效，无需发版。</div>
         </section>
@@ -1925,6 +1951,21 @@
             </div>
           </div>
         </el-drawer>
+        <el-dialog v-model="displayVisible" :title="(activeSkill?.name || '') + ' · 工作台展示设置'" width="520px">
+          <el-form class="portal-vue-dialog-form" label-position="top">
+            <div style="display:grid;grid-template-columns:100px 1fr;gap:0 14px">
+              <el-form-item label="图标" required><el-input v-model="displayForm.icon" maxlength="4" placeholder="📊"></el-input></el-form-item>
+              <el-form-item label="标题" required><el-input v-model="displayForm.title" placeholder="如：单表分析"></el-input></el-form-item>
+            </div>
+            <el-form-item label="描述"><el-input v-model="displayForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+              <el-form-item label="排序（越小越靠前）" required><el-input-number v-model="displayForm.sort" :min="1" :max="999" style="width:100%"></el-input-number></el-form-item>
+              <el-form-item label="在分析工作台展示"><el-switch v-model="displayForm.enabled"></el-switch></el-form-item>
+            </div>
+            <el-form-item v-if="displayForm.enabled" label="绑定分析场景（调网关时使用）"><el-select v-model="displayForm.scenarioKey"><el-option label="单表分析" value="single"></el-option><el-option label="数据血缘分析" value="lineage"></el-option><el-option label="数据资产问答" value="asset"></el-option><el-option label="归因分析" value="attribution"></el-option></el-select></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="displayVisible=false">取消</el-button><el-button type="primary" @click="saveDisplay">保存</el-button></template>
+        </el-dialog>
         <el-dialog v-model="testVisible" :title="(activeSkill?.name || '') + ' · 沙箱试跑'" width="720px">
           <div class="portal-vue-skill-drawer">
             <el-input v-model="testQuestion" type="textarea" :rows="3" placeholder="输入试跑问题，如：dws_ad_cost_daily 为什么这么设计？"></el-input>
@@ -1934,12 +1975,20 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({skills:skillRegistrySeed.map(item=>({...item,versions:item.versions.map(version=>({...version}))})),keyword:"",promptVisible:false,versionsVisible:false,testVisible:false,activeSkill:null,promptDraft:"",testQuestion:"",testOutput:"",testing:false}),
+    data:()=>({skills:skillRegistrySeed.map(item=>({...item,versions:item.versions.map(version=>({...version}))})),keyword:"",promptVisible:false,versionsVisible:false,testVisible:false,displayVisible:false,displayForm:{},activeSkill:null,promptDraft:"",testQuestion:"",testOutput:"",testing:false}),
     computed:{
       filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));}
     },
     methods:{
       notifyUpload(){ep.ElMessage.info("演示环境：正式版将在此上传 skill ZIP 包并注册到网关");},
+      openDisplay(row){this.activeSkill=row;this.displayForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,scenarioKey:row.scenarioKey||"single"};this.displayVisible=true;},
+      saveDisplay(){
+        const form=this.displayForm;
+        if(!String(form.title||"").trim())return ep.ElMessage.warning("请输入标题");
+        Object.assign(this.activeSkill,{icon:form.icon,title:form.title.trim(),displayDesc:form.displayDesc.trim(),sort:form.sort,enabled:form.enabled,scenarioKey:form.scenarioKey});
+        this.displayVisible=false;
+        notify(`「${this.activeSkill.name}」展示设置已保存，分析工作台已同步`);
+      },
       openPrompt(row){this.activeSkill=row;this.promptDraft=row.prompt;this.promptVisible=true;},
       savePrompt(){this.activeSkill.prompt=this.promptDraft;this.promptVisible=false;notify(`「${this.activeSkill.name}」提示词已保存，下次分析生效`);},
       openVersions(row){this.activeSkill=row;this.versionsVisible=true;},
