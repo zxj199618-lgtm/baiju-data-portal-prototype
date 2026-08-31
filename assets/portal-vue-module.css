@@ -408,7 +408,22 @@
 .portal-vue-ai-composer:focus-within { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(22,119,255,.08); }
 .portal-vue-ai-composer .el-textarea__inner { border: 0; box-shadow: none; background: transparent; padding: 12px 14px 4px; font-size: 13.5px; }
 .portal-vue-ai-composer-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px 8px; }
-.portal-vue-ai-chip-select { width: auto; min-width: 150px; max-width: 230px; }
+.portal-vue-ai-chip-select { width: auto; min-width: 200px; max-width: 300px; }
+.portal-vue-ai-chip-model-btn { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border: 0; border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; cursor: pointer; }
+.portal-vue-ai-chip-model-btn:hover:not(:disabled) { box-shadow: 0 0 0 1px #9cc5ff inset; }
+.portal-vue-ai-chip-model-btn:disabled { opacity: .5; cursor: not-allowed; }
+.portal-vue-ai-chip-model-value { font-size: 12.5px; color: #1f2733; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portal-vue-ai-chip-model-arrow { font-size: 10px; color: #8a94a6; }
+.portal-vue-ai-model-panel { display: grid; gap: 2px; }
+.portal-vue-ai-model-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 4px; border-bottom: 1px solid #f0f2f6; }
+.portal-vue-ai-model-row:last-child { border-bottom: 0; }
+.portal-vue-ai-model-label { font-size: 13px; color: #1f2733; }
+.portal-vue-ai-model-value { font-size: 13px; color: #6b7280; cursor: pointer; }
+.portal-vue-ai-model-value:hover { color: #1677ff; }
+.portal-vue-ai-model-inline-select { width: 190px; }
+.portal-vue-ai-model-reset { cursor: pointer; }
+.portal-vue-ai-model-reset:hover .portal-vue-ai-model-label, .portal-vue-ai-model-reset:hover .portal-vue-ai-model-value { color: #1677ff; }
+.el-select-group__title { color: #8a94a6 !important; font-size: 12px !important; font-weight: 600 !important; }
 .portal-vue-ai-chip-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; min-height: 30px; }
 .portal-vue-ai-chip-select .el-select__wrapper.is-hovering, .portal-vue-ai-chip-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }
 .portal-vue-ai-chip-model { min-width: 170px; }

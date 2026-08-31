@@ -951,7 +951,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && url.pathname === "/v1/analyze") {
     const body = await readBody(req);
-    const { user = "曾祥竞", question = "", scenario = "single", tables: requestedTables = [], model = DEFAULT_MODEL } = body;
+    const { user = "曾祥竞", question = "", scenario = "single", tables: requestedTables = [], model = DEFAULT_MODEL, reasoningEffort = "", maxTokens = null } = body;
     if (!question.trim()) return sendJson(res, 400, { error: "问题不能为空" });
 
     const modelConfig = loadModelConfig();
@@ -979,8 +979,16 @@ const server = http.createServer(async (req, res) => {
     ].filter(Boolean).join("\n\n");
 
     const started = Date.now();
+    const messages = [{ role: "system", content: scene.system }, { role: "user", content: prompt }];
+    const reasoningOptions = {};
+    if (["low", "medium", "high"].includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
+    if (Number.isFinite(maxTokens) && maxTokens >= 256) reasoningOptions.max_completion_tokens = Math.floor(maxTokens);
+    const hasReasoningOptions = Object.keys(reasoningOptions).length > 0;
     try {
-      const result = await relayChat(model, { messages: [{ role: "system", content: scene.system }, { role: "user", content: prompt }] });
+      let result = await relayChat(model, { messages, ...reasoningOptions });
+      if (result.status !== 200 && hasReasoningOptions && /unsupported|unknown|invalid|not support|unexpected/i.test(JSON.stringify(result.data).slice(0, 500))) {
+        result = await relayChat(model, { messages });
+      }
       if (result.status !== 200) {
         return sendJson(res, 502, { error: `模型调用失败（${result.status}）：${JSON.stringify(result.data).slice(0, 300)}` });
       }
@@ -989,7 +997,9 @@ const server = http.createServer(async (req, res) => {
         report: content,
         meta: {
           skill: skill.name, skillVersion: skill.version, scenario: scene.label,
-          model, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名),
+          model, reasoningEffort: hasReasoningOptions ? (reasoningOptions.reasoning_effort || "default") : "default",
+          maxTokens: reasoningOptions.max_completion_tokens || null,
+          tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名),
           deniedTables: denied, latencyMs: Date.now() - started,
           usage: result.data.usage || null, requestId: crypto.randomUUID()
         }

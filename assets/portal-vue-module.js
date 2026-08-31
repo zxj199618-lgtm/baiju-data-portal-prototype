@@ -1301,18 +1301,57 @@
                 <div class="portal-vue-ai-composer">
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
-                    <el-select v-model="activeBizLine" class="portal-vue-ai-chip-select portal-vue-ai-chip-bizline" size="small" filterable clearable placeholder="全部业务线" popper-class="portal-vue-ai-select-popper" @change="onBizLineChange">
-                      <template #prefix><span class="portal-vue-ai-chip-label">线</span></template>
-                      <el-option v-for="item in bizLineOptions" :key="item" :label="item" :value="item"></el-option>
-                    </el-select>
-                    <el-select v-model="activeTable" class="portal-vue-ai-chip-select" size="small" filterable clearable placeholder="选择数据表" popper-class="portal-vue-ai-select-popper">
+                    <el-select v-model="activeTable" class="portal-vue-ai-chip-select" size="small" filterable clearable placeholder="选择数据表（按业务线分组）" popper-class="portal-vue-ai-select-popper">
                       <template #prefix><span class="portal-vue-ai-chip-label">表</span></template>
-                      <el-option v-for="table in tableOptions" :key="table" :label="table" :value="table"></el-option>
+                      <el-option-group v-for="group in groupedTables" :key="group.label" :label="group.label">
+                        <el-option v-for="table in group.options" :key="table" :label="table" :value="table"></el-option>
+                      </el-option-group>
                     </el-select>
-                    <el-select v-model="model" class="portal-vue-ai-chip-select portal-vue-ai-chip-model" size="small" :loading="modelsLoading" :disabled="!models.length" no-data-text="启动本地网关后可用" popper-class="portal-vue-ai-select-popper">
-                      <template #prefix><span class="portal-vue-ai-chip-label">模型</span></template>
-                      <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
-                    </el-select>
+                    <el-popover placement="top-end" :width="300" trigger="click" popper-class="portal-vue-ai-model-panel-popper">
+                      <template #reference>
+                        <button type="button" class="portal-vue-ai-chip-model-btn" :disabled="!models.length">
+                          <span class="portal-vue-ai-chip-label">模型</span>
+                          <span class="portal-vue-ai-chip-model-value">{{ model || "请选择" }}</span>
+                          <span class="portal-vue-ai-chip-model-arrow">⌄</span>
+                        </button>
+                      </template>
+                      <div class="portal-vue-ai-model-panel">
+                        <div class="portal-vue-ai-model-row">
+                          <span class="portal-vue-ai-model-label">模型</span>
+                          <el-select v-model="model" size="small" class="portal-vue-ai-model-inline-select" :loading="modelsLoading" filterable popper-class="portal-vue-ai-select-popper">
+                            <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
+                          </el-select>
+                        </div>
+                        <div class="portal-vue-ai-model-row">
+                          <span class="portal-vue-ai-model-label">推理强度</span>
+                          <el-dropdown trigger="click" popper-class="portal-vue-ai-model-panel-popper" @command="cmd=>reasoning=cmd">
+                            <span class="portal-vue-ai-model-value">{{ reasoningLabel }} ›</span>
+                            <template #dropdown><el-dropdown-menu>
+                              <el-dropdown-item command="low">低（更快）</el-dropdown-item>
+                              <el-dropdown-item command="medium">中（默认）</el-dropdown-item>
+                              <el-dropdown-item command="high">高（更深入）</el-dropdown-item>
+                            </el-dropdown-menu></template>
+                          </el-dropdown>
+                        </div>
+                        <div class="portal-vue-ai-model-row">
+                          <span class="portal-vue-ai-model-label">上下文长度</span>
+                          <el-dropdown trigger="click" popper-class="portal-vue-ai-model-panel-popper" @command="cmd=>maxTokens=cmd">
+                            <span class="portal-vue-ai-model-value">{{ maxTokensLabel }} ›</span>
+                            <template #dropdown><el-dropdown-menu>
+                              <el-dropdown-item :command="null">默认</el-dropdown-item>
+                              <el-dropdown-item :command="4096">4K</el-dropdown-item>
+                              <el-dropdown-item :command="8192">8K</el-dropdown-item>
+                              <el-dropdown-item :command="16384">16K</el-dropdown-item>
+                              <el-dropdown-item :command="32768">32K</el-dropdown-item>
+                            </el-dropdown-menu></template>
+                          </el-dropdown>
+                        </div>
+                        <div class="portal-vue-ai-model-row portal-vue-ai-model-reset" @click="resetModelSettings">
+                          <span class="portal-vue-ai-model-label">重置为默认设置</span>
+                          <span class="portal-vue-ai-model-value">↺</span>
+                        </div>
+                      </div>
+                    </el-popover>
                     <el-button type="primary" size="small" class="portal-vue-ai-composer-send" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
                   </div>
                 </div>
@@ -1371,7 +1410,9 @@
       model: "",
       sessions: analysisSessionsSeed.map(session => createAnalysisSession(session)),
       gatewayTables: [],
-      activeBizLine: "",
+      reasoning: "medium",
+      maxTokens: null,
+      defaultModel: "",
       reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
       assetDrawer: false,
       activeId: analysisSessionsSeed[0]?.id || "",
@@ -1403,11 +1444,18 @@
         state.assets.forEach(table=>{if(table.bizLine)meta[table.cnName]=table.bizLine;});
         return meta;
       },
-      bizLineOptions(){
-        return [...new Set(this.myTables.map(table=>this.bizLineMeta[table]).filter(Boolean))];
+      groupedTables(){
+        const groups={};
+        this.myTables.forEach(table=>{
+          const label=this.bizLineMeta[table]||"其他";
+          (groups[label]=groups[label]||[]).push(table);
+        });
+        return Object.entries(groups).map(([label,options])=>({label,options})).sort((a,b)=>a.label.localeCompare(b.label,"zh-CN"));
       },
-      tableOptions(){
-        return this.activeBizLine?this.myTables.filter(table=>this.bizLineMeta[table]===this.activeBizLine):this.myTables;
+      reasoningLabel(){return {low:"低",medium:"中",high:"高"}[this.reasoning]||"中";},
+      maxTokensLabel(){
+        const map={4096:"4K",8192:"8K",16384:"16K",32768:"32K"};
+        return this.maxTokens?(map[this.maxTokens]||this.maxTokens):"默认";
       },
       ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
       historySessions(){return this.sessions.filter(item=>item.status!=="进行中");},
@@ -1444,9 +1492,15 @@
         this.modelsLoading=true;
         try{
           const response=await fetch(`${analysisGatewayBase}/v1/models`);
-          if(response.ok){const data=await response.json();this.models=data.models||[];this.model=data.default||this.models[0]||"";}
+          if(response.ok){const data=await response.json();this.models=data.models||[];this.defaultModel=data.default||this.models[0]||"";this.model=data.default||this.models[0]||"";}
         }catch(error){/* 网关未启动时保持空列表，界面显示提示 */}
         this.modelsLoading=false;
+      },
+      resetModelSettings(){
+        this.model=this.models.find(item=>item===this.defaultModel)||this.models[0]||"";
+        this.reasoning="medium";
+        this.maxTokens=null;
+        ep.ElMessage.success("已重置为默认模型设置");
       },
       newSession(){
         const session=createAnalysisSession({title:"新的分析",scenario:this.scenarioName});
@@ -1461,9 +1515,6 @@
         const session=this.sessions.find(item=>item.id===id);
         if(session)this.scenario=this.skillScenarios.find(scene=>scene.name===session.scenario)?.key||this.skillScenarios[0]?.key||"single";
         this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));
-      },
-      onBizLineChange(){
-        if(this.activeTable&&this.tableOptions&&!this.tableOptions.includes(this.activeTable))this.activeTable="";
       },
       setScenario(key){
         this.scenario=key;
@@ -1545,7 +1596,7 @@
           const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,tables:mentionedTables,model:this.model})
+            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,tables:mentionedTables,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens})
           });
           const data=await response.json();
           session.status="已完成";
@@ -1554,7 +1605,7 @@
             session.messages.push({role:"assistant",lines:[`分析失败：${data.error||"未知错误"}`]});
           }else{
             const meta=data.meta||{};
-            const metaLine=`${meta.scenario||""} · ${meta.model||""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;
+            const metaLine=`${meta.scenario||""} · ${meta.model||""} · 推理 ${meta.reasoningEffort||"default"}${meta.maxTokens?` · 上下文 ${meta.maxTokens>=1024?Math.round(meta.maxTokens/1024)+"K":meta.maxTokens}`:""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;
             session.messages.push({role:"assistant",html:this.renderMarkdown(data.report||""),meta:metaLine,lines:[]});
             const plainSummary=String(data.report||"").replace(/[#*`|>\-]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,2).join("；").slice(0,120);
             this.archiveReport(session,question,{tablesUsed:meta.tablesUsed||[],summary:plainSummary});
