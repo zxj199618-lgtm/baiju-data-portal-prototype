@@ -902,7 +902,7 @@
     },
     mounted(){this.pageHandler=event=>{if(event.detail?.page==="配置权限")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
-    methods:{load(){this.selectedMenus=[...(this.group?.menus||[])];this.selectedBoards=this.group?.boards?.includes("全部看板")?state.boards.filter(board=>board.status==="已上线").map(board=>board.name):[...(this.group?.boards||[])];this.allTables=this.group?.tables?.includes("全部数据表")||false;this.selectedTables=this.allTables?[]:[...state.assets.filter(table=>this.group?.tables?.includes(table.cnName)).map(table=>table.cnName)];},back(){bridge.setPage("用户管理");},save(){this.user.tableGrants=this.allTables?["全部数据表"]:[...this.selectedTables];notify(`${this.user.name} 的权限配置已保存${this.allTables?"（全部数据表）":`（${this.selectedTables.length} 张数据表）`}`);this.back();}}
+    methods:{load(){this.selectedMenus=[...(this.group?.menus||[])];this.selectedBoards=this.group?.boards?.includes("全部看板")?state.boards.filter(board=>board.status==="已上线").map(board=>board.name):[...(this.group?.boards||[])];this.allTables=this.group?.tables?.includes("全部数据表")||false;this.selectedTables=this.allTables?[]:[...state.assets.filter(table=>this.group?.tables?.includes(table.cnName)).map(table=>table.cnName)];if(this.user?.tableGrants&&!this.user.tableGrants.includes("__inherit__")){const grants=this.user.tableGrants;this.allTables=grants.includes("全部数据表");this.selectedTables=this.allTables?[]:grants.filter(name=>name!=="全部数据表");}},back(){bridge.setPage("用户管理");},async save(){const tables=this.allTables?["全部数据表"]:[...this.selectedTables];this.user.tableGrants=[...tables];let persisted=false;try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}notify(`${this.user.name} 的权限配置已保存（${this.allTables?"全部数据表":this.selectedTables.length+" 张数据表"}）${persisted?"，已同步到分析网关":"（本地演示，网关未连接）"}`);this.back();}}
   };
 
   const QuickBiApp = {
@@ -1256,6 +1256,7 @@
       modelsLoading: false,
       model: "",
       sessions: analysisSessionsSeed.map(session => createAnalysisSession(session)),
+      gatewayTables: [],
       activeId: analysisSessionsSeed[0]?.id || "",
       suggests: ["近 7 天各媒体消耗趋势如何？", "哪些计划 CPA 超过目标值？", "本周消耗环比上涨的原因是什么？", "有哪些表可以看渠道归因？"]
     }),
@@ -1264,8 +1265,8 @@
       scenarioName(){return analysisScenarios.find(item => item.key === this.scenario)?.name || "单表分析";},
       activeSession(){return this.sessions.find(item => item.id === this.activeId) || this.sessions[0] || { messages: [] };},
       currentUser(){refreshTick.value;return state.users.find(user=>user.name==="曾祥竞")||state.users[0];},
-      myTables(){
-        refreshTick.value;
+      myTables(){refreshTick.value;return this.gatewayTables.length?this.gatewayTables:this.fallbackTables;},
+      fallbackTables(){
         const group=state.groups.find(item=>item.name===this.currentUser?.group);
         if(!group)return[];
         if(group.tables?.includes("全部数据表"))return state.assets.map(table=>table.cnName);
@@ -1279,12 +1280,22 @@
       historySessions(){return this.sessions.filter(item=>item.status!=="进行中");}
     },
     mounted(){
-      this.pageHandler=event=>{if(event.detail?.page==="分析工作台")this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));};
+      this.pageHandler=event=>{if(event.detail?.page==="分析工作台"){this.loadMyTables();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
       window.addEventListener("portal:page-change",this.pageHandler);
       this.loadModels();
     },
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
+      async loadMyTables(){
+        try{
+          const user=encodeURIComponent(this.currentUser?.name||"曾祥竞");
+          const response=await fetch(`${analysisGatewayBase}/v1/permissions`);
+          if(!response.ok)return;
+          const data=await response.json();
+          const mine=(data.users||[]).find(item=>item.name===this.currentUser?.name);
+          if(mine)this.gatewayTables=mine.effectiveTables||[];
+        }catch(error){/* 网关未启动时回退到权限组本地数据 */}
+      },
       async loadModels(){
         this.modelsLoading=true;
         try{

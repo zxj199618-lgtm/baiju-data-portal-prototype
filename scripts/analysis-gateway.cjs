@@ -1,62 +1,73 @@
 #!/usr/bin/env node
 /**
- * 观星台分析网关（本地演示版）
+ * 观星台分析网关
  *
  * 职责：
- *  1. GET  /v1/models   — 从中转站拉取可用模型列表
- *  2. POST /v1/analyze  — 分析入口：表权限校验 → 组装证据上下文 → 调中转站模型生成分析报告
- *
- * 数据权限与表元数据来自原型同一份数据源（portal-bridge.js 的 dataAssets / permissionGroups），
- * 这里内嵌快照以保持零依赖，可在任何机器直接 `node analysis-gateway.cjs` 运行。
+ *  1. GET  /v1/models        — 从中转站拉取可用模型列表
+ *  2. POST /v1/analyze       — 分析入口：表权限校验 → 组装证据上下文 → 调中转站模型生成分析报告
+ *  3. GET  /v1/catalog       — 数据表目录（与原型 dataAssets 对齐）
+ *  4. GET  /v1/permissions   — 读取所有用户的表权限（权限组 + 用户级覆盖）
+ *  5. PUT  /v1/permissions/:user — 保存单个用户的表权限覆盖（持久化到 data/user-permissions.json）
  *
  * 环境变量：
- *  RELAY_BASE_URL  模型中转站地址（默认 https://simindapi.modelgs.com）
- *  RELAY_API_KEY   中转站 API Key
- *  PORT            监听端口（默认 8787）
+ *  RELAY_BASE_URL   模型中转站地址（默认 https://simindapi.modelgs.com）
+ *  RELAY_API_KEY    中转站 API Key
+ *  PORT             监听端口（默认 8787）
+ *  DATA_DIR         权限持久化目录（默认 ./data，Docker 中挂载为卷）
  */
 
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 const crypto = require("crypto");
 
 const RELAY_BASE_URL = process.env.RELAY_BASE_URL || "https://simindapi.modelgs.com";
 const RELAY_API_KEY = process.env.RELAY_API_KEY || "";
 const PORT = Number(process.env.PORT || 8787);
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+const PERMISSIONS_FILE = path.join(DATA_DIR, "user-permissions.json");
 const DEFAULT_MODEL = "gpt-5.4-mini";
 
-/* ---------------- 数据快照（与原型一致） ---------------- */
+/* ---------------- 数据快照（与原型 dataAssets 对齐，14 张表） ---------------- */
+
+const detailedFields = [
+  { name: "stat_date", type: "DATE", comment: "统计日期" },
+  { name: "media_source", type: "VARCHAR", comment: "媒体来源（枚举：巨量、广点通、快手、OPPO、VIVO）" },
+  { name: "plan_id", type: "VARCHAR", comment: "计划 ID" },
+  { name: "plan_name", type: "VARCHAR", comment: "计划名称" },
+  { name: "account_id", type: "VARCHAR", comment: "账户 ID" },
+  { name: "account_name", type: "VARCHAR", comment: "账户名称" },
+  { name: "product_name", type: "VARCHAR", comment: "产品名称" },
+  { name: "cost", type: "DECIMAL(18,2)", comment: "消耗金额（元）" },
+  { name: "click_cnt", type: "BIGINT", comment: "点击数" },
+  { name: "show_cnt", type: "BIGINT", comment: "曝光数" },
+  { name: "activate_cnt", type: "BIGINT", comment: "激活数（按归因口径统计）" },
+  { name: "register_cnt", type: "BIGINT", comment: "注册数（按归因口径统计）" },
+  { name: "order_cnt", type: "BIGINT", comment: "订单数" },
+  { name: "cpa", type: "DECIMAL(18,4)", comment: "转化成本 = cost / activate_cnt" },
+  { name: "roi", type: "DECIMAL(18,4)", comment: "ROI = 收入 / 消耗" }
+];
+const adPlanSample = [
+  { stat_date: "2026-08-30", media_source: "巨量", plan_name: "小说推文-01", product_name: "网赚-01", cost: "186420.55", click_cnt: "32110", show_cnt: "982200", activate_cnt: "3120", cpa: "59.75", roi: "1.21" },
+  { stat_date: "2026-08-30", media_source: "巨量", plan_name: "小说推文-02", product_name: "网赚-02", cost: "132890.00", click_cnt: "25400", show_cnt: "771000", activate_cnt: "1780", cpa: "74.66", roi: "0.94" },
+  { stat_date: "2026-08-30", media_source: "广点通", plan_name: "号卡推广-A", product_name: "号卡", cost: "88120.30", click_cnt: "15200", show_cnt: "512000", activate_cnt: "1610", cpa: "54.73", roi: "1.35" },
+  { stat_date: "2026-08-29", media_source: "巨量", plan_name: "小说推文-01", product_name: "网赚-01", cost: "161200.00", click_cnt: "30100", show_cnt: "905000", activate_cnt: "2950", cpa: "54.64", roi: "1.18" },
+  { stat_date: "2026-08-29", media_source: "快手", plan_name: "存量唤醒-B", product_name: "存量", cost: "45600.00", click_cnt: "8100", show_cnt: "260000", activate_cnt: "690", cpa: "66.09", roi: "1.02" }
+];
+const genericFields = [
+  { name: "biz_date", type: "DATE", comment: "业务日期" },
+  { name: "record_id", type: "VARCHAR", comment: "记录 ID" },
+  { name: "account_id", type: "VARCHAR", comment: "账户 ID" },
+  { name: "channel_code", type: "VARCHAR", comment: "渠道编码" },
+  { name: "metric_value", type: "DECIMAL(18,4)", comment: "指标值" },
+  { name: "update_time", type: "DATETIME", comment: "更新时间" }
+];
 
 const tables = [
   {
-    cnName: "广告计划日报表",
-    table: "dm_ad_plan_daily_media_account_product_performance_detail",
-    database: "prod_callup",
-    source: "StarRocks",
-    desc: "广告计划日粒度消耗、转化和成本数据，用于对外提供投放日报。",
-    owner: "黄佩贤",
-    fields: [
-      { name: "stat_date", type: "DATE", comment: "统计日期" },
-      { name: "media_source", type: "VARCHAR", comment: "媒体来源（枚举：巨量、广点通、快手、OPPO、VIVO）" },
-      { name: "plan_id", type: "VARCHAR", comment: "计划 ID" },
-      { name: "plan_name", type: "VARCHAR", comment: "计划名称" },
-      { name: "account_id", type: "VARCHAR", comment: "账户 ID" },
-      { name: "account_name", type: "VARCHAR", comment: "账户名称" },
-      { name: "product_name", type: "VARCHAR", comment: "产品名称" },
-      { name: "cost", type: "DECIMAL(18,2)", comment: "消耗金额（元）" },
-      { name: "click_cnt", type: "BIGINT", comment: "点击数" },
-      { name: "show_cnt", type: "BIGINT", comment: "曝光数" },
-      { name: "activate_cnt", type: "BIGINT", comment: "激活数（按归因口径统计）" },
-      { name: "register_cnt", type: "BIGINT", comment: "注册数（按归因口径统计）" },
-      { name: "order_cnt", type: "BIGINT", comment: "订单数" },
-      { name: "cpa", type: "DECIMAL(18,4)", comment: "转化成本 = cost / activate_cnt" },
-      { name: "roi", type: "DECIMAL(18,4)", comment: "ROI = 收入 / 消耗" }
-    ],
-    sample: [
-      { stat_date: "2026-08-30", media_source: "巨量", plan_name: "小说推文-01", product_name: "网赚-01", cost: "186420.55", click_cnt: "32110", show_cnt: "982200", activate_cnt: "3120", cpa: "59.75", roi: "1.21" },
-      { stat_date: "2026-08-30", media_source: "巨量", plan_name: "小说推文-02", product_name: "网赚-02", cost: "132890.00", click_cnt: "25400", show_cnt: "771000", activate_cnt: "1780", cpa: "74.66", roi: "0.94" },
-      { stat_date: "2026-08-30", media_source: "广点通", plan_name: "号卡推广-A", product_name: "号卡", cost: "88120.30", click_cnt: "15200", show_cnt: "512000", activate_cnt: "1610", cpa: "54.73", roi: "1.35" },
-      { stat_date: "2026-08-29", media_source: "巨量", plan_name: "小说推文-01", product_name: "网赚-01", cost: "161200.00", click_cnt: "30100", show_cnt: "905000", activate_cnt: "2950", cpa: "54.64", roi: "1.18" },
-      { stat_date: "2026-08-29", media_source: "快手", plan_name: "存量唤醒-B", product_name: "存量", cost: "45600.00", click_cnt: "8100", show_cnt: "260000", activate_cnt: "690", cpa: "66.09", roi: "1.02" }
-    ],
+    cnName: "广告计划日报表", table: "dm_ad_plan_daily_media_account_product_performance_detail", database: "prod_callup", source: "StarRocks",
+    desc: "广告计划日粒度消耗、转化和成本数据，用于对外提供投放日报。", owner: "黄佩贤",
+    fields: detailedFields, sample: adPlanSample,
     lineage: {
       upstream: [
         { table: "dwd_ad_account_daily", role: "广告账户日报（账户粒度消耗事实）", join: "INNER JOIN · 账户+日" },
@@ -70,12 +81,8 @@ const tables = [
     }
   },
   {
-    cnName: "用户画像标签明细表",
-    table: "dwd_user_profile_tag",
-    database: "prod_cloud",
-    source: "StarRocks",
-    desc: "用户画像标签明细表，用于用户细查和外部系统标签查询。",
-    owner: "李雨航",
+    cnName: "用户画像标签明细表", table: "dwd_user_profile_tag", database: "prod_cloud", source: "StarRocks",
+    desc: "用户画像标签明细表，用于用户细查和外部系统标签查询。", owner: "李雨航",
     fields: [
       { name: "user_id", type: "VARCHAR", comment: "用户 ID" },
       { name: "tag_code", type: "VARCHAR", comment: "标签编码" },
@@ -91,21 +98,71 @@ const tables = [
     }
   },
   {
-    cnName: "渠道归因明细",
-    table: "dwd_channel_attribution_detail",
-    database: "prod_cloud",
-    source: "StarRocks",
-    desc: "渠道归因明细，用于渠道效果分析。",
-    owner: "李雨航",
-    fields: [
-      { name: "biz_date", type: "DATE", comment: "业务日期" },
-      { name: "channel_code", type: "VARCHAR", comment: "渠道编码" },
-      { name: "metric_value", type: "DECIMAL(18,4)", comment: "指标值" }
-    ],
-    sample: [],
-    lineage: { upstream: [], downstream: [] }
+    cnName: "渠道归因明细", table: "dwd_channel_attribution_detail", database: "prod_cloud", source: "StarRocks",
+    desc: "渠道归因明细，用于渠道效果分析。", owner: "李雨航",
+    fields: genericFields, sample: [], lineage: { upstream: [], downstream: [] }
   }
 ];
+
+[
+  ["prod_callup", "dwd_ad_account_daily", "广告账户日报"],
+  ["prod_callup", "dwd_campaign_conversion_daily", "广告组转化日报"],
+  ["prod_callup", "ads_media_cost_summary", "媒体消耗汇总"],
+  ["prod_cloud", "dwd_user_device_relation", "用户设备关系明细"],
+  ["prod_cloud", "dwd_user_order_detail", "用户订单明细"],
+  ["prod_cloud", "dm_user_lifecycle_daily", "用户生命周期日报"],
+  ["prod_callup", "ads_product_roi_daily", "产品 ROI 日报"],
+  ["prod_callup", "dm_media_account_health", "媒体账户健康度"]
+].forEach(([database, table, cnName]) => tables.push({
+  cnName, table, database, source: "StarRocks",
+  desc: `${cnName}，用于接口服务与数据分析。`, owner: "黄佩贤",
+  fields: genericFields, sample: [], lineage: { upstream: [], downstream: [] }
+}));
+
+tables.push({
+  cnName: "RTA 请求小时监控表", table: "ads_rta_request_hour", database: "prod_callup", source: "StarRocks",
+  desc: "RTA 小时级请求、命中、耗时监控表。", owner: "谭嘉颖",
+  fields: [], sample: [], lineage: { upstream: [], downstream: [] }
+});
+
+tables.push({
+  cnName: "渠道维表", table: "dim_channel", database: "portal_dim", source: "门户维护",
+  desc: "业务渠道主数据，支持在线增删改查，渠道类型引用共用字典。", owner: "谭嘉颖",
+  fields: [
+    { name: "channel_id", type: "VARCHAR", comment: "渠道 ID（主键）" },
+    { name: "channel_name", type: "VARCHAR", comment: "渠道名称" },
+    { name: "channel_type", type: "VARCHAR", comment: "渠道类型（关联渠道类型字典）" },
+    { name: "biz_line", type: "VARCHAR", comment: "业务线" },
+    { name: "owner_name", type: "VARCHAR", comment: "负责人" },
+    { name: "row_status", type: "VARCHAR", comment: "状态" }
+  ],
+  sample: [
+    { channel_id: "CH001", channel_name: "信息流-巨量", channel_type: "online", biz_line: "equity", owner_name: "黄佩贤", row_status: "1" },
+    { channel_id: "CH002", channel_name: "应用商店-OPPO", channel_type: "online", biz_line: "haoka", owner_name: "李雨航", row_status: "1" },
+    { channel_id: "CH003", channel_name: "线下门店-华南", channel_type: "offline", biz_line: "stock", owner_name: "林金维", row_status: "1" },
+    { channel_id: "CH004", channel_name: "代理-保险专项", channel_type: "agent", biz_line: "insure", owner_name: "谭嘉颖", row_status: "0" }
+  ],
+  lineage: { upstream: [], downstream: [] }
+});
+
+tables.push({
+  cnName: "产品维表", table: "dim_product", database: "portal_dim", source: "门户维护",
+  desc: "可投放产品清单，由运营在门户维护。", owner: "李雨航",
+  fields: [
+    { name: "product_id", type: "VARCHAR", comment: "产品 ID" },
+    { name: "product_name", type: "VARCHAR", comment: "产品名称" },
+    { name: "biz_line", type: "VARCHAR", comment: "业务线" },
+    { name: "row_status", type: "VARCHAR", comment: "状态" }
+  ],
+  sample: [
+    { product_id: "P001", product_name: "权益会员包", biz_line: "equity", row_status: "1" },
+    { product_id: "P002", product_name: "电竞流量包", biz_line: "haoka", row_status: "1" },
+    { product_id: "P003", product_name: "存量通话包", biz_line: "stock", row_status: "1" }
+  ],
+  lineage: { upstream: [], downstream: [] }
+});
+
+const allTableNames = tables.map(table => table.cnName);
 
 const permissionGroups = [
   { name: "门户管理员", tables: ["全部数据表"] },
@@ -117,12 +174,43 @@ const permissionGroups = [
 
 const users = [
   { name: "曾祥竞", group: "门户管理员" },
-  { name: "黄佩贤", group: "投放组长" },
-  { name: "李雨航", group: "数据分析师" },
-  { name: "谭嘉颖", group: "优化师" }
+  { name: "黄佩贤", group: "门户管理员" },
+  { name: "林金维", group: "投放组长" },
+  { name: "谭嘉颖", group: "优化师" },
+  { name: "李雨航", group: "数据分析师" }
 ];
 
-/* ---------------- Skill 注册表（对应观星台 Skill 配置） ---------------- */
+/* ---------------- 权限持久化 ---------------- */
+
+function loadPermissionOverrides() {
+  try {
+    return JSON.parse(fs.readFileSync(PERMISSIONS_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function savePermissionOverrides(overrides) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const tmp = `${PERMISSIONS_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(overrides, null, 2));
+  fs.renameSync(tmp, PERMISSIONS_FILE);
+}
+
+/** 用户有效表权限：用户级覆盖优先，否则跟随权限组 */
+function userTables(userName) {
+  const user = users.find(item => item.name === userName);
+  if (!user) return [];
+  const overrides = loadPermissionOverrides();
+  const override = overrides[userName];
+  if (override) return override.tables.includes("全部数据表") ? [...allTableNames] : [...override.tables];
+  const group = permissionGroups.find(item => item.name === user.group);
+  if (!group) return [];
+  if (group.tables.includes("全部数据表")) return [...allTableNames];
+  return tables.filter(table => group.tables.includes(table.cnName)).map(table => table.cnName);
+}
+
+/* ---------------- Skill 注册表 ---------------- */
 
 const skills = {
   "warehouse-analyst": {
@@ -178,7 +266,7 @@ function sendJson(res, status, data) {
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
+    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS"
   });
   res.end(body);
 }
@@ -189,14 +277,6 @@ function readBody(req) {
     req.on("data", chunk => { raw += chunk; if (raw.length > 1e6) req.destroy(); });
     req.on("end", () => { try { resolve(raw ? JSON.parse(raw) : {}); } catch (error) { reject(error); } });
   });
-}
-
-function userTables(userName) {
-  const user = users.find(item => item.name === userName);
-  const group = permissionGroups.find(item => item.name === user?.group);
-  if (!group) return [];
-  if (group.tables.includes("全部数据表")) return tables.map(table => table.cnName);
-  return tables.filter(table => group.tables.includes(table.cnName)).map(table => table.cnName);
 }
 
 function buildEvidence(cnNames) {
@@ -241,6 +321,41 @@ const server = http.createServer(async (req, res) => {
     } catch (error) {
       return sendJson(res, 502, { error: `中转站不可达：${error.message}` });
     }
+  }
+
+  if (req.method === "GET" && url.pathname === "/v1/catalog") {
+    return sendJson(res, 200, { tables: allTableNames });
+  }
+
+  if (req.method === "GET" && url.pathname === "/v1/permissions") {
+    const overrides = loadPermissionOverrides();
+    return sendJson(res, 200, {
+      groups: permissionGroups,
+      users: users.map(user => ({
+        name: user.name,
+        group: user.group,
+        groupTables: permissionGroups.find(item => item.name === user.group)?.tables || [],
+        override: overrides[user.name] || null,
+        effectiveTables: userTables(user.name)
+      }))
+    });
+  }
+
+  const permissionMatch = url.pathname.match(/^\/v1\/permissions\/(.+)$/);
+  if (req.method === "PUT" && permissionMatch) {
+    const userName = decodeURIComponent(permissionMatch[1]);
+    if (!users.some(user => user.name === userName)) {
+      return sendJson(res, 404, { error: `用户不存在：${userName}` });
+    }
+    const body = await readBody(req);
+    const tableList = Array.isArray(body.tables) ? body.tables : [];
+    const invalid = tableList.filter(name => name !== "全部数据表" && !allTableNames.includes(name));
+    if (invalid.length) return sendJson(res, 400, { error: `未知数据表：${invalid.join("、")}` });
+    const overrides = loadPermissionOverrides();
+    if (!tableList.length) delete overrides[userName];
+    else overrides[userName] = { tables: tableList, updatedAt: new Date().toISOString() };
+    savePermissionOverrides(overrides);
+    return sendJson(res, 200, { user: userName, effectiveTables: userTables(userName) });
   }
 
   if (req.method === "POST" && url.pathname === "/v1/analyze") {
@@ -293,4 +408,4 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, { error: "not found" });
 });
 
-server.listen(PORT, () => console.log(`观星台分析网关已启动: http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`观星台分析网关已启动: http://localhost:${PORT}（权限持久化目录 ${DATA_DIR}）`));

@@ -10,4 +10,10 @@ services:
       RELAY_BASE_URL: "https://simindapi.modelgs.com"
       RELAY_API_KEY: "${RELAY_API_KEY:?请在 .env 中设置 RELAY_API_KEY}"
       PORT: "8787"
+      DATA_DIR: "/app/data"
+    volumes:
+      - gateway-data:/app/data
     restart: unless-stopped
+
+volumes:
+  gateway-data:
