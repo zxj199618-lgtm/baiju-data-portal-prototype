@@ -1535,6 +1535,218 @@
     methods:{logout(){document.getElementById("portalApp").classList.remove("no-permission-mode");document.getElementById("portalApp").classList.add("hidden");document.getElementById("loginView").classList.remove("hidden");}}
   };
 
+  const menuTreeSeed = [
+    { id: "M100", name: "数据看板", icon: "pie", sort: 100, path: "/data-board/index", cache: true, permission: "data_board", children: [] },
+    {
+      id: "M300", name: "数据资产", icon: "asset", sort: 300, path: "/data-asset", cache: true, permission: "data_asset",
+      children: [
+        { id: "M310", name: "看板管理", icon: "--", sort: 10, path: "/board-management/index", cache: true, permission: "board_management", children: [] },
+        { id: "M320", name: "表管理", icon: "--", sort: 20, path: "/data-asset/table-management/index", cache: true, permission: "table_management", children: [] }
+      ]
+    },
+    {
+      id: "M500", name: "数据开放平台", icon: "service", sort: 500, path: "/data-service", cache: true, permission: "data_service",
+      children: [
+        { id: "M510", name: "API配置", icon: "--", sort: 10, path: "/data-service/api-config/index", cache: true, permission: "api_config", children: [] }
+      ]
+    },
+    {
+      id: "M900", name: "权限管理", icon: "permission", sort: 900, path: "/privilege", cache: true, permission: "privilege_management",
+      children: [
+        { id: "M910", name: "用户管理", icon: "--", sort: 10, path: "/privilege/user-management/index", cache: true, permission: "user_management", children: [] },
+        { id: "M920", name: "权限组", icon: "--", sort: 20, path: "/privilege/permission-group/index", cache: true, permission: "permission_group", children: [] }
+      ]
+    },
+    {
+      id: "M1000", name: "系统管理", icon: "system", sort: 10000, path: "/system", cache: true, permission: "system_management",
+      children: [
+        { id: "M1010", name: "菜单管理", icon: "--", sort: 10, path: "/system/menu-management/index", cache: true, permission: "system_menu_management", children: [] },
+        { id: "M1020", name: "Skill 配置", icon: "--", sort: 20, path: "/system/skill-management/index", cache: true, permission: "system_skill_management", children: [] }
+      ]
+    }
+  ];
+
+  const menuIcons = ["pie", "asset", "service", "permission", "system", "analysis", "push"];
+
+  const MenuManagementApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <div class="portal-vue-toolbar">
+            <div class="portal-vue-toolbar-left"><el-button type="primary" @click="openForm(null, null)">＋ 添加</el-button></div>
+          </div>
+          <el-table :data="treeRows" row-key="id" :tree-props="{ children: 'children' }" default-expand-all class="portal-vue-table" border empty-text="暂无菜单">
+            <el-table-column label="菜单显示名称" min-width="220"><template #default="scope"><span :class="{ 'portal-vue-name': !scope.row.parentId }">{{ scope.row.name }}</span></template></el-table-column>
+            <el-table-column label="图标" width="80" align="center"><template #default="scope"><el-icon v-if="scope.row.icon !== '--'" :size="16"><span>{{ iconGlyph(scope.row.icon) }}</span></el-icon><span v-else class="portal-vue-muted">--</span></template></el-table-column>
+            <el-table-column prop="sort" label="排序" width="90" align="center"></el-table-column>
+            <el-table-column prop="path" label="组件路径" min-width="240"><template #default="scope"><code class="portal-vue-code">{{ scope.row.path }}</code></template></el-table-column>
+            <el-table-column label="缓冲" width="90" align="center"><template #default="scope"><el-switch :model-value="scope.row.cache" @change="value=>toggleCache(scope.row,value)"></el-switch></template></el-table-column>
+            <el-table-column prop="permission" label="权限标识" min-width="200"><template #default="scope"><code class="portal-vue-code">{{ scope.row.permission }}</code></template></el-table-column>
+            <el-table-column label="操作" width="240" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openForm(null, scope.row)" :disabled="scope.row.children.length>=3">＋ 添加</el-button><el-button link type="primary" @click="openForm(scope.row, null)">✎ 编辑</el-button><el-button link type="danger" @click="removeMenu(scope.row)">🗑 删除</el-button></div></template></el-table-column>
+          </el-table>
+        </section>
+        <el-dialog v-model="formVisible" :title="editingId ? '编辑菜单' : (parentMenu ? '添加子菜单' : '添加菜单')" width="640px">
+          <el-form class="portal-vue-dialog-form" label-position="top">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
+              <el-form-item label="菜单显示名称" required><el-input v-model="form.name" placeholder="如：数据看板"></el-input></el-form-item>
+              <el-form-item label="上级菜单"><el-select v-model="form.parentId" clearable placeholder="不选则为顶级目录"><el-option v-for="item in rootMenus" :key="item.id" :label="item.name" :value="item.id"></el-option></el-select></el-form-item>
+              <el-form-item label="图标"><el-select v-model="form.icon"><el-option label="--（子菜单）" value="--"></el-option><el-option v-for="icon in icons" :key="icon" :label="icon" :value="icon"></el-option></el-select></el-form-item>
+              <el-form-item label="排序" required><el-input-number v-model="form.sort" :min="1" :max="99999" style="width:100%"></el-input-number></el-form-item>
+              <el-form-item label="组件路径" required><el-input v-model="form.path" placeholder="/system/menu-management/index"></el-input></el-form-item>
+              <el-form-item label="权限标识" required><el-input v-model="form.permission" placeholder="system_menu_management"></el-input></el-form-item>
+            </div>
+            <el-form-item label="缓冲（页面缓存）"><el-switch v-model="form.cache"></el-switch></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
+        </el-dialog>
+      </el-config-provider>
+    `,
+    data:()=>({menus:menuTreeSeed.map(item=>({...item,children:item.children.map(child=>({...child,parentId:item.id}))})),formVisible:false,editingId:"",parentId:"",form:{},icons:menuIcons}),
+    computed:{
+      rootMenus(){return this.menus;},
+      treeRows(){return this.menus;}
+    },
+    methods:{
+      iconGlyph(icon){return {pie:"◔",asset:"▤",service:"▣",permission:"🔒",system:"⚙",analysis:"✦",push:"⇩"}[icon]||"●";},
+      findMenu(id,list=this.menus,parent=null){for(const item of list){if(item.id===id)return{menu:item,parent};const found=this.findMenu(id,item.children,item);if(found)return found;}return null;},
+      toggleCache(row,value){const found=this.findMenu(row.id);if(found){found.menu.cache=value;notify(`「${row.name}」缓存已${value?"开启":"关闭"}`);}},
+      openForm(row,parent){this.editingId=row?.id||"";this.parentId=parent?.id||row?.parentId||"";this.form=row?{name:row.name,parentId:row.parentId||"",icon:row.icon,sort:row.sort,path:row.path,cache:row.cache,permission:row.permission}:{name:"",parentId:parent?.id||"",icon:parent?"--":"pie",sort:parent?(parent.children.length+1)*10:100,path:"",cache:true,permission:""};this.formVisible=true;},
+      save(){
+        const name=String(this.form.name||"").trim();
+        const path=String(this.form.path||"").trim();
+        const permission=String(this.form.permission||"").trim();
+        if(!name)return ep.ElMessage.warning("请输入菜单显示名称");
+        if(!path)return ep.ElMessage.warning("请输入组件路径");
+        if(!permission)return ep.ElMessage.warning("请输入权限标识");
+        if(this.editingId){
+          const found=this.findMenu(this.editingId);
+          if(!found)return ep.ElMessage.error("菜单不存在");
+          Object.assign(found.menu,{name,icon:this.form.icon,sort:this.form.sort,path,cache:this.form.cache,permission});
+          notify(`菜单「${name}」已保存`);
+        }else{
+          const id=`M${Date.now()}`;
+          const node={id,name,icon:this.form.icon,sort:this.form.sort,path,cache:this.form.cache,permission,children:[],parentId:this.form.parentId||""};
+          if(this.form.parentId){const found=this.findMenu(this.form.parentId);if(!found)return ep.ElMessage.error("上级菜单不存在");found.menu.children.push(node);}
+          else this.menus.push(node);
+          notify(`菜单「${name}」已添加`);
+        }
+        this.formVisible=false;
+      },
+      async removeMenu(row){
+        if(row.children.length)return ep.ElMessage.warning("请先删除子菜单");
+        if(!await confirmAction("删除菜单",`确认删除菜单「${row.name}」？删除后相关权限组的菜单权限将同步失效。`))return;
+        if(row.parentId){const parent=this.findMenu(row.parentId);parent.menu.children=parent.menu.children.filter(item=>item.id!==row.id);}
+        else this.menus=this.menus.filter(item=>item.id!==row.id);
+        notify(`菜单「${row.name}」已删除`);
+      }
+    }
+  };
+
+  const skillRegistrySeed = [
+    {
+      id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100,
+      desc: "将 DataWorks 生产 SQL、SQLGlot 静态分析和只读元数据组织成可复核的口径文档。",
+      scenarios: "表名解释 / 业务口径问答 / 血缘上下游",
+      model: "gpt-5.4-mini",
+      prompt: "你是观星台数据平台的数仓分析助手…\n\n## 解释规则\n1. 一句话说明：优先使用表 comment；\n2. 为什么这样设计：依次解释写入方式、JOIN、过滤、聚合、CASE、窗口和分区；\n3. 输出粒度：只根据 operators.group_by、窗口分区和目标字段判断；\n4. 重点口径：按目标字段合并 field_lineage，保留完整表达式。\n\n## 证据标签\n- SQL/DDL 明确证据\n- 结构解释\n- 待业务确认",
+      versions: [
+        { version: "v1.2-portal", time: "2026-08-31 16:00", operator: "曾祥竞", note: "移植到观星台网关，接入中转站模型", current: true },
+        { version: "v1.2", time: "2026-08-20 11:30", operator: "曾祥竞", note: "增加聚合安全与 Quick BI 证据规则" },
+        { version: "v1.1", time: "2026-08-05 09:00", operator: "曾祥竞", note: "新增业务口径问答流程" },
+        { version: "v1.0", time: "2026-07-12 14:00", operator: "曾祥竞", note: "首版：按表解释 + 血缘分析" }
+      ],
+      stats: { calls: 128, successRate: "98.4%", avgLatency: "14.2s", tokens: "38.6万" }
+    },
+    {
+      id: "asset-qa", name: "数据资产问答 Skill", source: "asset-qa", version: "v0.9", status: "灰度中", traffic: 20,
+      desc: "基于表资产元数据回答有哪些表、口径是什么、负责人是谁。",
+      scenarios: "资产检索 / 口径问答",
+      model: "gpt-5.4-mini",
+      prompt: "你是观星台数据平台的资产问答助手。\n只推荐用户有权限的数据表；清单外的可能性标注「权限外，未纳入」。",
+      versions: [
+        { version: "v0.9", time: "2026-08-30 10:00", operator: "曾祥竞", note: "接入表权限过滤", current: true },
+        { version: "v0.8", time: "2026-08-12 15:00", operator: "曾祥竞", note: "首版灰度" }
+      ],
+      stats: { calls: 42, successRate: "100%", avgLatency: "6.8s", tokens: "9.1万" }
+    }
+  ];
+
+  const SkillManagementApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <div class="portal-vue-toolbar">
+            <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索 Skill 名称、来源"></el-input></div>
+            <el-button type="primary" @click="notifyUpload">上传 Skill</el-button>
+          </div>
+          <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无 Skill">
+            <el-table-column label="Skill" min-width="240"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.desc }}</div></div></template></el-table-column>
+            <el-table-column prop="source" label="来源包" width="230"><template #default="scope"><code class="portal-vue-code">{{ scope.row.source }}</code></template></el-table-column>
+            <el-table-column prop="version" label="当前版本" width="120"></el-table-column>
+            <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="scope.row.status==='已发布'?'success':'warning'" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
+            <el-table-column label="灰度" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:8px"><el-progress :percentage="scope.row.traffic" :stroke-width="6" :show-text="false" style="flex:1"></el-progress><span class="portal-vue-muted">{{ scope.row.traffic }}%</span></div></template></el-table-column>
+            <el-table-column prop="model" label="模型" width="140"></el-table-column>
+            <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
+            <el-table-column label="操作" width="290" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openPrompt(scope.row)">提示词</el-button><el-button link type="primary" @click="openVersions(scope.row)">版本</el-button><el-button link type="primary" @click="toggleStatus(scope.row)">{{ scope.row.status==='已发布'?'灰度调整':'发布' }}</el-button><el-button link type="primary" @click="testRun(scope.row)">试跑</el-button></div></template></el-table-column>
+          </el-table>
+          <div class="portal-vue-muted" style="margin-top:12px">Skill 以 ZIP 包（SKILL.md + 脚本 + 依赖清单）上传到网关统一执行；提示词与版本更新即时生效，无需发版。</div>
+        </section>
+        <el-drawer v-model="promptVisible" :title="(activeSkill?.name || '') + ' · 提示词编辑'" size="560px" :close-on-click-modal="true">
+          <div v-if="activeSkill" class="portal-vue-skill-drawer">
+            <el-alert type="info" :closable="false" title="保存后下一次分析请求立即使用新提示词，无需重新部署网关。"></el-alert>
+            <el-input v-model="promptDraft" type="textarea" :rows="16" resize="none"></el-input>
+            <div style="display:flex;gap:10px;justify-content:flex-end"><el-button @click="promptVisible=false">取消</el-button><el-button type="primary" @click="savePrompt">保存提示词</el-button></div>
+          </div>
+        </el-drawer>
+        <el-drawer v-model="versionsVisible" :title="(activeSkill?.name || '') + ' · 版本历史'" size="520px" :close-on-click-modal="true">
+          <div v-if="activeSkill" class="portal-vue-skill-drawer">
+            <div v-for="item in activeSkill.versions" :key="item.version" class="portal-vue-skill-version" :class="{ current: item.current }">
+              <div class="portal-vue-skill-version-head"><strong>{{ item.version }}</strong><el-tag v-if="item.current" size="small" type="success" effect="light">当前</el-tag><time>{{ item.time }}</time></div>
+              <p>{{ item.note }}</p>
+              <div class="portal-vue-muted">操作人：{{ item.operator }}</div>
+              <el-button v-if="!item.current" link type="primary" @click="rollback(item)">回滚到此版本</el-button>
+            </div>
+          </div>
+        </el-drawer>
+        <el-dialog v-model="testVisible" :title="(activeSkill?.name || '') + ' · 沙箱试跑'" width="720px">
+          <div class="portal-vue-skill-drawer">
+            <el-input v-model="testQuestion" type="textarea" :rows="3" placeholder="输入试跑问题，如：dws_ad_cost_daily 为什么这么设计？"></el-input>
+            <div style="display:flex;gap:10px;justify-content:flex-end"><el-button @click="testVisible=false">关闭</el-button><el-button type="primary" :loading="testing" @click="runTest">运行</el-button></div>
+            <pre v-if="testOutput" class="portal-vue-skill-test-output">{{ testOutput }}</pre>
+          </div>
+        </el-dialog>
+      </el-config-provider>
+    `,
+    data:()=>({skills:skillRegistrySeed.map(item=>({...item,versions:item.versions.map(version=>({...version}))})),keyword:"",promptVisible:false,versionsVisible:false,testVisible:false,activeSkill:null,promptDraft:"",testQuestion:"",testOutput:"",testing:false}),
+    computed:{
+      filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));}
+    },
+    methods:{
+      notifyUpload(){ep.ElMessage.info("演示环境：正式版将在此上传 skill ZIP 包并注册到网关");},
+      openPrompt(row){this.activeSkill=row;this.promptDraft=row.prompt;this.promptVisible=true;},
+      savePrompt(){this.activeSkill.prompt=this.promptDraft;this.promptVisible=false;notify(`「${this.activeSkill.name}」提示词已保存，下次分析生效`);},
+      openVersions(row){this.activeSkill=row;this.versionsVisible=true;},
+      rollback(item){this.activeSkill.versions.forEach(version=>version.current=version===item);this.activeSkill.version=item.version;this.versionsVisible=false;notify(`「${this.activeSkill.name}」已回滚到 ${item.version}`);},
+      toggleStatus(row){
+        if(row.status==="已发布"){row.status="灰度中";row.traffic=20;notify(`「${row.name}」已切换为灰度 20%`);}
+        else{row.status="已发布";row.traffic=100;notify(`「${row.name}」已全量发布`);}
+      },
+      async testRun(row){
+        this.activeSkill=row;this.testQuestion="";this.testOutput="";this.testVisible=true;
+      },
+      async runTest(){
+        if(!this.testQuestion.trim())return ep.ElMessage.warning("请输入试跑问题");
+        this.testing=true;this.testOutput="";
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user:"曾祥竞",question:this.testQuestion,scenario:"single",tables:[],model:this.activeSkill.model})});
+          const data=await response.json();
+          this.testOutput=response.ok?`# 试跑结果（${data.meta?.model} · ${(data.meta?.latencyMs/1000||0).toFixed(1)}s）\n\n${data.report}`:`试跑失败：${data.error}`;
+        }catch(error){this.testOutput=`试跑失败：${error.message}（请确认网关已启动）`;}
+        this.testing=false;
+      }
+    }
+  };
+
   mount("#sidebar", SidebarApp, "sidebar");
   mount("#analysisWorkbenchView", AnalysisWorkbenchApp, "analysis-workbench");
   mount(".topbar", TopbarApp, "topbar");
@@ -1554,6 +1766,8 @@
   mount("#permissionConfigView", PermissionConfigApp, "permission-config");
   mount("#quickBiView", QuickBiApp, "quick-bi");
   mount("#noPermissionView", NoPermissionApp, "no-permission");
+  mount("#menuManagementView", MenuManagementApp, "menu-management");
+  mount("#skillManagementView", SkillManagementApp, "skill-management");
 
   document.getElementById("portalApp").dataset.elementMigrated = "true";
   document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", ["新增API","新建人群包","Quick BI 展示","配置权限","无权限","维表数据维护"].includes(currentPage.value));

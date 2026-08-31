@@ -154,5 +154,10 @@ assert(portalVue.includes("历史记录") && portalVue.includes("含飞书机器
 assert(portalVue.includes("数据表权限") && portalVue.includes("toggleAllTables") && portalVue.includes("allTables"), "权限组应支持数据表权限配置");
 assert(portalBridge.includes('tables: ["全部数据表"]'), "权限组数据应包含数据表权限维度");
 assert(portalVue.includes("myTables"), "分析工作台应按权限组展示可用数据表");
+assert(portalBridge.includes('group: "系统管理"') && portalBridge.includes('name: "菜单管理"') && portalBridge.includes('name: "Skill 配置"'), "系统管理应包含菜单管理与 Skill 配置");
+assert(html.includes('id="menuManagementView"') && portalVue.includes("mount(\"#menuManagementView\""), "菜单管理应挂载独立视图");
+assert(portalVue.includes("MenuManagementApp") && portalVue.includes("权限标识") && portalVue.includes("组件路径"), "菜单管理应提供层级树/组件路径/权限标识配置");
+assert(html.includes('id="skillManagementView"') && portalVue.includes("mount(\"#skillManagementView\""), "Skill 配置应挂载独立视图");
+assert(portalVue.includes("SkillManagementApp") && portalVue.includes("提示词") && portalVue.includes("沙箱试跑") && portalVue.includes("回滚到此版本"), "Skill 配置应支持提示词编辑/版本回滚/沙箱试跑");
 
 console.log("观星台原型 smoke test: passed");
