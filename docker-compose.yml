@@ -1,0 +1,13 @@
+name: guanxingta-prototype
+
+services:
+  analysis-gateway:
+    build: .
+    container_name: guanxingta-gateway
+    ports:
+      - "8787:8787"
+    environment:
+      RELAY_BASE_URL: "https://simindapi.modelgs.com"
+      RELAY_API_KEY: "${RELAY_API_KEY:?请在 .env 中设置 RELAY_API_KEY}"
+      PORT: "8787"
+    restart: unless-stopped

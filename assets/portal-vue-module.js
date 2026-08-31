@@ -1097,6 +1097,15 @@
     }
   };
 
+  const analysisGatewayBase = (() => {
+    try {
+      const override = localStorage.getItem("portalGatewayBase");
+      if (override !== null) return override.replace(/\/$/, "");
+    } catch (error) { /* 忽略隐私模式异常 */ }
+    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && location.port !== "8787") return "http://localhost:8787";
+    return `${location.protocol}//${location.hostname}:8787`;
+  })();
+
   const analysisScenarios = [
     { key: "single", name: "单表分析", desc: "趋势、分布与异常", icon: "📊" },
     { key: "lineage", name: "数据血缘分析", desc: "上下游依赖与影响面", icon: "🔗" },
@@ -1279,7 +1288,7 @@
       async loadModels(){
         this.modelsLoading=true;
         try{
-          const response=await fetch("http://localhost:8787/v1/models");
+          const response=await fetch(`${analysisGatewayBase}/v1/models`);
           if(response.ok){const data=await response.json();this.models=data.models||[];this.model=data.default||this.models[0]||"";}
         }catch(error){/* 网关未启动时保持空列表，界面显示提示 */}
         this.modelsLoading=false;
@@ -1346,7 +1355,7 @@
           return this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
         }
         try{
-          const response=await fetch("http://localhost:8787/v1/analyze",{
+          const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
             body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,tables:mentionedTables,model:this.model})
