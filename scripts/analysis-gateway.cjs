@@ -21,7 +21,7 @@ const path = require("path");
 const crypto = require("crypto");
 
 const RELAY_BASE_URL = process.env.RELAY_BASE_URL || "https://simindapi.modelgs.com";
-const RELAY_API_KEY = process.env.RELAY_API_KEY || "";
+const RELAY_API_KEYS = (process.env.RELAY_API_KEY || "").split(",").map(key => key.trim()).filter(Boolean);
 const PORT = Number(process.env.PORT || 8787);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 const PERMISSIONS_FILE = path.join(DATA_DIR, "user-permissions.json");
@@ -807,16 +807,51 @@ function readBody(req) {
   });
 }
 
-async function relay(path, options = {}) {
+async function relayWithKey(path, key, options = {}) {
   const response = await fetch(`${RELAY_BASE_URL}${path}`, {
     ...options,
-    headers: { Authorization: `Bearer ${RELAY_API_KEY}`, "Content-Type": "application/json", ...(options.headers || {}) }
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...(options.headers || {}) }
   });
   const text = await response.text();
   let data;
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
   return { status: response.status, data };
 }
+
+/** 聚合全部 key 的模型列表（去重） */
+async function relayAllModels() {
+  const results = await Promise.allSettled(RELAY_API_KEYS.map(key => relayWithKey("/v1/models", key)));
+  const ids = new Set();
+  results.forEach(result => {
+    if (result.status === "fulfilled") (result.value.data?.data || []).forEach(item => ids.add(item.id));
+  });
+  return [...ids];
+}
+
+/**
+ * 按模型调用 chat/completions：
+ * 先用记住的成功 key，失败（401/403/404/模型不存在）时遍历其余 key 重试。
+ * 返回 { ok, status, data, keyUsed }。
+ */
+async function relayChat(model, payload) {
+  const order = [...RELAY_API_KEYS].sort((a, b) => (modelKeyCache.get(model) === b ? -1 : modelKeyCache.get(model) === a ? 1 : 0));
+  let lastResult = null;
+  for (const key of order) {
+    const result = await relayWithKey("/v1/chat/completions", key, {
+      method: "POST",
+      body: JSON.stringify({ model, ...payload })
+    });
+    lastResult = { ...result, keyUsed: key };
+    const failed = result.status === 401 || result.status === 403 || result.status === 404
+      || (typeof result.data?.error?.message === "string" && /model names|does not exist|not found|invalid.*model/i.test(result.data.error.message));
+    if (!failed) {
+      modelKeyCache.set(model, key);
+      return lastResult;
+    }
+  }
+  return lastResult;
+}
+const modelKeyCache = new Map();
 
 /* ================= 路由 ================= */
 
@@ -826,9 +861,9 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/v1/models") {
     try {
-      const result = await relay("/v1/models");
-      const ids = (result.data?.data || []).map(item => item.id).filter(id => !/image|audio|realtime/.test(id));
-      return sendJson(res, result.status, { models: ids, default: DEFAULT_MODEL });
+      const ids = await relayAllModels();
+      const usable = ids.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id));
+      return sendJson(res, 200, { models: usable.sort(), default: DEFAULT_MODEL });
     } catch (error) {
       return sendJson(res, 502, { error: `中转站不可达：${error.message}` });
     }
@@ -898,10 +933,7 @@ const server = http.createServer(async (req, res) => {
 
     const started = Date.now();
     try {
-      const result = await relay("/v1/chat/completions", {
-        method: "POST",
-        body: JSON.stringify({ model, messages: [{ role: "system", content: scene.system }, { role: "user", content: prompt }] })
-      });
+      const result = await relayChat(model, { messages: [{ role: "system", content: scene.system }, { role: "user", content: prompt }] });
       if (result.status !== 200) {
         return sendJson(res, 502, { error: `模型调用失败（${result.status}）：${JSON.stringify(result.data).slice(0, 300)}` });
       }

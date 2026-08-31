@@ -8,7 +8,7 @@ services:
       - "8787:8787"
     environment:
       RELAY_BASE_URL: "https://simindapi.modelgs.com"
-      RELAY_API_KEY: "${RELAY_API_KEY:?请在 .env 中设置 RELAY_API_KEY}"
+      RELAY_API_KEY: "${RELAY_API_KEY:?请在 .env 中设置 RELAY_API_KEY（多个 key 用英文逗号分隔）}"
       PORT: "8787"
       DATA_DIR: "/app/data"
     volumes:
