@@ -437,15 +437,19 @@
 .portal-vue-skill-test-output { max-height: 320px; overflow: auto; padding: 12px; border-radius: 8px; background: #f3f6fa; font-size: 12px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
 
 /* 分析资产树 */
-.portal-vue-ai-asset-tree { margin-bottom: 6px; padding: 8px 6px; border: 1px solid #e9edf4; border-radius: 8px; background: #fff; }
-.portal-vue-ai-asset-tree .portal-vue-ai-group-label { padding: 0 6px; }
-.portal-vue-ai-asset-tree .el-tree { background: transparent; --el-tree-node-content-height: 30px; }
-.portal-vue-ai-asset-node { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #3f4857; overflow: hidden; }
-.portal-vue-ai-asset-node.report { cursor: pointer; }
-.portal-vue-ai-asset-node.report:hover .portal-vue-ai-asset-label { color: #1677ff; }
-.portal-vue-ai-asset-icon { flex-shrink: 0; font-size: 12px; }
-.portal-vue-ai-asset-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.portal-vue-ai-asset-count { flex-shrink: 0; margin-left: auto; font-size: 11px; color: #a5aebd; }
+.portal-vue-ai-asset-btn { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 10px; padding: 10px 12px; border: 1px solid #dbe8fb; border-radius: 8px; background: #f0f7ff; cursor: pointer; transition: background .15s, border-color .15s; }
+.portal-vue-ai-asset-btn:hover { background: #e0efff; border-color: #9cc5ff; }
+.portal-vue-ai-asset-btn-icon { font-size: 15px; }
+.portal-vue-ai-asset-btn-text { flex: 1; text-align: left; font-size: 13px; font-weight: 600; color: #1677ff; }
+.portal-vue-ai-asset-drawer { display: grid; gap: 14px; }
+.portal-vue-ai-asset-drawer-head { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; color: #1f2733; }
+.portal-vue-ai-asset-item { padding: 14px; border: 1px solid #e9edf4; border-radius: 10px; background: #fff; }
+.portal-vue-ai-asset-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.portal-vue-ai-asset-item-head time { margin-left: auto; font-size: 11.5px; color: #a5aebd; }
+.portal-vue-ai-asset-item-summary { margin: 8px 0 0; padding: 10px 12px; border-radius: 8px; background: #f0f7ff; font-size: 12.5px; color: #2a3446; line-height: 1.7; }
+.portal-vue-ai-asset-item-body { display: grid; gap: 10px; margin-top: 10px; }
+.portal-vue-ai-asset-item-source { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e4e9f2; font-size: 12px; color: #8a94a6; }
+.portal-vue-ai-asset-source-title { max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-ai-report-drawer { display: grid; gap: 12px; }
 .portal-vue-ai-report-head { display: flex; align-items: center; gap: 8px; }
 .portal-vue-ai-report-head time { flex: 1; font-size: 12px; color: #a5aebd; }

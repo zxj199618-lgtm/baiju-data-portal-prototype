@@ -151,7 +151,7 @@ assert(portalBridge.includes('name: "分析工作台", badge: "5.0"'), "分析�
 assert(html.includes('id="analysisWorkbenchView"') && portalVue.includes("mount(\"#analysisWorkbenchView\""), "分析工作台应挂载独立视图");
 assert(portalVue.includes("AnalysisWorkbenchApp") && portalVue.includes("飞书机器人"), "分析工作台应提供飞书机器人沟通入口");
 assert(portalVue.includes("会话记录") && portalVue.includes("含飞书机器人") && portalVue.includes("分析资产"), "分析工作台应包含资产菜单与会话记录（含飞书机器人会话）");
-assert(portalVue.includes("assetTree") && portalVue.includes("openAsset") && portalVue.includes("archiveReport"), "完成的会话应归档为分析资产报告并支持回看");
+assert(portalVue.includes("assetDrawer") && portalVue.includes("jumpToSource") && portalVue.includes("archiveReport"), "完成的会话应归档为分析资产报告，抽屉先展示内容并可跳回来源会话");
 assert(portalVue.includes("数据表权限") && portalVue.includes("toggleAllTables") && portalVue.includes("allTables"), "权限组应支持数据表权限配置");
 assert(portalBridge.includes('tables: ["全部数据表"]'), "权限组数据应包含数据表权限维度");
 assert(portalVue.includes("myTables"), "分析工作台应按权限组展示可用数据表");

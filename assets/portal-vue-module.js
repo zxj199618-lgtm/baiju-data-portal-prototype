@@ -1245,19 +1245,12 @@
           <div class="portal-vue-ai-layout">
             <aside class="portal-vue-ai-side">
               <el-button class="portal-vue-ai-new" type="primary" plain @click="newSession">＋ 新的分析</el-button>
-              <div class="portal-vue-ai-asset-tree">
-                <p class="portal-vue-ai-group-label">分析资产 <span>{{ archivedReports.length }} 份报告</span></p>
-                <el-tree :data="assetTree" :props="{ label: 'label', children: 'children' }" default-expand-all :expand-on-click-node="true" @node-click="node=>openAsset(node)">
-                  <template #default="{ data }">
-                    <span class="portal-vue-ai-asset-node" :class="{ report: data.reportId }">
-                      <span class="portal-vue-ai-asset-icon">{{ data.type === 'scenario' ? '📁' : '📄' }}</span>
-                      <span class="portal-vue-ai-asset-label">{{ data.label }}</span>
-                      <span v-if="data.count" class="portal-vue-ai-asset-count">{{ data.count }}</span>
-                    </span>
-                  </template>
-                </el-tree>
-              </div>
-              <el-scrollbar height="calc(100vh - 560px)">
+              <button type="button" class="portal-vue-ai-asset-btn" @click="assetDrawer = true">
+                <span class="portal-vue-ai-asset-btn-icon">📊</span>
+                <span class="portal-vue-ai-asset-btn-text">分析资产</span>
+                <el-tag size="small" round effect="plain">{{ reports.length }} 份报告</el-tag>
+              </button>
+                            <el-scrollbar height="calc(100vh - 560px)">
                 <div class="portal-vue-ai-sessions">
                   <p class="portal-vue-ai-group-label">会话记录 <span>含飞书机器人</span></p>
                   <template v-if="ongoingSessions.length">
@@ -1326,25 +1319,40 @@
               </div>
             </section>
           </div>
-          <el-drawer v-model="reportDrawer" :title="(activeReport()?.title || '分析报告')" size="560px" :close-on-click-modal="true">
-            <div v-if="activeReport()" class="portal-vue-ai-report-drawer">
-              <div class="portal-vue-ai-report-head">
-                <el-tag size="small" :type="activeReport().channel === '飞书机器人' ? 'success' : 'primary'" :effect="activeReport().channel === '飞书机器人' ? 'plain' : 'light'">{{ activeReport().channel }}</el-tag>
-                <el-tag size="small" effect="plain">{{ activeReport().scenario }}</el-tag>
-                <time>{{ activeReport().time }}</time>
-                <el-button link :type="activeReport().starred ? 'warning' : 'primary'" @click="toggleStar(activeReport())">{{ activeReport().starred ? "★ 已收藏" : "☆ 收藏" }}</el-button>
-                <el-button link type="danger" @click="removeReport(activeReport())">删除</el-button>
+          <el-drawer v-model="assetDrawer" title="分析资产" size="640px" :close-on-click-modal="true">
+            <div class="portal-vue-ai-asset-drawer">
+              <div class="portal-vue-ai-asset-drawer-head">
+                <span>共 {{ reports.length }} 份分析报告</span>
+                <span class="portal-vue-muted">先看内容，再跳来源</span>
               </div>
-              <div v-if="activeReport().summary" class="portal-vue-ai-report-summary"><span>结论摘要</span><p>{{ activeReport().summary }}</p></div>
-              <div v-if="activeReport().tables.length" class="portal-vue-ai-refs"><el-tag v-for="table in activeReport().tables" :key="table" size="small" effect="plain">{{ table }}</el-tag></div>
-              <div class="portal-vue-ai-report-history">
-                <div v-for="(msg, index) in activeReport().messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
-                  <div class="portal-vue-ai-bubble">
-                    <p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p>
-                    <div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div>
+              <article v-for="report in reports" :key="report.id" class="portal-vue-ai-asset-item">
+                <div class="portal-vue-ai-asset-item-head">
+                  <strong>{{ report.title }}</strong>
+                  <el-tag size="small" :type="report.channel === '飞书机器人' ? 'success' : 'primary'" :effect="report.channel === '飞书机器人' ? 'plain' : 'light'">{{ report.channel }}</el-tag>
+                  <el-tag size="small" effect="plain">{{ report.scenario }}</el-tag>
+                  <time>{{ report.time }}</time>
+                </div>
+                <p v-if="report.summary" class="portal-vue-ai-asset-item-summary">{{ report.summary }}</p>
+                <div v-if="report.tables.length" class="portal-vue-ai-refs"><el-tag v-for="table in report.tables" :key="table" size="small" effect="plain">{{ table }}</el-tag></div>
+                <div class="portal-vue-ai-asset-item-body">
+                  <div v-for="(msg, index) in report.messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
+                    <div class="portal-vue-ai-bubble">
+                      <p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p>
+                      <div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div>
+                    </div>
                   </div>
                 </div>
-              </div>
+                <div class="portal-vue-ai-asset-item-source">
+                  <span>来源记录</span>
+                  <el-button link type="primary" @click="jumpToSource(report)">
+                    <el-tag size="small" :type="report.channel === '飞书机器人' ? 'success' : 'primary'" :effect="report.channel === '飞书机器人' ? 'plain' : 'light'">{{ report.channel }}</el-tag>
+                    <span class="portal-vue-ai-asset-source-title">{{ report.title.replace(' · 报告', '') }}</span>
+                  </el-button>
+                  <el-button v-if="report.sourceId && findSession(report.sourceId)" link type="primary" @click="jumpToSource(report)">→ 打开会话</el-button>
+                  <el-button link type="danger" @click="removeReport(report)">删除</el-button>
+                </div>
+              </article>
+              <p v-if="!reports.length" class="portal-vue-muted" style="text-align:center">暂无分析报告，发起一次分析后自动归档到这里</p>
             </div>
           </el-drawer>
         </section>
@@ -1365,8 +1373,7 @@
       gatewayTables: [],
       activeBizLine: "",
       reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
-      reportDrawer: false,
-      activeReportId: "",
+      assetDrawer: false,
       activeId: analysisSessionsSeed[0]?.id || "",
       suggests: ["近 7 天各媒体消耗趋势如何？", "哪些计划 CPA 超过目标值？", "本周消耗环比上涨的原因是什么？", "有哪些表可以看渠道归因？"]
     }),
@@ -1463,17 +1470,17 @@
         const session=this.activeSession;
         if(session&&!session.messages.length&&!session.suggested)session.scenario=this.scenarioName;
       },
-      openAsset(node){
-        if(node.type!=="report"||!node.reportId)return;
-        this.activeReportId=node.reportId;
-        this.reportDrawer=true;
-      },
-      activeReport(){return this.reports.find(item=>item.id===this.activeReportId);},
       async removeReport(report){
         if(!await confirmAction("删除报告",`确认从分析资产中删除「${report.title}」？`))return;
         this.reports=this.reports.filter(item=>item.id!==report.id);
-        this.reportDrawer=false;
         notify(`报告「${report.title}」已删除`);
+      },
+      findSession(id){return this.sessions.find(item=>item.id===id);},
+      jumpToSource(report){
+        const session=report.sourceId?this.findSession(report.sourceId):null;
+        if(!session){ep.ElMessage.info("演示数据：来源会话已归档，可在左侧会话记录中查看");return;}
+        this.assetDrawer=false;
+        this.openSession(session.id);
       },
       toggleStar(report){
         report.starred=!report.starred;
@@ -1481,6 +1488,7 @@
       },
       archiveReport(session,question,reportData){
         const report=createAnalysisReport({
+          sourceId:session.id,
           title:`${session.title} · 报告`,
           scenario:session.scenario,
           channel:session.channel==="飞书机器人"?"飞书机器人":"工作台对话",
