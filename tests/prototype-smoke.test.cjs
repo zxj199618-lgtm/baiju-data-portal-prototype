@@ -133,8 +133,7 @@ assert(!portalVue.includes("data:image/png;base64") && !portalVue.includes("data
 
 assert(portalBridge.includes('name: "维表管理"') && portalBridge.includes('name: "字典管理"'), "数据资产应包含维表管理与字典管理菜单");
 assert(portalBridge.includes('name: "API配置", badge: "2.0"'), "API配置应标记 2.0");
-assert(portalBridge.includes('name: "表管理", badge: ["2.0", "3.0", "4.0"]'), "表管理应同时标记 2.0 / 3.0 / 4.0");
-assert(portalBridge.includes('name: "标签管理", badge: "3.0"'), "标签管理应标记 3.0");
+assert(portalBridge.includes('name: "表管理", badge: ["2.0", "3.0", "4.0"]') && portalBridge.includes('name: "标签管理", badge: "3.0"') && portalBridge.indexOf('name: "标签管理"') > portalBridge.indexOf('name: "表管理"') && portalBridge.indexOf('name: "维表管理"') > portalBridge.indexOf('name: "标签管理"'), "标签管理应紧跟表管理，位于维表管理之前");
 assert(portalBridge.includes('badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }]'), "数据推送应标记 3.0");
 assert(portalVue.includes("navBadges("), "侧栏应支持同一菜单展示多个版本角标");
 assert(!portalBridge.includes("isNew: true") && !portalVue.includes(">NEW</el-tag>"), "菜单不应再使用 NEW 角标");

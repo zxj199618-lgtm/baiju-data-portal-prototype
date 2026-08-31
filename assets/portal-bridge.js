@@ -3,7 +3,7 @@
       const simpleNav = [
         { group: "数据看板", icon: "dashboard", items: [{ name: "数据看板" }] },
         { group: "数据服务", icon: "gateway", badge: "3.0", items: [{ name: "人群包管理", badge: "3.0" }, { name: "API配置", badge: "2.0" }] },
-        { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: ["2.0", "3.0", "4.0"] }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }, { name: "标签管理", badge: "3.0" }] },
+        { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: ["2.0", "3.0", "4.0"] }, { name: "标签管理", badge: "3.0" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
         { group: "数据推送", icon: "push", badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] }
       ];
@@ -1189,7 +1189,7 @@
       window.simpleUsers = simpleUsers;
 
       const permissionGroups = [
-        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["数据看板", "数据服务", "人群包管理", "API配置", "数据资产", "看板管理", "表管理", "维表管理", "字典管理", "标签管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], status: "启用" },
+        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["数据看板", "数据服务", "人群包管理", "API配置", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], status: "启用" },
         { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["数据看板"], boards: ["CPA事业部", "大盘数据"], status: "启用" },
         { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["数据看板"], boards: ["CPA事业部", "新媒体"], status: "启用" },
         { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["数据看板"], boards: ["大盘数据", "产品运营部"], status: "启用" },
@@ -2734,7 +2734,7 @@
         return [
           { name: "数据看板", children: [] },
           { name: "数据服务", children: ["人群包管理", "API配置"] },
-          { name: "数据资产", children: ["看板管理", "表管理", "维表管理", "字典管理", "标签管理"] },
+          { name: "数据资产", children: ["看板管理", "表管理", "标签管理", "维表管理", "字典管理"] },
           { name: "数据推送", children: ["人群包推送渠道"] },
           { name: "权限管理", children: ["用户管理", "权限组"] }
         ];
