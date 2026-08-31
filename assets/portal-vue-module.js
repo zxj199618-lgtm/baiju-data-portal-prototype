@@ -1379,7 +1379,7 @@
       }
     },
     mounted(){
-      this.pageHandler=event=>{if(event.detail?.page==="分析工作台"){this.loadMyTables();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
+      this.pageHandler=event=>{if(event.detail?.page==="分析工作台"){this.loadMyTables();if(!this.models.length)this.loadModels();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
       window.addEventListener("portal:page-change",this.pageHandler);
       this.loadModels();
     },
