@@ -1361,7 +1361,7 @@
     computed:{
       scenarios(){refreshTick.value;return this.skillScenarios;},
       skillScenarios(){
-        const source = typeof skillRegistrySeed !== "undefined" ? skillRegistrySeed : skillScenarioFallback;
+        const source = state.skills?.length ? state.skills : skillScenarioFallback;
         return source.filter(item=>item.enabled!==false&&item.status!=="已停用").sort((a,b)=>(a.sort||99)-(b.sort||99)).map(item=>({key:item.scenarioKey||item.id,id:item.id,icon:item.icon||"✦",name:item.title||item.name,desc:item.displayDesc||item.desc||""}));
       },
       activeSkill(){return this.skillScenarios.find(item=>item.key===this.scenario);},
@@ -1913,6 +1913,8 @@
     }
   ];
 
+  state.skills = skillRegistrySeed;
+
   const SkillManagementApp = {
     template: `
       <el-config-provider :locale="locale">
@@ -1975,8 +1977,9 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({skills:skillRegistrySeed,keyword:"",promptVisible:false,versionsVisible:false,testVisible:false,displayVisible:false,displayForm:{},activeSkill:null,promptDraft:"",testQuestion:"",testOutput:"",testing:false}),
+    data:()=>({keyword:"",promptVisible:false,versionsVisible:false,testVisible:false,displayVisible:false,displayForm:{},activeSkill:null,promptDraft:"",testQuestion:"",testOutput:"",testing:false}),
     computed:{
+      skills(){refreshTick.value;return state.skills||[];},
       filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));}
     },
     methods:{
