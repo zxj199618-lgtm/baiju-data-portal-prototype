@@ -200,7 +200,7 @@
         <div v-if="visible" class="portal-vue-page-head">
           <div class="portal-vue-page-head-row">
             <div><h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p></div>
-            <button v-if="page === '分析工作台'" type="button" class="portal-vue-ai-bot-btn" @click="feishuOpen = true"><span class="portal-vue-ai-bot-icon">🤖</span><span>飞书机器人</span></button>
+            <button v-if="page === '分析工作台' && !feishuBotAdded" type="button" class="portal-vue-ai-bot-btn" @click="feishuOpen = true"><span class="portal-vue-ai-bot-icon">🤖</span><span>添加飞书机器人</span></button>
           </div>
         </div>
         <el-drawer v-if="page === '分析工作台'" v-model="feishuOpen" title="观星台 · 飞书机器人" size="420px" :close-on-click-modal="true">
@@ -212,11 +212,12 @@
               <span><b>3</b>直接提问，如「近7天巨量渠道CPA趋势」；分析结果以卡片回复，沟通记录自动同步到工作台</span>
             </div>
             <p class="portal-vue-muted">机器人与工作台使用同一套表权限：只能分析你有权限的数据表。</p>
+            <el-button v-if="!feishuBotAdded" type="primary" style="width:100%" @click="markBotAdded">我已完成添加，不再展示此入口</el-button>
           </div>
         </el-drawer>
       </el-config-provider>
     `,
-    data:()=>({feishuOpen:false}),
+    data:()=>({feishuOpen:false,feishuBotAdded:false}),
     computed: {
       page() { return currentPage.value; },
       meta() { refreshTick.value; return bridge.pageMeta[this.page] || bridge.pageMeta["数据看板"]; },
@@ -225,7 +226,18 @@
       subtitle() { return this.meta?.[1] || ""; }
     },
     watch: { visible(value) { document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", !value); } },
-    mounted() { document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", !this.visible); }
+    mounted() {
+      document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", !this.visible);
+      try { this.feishuBotAdded = localStorage.getItem("feishuBotAdded") === "1"; } catch (error) { this.feishuBotAdded = false; }
+    },
+    methods: {
+      markBotAdded() {
+        this.feishuBotAdded = true;
+        try { localStorage.setItem("feishuBotAdded", "1"); } catch (error) { /* 隐私模式下仅本次会话生效 */ }
+        this.feishuOpen = false;
+        ep.ElMessage.success("飞书机器人已添加，沟通记录将同步到分析工作台");
+      }
+    }
   };
 
   const DataBoardApp = {
