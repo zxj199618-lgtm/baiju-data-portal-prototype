@@ -345,51 +345,59 @@
   .portal-vue-permission-card-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 
-/* 分析工作台 */
-.portal-vue-analysis-layout { display: grid; grid-template-columns: 280px minmax(0,1fr) 300px; gap: 16px; align-items: start; }
-.portal-vue-analysis-card { padding: 16px; border: 1px solid #e4e9f2; border-radius: 8px; background: #fff; }
-.portal-vue-analysis-card > strong { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #1f2733; }
-.portal-vue-analysis-card .portal-vue-muted { margin-top: 6px; font-size: 12px; line-height: 1.6; }
-.portal-vue-analysis-side, .portal-vue-analysis-history { display: grid; gap: 16px; }
-.portal-vue-analysis-scenarios { margin-top: 12px; display: grid; gap: 8px; }
-.portal-vue-analysis-scenario { display: flex; gap: 10px; align-items: flex-start; width: 100%; padding: 10px 12px; border: 1px solid #e4e9f2; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
-.portal-vue-analysis-scenario:hover { border-color: #9cc5ff; }
-.portal-vue-analysis-scenario.active { border-color: #1677ff; background: #e7f1ff; }
-.portal-vue-analysis-scene-icon { font-size: 18px; line-height: 1.4; }
-.portal-vue-analysis-scenario strong { display: block; font-size: 13px; color: #1f2733; }
-.portal-vue-analysis-scenario small { display: block; margin-top: 2px; font-size: 12px; color: #8a94a6; line-height: 1.5; }
-.portal-vue-analysis-tables { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-.portal-vue-analysis-feishu-steps { margin-top: 10px; display: grid; gap: 6px; }
-.portal-vue-analysis-feishu-steps span { padding: 8px 10px; border-radius: 6px; background: #f3f7fd; color: #3f4857; font-size: 12px; line-height: 1.5; }
-.portal-vue-analysis-main { display: flex; flex-direction: column; border: 1px solid #e4e9f2; border-radius: 8px; background: #fff; overflow: hidden; }
-.portal-vue-analysis-chat { min-height: 420px; max-height: calc(100vh - 320px); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
-.portal-vue-analysis-welcome { margin: auto; text-align: center; }
-.portal-vue-analysis-welcome h3 { margin: 0 0 6px; font-size: 17px; color: #1f2733; }
-.portal-vue-analysis-suggests { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.portal-vue-analysis-message { display: flex; }
-.portal-vue-analysis-message.user { justify-content: flex-end; }
-.portal-vue-analysis-bubble { max-width: 78%; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.7; color: #2a3446; }
-.portal-vue-analysis-message.user .portal-vue-analysis-bubble { background: #1677ff; color: #fff; border-bottom-right-radius: 3px; }
-.portal-vue-analysis-message.assistant .portal-vue-analysis-bubble { background: #f3f6fa; border-bottom-left-radius: 3px; }
-.portal-vue-analysis-bubble p { margin: 0 0 4px; }
-.portal-vue-analysis-bubble p:last-child { margin-bottom: 0; }
-.portal-vue-analysis-refs { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
-.portal-vue-analysis-input { display: flex; gap: 10px; align-items: flex-end; padding: 12px 14px; border-top: 1px solid #e9edf4; background: #fbfcfe; }
-.portal-vue-analysis-input .el-textarea { flex: 1; }
-.portal-vue-analysis-history-card { display: flex; flex-direction: column; gap: 10px; }
-.portal-vue-analysis-history-head { display: flex; align-items: baseline; justify-content: space-between; }
-.portal-vue-analysis-history-head span { font-size: 12px; }
-.portal-vue-analysis-history-list { display: grid; gap: 8px; max-height: 480px; overflow-y: auto; }
-.portal-vue-analysis-history-item { padding: 10px 12px; border: 1px solid #e9edf4; border-radius: 8px; cursor: pointer; transition: border-color .15s, background .15s; }
-.portal-vue-analysis-history-item:hover { border-color: #9cc5ff; }
-.portal-vue-analysis-history-item.active { border-color: #1677ff; background: #f4f9ff; }
-.portal-vue-analysis-history-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8a94a6; }
-.portal-vue-analysis-history-meta time { margin-left: auto; }
-.portal-vue-analysis-history-item p { margin: 6px 0 0; font-size: 12px; color: #3f4857; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.portal-vue-analysis-detail { display: grid; gap: 14px; }
-.portal-vue-analysis-detail-block span { display: block; margin-bottom: 6px; font-size: 12px; color: #8a94a6; }
-.portal-vue-analysis-detail-block p { margin: 0; padding: 12px; border-radius: 8px; background: #f3f6fa; font-size: 13px; color: #2a3446; line-height: 1.8; }
+/* 分析工作台（Codex 风格布局） */
+.portal-vue-ai-banner { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border: 1px solid #dbe8fb; border-radius: 8px; background: #eef5ff; cursor: pointer; }
+.portal-vue-ai-banner-icon { font-size: 16px; }
+.portal-vue-ai-banner-text { flex: 1; font-size: 12.5px; color: #3f4857; line-height: 1.5; }
+.portal-vue-ai-banner-text strong { margin-right: 8px; color: #1677ff; }
+.portal-vue-ai-banner-steps { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.portal-vue-ai-banner-steps span { padding: 7px 12px; border-radius: 6px; background: #f3f7fd; color: #3f4857; font-size: 12px; line-height: 1.5; }
+.portal-vue-ai-layout { margin-top: 12px; display: grid; grid-template-columns: 300px minmax(0,1fr); gap: 14px; align-items: stretch; }
+.portal-vue-ai-side { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #e4e9f2; border-radius: 10px; background: #fbfcfe; }
+.portal-vue-ai-new { width: 100%; }
+.portal-vue-ai-sessions { display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
+.portal-vue-ai-session { padding: 10px 12px; border: 1px solid #e9edf4; border-radius: 8px; background: #fff; cursor: pointer; transition: border-color .15s, background .15s; }
+.portal-vue-ai-session:hover { border-color: #9cc5ff; }
+.portal-vue-ai-session.active { border-color: #1677ff; background: #f0f7ff; }
+.portal-vue-ai-session-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.portal-vue-ai-session-top strong { font-size: 13px; color: #1f2733; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portal-vue-ai-session-top time { flex-shrink: 0; font-size: 11px; color: #a5aebd; }
+.portal-vue-ai-session-meta { margin-top: 6px; display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #8a94a6; }
+.portal-vue-ai-session-status { margin-left: auto; }
+.portal-vue-ai-session-status.running { color: #d97706; }
+.portal-vue-ai-main { display: flex; flex-direction: column; min-height: 560px; border: 1px solid #e4e9f2; border-radius: 10px; background: #fff; overflow: hidden; }
+.portal-vue-ai-scenarios { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; padding: 12px; border-bottom: 1px solid #eef1f6; }
+.portal-vue-ai-scenario { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid #e4e9f2; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.portal-vue-ai-scenario:hover { border-color: #9cc5ff; }
+.portal-vue-ai-scenario.active { border-color: #1677ff; background: #e7f1ff; }
+.portal-vue-ai-scene-icon { font-size: 17px; }
+.portal-vue-ai-scenario strong { display: block; font-size: 13px; color: #1f2733; white-space: nowrap; }
+.portal-vue-ai-scenario small { display: block; margin-top: 1px; font-size: 11.5px; color: #8a94a6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portal-vue-ai-scenario.active strong { color: #1677ff; }
+.portal-vue-ai-chat { flex: 1; min-height: 300px; max-height: calc(100vh - 430px); padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.portal-vue-ai-welcome { margin: auto; text-align: center; }
+.portal-vue-ai-welcome h3 { margin: 0 0 6px; font-size: 17px; color: #1f2733; }
+.portal-vue-ai-suggests { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.portal-vue-ai-message { display: flex; }
+.portal-vue-ai-message.user { justify-content: flex-end; }
+.portal-vue-ai-bubble { max-width: 78%; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.7; color: #2a3446; }
+.portal-vue-ai-message.user .portal-vue-ai-bubble { background: #1677ff; color: #fff; border-bottom-right-radius: 3px; }
+.portal-vue-ai-message.assistant .portal-vue-ai-bubble { background: #f3f6fa; border-bottom-left-radius: 3px; }
+.portal-vue-ai-bubble p { margin: 0 0 4px; }
+.portal-vue-ai-bubble p:last-child { margin-bottom: 0; }
+.portal-vue-ai-refs { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.portal-vue-ai-input { border-top: 1px solid #e9edf4; background: #fbfcfe; padding: 10px 12px 12px; }
+.portal-vue-ai-mention { margin-bottom: 8px; padding: 8px 10px; border: 1px solid #dbe8fb; border-radius: 8px; background: #fff; }
+.portal-vue-ai-mention-head { display: flex; justify-content: space-between; font-size: 12px; color: #3f4857; margin-bottom: 6px; }
+.portal-vue-ai-mention-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto; }
+.portal-vue-ai-mention-list button { padding: 4px 10px; border: 1px solid #e4e9f2; border-radius: 999px; background: #f7f9fc; font-size: 12px; color: #3f4857; cursor: pointer; }
+.portal-vue-ai-mention-list button:hover { border-color: #1677ff; color: #1677ff; }
+.portal-vue-ai-input-row { display: flex; gap: 10px; align-items: flex-end; }
+.portal-vue-ai-input-row .el-textarea { flex: 1; }
 
 @media (max-width: 1440px) {
-  .portal-vue-analysis-layout { grid-template-columns: 250px minmax(0,1fr) 270px; }
+  .portal-vue-ai-layout { grid-template-columns: 260px minmax(0,1fr); }
+  .portal-vue-ai-scenarios { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
+.portal-vue-ai-group-label { margin: 2px 0 -2px; display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; color: #8a94a6; }
+.portal-vue-ai-group-label span { font-size: 11px; color: #b3bcc9; }

@@ -1097,146 +1097,231 @@
   };
 
   const analysisScenarios = [
-    { key: "single", name: "单表分析", desc: "基于单张表的趋势、分布与异常分析", icon: "📊" },
-    { key: "lineage", name: "数据血缘分析", desc: "表与字段的上下游依赖、变更影响面", icon: "🔗" },
-    { key: "asset", name: "数据资产问答", desc: "有哪些表、口径是什么、负责人是谁", icon: "📚" },
-    { key: "attribution", name: "归因分析", desc: "指标异动的多维度拆解与定位", icon: "🎯" }
+    { key: "single", name: "单表分析", desc: "趋势、分布与异常", icon: "📊" },
+    { key: "lineage", name: "数据血缘分析", desc: "上下游依赖与影响面", icon: "🔗" },
+    { key: "asset", name: "数据资产问答", desc: "有哪些表、口径、负责人", icon: "📚" },
+    { key: "attribution", name: "归因分析", desc: "指标异动拆解与定位", icon: "🎯" }
   ];
 
-  const analysisHistorySeed = [
-    { id: "AN20260831001", channel: "飞书机器人", scenario: "单表分析", table: "广告计划日报表", question: "近 7 天各媒体消耗趋势如何？CPA 有没有异常波动？", summary: "近 7 天总消耗 286.4 万元，环比上涨 12.3%。巨量渠道 CPA 上升 18%，主要来自「小说推文」计划组，建议关注。", time: "2026-08-31 10:24", status: "已完成" },
-    { id: "AN20260830002", channel: "工作台对话", scenario: "数据资产问答", table: "—", question: "有哪些表可以看渠道归因？口径是什么？", summary: "找到 2 张相关表：「渠道归因明细」（负责人 李雨航）和「广告计划日报表」中 activate_cnt 字段（按归因口径统计）。", time: "2026-08-30 16:51", status: "已完成" },
-    { id: "AN20260830001", channel: "飞书机器人", scenario: "归因分析", table: "广告计划日报表", question: "本周 CPA 环比上涨的原因是什么？", summary: "按媒体拆解：巨量贡献 78% 的涨幅；按产品拆解：「网赚-02」产品新上 3 条计划拉高整体成本。", time: "2026-08-30 09:12", status: "已完成" },
-    { id: "AN20260829003", channel: "工作台对话", scenario: "数据血缘分析", table: "dwd_user_profile_tag", question: "如果修改 tag_value 字段长度，会影响哪些下游？", summary: "下游影响 2 张表：「用户画像标签明细表」API 服务接口、「用户生命周期日报」ETL 任务。建议同步负责人调整。", time: "2026-08-29 15:40", status: "已完成" }
+  let analysisSeq = 100;
+  function createAnalysisSession(seed) {
+    return {
+      id: seed?.id || `AN${Date.now()}${analysisSeq += 1}`,
+      title: seed?.title || "新的分析",
+      channel: seed?.channel || "工作台对话",
+      scenario: seed?.scenario || "单表分析",
+      status: seed?.status || "进行中",
+      time: seed?.time || new Date().toLocaleString("zh-CN", { hour12: false }).replaceAll("/", "-"),
+      messages: seed?.messages ? seed.messages.map(msg => ({ ...msg, lines: [...msg.lines], refs: msg.refs ? [...msg.refs] : undefined })) : [],
+      suggested: seed?.suggested || false
+    };
+  }
+
+  const analysisSessionsSeed = [
+    createAnalysisSession({
+      id: "AN20260831001", title: "近 7 天媒体消耗趋势", channel: "飞书机器人", scenario: "单表分析", status: "已完成", time: "2026-08-31 10:24", suggested: true,
+      messages: [
+        { role: "user", lines: ["近 7 天各媒体消耗趋势如何？CPA 有没有异常波动？"] },
+        { role: "assistant", lines: ["近 7 天总消耗 286.4 万元，环比上涨 12.3%。", "巨量渠道 CPA 上升 18%，主要来自「小说推文」计划组，建议关注。"], refs: ["广告计划日报表"] }
+      ]
+    }),
+    createAnalysisSession({
+      id: "AN20260830002", title: "渠道归因相关表与口径", channel: "工作台对话", scenario: "数据资产问答", status: "已完成", time: "2026-08-30 16:51", suggested: true,
+      messages: [
+        { role: "user", lines: ["有哪些表可以看渠道归因？口径是什么？"] },
+        { role: "assistant", lines: ["找到 2 张相关表：「渠道归因明细」（负责人 李雨航）和「广告计划日报表」中 activate_cnt 字段（按归因口径统计）。"], refs: ["渠道归因明细", "广告计划日报表"] }
+      ]
+    }),
+    createAnalysisSession({
+      id: "AN20260830001", title: "CPA 环比上涨归因", channel: "飞书机器人", scenario: "归因分析", status: "已完成", time: "2026-08-30 09:12", suggested: true,
+      messages: [
+        { role: "user", lines: ["本周 CPA 环比上涨的原因是什么？"] },
+        { role: "assistant", lines: ["按媒体拆解：巨量贡献 78% 的涨幅；按产品拆解：「网赚-02」产品新上 3 条计划拉高整体成本。"], refs: ["广告计划日报表"] }
+      ]
+    }),
+    createAnalysisSession({
+      id: "AN20260829003", title: "tag_value 字段下游影响", channel: "工作台对话", scenario: "数据血缘分析", status: "已完成", time: "2026-08-29 15:40", suggested: true,
+      messages: [
+        { role: "user", lines: ["如果修改 tag_value 字段长度，会影响哪些下游？"] },
+        { role: "assistant", lines: ["下游影响 2 张表：「用户画像标签明细表」API 服务接口、「用户生命周期日报」ETL 任务。建议同步负责人调整。"], refs: ["dwd_user_profile_tag"] }
+      ]
+    })
   ];
 
   const AnalysisWorkbenchApp = {
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
-          <div class="portal-vue-analysis-layout">
-            <aside class="portal-vue-analysis-side">
-              <div class="portal-vue-analysis-card">
-                <strong>分析场景</strong>
-                <div class="portal-vue-analysis-scenarios">
-                  <button v-for="scene in scenarios" :key="scene.key" type="button" class="portal-vue-analysis-scenario" :class="{ active: scenario === scene.key }" @click="scenario = scene.key">
-                    <span class="portal-vue-analysis-scene-icon">{{ scene.icon }}</span>
-                    <span><strong>{{ scene.name }}</strong><small>{{ scene.desc }}</small></span>
-                  </button>
+          <div class="portal-vue-ai-banner" @click="feishuOpen = !feishuOpen">
+            <span class="portal-vue-ai-banner-icon">🤖</span>
+            <span class="portal-vue-ai-banner-text"><strong>飞书机器人已接入</strong>在飞书搜索「观星台」机器人，发「绑定」关联账号后直接提问；机器人的沟通记录会自动同步到左侧会话列表。</span>
+            <el-button link type="primary">{{ feishuOpen ? "收起" : "查看接入步骤" }}</el-button>
+          </div>
+          <el-collapse-transition>
+            <div v-show="feishuOpen" class="portal-vue-ai-banner-steps">
+              <span>1. 飞书搜索并关注「观星台」机器人</span>
+              <span>2. 首次使用发送「绑定」完成账号关联</span>
+              <span>3. 直接提问，如「近7天巨量渠道CPA趋势」，沟通记录自动同步到左侧列表</span>
+            </div>
+          </el-collapse-transition>
+          <div class="portal-vue-ai-layout">
+            <aside class="portal-vue-ai-side">
+              <el-button class="portal-vue-ai-new" type="primary" plain @click="newSession">＋ 新的分析</el-button>
+              <el-scrollbar height="calc(100vh - 320px)">
+                <div class="portal-vue-ai-sessions">
+                  <template v-if="ongoingSessions.length">
+                    <p class="portal-vue-ai-group-label">进行中</p>
+                    <article v-for="session in ongoingSessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId }" @click="openSession(session.id)">
+                      <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time>{{ session.time.slice(5, 16) }}</time></div>
+                      <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span>{{ session.scenario }}</span><span class="portal-vue-ai-session-status running">{{ session.status }}</span></div>
+                    </article>
+                  </template>
+                  <p class="portal-vue-ai-group-label">历史记录 <span>含飞书机器人会话</span></p>
+                  <article v-for="session in historySessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId }" @click="openSession(session.id)">
+                    <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time>{{ session.time.slice(5, 16) }}</time></div>
+                    <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span>{{ session.scenario }}</span></div>
+                  </article>
+                  <p v-if="!sessions.length" class="portal-vue-muted">暂无会话</p>
                 </div>
-              </div>
-              <div class="portal-vue-analysis-card">
-                <strong>我的数据表权限 <el-tag size="small" round>{{ myTables.length }}</el-tag></strong>
-                <p class="portal-vue-muted">分析范围仅限权限组授权的数据表，行级权限后续支持。</p>
-                <div class="portal-vue-analysis-tables">
-                  <el-tag v-for="table in myTables" :key="table" size="small" effect="plain">{{ table }}</el-tag>
-                  <span v-if="!myTables.length" class="portal-vue-muted">当前权限组未配置数据表权限，请联系管理员。</span>
-                </div>
-              </div>
-              <div class="portal-vue-analysis-card portal-vue-analysis-feishu">
-                <strong>飞书机器人</strong>
-                <p class="portal-vue-muted">在飞书搜索「观星台」机器人，直接发送问题即可分析；机器人的沟通记录会自动同步到下方历史记录。</p>
-                <div class="portal-vue-analysis-feishu-steps">
-                  <span>1. 飞书搜索并关注「观星台」机器人</span>
-                  <span>2. 首次使用发送「绑定」完成账号关联</span>
-                  <span>3. 直接提问，如「近7天巨量渠道CPA趋势」</span>
-                </div>
-              </div>
+              </el-scrollbar>
             </aside>
-            <section class="portal-vue-analysis-main">
-              <div class="portal-vue-analysis-chat" ref="chatBox">
-                <div v-if="!messages.length" class="portal-vue-analysis-welcome">
-                  <h3>开始数据分析</h3>
-                  <p class="portal-vue-muted">选择上方场景，输入问题；也可以直接在飞书机器人提问，结果同步到这里。</p>
-                  <div class="portal-vue-analysis-suggests">
+            <section class="portal-vue-ai-main">
+              <div class="portal-vue-ai-scenarios">
+                <button v-for="scene in scenarios" :key="scene.key" type="button" class="portal-vue-ai-scenario" :class="{ active: scenario === scene.key }" @click="setScenario(scene.key)">
+                  <span class="portal-vue-ai-scene-icon">{{ scene.icon }}</span>
+                  <span><strong>{{ scene.name }}</strong><small>{{ scene.desc }}</small></span>
+                </button>
+              </div>
+              <div class="portal-vue-ai-chat" ref="chatBox">
+                <div v-if="!activeSession.messages.length" class="portal-vue-ai-welcome">
+                  <h3>{{ scenarioName }}</h3>
+                  <p class="portal-vue-muted">输入问题开始分析，可在输入框用 @ 引用你有权限的数据表；也可以直接在飞书机器人提问，记录同步到这里。</p>
+                  <div class="portal-vue-ai-suggests">
                     <el-button v-for="text in suggests" :key="text" size="small" round @click="input = text">{{ text }}</el-button>
                   </div>
                 </div>
-                <div v-for="(msg, index) in messages" :key="index" class="portal-vue-analysis-message" :class="msg.role">
-                  <div class="portal-vue-analysis-bubble">
+                <div v-for="(msg, index) in activeSession.messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
+                  <div class="portal-vue-ai-bubble">
                     <p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p>
-                    <div v-if="msg.refs" class="portal-vue-analysis-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div>
+                    <div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div>
                   </div>
                 </div>
-                <div v-if="thinking" class="portal-vue-analysis-message assistant"><div class="portal-vue-analysis-bubble"><p class="portal-vue-muted">正在基于你有权限的数据表进行分析…</p></div></div>
+                <div v-if="thinking" class="portal-vue-ai-message assistant"><div class="portal-vue-ai-bubble"><p class="portal-vue-muted">正在基于你有权限的数据表进行分析…</p></div></div>
               </div>
-              <div class="portal-vue-analysis-input">
-                <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，回车发送；如：近 7 天各媒体消耗趋势如何？" @keydown.enter.native="sendMessage"></el-input>
-                <el-button type="primary" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
+              <div class="portal-vue-ai-input">
+                <div v-if="mentionOpen" class="portal-vue-ai-mention">
+                  <div class="portal-vue-ai-mention-head"><span>引用数据表</span><span class="portal-vue-muted">仅限你有权限的 {{ myTables.length }} 张表</span></div>
+                  <div class="portal-vue-ai-mention-list">
+                    <button v-for="table in mentionTables" :key="table" type="button" @click="insertMention(table)">{{ table }}</button>
+                    <p v-if="!mentionTables.length" class="portal-vue-muted">没有匹配的数据表，或当前权限组未配置数据表权限。</p>
+                  </div>
+                </div>
+                <div class="portal-vue-ai-input-row">
+                  <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
+                  <el-button type="primary" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
+                </div>
               </div>
             </section>
-            <aside class="portal-vue-analysis-history">
-              <div class="portal-vue-analysis-card portal-vue-analysis-history-card">
-                <div class="portal-vue-analysis-history-head"><strong>历史记录</strong><span class="portal-vue-muted">含飞书机器人会话</span></div>
-                <el-input v-model="historyKeyword" size="small" clearable placeholder="搜索历史分析"></el-input>
-                <div class="portal-vue-analysis-history-list">
-                  <article v-for="item in filteredHistory" :key="item.id" class="portal-vue-analysis-history-item" :class="{ active: activeHistoryId === item.id }" @click="openHistory(item)">
-                    <div class="portal-vue-analysis-history-meta"><el-tag size="small" :effect="item.channel === '飞书机器人' ? 'plain' : 'light'" :type="item.channel === '飞书机器人' ? 'success' : 'primary'">{{ item.channel }}</el-tag><span>{{ item.scenario }}</span><time>{{ item.time }}</time></div>
-                    <p>{{ item.question }}</p>
-                  </article>
-                  <p v-if="!filteredHistory.length" class="portal-vue-muted">暂无历史记录</p>
-                </div>
-              </div>
-              <el-drawer v-model="historyDrawer" :title="activeHistory?.id || '分析详情'" size="480px" :close-on-click-modal="true">
-                <div v-if="activeHistory" class="portal-vue-analysis-detail">
-                  <div class="portal-vue-detail-item"><span>分析场景</span><strong>{{ activeHistory.scenario }}</strong></div>
-                  <div class="portal-vue-detail-item"><span>发起渠道</span><strong>{{ activeHistory.channel }}</strong></div>
-                  <div class="portal-vue-detail-item"><span>涉及数据表</span><strong>{{ activeHistory.table }}</strong></div>
-                  <div class="portal-vue-detail-item"><span>发起时间</span><strong>{{ activeHistory.time }}</strong></div>
-                  <div class="portal-vue-analysis-detail-block"><span>我的问题</span><p>{{ activeHistory.question }}</p></div>
-                  <div class="portal-vue-analysis-detail-block"><span>分析结论</span><p>{{ activeHistory.summary }}</p></div>
-                </div>
-              </el-drawer>
-            </aside>
           </div>
         </section>
       </el-config-provider>
     `,
     data:()=>({
+      feishuOpen: false,
       scenario: "single",
       input: "",
       thinking: false,
-      messages: [],
-      history: analysisHistorySeed.map(item => ({ ...item })),
-      historyKeyword: "",
-      historyDrawer: false,
-      activeHistoryId: "",
+      mentionOpen: false,
+      mentionKeyword: "",
+      sessions: analysisSessionsSeed.map(session => createAnalysisSession(session)),
+      activeId: analysisSessionsSeed[0]?.id || "",
       suggests: ["近 7 天各媒体消耗趋势如何？", "哪些计划 CPA 超过目标值？", "本周消耗环比上涨的原因是什么？", "有哪些表可以看渠道归因？"]
     }),
     computed:{
       scenarios(){return analysisScenarios;},
       scenarioName(){return analysisScenarios.find(item => item.key === this.scenario)?.name || "单表分析";},
-      myTables(){refreshTick.value;const group=state.groups.find(item=>item.name===this.currentUser?.group);if(!group)return[];if(group.tables?.includes("全部数据表"))return state.assets.map(table=>table.cnName);return group.tables||[];},
+      activeSession(){return this.sessions.find(item => item.id === this.activeId) || this.sessions[0] || { messages: [] };},
       currentUser(){refreshTick.value;return state.users.find(user=>user.name==="曾祥竞")||state.users[0];},
-      filteredHistory(){const keyword=this.historyKeyword.trim().toLowerCase();return this.history.filter(item=>!keyword||`${item.question} ${item.summary} ${item.scenario}`.toLowerCase().includes(keyword));},
-      activeHistory(){return this.history.find(item=>item.id===this.activeHistoryId);}
+      myTables(){
+        refreshTick.value;
+        const group=state.groups.find(item=>item.name===this.currentUser?.group);
+        if(!group)return[];
+        if(group.tables?.includes("全部数据表"))return state.assets.map(table=>table.cnName);
+        return group.tables||[];
+      },
+      mentionTables(){
+        const keyword=this.mentionKeyword.trim().toLowerCase();
+        return this.myTables.filter(table=>!keyword||table.toLowerCase().includes(keyword));
+      },
+      ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
+      historySessions(){return this.sessions.filter(item=>item.status!=="进行中");}
     },
     mounted(){
-      this.pageHandler=event=>{if(event.detail?.page==="分析工作台")this.loadHistory();};
+      this.pageHandler=event=>{if(event.detail?.page==="分析工作台")this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));};
       window.addEventListener("portal:page-change",this.pageHandler);
-      this.loadHistory();
     },
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
-      loadHistory(){},
-      openHistory(item){this.activeHistoryId=item.id;this.historyDrawer=true;},
+      newSession(){
+        const session=createAnalysisSession({title:"新的分析",scenario:this.scenarioName});
+        session.status="进行中";
+        this.sessions.unshift(session);
+        this.activeId=session.id;
+        this.input="";
+        this.mentionOpen=false;
+      },
+      openSession(id){
+        this.activeId=id;
+        const session=this.sessions.find(item=>item.id===id);
+        if(session)this.scenario=analysisScenarios.find(scene=>scene.name===session.scenario)?.key||"single";
+        this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));
+      },
+      setScenario(key){
+        this.scenario=key;
+        const session=this.activeSession;
+        if(session&&!session.messages.length&&!session.suggested)session.scenario=this.scenarioName;
+      },
+      onEnter(event){
+        if(event.shiftKey)return;
+        event.preventDefault();
+        this.sendMessage();
+      },
+      onInput(value){
+        const match=String(value||"").match(/@([^@\s]*)$/);
+        if(match){this.mentionOpen=true;this.mentionKeyword=match[1];}
+        else this.mentionOpen=false;
+      },
+      insertMention(table){
+        this.input=String(this.input||"").replace(/@([^@\s]*)$/,`@${table} `);
+        this.mentionOpen=false;
+        this.mentionKeyword="";
+      },
       sendMessage(){
         const question=this.input.trim();
         if(!question||this.thinking)return;
+        let session=this.activeSession;
+        if(!session.id||session.suggested){
+          session=createAnalysisSession({title:question.slice(0,18)||"新的分析",scenario:this.scenarioName});
+          this.sessions.unshift(session);
+          this.activeId=session.id;
+        }
+        const mentionedTables=this.myTables.filter(table=>question.includes(`@${table}`));
+        session.messages.push({role:"user",lines:[question],refs:mentionedTables.length?mentionedTables:undefined});
+        session.title=session.title==="新的分析"?question.slice(0,18):session.title;
         this.input="";
-        this.messages.push({role:"user",lines:[question]});
+        this.mentionOpen=false;
         this.thinking=true;
-        const scenarioName=this.scenarioName;
-        const myTables=this.myTables;
+        const scenarioName=session.scenario;
         setTimeout(()=>{
           this.thinking=false;
-          const lines=myTables.length
-            ?[`已完成「${scenarioName}」分析（原型演示回复）。`,`本次分析在你有权限的 ${myTables.length} 张数据表范围内执行：${myTables.slice(0,3).join("、")}${myTables.length>3?" 等":""}。`,`接入 WorkBuddy skill 后，这里将返回真实的分析结论、图表与引用明细。`]
-            :["当前权限组未配置数据表权限，无法发起分析，请联系管理员在「权限组 → 数据表权限」中授权。"];
-          const refs=myTables.slice(0,3);
-          this.messages.push({role:"assistant",lines,refs});
-          const record={id:`AN${Date.now()}`,channel:"工作台对话",scenario:scenarioName,table:myTables[0]||"—",question,summary:lines[lines.length-1],time:new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-"),status:"已完成"};
-          this.history.unshift(record);
+          session.status="已完成";
+          session.time=new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-");
+          const lines=mentionedTables.length
+            ?[`已完成「${scenarioName}」分析（原型演示回复）。`,`本次分析基于你引用的 ${mentionedTables.length} 张数据表：${mentionedTables.join("、")}。`,`接入 WorkBuddy skill 后，这里将返回真实的分析结论、图表与引用明细。`]
+            :this.myTables.length
+              ?[`已完成「${scenarioName}」分析（原型演示回复）。`,`本次分析在你有权限的 ${this.myTables.length} 张数据表范围内执行。`,`可用输入框中的 @ 精确引用数据表，接入 skill 后将返回真实结论与图表。`]
+              :["当前权限组未配置数据表权限，无法发起分析，请联系管理员在「权限组 → 数据表权限」中授权。"];
+          session.messages.push({role:"assistant",lines,refs:(mentionedTables.length?mentionedTables:this.myTables).slice(0,3)});
           this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
         },900);
       }
