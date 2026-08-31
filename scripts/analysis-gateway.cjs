@@ -1041,6 +1041,7 @@ const server = http.createServer(async (req, res) => {
         "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS"
       });
       const send = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+      const heartbeat = setInterval(() => res.write(": hb\n\n"), 5000);
       send({ started: true, scenario: scene.label, model });
       const reasoningOptions = {};
       if (["low", "medium", "high"].includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
@@ -1051,9 +1052,11 @@ const server = http.createServer(async (req, res) => {
         result = await relayChatStream(model, { messages }, evt => send({ delta: evt.delta }));
       }
       if (!result.ok) {
+        clearInterval(heartbeat);
         send({ error: `模型调用失败（${result.lastResult?.status || 502}）：${JSON.stringify(result.lastResult?.data).slice(0, 300)}` });
         return res.end();
       }
+      clearInterval(heartbeat);
       send({
         done: true,
         meta: {

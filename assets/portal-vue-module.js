@@ -1611,15 +1611,26 @@
             const reader=response.body.getReader();
             const decoder=new TextDecoder();
             let buffer="",full="",meta=null,errorMsg="";
+            const idleTimeoutMs=45000;
             while(true){
-              const {done,value}=await reader.read();
+              let chunk;
+              try{
+                chunk=await Promise.race([
+                  reader.read(),
+                  new Promise((_,reject)=>setTimeout(()=>reject(new Error("idle")),idleTimeoutMs))
+                ]);
+              }catch(err){
+                errorMsg=err.message==="idle"?"连接空闲超时，模型响应中断，请重试":err.message;
+                break;
+              }
+              const {done,value}=chunk;
               if(done)break;
               buffer+=decoder.decode(value,{stream:true});
               const parts=buffer.split("\n\n");
               buffer=parts.pop();
               for(const part of parts){
                 const line=part.trim();
-                if(!line.startsWith("data:"))continue;
+                if(!line.startsWith("data:")||line==="# hb")continue;
                 let evt;try{evt=JSON.parse(line.slice(5).trim());}catch(err){continue;}
                 if(evt.delta){
                   this.thinking=false;
