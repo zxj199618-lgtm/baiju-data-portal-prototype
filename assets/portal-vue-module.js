@@ -198,10 +198,25 @@
     template: `
       <el-config-provider :locale="locale">
         <div v-if="visible" class="portal-vue-page-head">
-          <div><h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p></div>
+          <div class="portal-vue-page-head-row">
+            <div><h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p></div>
+            <button v-if="page === '分析工作台'" type="button" class="portal-vue-ai-bot-btn" @click="feishuOpen = true"><span class="portal-vue-ai-bot-icon">🤖</span><span>飞书机器人</span></button>
+          </div>
         </div>
+        <el-drawer v-if="page === '分析工作台'" v-model="feishuOpen" title="观星台 · 飞书机器人" size="420px" :close-on-click-modal="true">
+          <div class="portal-vue-ai-feishu-drawer">
+            <p class="portal-vue-muted">在飞书里直接和「观星台」机器人对话即可完成数据分析，无需登录门户；机器人的沟通记录会自动同步到左侧会话列表。</p>
+            <div class="portal-vue-ai-feishu-steps">
+              <span><b>1</b>飞书搜索并关注「观星台」机器人</span>
+              <span><b>2</b>首次使用发送「绑定」，完成飞书账号与门户账号关联</span>
+              <span><b>3</b>直接提问，如「近7天巨量渠道CPA趋势」；分析结果以卡片回复，沟通记录自动同步到工作台</span>
+            </div>
+            <p class="portal-vue-muted">机器人与工作台使用同一套表权限：只能分析你有权限的数据表。</p>
+          </div>
+        </el-drawer>
       </el-config-provider>
     `,
+    data:()=>({feishuOpen:false}),
     computed: {
       page() { return currentPage.value; },
       meta() { refreshTick.value; return bridge.pageMeta[this.page] || bridge.pageMeta["数据看板"]; },
@@ -1162,18 +1177,6 @@
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
-          <el-tooltip content="飞书机器人已接入，点击查看使用方式" placement="left"><button type="button" class="portal-vue-ai-bot-btn" @click="feishuOpen = true"><span class="portal-vue-ai-bot-icon">🤖</span><span>飞书机器人</span></button></el-tooltip>
-          <el-drawer v-model="feishuOpen" title="观星台 · 飞书机器人" size="420px" :close-on-click-modal="true">
-            <div class="portal-vue-ai-feishu-drawer">
-              <p class="portal-vue-muted">在飞书里直接和「观星台」机器人对话即可完成数据分析，无需登录门户；机器人的沟通记录会自动同步到左侧会话列表。</p>
-              <div class="portal-vue-ai-feishu-steps">
-                <span><b>1</b>飞书搜索并关注「观星台」机器人</span>
-                <span><b>2</b>首次使用发送「绑定」，完成飞书账号与门户账号关联</span>
-                <span><b>3</b>直接提问，如「近7天巨量渠道CPA趋势」；分析结果以卡片回复，沟通记录自动同步到工作台</span>
-              </div>
-              <p class="portal-vue-muted">机器人与工作台使用同一套表权限：只能分析你有权限的数据表。</p>
-            </div>
-          </el-drawer>
           <div class="portal-vue-ai-layout">
             <aside class="portal-vue-ai-side">
               <el-button class="portal-vue-ai-new" type="primary" plain @click="newSession">＋ 新的分析</el-button>
