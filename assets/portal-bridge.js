@@ -1,6 +1,7 @@
 
     (() => {
       const simpleNav = [
+        { group: "分析工作台", icon: "analysis", badge: "5.0", items: [{ name: "分析工作台", badge: "5.0" }] },
         { group: "数据看板", icon: "dashboard", items: [{ name: "数据看板" }] },
         { group: "数据服务", icon: "gateway", badge: "3.0", items: [{ name: "人群包管理", badge: "3.0" }, { name: "API配置", badge: "2.0" }] },
         { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: ["2.0", "3.0", "4.0"] }, { name: "标签管理", badge: "3.0" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
@@ -1189,11 +1190,11 @@
       window.simpleUsers = simpleUsers;
 
       const permissionGroups = [
-        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["数据看板", "数据服务", "人群包管理", "API配置", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], status: "启用" },
-        { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["数据看板"], boards: ["CPA事业部", "大盘数据"], status: "启用" },
-        { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["数据看板"], boards: ["CPA事业部", "新媒体"], status: "启用" },
-        { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["数据看板"], boards: ["大盘数据", "产品运营部"], status: "启用" },
-        { name: "只读访客", desc: "只查看被分发的聚合看板，不能下钻明细。", menus: ["数据看板"], boards: ["指定看板"], status: "启用" }
+        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["分析工作台", "数据看板", "数据服务", "人群包管理", "API配置", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
+        { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["分析工作台", "数据看板"], boards: ["CPA事业部", "大盘数据"], tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"], status: "启用" },
+        { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["分析工作台", "数据看板"], boards: ["CPA事业部", "新媒体"], tables: ["广告计划日报表", "广告账户日报"], status: "启用" },
+        { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["分析工作台", "数据看板"], boards: ["大盘数据", "产品运营部"], tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"], status: "启用" },
+        { name: "只读访客", desc: "只查看被分发的聚合看板，不能下钻明细。", menus: ["数据看板"], boards: ["指定看板"], tables: [], status: "启用" }
       ];
 
       const dataAssets = [
@@ -1489,6 +1490,7 @@
       let openGroupActionIndex = null;
 
       const pageMeta = {
+        "分析工作台": ["分析工作台", "通过对话或飞书机器人发起数据分析，仅可分析你有权限的数据表。", ""],
         "数据看板": ["数据看板", "", "新增看板入口"],
         "看板管理": ["看板管理", "", "新增看板"],
         "表管理": ["表管理", "同步来自 StarRocks 的表和字段元数据，沉淀可对外服务的数据资产。", "新增表"],
@@ -1659,6 +1661,7 @@
       }
 
       function pageIcon(page) {
+        if (page === "分析工作台") return "analysis";
         if (page === "数据看板" || page === "Quick BI 展示") return "dashboard";
         if (page === "看板管理") return "asset";
         if (page === "表管理" || page === "维表管理" || page === "维表数据维护" || page === "字典管理") return "asset";
@@ -1676,7 +1679,8 @@
           dashboard: { default: "assets/nav-dashboard-default.png", active: "assets/nav-dashboard-active.png" },
           gateway: { default: "assets/nav-service-default.png", active: "assets/nav-service-active.png" },
           asset: { default: "assets/nav-asset-default.png", active: "assets/nav-asset-active.png" },
-          permission: { default: "assets/nav-permission-default.png", active: "assets/nav-permission-active.png" }
+          permission: { default: "assets/nav-permission-default.png", active: "assets/nav-permission-active.png" },
+          analysis: { default: "assets/nav-analysis-default.svg", active: "assets/nav-analysis-active.svg" }
         };
         return (icons[icon] || icons.asset)[active ? "active" : "default"];
       }
@@ -2971,6 +2975,7 @@
         document.getElementById("boardTitleSearch")?.classList.add("hidden");
         renderSimpleNav();
         dashboardView.classList.add("hidden");
+        document.getElementById("analysisWorkbenchView")?.classList.toggle("hidden", page !== "分析工作台");
         dataBoardView.classList.toggle("hidden", page !== "数据看板");
         document.getElementById("boardManagementView").classList.toggle("hidden", page !== "看板管理");
         document.getElementById("dataAssetView").classList.toggle("hidden", page !== "表管理");
@@ -3016,6 +3021,7 @@
         tabsBar.innerHTML = "";
         document.getElementById("sidebar").classList.add("hidden");
         dashboardView.classList.add("hidden");
+        document.getElementById("analysisWorkbenchView")?.classList.add("hidden");
         dataBoardView.classList.add("hidden");
         document.getElementById("boardManagementView").classList.add("hidden");
         document.getElementById("dataAssetView").classList.add("hidden");

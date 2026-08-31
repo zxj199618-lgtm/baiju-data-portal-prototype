@@ -146,4 +146,13 @@ assert(portalBridge.includes("dataDictionaries") && portalVue.includes("state.di
 assert(portalVue.includes("被 {{ refList(scope.row).length }} 处引用") && portalVue.includes("portal-vue-ref-tooltip"), "字典列表应展示引用表和字段，并支持悬停换行");
 assert(html.includes('id="dimensionView"') && html.includes('id="dictionaryView"') && html.includes('id="dimensionDataView"'), "入口应挂载维表和字典页面");
 
+assert(portalBridge.indexOf('group: "分析工作台"') !== -1 && portalBridge.indexOf('group: "分析工作台"') < portalBridge.indexOf('group: "数据看板"'), "分析工作台应作为首个导航分组");
+assert(portalBridge.includes('name: "分析工作台", badge: "5.0"'), "分析工作台菜单应标记 5.0");
+assert(html.includes('id="analysisWorkbenchView"') && portalVue.includes("mount(\"#analysisWorkbenchView\""), "分析工作台应挂载独立视图");
+assert(portalVue.includes("AnalysisWorkbenchApp") && portalVue.includes("飞书机器人"), "分析工作台应提供飞书机器人沟通入口");
+assert(portalVue.includes("历史记录") && portalVue.includes("含飞书机器人会话"), "分析工作台历史记录应包含飞书机器人会话");
+assert(portalVue.includes("数据表权限") && portalVue.includes("toggleAllTables") && portalVue.includes("allTables"), "权限组应支持数据表权限配置");
+assert(portalBridge.includes('tables: ["全部数据表"]'), "权限组数据应包含数据表权限维度");
+assert(portalVue.includes("myTables"), "分析工作台应按权限组展示可用数据表");
+
 console.log("观星台原型 smoke test: passed");

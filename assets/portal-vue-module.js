@@ -790,12 +790,12 @@
         <div class="portal-vue-split">
           <aside class="portal-vue-split-left">
             <div class="portal-vue-split-head"><strong>权限组</strong><el-button link type="primary" @click="openCreate">新增</el-button></div>
-            <el-scrollbar height="558px"><div class="portal-vue-split-body"><article v-for="(item,index) in state.groups" :key="item.name" class="portal-vue-group-card" :class="{active:index===selectedIndex}" @click="selectGroup(index)"><div class="portal-vue-group-meta"><div><h3>{{ item.name }}</h3><span class="portal-vue-muted">{{ userCount(item.name) }} 人</span></div><el-dropdown trigger="click" @command="command=>groupCommand(command,index)" @click.stop><el-button text circle title="更多操作">⋮</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="edit">编辑</el-dropdown-item><el-dropdown-item command="delete" divided>删除</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><p>{{ item.desc }}</p><div class="portal-vue-muted" style="margin-top:8px">{{ item.boards.includes('全部看板')?'全部看板':item.boards.length+' 个看板' }}</div></article></div></el-scrollbar>
+            <el-scrollbar height="558px"><div class="portal-vue-split-body"><article v-for="(item,index) in state.groups" :key="item.name" class="portal-vue-group-card" :class="{active:index===selectedIndex}" @click="selectGroup(index)"><div class="portal-vue-group-meta"><div><h3>{{ item.name }}</h3><span class="portal-vue-muted">{{ userCount(item.name) }} 人</span></div><el-dropdown trigger="click" @command="command=>groupCommand(command,index)" @click.stop><el-button text circle title="更多操作">⋮</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="edit">编辑</el-dropdown-item><el-dropdown-item command="delete" divided>删除</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><p>{{ item.desc }}</p><div class="portal-vue-muted" style="margin-top:8px">{{ item.boards.includes('全部看板')?'全部看板':item.boards.length+' 个看板' }} · {{ item.tables?.includes('全部数据表')?'全部数据表':(item.tables?.length||0)+' 张数据表' }}</div></article></div></el-scrollbar>
           </aside>
           <section class="portal-vue-split-right">
             <div class="portal-vue-split-head"><strong>{{ activeGroup?.name || '权限组详情' }}</strong><div class="portal-vue-group-detail-actions"><el-button class="portal-vue-member-entry" @click="memberDrawer=true">成员 <el-tag size="small" round>{{ activeGroupUsers.length }}</el-tag></el-button><el-button type="primary" :disabled="!dirty" @click="saveGroup">保存</el-button></div></div>
             <div class="portal-vue-permission-body">
-              <el-tabs v-model="activeTab" class="portal-vue-group-tabs"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane name="boards"><template #label>看板查看范围 <el-tag size="small" round>{{ boardBadge }}</el-tag></template></el-tab-pane></el-tabs>
+              <el-tabs v-model="activeTab" class="portal-vue-group-tabs"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane name="boards"><template #label>看板查看范围 <el-tag size="small" round>{{ boardBadge }}</el-tag></template></el-tab-pane><el-tab-pane name="tables"><template #label>数据表权限 <el-tag size="small" round>{{ tableBadge }}</el-tag></template></el-tab-pane></el-tabs>
               <section v-show="activeTab==='menus'" class="portal-vue-group-permission-panel">
                 <div class="portal-vue-permission-card-grid portal-vue-menu-card-grid">
                   <article v-for="section in state.nav" :key="section.group" class="portal-vue-group-permission-card">
@@ -812,6 +812,16 @@
                     <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="board in group.boards" :key="board.name" :disabled="allBoards" :model-value="selectedBoards.includes(board.name)" @change="value=>toggleBoard(board.name,value)">{{ board.name }}</el-checkbox></div>
                   </article>
                 </div>
+              </section>
+              <section v-show="activeTab==='tables'" class="portal-vue-group-permission-panel">
+                <div class="portal-vue-board-range-toolbar"><span>配置该权限组可在分析工作台和 API 服务中使用的数据表</span><el-checkbox v-model="allTables" @change="toggleAllTables">全部数据表</el-checkbox></div>
+                <div class="portal-vue-permission-card-grid portal-vue-board-card-grid">
+                  <article v-for="group in tableGroups" :key="group.source" class="portal-vue-group-permission-card">
+                    <strong class="portal-vue-permission-card-title">{{ group.source }}</strong>
+                    <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="table in group.tables" :key="table.cnName" :disabled="allTables" :model-value="selectedTables.includes(table.cnName)" @change="value=>toggleTable(table.cnName,value)">{{ table.cnName }}</el-checkbox></div>
+                  </article>
+                </div>
+                <p class="portal-vue-muted" style="margin-top:12px">未勾选任何数据表时，该权限组成员无法在分析工作台发起分析和调用数据 API。</p>
               </section>
             </div>
           </section>
@@ -832,11 +842,13 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({state,selectedIndex:0,activeTab:"menus",selectedMenus:[],selectedBoards:[],allBoards:false,dirty:false,formVisible:false,editingIndex:-1,groupForm:{},memberDrawer:false,memberVisible:false,memberSelection:[]}),
+    data:()=>({state,selectedIndex:0,activeTab:"menus",selectedMenus:[],selectedBoards:[],allBoards:false,selectedTables:[],allTables:false,dirty:false,formVisible:false,editingIndex:-1,groupForm:{},memberDrawer:false,memberVisible:false,memberSelection:[]}),
     computed:{
       activeGroup(){refreshTick.value;return state.groups[this.selectedIndex]||state.groups[0];},
       boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
       boardBadge(){if(this.allBoards)return state.boards.filter(board=>board.status==="已上线").length;return this.selectedBoards.length;},
+      tableGroups(){const groups=[];state.assets.forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
+      tableBadge(){if(this.allTables)return state.assets.length;return this.selectedTables.length;},
       activeGroupUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return groupName?state.users.filter(user=>user.group===groupName):[];},
       availableUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return state.users.filter(user=>user.group!==groupName&&user.status!=="已停用");}
     },
@@ -847,7 +859,7 @@
       avatarText(name){return String(name||"用").slice(0,1);},
       avatarStyle(name){const colors=["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"];const seed=[...String(name||"")].reduce((total,char)=>total+char.charCodeAt(0),0);return{background:colors[seed%colors.length],color:"#fff"};},
       selectGroup(index){this.selectedIndex=index;this.activeTab="menus";this.memberDrawer=false;this.loadGroup();},
-      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);this.dirty=false;},
+      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);this.allTables=group.tables?.includes("全部数据表")||false;this.selectedTables=this.allTables?[]:state.assets.filter(table=>group.tables?.includes(table.cnName)).map(table=>table.cnName);this.dirty=false;},
       sectionNames(section){return section.items.length===1?[section.items[0].name]:[section.group,...section.items.map(item=>item.name)];},
       sectionChecked(section){const names=this.sectionNames(section);return names.every(name=>this.selectedMenus.includes(name));},
       sectionIndeterminate(section){const names=this.sectionNames(section);const count=names.filter(name=>this.selectedMenus.includes(name)).length;return count>0&&count<names.length;},
@@ -855,14 +867,16 @@
       toggleMenu(name,checked,mark=true){const index=this.selectedMenus.indexOf(name);if(checked&&index<0)this.selectedMenus.push(name);else if(!checked&&index>=0)this.selectedMenus.splice(index,1);if(mark)this.dirty=true;},
       toggleAllBoards(value){this.allBoards=value;if(value)this.selectedBoards=[];this.dirty=true;},
       toggleBoard(name,checked){const index=this.selectedBoards.indexOf(name);if(checked&&index<0)this.selectedBoards.push(name);else if(!checked&&index>=0)this.selectedBoards.splice(index,1);this.dirty=true;},
-      saveGroup(){this.activeGroup.menus=[...this.selectedMenus];this.activeGroup.boards=this.allBoards?["全部看板"]:[...this.selectedBoards];this.dirty=false;notify("权限组配置已保存");},
+      toggleAllTables(value){this.allTables=value;if(value)this.selectedTables=[];this.dirty=true;},
+      toggleTable(name,checked){const index=this.selectedTables.indexOf(name);if(checked&&index<0)this.selectedTables.push(name);else if(!checked&&index>=0)this.selectedTables.splice(index,1);this.dirty=true;},
+      saveGroup(){this.activeGroup.menus=[...this.selectedMenus];this.activeGroup.boards=this.allBoards?["全部看板"]:[...this.selectedBoards];this.activeGroup.tables=this.allTables?["全部数据表"]:[...this.selectedTables];this.dirty=false;notify("权限组配置已保存");},
       openMemberDialog(){this.memberSelection=[];this.memberVisible=true;},
       addMembers(){if(!this.memberSelection.length)return;const groupName=this.activeGroup?.name;if(!groupName)return;const selected=new Set(this.memberSelection);let count=0;state.users.forEach(user=>{if(selected.has(user.feishu||user.name)){user.group=groupName;if(user.status!=="已停用")user.status="启用";count+=1;}});this.memberVisible=false;this.memberSelection=[];notify(`已添加 ${count} 名成员到「${groupName}」`);},
       async removeMember(user){const groupName=this.activeGroup?.name;if(!groupName||!await confirmAction("移除权限组成员",`确认将「${user.name}」从「${groupName}」移除？`))return;user.group="未分配";if(user.status!=="已停用")user.status="未分配权限组";notify(`已从「${groupName}」移除 ${user.name}`);},
       openCreate(){this.editingIndex=-1;this.groupForm={name:"",desc:""};this.formVisible=true;},
       openEdit(index){this.editingIndex=index;this.groupForm={name:state.groups[index].name,desc:state.groups[index].desc};this.formVisible=true;},
       async groupCommand(command,index){if(command==="edit")return this.openEdit(index);const group=state.groups[index];if(this.userCount(group.name)>0)return ep.ElMessage.warning("该权限组下仍有用户，不能删除");if(!await confirmAction("删除权限组",`确认删除「${group.name}」？`))return;state.groups.splice(index,1);this.selectedIndex=Math.max(0,Math.min(this.selectedIndex,state.groups.length-1));this.loadGroup();notify("权限组已删除");},
-      saveGroupForm(){const name=this.groupForm.name.trim();if(!name)return ep.ElMessage.warning("请输入权限组名称");if(state.groups.some((group,index)=>index!==this.editingIndex&&group.name===name))return ep.ElMessage.warning("权限组名称已存在");if(this.editingIndex<0){state.groups.push({name,desc:this.groupForm.desc.trim()||"自定义权限组。",menus:["数据看板"],boards:[],status:"启用"});this.selectedIndex=state.groups.length-1;}else{const group=state.groups[this.editingIndex];const oldName=group.name;group.name=name;group.desc=this.groupForm.desc.trim()||"自定义权限组。";state.users.forEach(user=>{if(user.group===oldName)user.group=name;});}this.formVisible=false;this.loadGroup();notify("权限组已保存");}
+      saveGroupForm(){const name=this.groupForm.name.trim();if(!name)return ep.ElMessage.warning("请输入权限组名称");if(state.groups.some((group,index)=>index!==this.editingIndex&&group.name===name))return ep.ElMessage.warning("权限组名称已存在");if(this.editingIndex<0){state.groups.push({name,desc:this.groupForm.desc.trim()||"自定义权限组。",menus:["分析工作台","数据看板"],boards:[],tables:[],status:"启用"});this.selectedIndex=state.groups.length-1;}else{const group=state.groups[this.editingIndex];const oldName=group.name;group.name=name;group.desc=this.groupForm.desc.trim()||"自定义权限组。";state.users.forEach(user=>{if(user.group===oldName)user.group=name;});}this.formVisible=false;this.loadGroup();notify("权限组已保存");}
     }
   };
 
@@ -1082,6 +1096,153 @@
     }
   };
 
+  const analysisScenarios = [
+    { key: "single", name: "单表分析", desc: "基于单张表的趋势、分布与异常分析", icon: "📊" },
+    { key: "lineage", name: "数据血缘分析", desc: "表与字段的上下游依赖、变更影响面", icon: "🔗" },
+    { key: "asset", name: "数据资产问答", desc: "有哪些表、口径是什么、负责人是谁", icon: "📚" },
+    { key: "attribution", name: "归因分析", desc: "指标异动的多维度拆解与定位", icon: "🎯" }
+  ];
+
+  const analysisHistorySeed = [
+    { id: "AN20260831001", channel: "飞书机器人", scenario: "单表分析", table: "广告计划日报表", question: "近 7 天各媒体消耗趋势如何？CPA 有没有异常波动？", summary: "近 7 天总消耗 286.4 万元，环比上涨 12.3%。巨量渠道 CPA 上升 18%，主要来自「小说推文」计划组，建议关注。", time: "2026-08-31 10:24", status: "已完成" },
+    { id: "AN20260830002", channel: "工作台对话", scenario: "数据资产问答", table: "—", question: "有哪些表可以看渠道归因？口径是什么？", summary: "找到 2 张相关表：「渠道归因明细」（负责人 李雨航）和「广告计划日报表」中 activate_cnt 字段（按归因口径统计）。", time: "2026-08-30 16:51", status: "已完成" },
+    { id: "AN20260830001", channel: "飞书机器人", scenario: "归因分析", table: "广告计划日报表", question: "本周 CPA 环比上涨的原因是什么？", summary: "按媒体拆解：巨量贡献 78% 的涨幅；按产品拆解：「网赚-02」产品新上 3 条计划拉高整体成本。", time: "2026-08-30 09:12", status: "已完成" },
+    { id: "AN20260829003", channel: "工作台对话", scenario: "数据血缘分析", table: "dwd_user_profile_tag", question: "如果修改 tag_value 字段长度，会影响哪些下游？", summary: "下游影响 2 张表：「用户画像标签明细表」API 服务接口、「用户生命周期日报」ETL 任务。建议同步负责人调整。", time: "2026-08-29 15:40", status: "已完成" }
+  ];
+
+  const AnalysisWorkbenchApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <div class="portal-vue-analysis-layout">
+            <aside class="portal-vue-analysis-side">
+              <div class="portal-vue-analysis-card">
+                <strong>分析场景</strong>
+                <div class="portal-vue-analysis-scenarios">
+                  <button v-for="scene in scenarios" :key="scene.key" type="button" class="portal-vue-analysis-scenario" :class="{ active: scenario === scene.key }" @click="scenario = scene.key">
+                    <span class="portal-vue-analysis-scene-icon">{{ scene.icon }}</span>
+                    <span><strong>{{ scene.name }}</strong><small>{{ scene.desc }}</small></span>
+                  </button>
+                </div>
+              </div>
+              <div class="portal-vue-analysis-card">
+                <strong>我的数据表权限 <el-tag size="small" round>{{ myTables.length }}</el-tag></strong>
+                <p class="portal-vue-muted">分析范围仅限权限组授权的数据表，行级权限后续支持。</p>
+                <div class="portal-vue-analysis-tables">
+                  <el-tag v-for="table in myTables" :key="table" size="small" effect="plain">{{ table }}</el-tag>
+                  <span v-if="!myTables.length" class="portal-vue-muted">当前权限组未配置数据表权限，请联系管理员。</span>
+                </div>
+              </div>
+              <div class="portal-vue-analysis-card portal-vue-analysis-feishu">
+                <strong>飞书机器人</strong>
+                <p class="portal-vue-muted">在飞书搜索「观星台」机器人，直接发送问题即可分析；机器人的沟通记录会自动同步到下方历史记录。</p>
+                <div class="portal-vue-analysis-feishu-steps">
+                  <span>1. 飞书搜索并关注「观星台」机器人</span>
+                  <span>2. 首次使用发送「绑定」完成账号关联</span>
+                  <span>3. 直接提问，如「近7天巨量渠道CPA趋势」</span>
+                </div>
+              </div>
+            </aside>
+            <section class="portal-vue-analysis-main">
+              <div class="portal-vue-analysis-chat" ref="chatBox">
+                <div v-if="!messages.length" class="portal-vue-analysis-welcome">
+                  <h3>开始数据分析</h3>
+                  <p class="portal-vue-muted">选择上方场景，输入问题；也可以直接在飞书机器人提问，结果同步到这里。</p>
+                  <div class="portal-vue-analysis-suggests">
+                    <el-button v-for="text in suggests" :key="text" size="small" round @click="input = text">{{ text }}</el-button>
+                  </div>
+                </div>
+                <div v-for="(msg, index) in messages" :key="index" class="portal-vue-analysis-message" :class="msg.role">
+                  <div class="portal-vue-analysis-bubble">
+                    <p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p>
+                    <div v-if="msg.refs" class="portal-vue-analysis-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div>
+                  </div>
+                </div>
+                <div v-if="thinking" class="portal-vue-analysis-message assistant"><div class="portal-vue-analysis-bubble"><p class="portal-vue-muted">正在基于你有权限的数据表进行分析…</p></div></div>
+              </div>
+              <div class="portal-vue-analysis-input">
+                <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，回车发送；如：近 7 天各媒体消耗趋势如何？" @keydown.enter.native="sendMessage"></el-input>
+                <el-button type="primary" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
+              </div>
+            </section>
+            <aside class="portal-vue-analysis-history">
+              <div class="portal-vue-analysis-card portal-vue-analysis-history-card">
+                <div class="portal-vue-analysis-history-head"><strong>历史记录</strong><span class="portal-vue-muted">含飞书机器人会话</span></div>
+                <el-input v-model="historyKeyword" size="small" clearable placeholder="搜索历史分析"></el-input>
+                <div class="portal-vue-analysis-history-list">
+                  <article v-for="item in filteredHistory" :key="item.id" class="portal-vue-analysis-history-item" :class="{ active: activeHistoryId === item.id }" @click="openHistory(item)">
+                    <div class="portal-vue-analysis-history-meta"><el-tag size="small" :effect="item.channel === '飞书机器人' ? 'plain' : 'light'" :type="item.channel === '飞书机器人' ? 'success' : 'primary'">{{ item.channel }}</el-tag><span>{{ item.scenario }}</span><time>{{ item.time }}</time></div>
+                    <p>{{ item.question }}</p>
+                  </article>
+                  <p v-if="!filteredHistory.length" class="portal-vue-muted">暂无历史记录</p>
+                </div>
+              </div>
+              <el-drawer v-model="historyDrawer" :title="activeHistory?.id || '分析详情'" size="480px" :close-on-click-modal="true">
+                <div v-if="activeHistory" class="portal-vue-analysis-detail">
+                  <div class="portal-vue-detail-item"><span>分析场景</span><strong>{{ activeHistory.scenario }}</strong></div>
+                  <div class="portal-vue-detail-item"><span>发起渠道</span><strong>{{ activeHistory.channel }}</strong></div>
+                  <div class="portal-vue-detail-item"><span>涉及数据表</span><strong>{{ activeHistory.table }}</strong></div>
+                  <div class="portal-vue-detail-item"><span>发起时间</span><strong>{{ activeHistory.time }}</strong></div>
+                  <div class="portal-vue-analysis-detail-block"><span>我的问题</span><p>{{ activeHistory.question }}</p></div>
+                  <div class="portal-vue-analysis-detail-block"><span>分析结论</span><p>{{ activeHistory.summary }}</p></div>
+                </div>
+              </el-drawer>
+            </aside>
+          </div>
+        </section>
+      </el-config-provider>
+    `,
+    data:()=>({
+      scenario: "single",
+      input: "",
+      thinking: false,
+      messages: [],
+      history: analysisHistorySeed.map(item => ({ ...item })),
+      historyKeyword: "",
+      historyDrawer: false,
+      activeHistoryId: "",
+      suggests: ["近 7 天各媒体消耗趋势如何？", "哪些计划 CPA 超过目标值？", "本周消耗环比上涨的原因是什么？", "有哪些表可以看渠道归因？"]
+    }),
+    computed:{
+      scenarios(){return analysisScenarios;},
+      scenarioName(){return analysisScenarios.find(item => item.key === this.scenario)?.name || "单表分析";},
+      myTables(){refreshTick.value;const group=state.groups.find(item=>item.name===this.currentUser?.group);if(!group)return[];if(group.tables?.includes("全部数据表"))return state.assets.map(table=>table.cnName);return group.tables||[];},
+      currentUser(){refreshTick.value;return state.users.find(user=>user.name==="曾祥竞")||state.users[0];},
+      filteredHistory(){const keyword=this.historyKeyword.trim().toLowerCase();return this.history.filter(item=>!keyword||`${item.question} ${item.summary} ${item.scenario}`.toLowerCase().includes(keyword));},
+      activeHistory(){return this.history.find(item=>item.id===this.activeHistoryId);}
+    },
+    mounted(){
+      this.pageHandler=event=>{if(event.detail?.page==="分析工作台")this.loadHistory();};
+      window.addEventListener("portal:page-change",this.pageHandler);
+      this.loadHistory();
+    },
+    beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
+    methods:{
+      loadHistory(){},
+      openHistory(item){this.activeHistoryId=item.id;this.historyDrawer=true;},
+      sendMessage(){
+        const question=this.input.trim();
+        if(!question||this.thinking)return;
+        this.input="";
+        this.messages.push({role:"user",lines:[question]});
+        this.thinking=true;
+        const scenarioName=this.scenarioName;
+        const myTables=this.myTables;
+        setTimeout(()=>{
+          this.thinking=false;
+          const lines=myTables.length
+            ?[`已完成「${scenarioName}」分析（原型演示回复）。`,`本次分析在你有权限的 ${myTables.length} 张数据表范围内执行：${myTables.slice(0,3).join("、")}${myTables.length>3?" 等":""}。`,`接入 WorkBuddy skill 后，这里将返回真实的分析结论、图表与引用明细。`]
+            :["当前权限组未配置数据表权限，无法发起分析，请联系管理员在「权限组 → 数据表权限」中授权。"];
+          const refs=myTables.slice(0,3);
+          this.messages.push({role:"assistant",lines,refs});
+          const record={id:`AN${Date.now()}`,channel:"工作台对话",scenario:scenarioName,table:myTables[0]||"—",question,summary:lines[lines.length-1],time:new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-"),status:"已完成"};
+          this.history.unshift(record);
+          this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
+        },900);
+      }
+    }
+  };
+
   const DictionaryManagementApp = {
     template: `
       <el-config-provider :locale="locale">
@@ -1195,6 +1356,7 @@
   };
 
   mount("#sidebar", SidebarApp, "sidebar");
+  mount("#analysisWorkbenchView", AnalysisWorkbenchApp, "analysis-workbench");
   mount(".topbar", TopbarApp, "topbar");
   mount(".page-head", PageHeadApp, "page-head");
   mount("#dataBoardView", DataBoardApp, "data-board");
