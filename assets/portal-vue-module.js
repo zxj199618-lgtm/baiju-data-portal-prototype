@@ -1283,7 +1283,7 @@
                   </div>
                 </div>
                 <div v-for="(msg, index) in activeSession.messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
-                  <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html }">
+                  <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
                     <template v-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
@@ -1596,26 +1596,65 @@
           const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,tables:mentionedTables,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens})
+            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,tables:mentionedTables,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true})
           });
-          const data=await response.json();
-          session.status="已完成";
-          session.time=new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-");
-          if(!response.ok){
+          const contentType=response.headers.get("content-type")||"";
+          if(!response.ok||(contentType.includes("application/json")&&!contentType.includes("event-stream"))){
+            const data=await response.json().catch(()=>({}));
+            session.status="已完成";
+            session.time=new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-");
             session.messages.push({role:"assistant",lines:[`分析失败：${data.error||"未知错误"}`]});
           }else{
-            const meta=data.meta||{};
-            const metaLine=`${meta.scenario||""} · ${meta.model||""} · 推理 ${meta.reasoningEffort||"default"}${meta.maxTokens?` · 上下文 ${meta.maxTokens>=1024?Math.round(meta.maxTokens/1024)+"K":meta.maxTokens}`:""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;
-            session.messages.push({role:"assistant",html:this.renderMarkdown(data.report||""),meta:metaLine,lines:[]});
-            const plainSummary=String(data.report||"").replace(/[#*`|>\-]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,2).join("；").slice(0,120);
-            this.archiveReport(session,question,{tablesUsed:meta.tablesUsed||[],summary:plainSummary});
+            const live={role:"assistant",lines:[""],streaming:true};
+            session.messages.push(live);
+            const liveMsg=session.messages[session.messages.length-1];
+            const reader=response.body.getReader();
+            const decoder=new TextDecoder();
+            let buffer="",full="",meta=null,errorMsg="";
+            while(true){
+              const {done,value}=await reader.read();
+              if(done)break;
+              buffer+=decoder.decode(value,{stream:true});
+              const parts=buffer.split("\n\n");
+              buffer=parts.pop();
+              for(const part of parts){
+                const line=part.trim();
+                if(!line.startsWith("data:"))continue;
+                let evt;try{evt=JSON.parse(line.slice(5).trim());}catch(err){continue;}
+                if(evt.delta){
+                  this.thinking=false;
+                  full+=evt.delta;
+                  liveMsg.lines=[full];
+                  this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
+                }
+                if(evt.done)meta=evt.meta||{};
+                if(evt.error)errorMsg=evt.error;
+              }
+            }
+            this.thinking=false;
+            liveMsg.streaming=false;
+            session.status="已完成";
+            session.time=new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-");
+            if(errorMsg&&!full){
+              session.messages.splice(session.messages.indexOf(liveMsg),1,{role:"assistant",lines:[`分析失败：${errorMsg}`]});
+            }else{
+              liveMsg.html=this.renderMarkdown(full);
+              liveMsg.lines=[];
+              liveMsg.meta=this.buildMetaLine(meta||{});
+              const plainSummary=String(full).replace(/[#*`|>\-]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,2).join("；").slice(0,120);
+              this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:plainSummary});
+            }
           }
         }catch(error){
+          this.thinking=false;
           session.status="已完成";
           session.messages.push({role:"assistant",lines:[`分析请求失败：${error.message}。请确认本地网关已启动（node scripts/analysis-gateway.cjs）。`]});
         }
-        this.thinking=false;
         this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
+        this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
+      },
+      buildMetaLine(meta){
+        return `${meta.scenario||""} · ${meta.model||""} · 推理 ${meta.reasoningEffort||"default"}${meta.maxTokens?` · 上下文 ${meta.maxTokens>=1024?Math.round(meta.maxTokens/1024)+"K":meta.maxTokens}`:""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;
       },
       renderMarkdown(markdown){
         const escape=value=>String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");

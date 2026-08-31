@@ -865,6 +865,53 @@ async function relayChat(model, payload) {
 }
 const modelKeyCache = new Map();
 
+/** 流式调用：成功时通过 onEvent({delta}) 逐段回调，返回 {ok, content, usage} 或 {ok:false, lastResult} */
+async function relayChatStream(model, payload, onEvent) {
+  const order = [...RELAY_API_KEYS].sort((a, b) => (modelKeyCache.get(model) === b ? -1 : modelKeyCache.get(model) === a ? 1 : 0));
+  let lastResult = null;
+  for (const key of order) {
+    let response;
+    try {
+      response = await fetch(`${RELAY_BASE_URL}/v1/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model, stream: true, stream_options: { include_usage: true }, ...payload })
+      });
+    } catch (error) { lastResult = { status: 502, data: { error: String(error) } }; continue; }
+    if (!response.ok || !response.body) {
+      const text = await response.text().catch(() => "");
+      let data; try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 200) }; }
+      lastResult = { status: response.status, data };
+      continue;
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "", content = "", usage = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n");
+      buffer = parts.pop();
+      for (const line of parts) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const data = trimmed.slice(5).trim();
+        if (data === "[DONE]") continue;
+        try {
+          const obj = JSON.parse(data);
+          if (obj.usage) usage = obj.usage;
+          const delta = obj.choices?.[0]?.delta?.content || "";
+          if (delta) { content += delta; onEvent({ delta }); }
+        } catch { /* 忽略心跳等非 JSON 行 */ }
+      }
+    }
+    modelKeyCache.set(model, key);
+    return { ok: true, content, usage, keyUsed: key };
+  }
+  return { ok: false, lastResult };
+}
+
 /* ================= 路由 ================= */
 
 const server = http.createServer(async (req, res) => {
@@ -980,6 +1027,45 @@ const server = http.createServer(async (req, res) => {
 
     const started = Date.now();
     const messages = [{ role: "system", content: scene.system }, { role: "user", content: prompt }];
+
+    /* 流式模式：SSE 逐段转发给前端 */
+    if (body.stream === true) {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS"
+      });
+      const send = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+      send({ started: true, scenario: scene.label, model });
+      const reasoningOptions = {};
+      if (["low", "medium", "high"].includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
+      if (Number.isFinite(maxTokens) && maxTokens >= 256) reasoningOptions.max_completion_tokens = Math.floor(maxTokens);
+      let result = await relayChatStream(model, { messages, ...reasoningOptions }, evt => send({ delta: evt.delta }));
+      if (!result.ok && Object.keys(reasoningOptions).length) {
+        send({ notice: "当前模型不支持推理参数，已自动降级重试" });
+        result = await relayChatStream(model, { messages }, evt => send({ delta: evt.delta }));
+      }
+      if (!result.ok) {
+        send({ error: `模型调用失败（${result.lastResult?.status || 502}）：${JSON.stringify(result.lastResult?.data).slice(0, 300)}` });
+        return res.end();
+      }
+      send({
+        done: true,
+        meta: {
+          skill: skill.name, skillVersion: skill.version, scenario: scene.label,
+          model, reasoningEffort: reasoningOptions.reasoning_effort || "default",
+          maxTokens: reasoningOptions.max_completion_tokens || null,
+          tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名),
+          deniedTables: denied, latencyMs: Date.now() - started,
+          usage: result.usage || null, requestId: crypto.randomUUID()
+        }
+      });
+      return res.end();
+    }
+
     const reasoningOptions = {};
     if (["low", "medium", "high"].includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
     if (Number.isFinite(maxTokens) && maxTokens >= 256) reasoningOptions.max_completion_tokens = Math.floor(maxTokens);

@@ -472,3 +472,8 @@
 .portal-vue-ai-report-summary span { font-size: 12px; color: #1677ff; }
 .portal-vue-ai-report-summary p { margin: 4px 0 0; font-size: 13px; color: #2a3446; line-height: 1.7; }
 .portal-vue-ai-report-history { display: grid; gap: 12px; border-top: 1px dashed #e4e9f2; padding-top: 12px; }
+
+/* 流式输出光标 */
+.portal-vue-ai-bubble-streaming { min-width: 120px; }
+.portal-vue-ai-bubble-streaming p::after { content: "▍"; color: #1677ff; animation: portal-vue-ai-blink 1s steps(2) infinite; }
+@keyframes portal-vue-ai-blink { 50% { opacity: 0; } }
