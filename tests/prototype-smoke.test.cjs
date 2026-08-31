@@ -132,7 +132,7 @@ assert(!portalBridge.includes("data:image/"), "门户桥接脚本不应再内嵌
 assert(!portalVue.includes("data:image/png;base64") && !portalVue.includes("data:image/jpeg;base64"), "门户 Vue 模块不应再内嵌品牌图");
 
 assert(portalBridge.includes('name: "维表管理"') && portalBridge.includes('name: "字典管理"'), "数据资产应包含维表管理与字典管理菜单");
-assert(portalBridge.includes('name: "API配置", badge: "2.0"'), "API配置应标记 2.0");
+assert(portalBridge.includes('name: "数据开放平台", badge: "2.0"'), "API配置应标记 2.0");
 assert(portalBridge.includes('name: "表管理", badge: ["2.0", "3.0", "4.0"]') && portalBridge.includes('name: "标签管理", badge: "3.0"') && portalBridge.indexOf('name: "标签管理"') > portalBridge.indexOf('name: "表管理"') && portalBridge.indexOf('name: "维表管理"') > portalBridge.indexOf('name: "标签管理"'), "标签管理应紧跟表管理，位于维表管理之前");
 assert(portalBridge.includes('badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }]'), "数据推送应标记 3.0");
 assert(portalVue.includes("navBadges("), "侧栏应支持同一菜单展示多个版本角标");
@@ -146,15 +146,15 @@ assert(portalBridge.includes("dataDictionaries") && portalVue.includes("state.di
 assert(portalVue.includes("被 {{ refList(scope.row).length }} 处引用") && portalVue.includes("portal-vue-ref-tooltip"), "字典列表应展示引用表和字段，并支持悬停换行");
 assert(html.includes('id="dimensionView"') && html.includes('id="dictionaryView"') && html.includes('id="dimensionDataView"'), "入口应挂载维表和字典页面");
 
-assert(portalBridge.indexOf('group: "分析工作台"') !== -1 && portalBridge.indexOf('group: "分析工作台"') < portalBridge.indexOf('group: "数据看板"'), "分析工作台应作为首个导航分组");
-assert(portalBridge.includes('name: "分析工作台", badge: "5.0"'), "分析工作台菜单应标记 5.0");
-assert(html.includes('id="analysisWorkbenchView"') && portalVue.includes("mount(\"#analysisWorkbenchView\""), "分析工作台应挂载独立视图");
-assert(portalVue.includes("AnalysisWorkbenchApp") && portalVue.includes("飞书机器人"), "分析工作台应提供飞书机器人沟通入口");
-assert(portalVue.includes("会话记录") && portalVue.includes("含飞书机器人") && portalVue.includes("分析资产"), "分析工作台应包含资产菜单与会话记录（含飞书机器人会话）");
+assert(portalBridge.indexOf('group: "灵犀智析"') !== -1 && portalBridge.indexOf('group: "灵犀智析"') < portalBridge.indexOf('group: "数据看板"'), "灵犀智析应作为首个导航分组");
+assert(portalBridge.includes('name: "灵犀智析", badge: "5.0"'), "灵犀智析菜单应标记 5.0");
+assert(html.includes('id="analysisWorkbenchView"') && portalVue.includes("mount(\"#analysisWorkbenchView\""), "灵犀智析应挂载独立视图");
+assert(portalVue.includes("AnalysisWorkbenchApp") && portalVue.includes("飞书机器人"), "灵犀智析应提供飞书机器人沟通入口");
+assert(portalVue.includes("会话记录") && portalVue.includes("含飞书机器人") && portalVue.includes("分析资产"), "灵犀智析应包含资产菜单与会话记录（含飞书机器人会话）");
 assert(portalVue.includes("assetDrawer") && portalVue.includes("jumpToSource") && portalVue.includes("archiveReport"), "完成的会话应归档为分析资产报告，抽屉先展示内容并可跳回来源会话");
 assert(portalVue.includes("数据表权限") && portalVue.includes("toggleAllTables") && portalVue.includes("allTables"), "权限组应支持数据表权限配置");
 assert(portalBridge.includes('tables: ["全部数据表"]'), "权限组数据应包含数据表权限维度");
-assert(portalVue.includes("myTables"), "分析工作台应按权限组展示可用数据表");
+assert(portalVue.includes("myTables"), "灵犀智析应按权限组展示可用数据表");
 assert(portalBridge.includes('group: "系统管理"') && portalBridge.includes('name: "菜单管理"') && portalBridge.includes('name: "Skill 配置"'), "系统管理应包含菜单管理与 Skill 配置");
 assert(html.includes('id="menuManagementView"') && portalVue.includes("mount(\"#menuManagementView\""), "菜单管理应挂载独立视图");
 assert(portalVue.includes("MenuManagementApp") && portalVue.includes("权限标识") && portalVue.includes("组件路径"), "菜单管理应提供层级树/组件路径/权限标识配置");
@@ -164,7 +164,7 @@ assert(portalVue.includes("skillScenarios") && portalVue.includes("工作台展�
 assert(portalVue.includes('id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100') === false || portalVue.includes('scenarioKey: "single"'), "Skill 注册表应包含工作台展示元数据");
 assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("ModelConfigApp") && portalVue.includes("modelConfigView"), "系统管理应提供模型配置页");
 assert(portalVue.includes("v1/model-config") && portalVue.includes("已禁用"), "模型配置应支持禁用历史模型并持久化到网关");
-assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("bizLineOptions") && portalVue.includes("activeBizLine"), "数据表应支持业务线维度，分析工作台应支持先选业务线再选表");
+assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("bizLineOptions") && portalVue.includes("activeBizLine"), "数据表应支持业务线维度，灵犀智析应支持先选业务线再选表");
 assert(portalVue.includes('label="业务线"') && portalVue.includes("bizLines()"), "表管理应提供业务线列与筛选");
 
 console.log("观星台原型 smoke test: passed");

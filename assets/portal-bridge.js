@@ -1,9 +1,9 @@
 
     (() => {
       const simpleNav = [
-        { group: "分析工作台", icon: "analysis", badge: "5.0", items: [{ name: "分析工作台", badge: "5.0" }] },
+        { group: "灵犀智析", icon: "analysis", badge: "5.0", items: [{ name: "灵犀智析", badge: "5.0" }] },
         { group: "数据看板", icon: "dashboard", items: [{ name: "数据看板" }] },
-        { group: "数据服务", icon: "gateway", badge: "3.0", items: [{ name: "人群包管理", badge: "3.0" }, { name: "API配置", badge: "2.0" }] },
+        { group: "数据服务", icon: "gateway", badge: "3.0", items: [{ name: "人群包管理", badge: "3.0" }, { name: "数据开放平台", badge: "2.0" }] },
         { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: ["2.0", "3.0", "4.0"] }, { name: "标签管理", badge: "3.0" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
         { group: "数据推送", icon: "push", badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },
@@ -1192,10 +1192,10 @@
       window.simpleUsers = simpleUsers;
 
       const permissionGroups = [
-        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["分析工作台", "系统管理", "菜单管理", "Skill 配置", "数据看板", "数据服务", "人群包管理", "API配置", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
-        { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["分析工作台", "数据看板"], boards: ["CPA事业部", "大盘数据"], tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"], status: "启用" },
-        { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["分析工作台", "数据看板"], boards: ["CPA事业部", "新媒体"], tables: ["广告计划日报表", "广告账户日报"], status: "启用" },
-        { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["分析工作台", "数据看板"], boards: ["大盘数据", "产品运营部"], tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"], status: "启用" },
+        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "系统管理", "菜单管理", "Skill 配置", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
+        { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["灵犀智析", "数据看板"], boards: ["CPA事业部", "大盘数据"], tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"], status: "启用" },
+        { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["灵犀智析", "数据看板"], boards: ["CPA事业部", "新媒体"], tables: ["广告计划日报表", "广告账户日报"], status: "启用" },
+        { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["灵犀智析", "数据看板"], boards: ["大盘数据", "产品运营部"], tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"], status: "启用" },
         { name: "只读访客", desc: "只查看被分发的聚合看板，不能下钻明细。", menus: ["数据看板"], boards: ["指定看板"], tables: [], status: "启用" }
       ];
 
@@ -1492,17 +1492,17 @@
       let openGroupActionIndex = null;
 
       const pageMeta = {
-        "分析工作台": ["分析工作台", "通过对话或飞书机器人发起数据分析，仅可分析你有权限的数据表。", ""],
-        "Skill 配置": ["Skill 配置", "管理可用于分析工作台和飞书机器人的分析 skill：版本、提示词、灰度发布与试跑。", "上传 Skill"],
+        "灵犀智析": ["灵犀智析", "通过对话或飞书机器人发起数据分析，仅可分析你有权限的数据表。", ""],
+        "Skill 配置": ["Skill 配置", "管理可用于灵犀智析和飞书机器人的分析 skill：版本、提示词、灰度发布与试跑。", "上传 Skill"],
         "菜单管理": ["菜单管理", "维护门户侧边导航结构：层级、图标、排序、组件路径与权限标识。", "添加"],
-        "模型配置": ["模型配置", "管理分析工作台可用的模型：来自中转站的全部模型，可禁用历史或不可用模型。", ""],
+        "模型配置": ["模型配置", "管理灵犀智析可用的模型：来自中转站的全部模型，可禁用历史或不可用模型。", ""],
         "数据看板": ["数据看板", "", "新增看板入口"],
         "看板管理": ["看板管理", "", "新增看板"],
         "表管理": ["表管理", "同步来自 StarRocks 的表和字段元数据，沉淀可对外服务的数据资产。", "新增表"],
         "维表管理": ["维表管理", "在线维护可编辑的业务维表数据，可由表管理标记或在此直接新建。", "新增维表"],
         "维表数据维护": ["维表数据维护", "按字段维护维表行数据，保存后写回门户维表。", ""],
         "字典管理": ["字典管理", "维护多表共用的编码字典和枚举值，供表字段关联后转成中文。", "新增字典"],
-        "API配置": ["API配置", "选择数据资产和授权字段，生成 API 网关调用 token。", "新增 API"],
+        "数据开放平台": ["数据开放平台", "选择数据资产和授权字段，生成 API 网关调用 token。", "新增 API"],
         "新增API": ["新增 API", "选择多张已启用数据表，配置返回字段与调用频次。", ""],
         "人群包管理": ["人群包管理", "", "新建人群包"],
         "新建人群包": ["新建人群包", "标签圈选或 SQL 模式定义人群，配置输出序列化与交付方式。", ""],
@@ -1514,7 +1514,7 @@
         "Quick BI 展示": ["Quick BI 展示", "展示已迁移的 Quick BI 看板内容。", "打开 Quick BI"]
       };
 
-      let activePage = "分析工作台";
+      let activePage = "灵犀智析";
       let activeCategory = "全部";
       let activeBoardManageCategory = "全部分类";
       let activeBoardManageOwner = "全部负责人";
@@ -1535,7 +1535,7 @@
       let apiManagePageSize = 10;
       let activeAssetServiceStatus = "启用";
       let activeApiStatus = "启用";
-      const simpleTabs = [{ name: "分析工作台", page: "分析工作台", icon: "analysis", closable: false }];
+      const simpleTabs = [{ name: "灵犀智析", page: "灵犀智析", icon: "analysis", closable: false }];
       const nav = document.getElementById("nav");
       const pageTitle = document.getElementById("pageTitle");
       const pageSubtitle = document.getElementById("pageSubtitle");
@@ -1640,7 +1640,7 @@
             <button class="btn primary" data-copy-generated-token>复制 Token</button>
           </div>
         `, () => {
-          setSimplePage("API配置");
+          setSimplePage("数据开放平台");
           renderApiConfigs(document.getElementById("apiSearch").value);
         });
         document.querySelector("[data-copy-generated-token]").onclick = () => copyTokenValue(api.token);
@@ -1666,11 +1666,11 @@
       }
 
       function pageIcon(page) {
-        if (page === "分析工作台") return "analysis";
+        if (page === "灵犀智析") return "analysis";
         if (page === "数据看板" || page === "Quick BI 展示") return "dashboard";
         if (page === "看板管理") return "asset";
         if (page === "表管理" || page === "维表管理" || page === "维表数据维护" || page === "字典管理") return "asset";
-        if (page === "API配置" || page === "新增API") return "gateway";
+        if (page === "数据开放平台" || page === "新增API") return "gateway";
         if (page === "人群包管理" || page === "新建人群包") return "gateway";
         if (page === "标签管理") return "asset";
         if (page === "人群包推送渠道") return "push";
@@ -2309,7 +2309,7 @@
           const rateInput = event.target.closest("[data-api-rate-limit]");
           if (rateInput) selectedRates.set(Number(rateInput.dataset.apiRateLimit), Number(rateInput.value));
         };
-        document.getElementById("cancelCreateApi").onclick = () => setSimplePage("API配置");
+        document.getElementById("cancelCreateApi").onclick = () => setSimplePage("数据开放平台");
         document.getElementById("confirmCreateApi").onclick = () => {
           if (!validateRequiredFields(["newApiName", "newApiUsage"])) {
             showToast("请补全必填字段");
@@ -2347,7 +2347,7 @@
           if (editingApi) {
             Object.assign(editingApi, payload);
             apiManagePage = 1;
-            setSimplePage("API配置");
+            setSimplePage("数据开放平台");
             renderApiConfigs(document.getElementById("apiSearch").value);
             showToast("API 配置已保存");
             return;
@@ -2744,7 +2744,7 @@
       function getMenuPermissionTree() {
         return [
           { name: "数据看板", children: [] },
-          { name: "数据服务", children: ["人群包管理", "API配置"] },
+          { name: "数据服务", children: ["人群包管理", "数据开放平台"] },
           { name: "数据资产", children: ["看板管理", "表管理", "标签管理", "维表管理", "字典管理"] },
           { name: "数据推送", children: ["人群包推送渠道"] },
           { name: "权限管理", children: ["用户管理", "权限组"] }
@@ -2982,7 +2982,7 @@
         document.getElementById("boardTitleSearch")?.classList.add("hidden");
         renderSimpleNav();
         dashboardView.classList.add("hidden");
-        document.getElementById("analysisWorkbenchView")?.classList.toggle("hidden", page !== "分析工作台");
+        document.getElementById("analysisWorkbenchView")?.classList.toggle("hidden", page !== "灵犀智析");
         document.getElementById("skillManagementView")?.classList.toggle("hidden", page !== "Skill 配置");
         document.getElementById("menuManagementView")?.classList.toggle("hidden", page !== "菜单管理");
         document.getElementById("modelConfigView")?.classList.toggle("hidden", page !== "模型配置");
@@ -2992,7 +2992,7 @@
         document.getElementById("dimensionView")?.classList.toggle("hidden", page !== "维表管理");
         document.getElementById("dimensionDataView")?.classList.toggle("hidden", page !== "维表数据维护");
         document.getElementById("dictionaryView")?.classList.toggle("hidden", page !== "字典管理");
-        document.getElementById("apiConfigView").classList.toggle("hidden", page !== "API配置");
+        document.getElementById("apiConfigView").classList.toggle("hidden", page !== "数据开放平台");
         document.getElementById("apiCreateView").classList.toggle("hidden", page !== "新增API");
         userManagementView.classList.toggle("hidden", page !== "用户管理");
         document.getElementById("permissionGroupView").classList.toggle("hidden", page !== "权限组");
@@ -3009,7 +3009,7 @@
         }
         if (page === "看板管理" && !window.portalVueModuleApi) renderBoardManagement(document.getElementById("boardManageSearch").value);
         if (page === "表管理" && !window.portalVueModuleApi) renderDataAssets(document.getElementById("assetSearch").value);
-        if (page === "API配置" && !window.portalVueModuleApi) renderApiConfigs(document.getElementById("apiSearch").value);
+        if (page === "数据开放平台" && !window.portalVueModuleApi) renderApiConfigs(document.getElementById("apiSearch").value);
         if (page === "用户管理" && !window.portalVueModuleApi) renderSimpleUsers(document.getElementById("userSearch").value);
         if (page === "权限组" && !window.portalVueModuleApi) renderPermissionGroups();
         if (page === "配置权限" && !window.portalVueModuleApi) renderPermissionPage();
@@ -3097,7 +3097,7 @@
           return;
         }
         if (event.target.closest("[data-api-back]")) {
-          setSimplePage("API配置");
+          setSimplePage("数据开放平台");
           return;
         }
         if (event.target.closest("[data-cp-back]")) {
@@ -3302,7 +3302,7 @@
         document.getElementById("loginView").classList.add("hidden");
         document.getElementById("portalApp").classList.remove("hidden");
         document.getElementById("sidebar").classList.remove("hidden");
-        setSimplePage("分析工作台");
+        setSimplePage("灵犀智析");
       });
       const sidebar = document.getElementById("sidebar");
       const collapseBtn = document.getElementById("collapseBtn");
@@ -3547,7 +3547,7 @@
         else if (activePage === "权限组") document.getElementById("createGroupBtn").click();
         else if (activePage === "看板管理") openBoardAssetModal();
         else if (activePage === "表管理") openSyncTableModal();
-        else if (activePage === "API配置") openApiConfigPage();
+        else if (activePage === "数据开放平台") openApiConfigPage();
         else if (activePage === "用户管理") showToast("已发起飞书用户同步");
         else if (activePage === "人群包管理") { if (window.cpCancelEdit) window.cpCancelEdit(); setSimplePage("新建人群包"); }
         else if (activePage === "人群包推送渠道") { if (window.cpOpenTargetModal) window.cpOpenTargetModal(); }
@@ -3587,6 +3587,6 @@
       renderBoardManagement();
       renderDataAssets();
       renderApiConfigs();
-      setSimplePage("分析工作台");
+      setSimplePage("灵犀智析");
     })();
   

@@ -125,7 +125,7 @@
       sections() { refreshTick.value; return state.nav; },
       page() { return currentPage.value; },
       menuActive() {
-        if (this.page === "新增API") return "API配置";
+        if (this.page === "新增API") return "数据开放平台";
         if (this.page === "新建人群包") return "人群包管理";
         if (this.page === "维表数据维护") return "维表管理";
         if (this.page === "Quick BI 展示") return "数据看板";
@@ -200,10 +200,10 @@
         <div v-if="visible" class="portal-vue-page-head">
           <div class="portal-vue-page-head-row">
             <div><h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p></div>
-            <button v-if="page === '分析工作台' && !feishuBotAdded" type="button" class="portal-vue-ai-bot-btn" @click="feishuOpen = true"><span class="portal-vue-ai-bot-icon">🤖</span><span>添加飞书机器人</span></button>
+            <button v-if="page === '灵犀智析' && !feishuBotAdded" type="button" class="portal-vue-ai-bot-btn" @click="feishuOpen = true"><span class="portal-vue-ai-bot-icon">🤖</span><span>添加飞书机器人</span></button>
           </div>
         </div>
-        <el-drawer v-if="page === '分析工作台'" v-model="feishuOpen" title="观星台 · 飞书机器人" size="420px" :close-on-click-modal="true">
+        <el-drawer v-if="page === '灵犀智析'" v-model="feishuOpen" title="观星台 · 飞书机器人" size="420px" :close-on-click-modal="true">
           <div class="portal-vue-ai-feishu-drawer">
             <p class="portal-vue-muted">在飞书里直接和「观星台」机器人对话即可完成数据分析，无需登录门户；机器人的沟通记录会自动同步到左侧会话列表。</p>
             <div class="portal-vue-ai-feishu-steps">
@@ -235,7 +235,7 @@
         this.feishuBotAdded = true;
         try { localStorage.setItem("feishuBotAdded", "1"); } catch (error) { /* 隐私模式下仅本次会话生效 */ }
         this.feishuOpen = false;
-        ep.ElMessage.success("飞书机器人已添加，沟通记录将同步到分析工作台");
+        ep.ElMessage.success("飞书机器人已添加，沟通记录将同步到灵犀智析");
       }
     }
   };
@@ -572,7 +572,7 @@
       pagedRows() { const result=paginate(this.filteredRows,this.page,this.pageSize); if(result.safePage!==this.page)this.page=result.safePage; return result.rows; },
       rangeText() { if(!this.filteredRows.length)return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; }
     },
-    mounted() { this.primaryHandler=event=>{if(event.detail?.page==="API配置")this.openEditor(-1);}; window.addEventListener("portal:primary-action",this.primaryHandler); },
+    mounted() { this.primaryHandler=event=>{if(event.detail?.page==="数据开放平台")this.openEditor(-1);}; window.addEventListener("portal:primary-action",this.primaryHandler); },
     beforeUnmount() { window.removeEventListener("portal:primary-action",this.primaryHandler); },
     methods: {
       apiAssets(api) { return Array.isArray(api.assets)&&api.assets.length?api.assets:[{database:api.database,table:api.assetTable,fieldNames:api.fieldNames||[]}]; },
@@ -628,7 +628,7 @@
       isSelected(asset) { return this.selected.some(item=>item.database===asset.database&&item.table===asset.table); },
       toggleAsset(asset,checked) { const index=this.selected.findIndex(item=>item.database===asset.database&&item.table===asset.table); if(checked&&index<0)this.selected.push({database:asset.database,table:asset.table,fieldNames:asset.fields.slice(0,3).map(field=>field.name),rateLimit:60}); else if(!checked&&index>=0)this.selected.splice(index,1); },
       toggleField(item,name,checked) { const index=item.fieldNames.indexOf(name); if(checked&&index<0)item.fieldNames.push(name); else if(!checked&&index>=0)item.fieldNames.splice(index,1); },
-      back() { window.portalApiEditingIndex=-1; bridge.setPage("API配置"); },
+      back() { window.portalApiEditingIndex=-1; bridge.setPage("数据开放平台"); },
       save() {
         if(!this.form.name.trim()||!this.form.usage.trim())return ep.ElMessage.warning("请填写接口名称和使用场景");
         if(!this.selected.length)return ep.ElMessage.warning("请至少选择 1 张数据表");
@@ -845,14 +845,14 @@
                 </div>
               </section>
               <section v-show="activeTab==='tables'" class="portal-vue-group-permission-panel">
-                <div class="portal-vue-board-range-toolbar"><span>配置该权限组可在分析工作台和 API 服务中使用的数据表</span><el-checkbox v-model="allTables" @change="toggleAllTables">全部数据表</el-checkbox></div>
+                <div class="portal-vue-board-range-toolbar"><span>配置该权限组可在灵犀智析和 API 服务中使用的数据表</span><el-checkbox v-model="allTables" @change="toggleAllTables">全部数据表</el-checkbox></div>
                 <div class="portal-vue-permission-card-grid portal-vue-board-card-grid">
                   <article v-for="group in tableGroups" :key="group.source" class="portal-vue-group-permission-card">
                     <strong class="portal-vue-permission-card-title">{{ group.source }}</strong>
                     <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="table in group.tables" :key="table.cnName" :disabled="allTables" :model-value="selectedTables.includes(table.cnName)" @change="value=>toggleTable(table.cnName,value)">{{ table.cnName }}</el-checkbox></div>
                   </article>
                 </div>
-                <p class="portal-vue-muted" style="margin-top:12px">未勾选任何数据表时，该权限组成员无法在分析工作台发起分析和调用数据 API。</p>
+                <p class="portal-vue-muted" style="margin-top:12px">未勾选任何数据表时，该权限组成员无法在灵犀智析发起分析和调用数据 API。</p>
               </section>
             </div>
           </section>
@@ -907,7 +907,7 @@
       openCreate(){this.editingIndex=-1;this.groupForm={name:"",desc:""};this.formVisible=true;},
       openEdit(index){this.editingIndex=index;this.groupForm={name:state.groups[index].name,desc:state.groups[index].desc};this.formVisible=true;},
       async groupCommand(command,index){if(command==="edit")return this.openEdit(index);const group=state.groups[index];if(this.userCount(group.name)>0)return ep.ElMessage.warning("该权限组下仍有用户，不能删除");if(!await confirmAction("删除权限组",`确认删除「${group.name}」？`))return;state.groups.splice(index,1);this.selectedIndex=Math.max(0,Math.min(this.selectedIndex,state.groups.length-1));this.loadGroup();notify("权限组已删除");},
-      saveGroupForm(){const name=this.groupForm.name.trim();if(!name)return ep.ElMessage.warning("请输入权限组名称");if(state.groups.some((group,index)=>index!==this.editingIndex&&group.name===name))return ep.ElMessage.warning("权限组名称已存在");if(this.editingIndex<0){state.groups.push({name,desc:this.groupForm.desc.trim()||"自定义权限组。",menus:["分析工作台","数据看板"],boards:[],tables:[],status:"启用"});this.selectedIndex=state.groups.length-1;}else{const group=state.groups[this.editingIndex];const oldName=group.name;group.name=name;group.desc=this.groupForm.desc.trim()||"自定义权限组。";state.users.forEach(user=>{if(user.group===oldName)user.group=name;});}this.formVisible=false;this.loadGroup();notify("权限组已保存");}
+      saveGroupForm(){const name=this.groupForm.name.trim();if(!name)return ep.ElMessage.warning("请输入权限组名称");if(state.groups.some((group,index)=>index!==this.editingIndex&&group.name===name))return ep.ElMessage.warning("权限组名称已存在");if(this.editingIndex<0){state.groups.push({name,desc:this.groupForm.desc.trim()||"自定义权限组。",menus:["灵犀智析","数据看板"],boards:[],tables:[],status:"启用"});this.selectedIndex=state.groups.length-1;}else{const group=state.groups[this.editingIndex];const oldName=group.name;group.name=name;group.desc=this.groupForm.desc.trim()||"自定义权限组。";state.users.forEach(user=>{if(user.group===oldName)user.group=name;});}this.formVisible=false;this.loadGroup();notify("权限组已保存");}
     }
   };
 
@@ -1424,7 +1424,7 @@
       }
     },
     mounted(){
-      this.pageHandler=event=>{if(event.detail?.page==="分析工作台"){this.loadMyTables();if(!this.models.length)this.loadModels();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
+      this.pageHandler=event=>{if(event.detail?.page==="灵犀智析"){this.loadMyTables();this.loadModels();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
       window.addEventListener("portal:page-change",this.pageHandler);
       this.loadModels();
     },
@@ -1723,9 +1723,9 @@
       ]
     },
     {
-      id: "M500", name: "数据开放平台", icon: "service", sort: 500, path: "/data-service", cache: true, permission: "data_service",
+      id: "M500", name: "数据服务", icon: "service", sort: 500, path: "/data-service", cache: true, permission: "data_service",
       children: [
-        { id: "M510", name: "API配置", icon: "--", sort: 10, path: "/data-service/api-config/index", cache: true, permission: "api_config", children: [] }
+        { id: "M510", name: "开放 API", icon: "--", sort: 10, path: "/data-service/api-config/index", cache: true, permission: "api_config", children: [] }
       ]
     },
     {
@@ -1762,7 +1762,7 @@
             <el-table-column prop="disabledAt" label="禁用时间" width="180"><template #default="scope">{{ scope.row.disabledAt ? scope.row.disabledAt.slice(0, 16).replace("T", " ") : "—" }}</template></el-table-column>
             <el-table-column label="操作" width="200" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-switch :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch><el-button v-if="!scope.row.enabled" link type="primary" @click="openReason(scope.row)">填写原因</el-button></div></template></el-table-column>
           </el-table>
-          <div class="portal-vue-muted" style="margin-top:12px">禁用后模型立即从分析工作台的下拉框隐藏，进行中的分析不受影响；配置保存在网关数据卷，重启不丢失。</div>
+          <div class="portal-vue-muted" style="margin-top:12px">禁用后模型立即从灵犀智析的下拉框隐藏，进行中的分析不受影响；配置保存在网关数据卷，重启不丢失。</div>
         </section>
         <el-dialog v-model="reasonVisible" title="禁用模型" width="480px">
           <el-form class="portal-vue-dialog-form" label-position="top"><el-form-item label="禁用原因（可选）"><el-input v-model="reasonDraft" type="textarea" :rows="3" placeholder="如：旧版本模型，效果不稳定，已切换到 v4-pro"></el-input></el-form-item></el-form>
@@ -1982,7 +1982,7 @@
             <el-form-item label="描述"><el-input v-model="displayForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
               <el-form-item label="排序（越小越靠前）" required><el-input-number v-model="displayForm.sort" :min="1" :max="999" style="width:100%"></el-input-number></el-form-item>
-              <el-form-item label="在分析工作台展示"><el-switch v-model="displayForm.enabled"></el-switch></el-form-item>
+              <el-form-item label="在灵犀智析展示"><el-switch v-model="displayForm.enabled"></el-switch></el-form-item>
             </div>
             <el-form-item v-if="displayForm.enabled" label="绑定分析场景（调网关时使用）"><el-select v-model="displayForm.scenarioKey"><el-option label="单表分析" value="single"></el-option><el-option label="数据血缘分析" value="lineage"></el-option><el-option label="数据资产问答" value="asset"></el-option><el-option label="归因分析" value="attribution"></el-option></el-select></el-form-item>
           </el-form>
@@ -2010,7 +2010,7 @@
         if(!String(form.title||"").trim())return ep.ElMessage.warning("请输入标题");
         Object.assign(this.activeSkill,{icon:form.icon,title:form.title.trim(),displayDesc:form.displayDesc.trim(),sort:form.sort,enabled:form.enabled,scenarioKey:form.scenarioKey});
         this.displayVisible=false;
-        notify(`「${this.activeSkill.name}」展示设置已保存，分析工作台已同步`);
+        notify(`「${this.activeSkill.name}」展示设置已保存，灵犀智析已同步`);
       },
       openPrompt(row){this.activeSkill=row;this.promptDraft=row.prompt;this.promptVisible=true;},
       savePrompt(){this.activeSkill.prompt=this.promptDraft;this.promptVisible=false;notify(`「${this.activeSkill.name}」提示词已保存，下次分析生效`);},
