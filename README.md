@@ -65,6 +65,17 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 - 80/443（Caddy，对外 HTTPS）；网关 8787 为容器内部端口，无需对公网开放。
 
+### 域名解析（腾讯云 DNSPod 可选脚本）
+
+```bash
+# 本机 ~/.tc-dns.json 放 { "secretId": "...", "secretKey": "..." }（子账号仅授权 dnspod 即可），或使用环境变量
+node scripts/tc-dns.cjs add --domain example.com --sub ai --ip <服务器IP> --ttl 600
+# 域名不在腾讯云注册时，先 query 拿到 NS 记录，再去注册商修改 NS
+node scripts/tc-dns.cjs query --domain example.com
+```
+
+也可以在腾讯云控制台「云解析 DNS → 解析」手动添加 A 记录，效果相同。
+
 ### 用服务器 IP 快速试（无域名）
 
 ```bash
