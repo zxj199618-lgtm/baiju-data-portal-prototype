@@ -845,11 +845,11 @@
                 </div>
               </section>
               <section v-show="activeTab==='tables'" class="portal-vue-group-permission-panel">
-                <div class="portal-vue-board-range-toolbar"><span>配置该权限组可在灵犀智析和 API 服务中使用的数据表</span><el-checkbox v-model="allTables" @change="toggleAllTables">全部数据表</el-checkbox></div>
+                <div class="portal-vue-board-range-toolbar"><span>配置该权限组可在灵犀智析和 API 服务中使用的数据表</span><el-checkbox :model-value="allTablesSelected" :indeterminate="tablesIndeterminate" @change="toggleAllTables">全部数据表</el-checkbox></div>
                 <div class="portal-vue-permission-card-grid portal-vue-board-card-grid">
                   <article v-for="group in tableGroups" :key="group.source" class="portal-vue-group-permission-card">
                     <strong class="portal-vue-permission-card-title">{{ group.source }}</strong>
-                    <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="table in group.tables" :key="table.cnName" :disabled="allTables" :model-value="selectedTables.includes(table.cnName)" @change="value=>toggleTable(table.cnName,value)">{{ table.cnName }}</el-checkbox></div>
+                    <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="table in group.tables" :key="table.cnName" :model-value="selectedTables.includes(table.cnName)" @change="value=>toggleTable(table.cnName,value)">{{ table.cnName }}</el-checkbox></div>
                   </article>
                 </div>
                 <p class="portal-vue-muted" style="margin-top:12px">未勾选任何数据表时，该权限组成员无法在灵犀智析发起分析和调用数据 API。</p>
@@ -873,13 +873,16 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({state,selectedIndex:0,activeTab:"menus",selectedMenus:[],selectedBoards:[],allBoards:false,selectedTables:[],allTables:false,dirty:false,formVisible:false,editingIndex:-1,groupForm:{},memberDrawer:false,memberVisible:false,memberSelection:[]}),
+    data:()=>({state,selectedIndex:0,activeTab:"menus",selectedMenus:[],selectedBoards:[],allBoards:false,selectedTables:[],dirty:false,formVisible:false,editingIndex:-1,groupForm:{},memberDrawer:false,memberVisible:false,memberSelection:[]}),
     computed:{
       activeGroup(){refreshTick.value;return state.groups[this.selectedIndex]||state.groups[0];},
       boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
       boardBadge(){if(this.allBoards)return state.boards.filter(board=>board.status==="已上线").length;return this.selectedBoards.length;},
       tableGroups(){const groups=[];state.assets.forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
-      tableBadge(){if(this.allTables)return state.assets.length;return this.selectedTables.length;},
+      allTableNames(){return state.assets.map(table=>table.cnName);},
+      allTablesSelected(){return this.selectedTables.length>0&&this.selectedTables.length>=this.allTableNames.length;},
+      tablesIndeterminate(){return this.selectedTables.length>0&&this.selectedTables.length<this.allTableNames.length;},
+      tableBadge(){return this.selectedTables.length;},
       activeGroupUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return groupName?state.users.filter(user=>user.group===groupName):[];},
       availableUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return state.users.filter(user=>user.group!==groupName&&user.status!=="已停用");}
     },
@@ -890,7 +893,7 @@
       avatarText(name){return String(name||"用").slice(0,1);},
       avatarStyle(name){const colors=["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"];const seed=[...String(name||"")].reduce((total,char)=>total+char.charCodeAt(0),0);return{background:colors[seed%colors.length],color:"#fff"};},
       selectGroup(index){this.selectedIndex=index;this.activeTab="menus";this.memberDrawer=false;this.loadGroup();},
-      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);this.allTables=group.tables?.includes("全部数据表")||false;this.selectedTables=this.allTables?[]:state.assets.filter(table=>group.tables?.includes(table.cnName)).map(table=>table.cnName);this.dirty=false;},
+      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);const tablesGrant=group.tables||[];this.selectedTables=tablesGrant.includes("全部数据表")?[...this.allTableNames]:state.assets.filter(table=>tablesGrant.includes(table.cnName)).map(table=>table.cnName);this.dirty=false;},
       sectionNames(section){return section.items.length===1?[section.items[0].name]:[section.group,...section.items.map(item=>item.name)];},
       sectionChecked(section){const names=this.sectionNames(section);return names.every(name=>this.selectedMenus.includes(name));},
       sectionIndeterminate(section){const names=this.sectionNames(section);const count=names.filter(name=>this.selectedMenus.includes(name)).length;return count>0&&count<names.length;},
@@ -898,9 +901,9 @@
       toggleMenu(name,checked,mark=true){const index=this.selectedMenus.indexOf(name);if(checked&&index<0)this.selectedMenus.push(name);else if(!checked&&index>=0)this.selectedMenus.splice(index,1);if(mark)this.dirty=true;},
       toggleAllBoards(value){this.allBoards=value;if(value)this.selectedBoards=[];this.dirty=true;},
       toggleBoard(name,checked){const index=this.selectedBoards.indexOf(name);if(checked&&index<0)this.selectedBoards.push(name);else if(!checked&&index>=0)this.selectedBoards.splice(index,1);this.dirty=true;},
-      toggleAllTables(value){this.allTables=value;if(value)this.selectedTables=[];this.dirty=true;},
+      toggleAllTables(value){this.selectedTables=value?[...this.allTableNames]:[];this.dirty=true;},
       toggleTable(name,checked){const index=this.selectedTables.indexOf(name);if(checked&&index<0)this.selectedTables.push(name);else if(!checked&&index>=0)this.selectedTables.splice(index,1);this.dirty=true;},
-      saveGroup(){this.activeGroup.menus=[...this.selectedMenus];this.activeGroup.boards=this.allBoards?["全部看板"]:[...this.selectedBoards];this.activeGroup.tables=this.allTables?["全部数据表"]:[...this.selectedTables];this.dirty=false;notify("权限组配置已保存");},
+      saveGroup(){this.activeGroup.menus=[...this.selectedMenus];this.activeGroup.boards=this.allBoards?["全部看板"]:[...this.selectedBoards];this.activeGroup.tables=this.selectedTables.length>=this.allTableNames.length?["全部数据表"]:[...this.selectedTables];this.dirty=false;notify("权限组配置已保存");},
       openMemberDialog(){this.memberSelection=[];this.memberVisible=true;},
       addMembers(){if(!this.memberSelection.length)return;const groupName=this.activeGroup?.name;if(!groupName)return;const selected=new Set(this.memberSelection);let count=0;state.users.forEach(user=>{if(selected.has(user.feishu||user.name)){user.group=groupName;if(user.status!=="已停用")user.status="启用";count+=1;}});this.memberVisible=false;this.memberSelection=[];notify(`已添加 ${count} 名成员到「${groupName}」`);},
       async removeMember(user){const groupName=this.activeGroup?.name;if(!groupName||!await confirmAction("移除权限组成员",`确认将「${user.name}」从「${groupName}」移除？`))return;user.group="未分配";if(user.status!=="已停用")user.status="未分配权限组";notify(`已从「${groupName}」移除 ${user.name}`);},
@@ -918,22 +921,25 @@
           <el-page-header class="portal-vue-form-header" title="返回用户管理" content="配置用户权限" @back="back"></el-page-header>
           <div class="portal-vue-split" style="grid-template-columns:280px minmax(0,1fr)">
             <aside class="portal-vue-split-left"><div class="portal-vue-split-body" v-if="user"><div style="display:flex;align-items:center;gap:12px;margin-bottom:18px"><el-avatar :size="42">{{ user.name.slice(0,1) }}</el-avatar><div><span class="portal-vue-name">{{ user.name }}</span><div class="portal-vue-muted" style="margin-top:4px">{{ user.dept }}</div></div></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ user.role }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>当前权限组</span><strong>{{ user.group }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>账号状态</span><strong>{{ user.status }}</strong></div></div></aside>
-            <section class="portal-vue-split-right"><div class="portal-vue-permission-body"><el-tabs v-model="activeTab"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane label="看板权限" name="boards"></el-tab-pane><el-tab-pane label="表权限" name="tables"></el-tab-pane></el-tabs><div v-show="activeTab==='menus'" class="portal-vue-permission-grid"><div v-for="section in state.nav" :key="section.group" class="portal-vue-permission-block"><strong>{{ section.group }}</strong><el-checkbox v-for="item in section.items" :key="item.name" v-model="selectedMenus" :value="item.name" style="display:flex;margin:8px 0">{{ item.name }}</el-checkbox></div></div><div v-show="activeTab==='boards'" class="portal-vue-permission-grid"><div v-for="group in boardGroups" :key="group.category" class="portal-vue-permission-block"><strong>{{ group.category }}</strong><el-checkbox v-for="board in group.boards" :key="board.name" v-model="selectedBoards" :value="board.name" style="display:flex;margin:8px 0">{{ board.name }}</el-checkbox></div></div><div v-show="activeTab==='tables'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><el-checkbox v-model="allTables">全部数据表</el-checkbox><p class="portal-vue-muted" style="margin:6px 0 0">默认跟随「{{ user.group }}」权限组的表权限，勾选后为该用户单独扩大授权范围。</p></div><div v-if="!allTables" v-for="group in tableGroups" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><el-checkbox v-for="table in group.tables" :key="table.cnName" v-model="selectedTables" :value="table.cnName" style="display:flex;margin:8px 0">{{ table.cnName }}</el-checkbox></div></div></div></section>
+            <section class="portal-vue-split-right"><div class="portal-vue-permission-body"><el-tabs v-model="activeTab"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane label="看板权限" name="boards"></el-tab-pane><el-tab-pane label="表权限" name="tables"></el-tab-pane></el-tabs><div v-show="activeTab==='menus'" class="portal-vue-permission-grid"><div v-for="section in state.nav" :key="section.group" class="portal-vue-permission-block"><strong>{{ section.group }}</strong><el-checkbox v-for="item in section.items" :key="item.name" v-model="selectedMenus" :value="item.name" style="display:flex;margin:8px 0">{{ item.name }}</el-checkbox></div></div><div v-show="activeTab==='boards'" class="portal-vue-permission-grid"><div v-for="group in boardGroups" :key="group.category" class="portal-vue-permission-block"><strong>{{ group.category }}</strong><el-checkbox v-for="board in group.boards" :key="board.name" v-model="selectedBoards" :value="board.name" style="display:flex;margin:8px 0">{{ board.name }}</el-checkbox></div></div><div v-show="activeTab==='tables'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><el-checkbox :model-value="allTablesSelected" :indeterminate="tablesIndeterminate" @change="toggleAllTables">全部数据表</el-checkbox><p class="portal-vue-muted" style="margin:6px 0 0">默认跟随「{{ user.group }}」权限组的表权限；未勾选任何数据表时，该用户无法在灵犀智析发起分析。</p></div><div v-for="group in tableGroups" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><el-checkbox v-for="table in group.tables" :key="table.cnName" v-model="selectedTables" :value="table.cnName" style="display:flex;margin:8px 0">{{ table.cnName }}</el-checkbox></div></div></div></section>
           </div>
           <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button type="primary" @click="save">保存权限</el-button></div>
         </div>
       </el-config-provider>
     `,
-    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedBoards:[],selectedTables:[],allTables:false}),
+    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedBoards:[],selectedTables:[]}),
     computed:{
       user(){refreshTick.value;return state.users[bridge.getActiveUserIndex()]||state.users[0];},
       group(){return state.groups.find(group=>group.name===this.user?.group);},
       boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
-      tableGroups(){const groups=[];state.assets.forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;}
+      tableGroups(){const groups=[];state.assets.forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
+      allTableNames(){return state.assets.map(table=>table.cnName);},
+      allTablesSelected(){return this.selectedTables.length>0&&this.selectedTables.length>=this.allTableNames.length;},
+      tablesIndeterminate(){return this.selectedTables.length>0&&this.selectedTables.length<this.allTableNames.length;}
     },
     mounted(){this.pageHandler=event=>{if(event.detail?.page==="配置权限")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
-    methods:{load(){this.selectedMenus=[...(this.group?.menus||[])];this.selectedBoards=this.group?.boards?.includes("全部看板")?state.boards.filter(board=>board.status==="已上线").map(board=>board.name):[...(this.group?.boards||[])];this.allTables=this.group?.tables?.includes("全部数据表")||false;this.selectedTables=this.allTables?[]:[...state.assets.filter(table=>this.group?.tables?.includes(table.cnName)).map(table=>table.cnName)];if(this.user?.tableGrants&&!this.user.tableGrants.includes("__inherit__")){const grants=this.user.tableGrants;this.allTables=grants.includes("全部数据表");this.selectedTables=this.allTables?[]:grants.filter(name=>name!=="全部数据表");}},back(){bridge.setPage("用户管理");},async save(){const tables=this.allTables?["全部数据表"]:[...this.selectedTables];this.user.tableGrants=[...tables];let persisted=false;try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}notify(`${this.user.name} 的权限配置已保存（${this.allTables?"全部数据表":this.selectedTables.length+" 张数据表"}）${persisted?"，已同步到分析网关":"（本地演示，网关未连接）"}`);this.back();}}
+    methods:{load(){this.selectedMenus=[...(this.group?.menus||[])];this.selectedBoards=this.group?.boards?.includes("全部看板")?state.boards.filter(board=>board.status==="已上线").map(board=>board.name):[...(this.group?.boards||[])];const grants=this.user?.tableGrants;const source=Array.isArray(grants)?grants:(this.group?.tables||[]);this.selectedTables=source.includes("全部数据表")?[...this.allTableNames]:[...state.assets.filter(table=>source.includes(table.cnName)).map(table=>table.cnName)];},back(){bridge.setPage("用户管理");},toggleAllTables(value){this.selectedTables=value?[...this.allTableNames]:[];},async save(){const tables=this.selectedTables.length>=this.allTableNames.length?["全部数据表"]:[...this.selectedTables];this.user.tableGrants=[...tables];let persisted=false;try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}notify(`${this.user.name} 的权限配置已保存（${tables.includes("全部数据表")?"全部数据表":tables.length+" 张数据表"}）${persisted?"，已同步到分析网关":"（本地演示，网关未连接）"}`);this.back();}}
   };
 
   const QuickBiApp = {
