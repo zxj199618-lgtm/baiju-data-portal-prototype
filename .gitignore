@@ -5,3 +5,4 @@ tmp/
 output/
 baiju-data-portal-feishu-standalone.html
 .env
+data/

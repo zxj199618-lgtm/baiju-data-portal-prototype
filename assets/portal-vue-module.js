@@ -1256,6 +1256,7 @@
       time: seed.time,
       tables: seed.tables || [],
       summary: seed.summary || "",
+      model: seed.model || "",
       messages: seed.messages ? seed.messages.map(msg => ({ ...msg, lines: msg.lines ? [...msg.lines] : undefined, refs: msg.refs ? [...msg.refs] : undefined })) : [],
       markdown: seed.markdown || "",
       starred: seed.starred || false
@@ -1362,7 +1363,7 @@
                 </div>
                 <div v-for="(msg, index) in activeSession.messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
                   <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
-                    <template v-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
+                    <template v-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg._reportId" class="portal-vue-ai-report-actions"><el-button size="small" round plain :loading="msg._sharing" @click="shareChatReport(msg)">🔗 {{ msg._shared ? "已分享为链接" : "分享为链接" }}</el-button></div></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div>
@@ -1647,7 +1648,7 @@
               model:report.model||"",
               tablesUsed:report.tables,
               question:(report.messages.find(msg=>msg.role==="user")?.lines||[]).join(" "),
-              report:report.markdown||report.summary||"",
+              report:report.markdown||report.messages.filter(msg=>msg.role==="assistant").map(msg=>(msg.lines||[]).join("\n")).filter(Boolean).join("\n\n")||report.summary||"",
               createdBy:this.currentUser?.name||""
             })
           });
@@ -1661,6 +1662,14 @@
           ep.ElMessage.error(`生成分享链接失败：${error.message}，请确认网关已启动`);
         }
         report._sharing=false;
+      },
+      async shareChatReport(msg){
+        const report=this.reports.find(item=>item.id===msg._reportId);
+        if(!report){ep.ElMessage.warning("该报告尚未归档，无法分享");return;}
+        msg._sharing=true;
+        await this.shareReport(report);
+        msg._sharing=false;
+        msg._shared=report._shared;
       },
       buildPortalContext(cnNames){
         return cnNames.map(cnName => {
@@ -1702,7 +1711,7 @@
         report.starred=!report.starred;
         notify(report.starred?"已收藏":"已取消收藏");
       },
-      archiveReport(session,question,reportData,markdownText){
+      archiveReport(session,question,reportData,markdownText,liveMsg,meta){
         const report=createAnalysisReport({
           sourceId:session.id,
           title:`${session.title} · 报告`,
@@ -1711,9 +1720,12 @@
           time:session.time,
           tables:reportData.tablesUsed||[],
           summary:reportData.summary,
-          messages:session.messages.filter(msg=>msg.role==="user"||msg.html||msg.lines?.length).map(msg=>({role:msg.role,lines:msg.lines||[],refs:msg.refs}))
+          model:meta?.model||"",
+          markdown:String(markdownText||""),
+          messages:session.messages.filter(msg=>msg.role==="user"||msg.html||msg.lines?.length).map(msg=>({role:msg.role,lines:msg.lines||[],html:msg.html||"",refs:msg.refs}))
         });
         this.reports.unshift(report);
+        if(liveMsg)liveMsg._reportId=report.id;
       },
       onEnter(event){
         if(event.shiftKey)return;
@@ -1830,7 +1842,7 @@
               liveMsg.lines=[];
               liveMsg.meta=this.buildMetaLine(meta||{});
               const plainSummary=String(full).replace(/[#*`|>\-]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,2).join("；").slice(0,120);
-              this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:plainSummary},full);
+              this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:plainSummary},full,liveMsg,meta);
             }
           }
         }catch(error){

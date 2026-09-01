@@ -160,6 +160,9 @@ assert(portalVue.includes("AnalysisWorkbenchApp") && portalVue.includes("飞书�
 assert(portalVue.includes("会话记录") && portalVue.includes("含飞书机器人") && portalVue.includes("分析资产"), "灵犀智析应包含资产菜单与会话记录（含飞书机器人会话）");
 assert(portalVue.includes("assetView") && portalVue.includes("openReport") && portalVue.includes("archiveReport") && portalVue.includes("jumpToSource"), "分析资产应在主区域切换为报告列表页，点击报告弹窗打开并可跳回来源会话");
 assert(portalVue.includes("复制链接分享"), "报告弹窗应支持复制链接分享");
+assert(portalVue.includes("分享为链接") && portalVue.includes("shareChatReport"), "工作台生成的报告应可直接一键分享为链接");
+assert(portalVue.includes("markdown:String(markdownText") && portalVue.includes("liveMsg._reportId=report.id"), "报告归档应保存完整正文并挂载到聊天消息");
+assert(portalVue.includes("report:report.markdown"), "分享内容应使用完整 markdown 正文");
 assert(portalVue.includes("数据表权限") && portalVue.includes("toggleAllTables") && portalVue.includes("allTables"), "权限组应支持数据表权限配置");
 assert(portalBridge.includes('tables: ["全部数据表"]'), "权限组数据应包含数据表权限维度");
 assert(portalVue.includes("myTables"), "灵犀智析应按权限组展示可用数据表");
