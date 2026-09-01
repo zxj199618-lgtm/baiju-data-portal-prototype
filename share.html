@@ -53,7 +53,13 @@
       const id = new URLSearchParams(location.search).get("id");
       const card = document.getElementById("card");
       if (!id) { card.innerHTML = '<div class="error">缺少分享 ID</div>'; return; }
-      const gatewayBase = location.port === "8787" ? "" : (location.protocol + "//" + location.hostname + ":8787");
+      let gatewayBase = "http://localhost:8787";
+      try {
+        const override = localStorage.getItem("portalGatewayBase");
+        if (override !== null) gatewayBase = override.replace(/\/$/, "");
+      } catch (error) { /* 忽略隐私模式异常 */ }
+      // 链接直接指向网关端口 8787 时走相对路径；否则默认本机 8787（与工作台一致），远程部署时可用 localStorage.portalGatewayBase 覆盖。
+      if (location.port === "8787") gatewayBase = "";
       fetch(gatewayBase + "/v1/shares/" + encodeURIComponent(id))
         .then(r => r.json())
         .then(data => {
