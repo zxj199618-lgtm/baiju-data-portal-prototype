@@ -414,7 +414,8 @@
 .portal-vue-ai-composer:focus-within { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(22,119,255,.08); }
 .portal-vue-ai-composer .el-textarea__inner { border: 0; box-shadow: none; background: transparent; padding: 12px 14px 4px; font-size: 13.5px; }
 .portal-vue-ai-composer-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px 8px; }
-.portal-vue-ai-chip-select { width: auto; min-width: 200px; max-width: 300px; }
+.portal-vue-ai-chip-select { width: auto; min-width: 132px; max-width: 260px; }
+.portal-vue-ai-chip-biz { min-width: 108px; max-width: 160px; }
 .portal-vue-ai-chip-model-btn { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border: 0; border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; cursor: pointer; }
 .portal-vue-ai-chip-model-btn:hover:not(:disabled) { box-shadow: 0 0 0 1px #9cc5ff inset; }
 .portal-vue-ai-chip-model-btn:disabled { opacity: .5; cursor: not-allowed; }

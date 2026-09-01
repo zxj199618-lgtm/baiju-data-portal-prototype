@@ -1360,11 +1360,13 @@
                 <div class="portal-vue-ai-composer">
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
-                    <el-select v-model="activeTable" class="portal-vue-ai-chip-select" size="small" filterable clearable placeholder="选择数据表（按业务线分组）" popper-class="portal-vue-ai-select-popper">
+                    <el-select v-model="activeBizLine" class="portal-vue-ai-chip-select portal-vue-ai-chip-biz" size="small" filterable clearable placeholder="业务线" popper-class="portal-vue-ai-select-popper" @change="onBizLineChange">
+                      <template #prefix><span class="portal-vue-ai-chip-label">线</span></template>
+                      <el-option v-for="item in bizLineOptions" :key="item" :label="item" :value="item"></el-option>
+                    </el-select>
+                    <el-select v-model="activeTable" class="portal-vue-ai-chip-select" size="small" filterable clearable placeholder="选择数据表" popper-class="portal-vue-ai-select-popper" :disabled="!activeBizLine">
                       <template #prefix><span class="portal-vue-ai-chip-label">表</span></template>
-                      <el-option-group v-for="group in groupedTables" :key="group.label" :label="group.label">
-                        <el-option v-for="table in group.options" :key="table" :label="table" :value="table"></el-option>
-                      </el-option-group>
+                      <el-option v-for="table in tableOptions" :key="table" :label="table" :value="table"></el-option>
                     </el-select>
                     <el-popover placement="top-end" :width="300" trigger="click" popper-class="portal-vue-ai-model-panel-popper">
                       <template #reference>
@@ -1377,7 +1379,7 @@
                       <div class="portal-vue-ai-model-panel">
                         <div class="portal-vue-ai-model-row">
                           <span class="portal-vue-ai-model-label">模型</span>
-                          <el-select v-model="model" size="small" class="portal-vue-ai-model-inline-select" :loading="modelsLoading" filterable popper-class="portal-vue-ai-select-popper">
+                          <el-select v-model="model" size="small" class="portal-vue-ai-model-inline-select" :loading="modelsLoading" filterable popper-class="portal-vue-ai-select-popper" @change="clampMaxTokens">
                             <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
                           </el-select>
                         </div>
@@ -1397,11 +1399,8 @@
                           <el-dropdown trigger="click" popper-class="portal-vue-ai-model-panel-popper" @command="cmd=>maxTokens=cmd">
                             <span class="portal-vue-ai-model-value">{{ maxTokensLabel }} ›</span>
                             <template #dropdown><el-dropdown-menu>
-                              <el-dropdown-item :command="null">默认</el-dropdown-item>
-                              <el-dropdown-item :command="4096">4K</el-dropdown-item>
-                              <el-dropdown-item :command="8192">8K</el-dropdown-item>
-                              <el-dropdown-item :command="16384">16K</el-dropdown-item>
-                              <el-dropdown-item :command="32768">32K</el-dropdown-item>
+                              <el-dropdown-item :command="null">{{ contextDefaultLabel }}</el-dropdown-item>
+                              <el-dropdown-item v-for="preset in contextOptions" :key="preset[0]" :command="preset[0]">{{ preset[1] }}</el-dropdown-item>
                             </el-dropdown-menu></template>
                           </el-dropdown>
                         </div>
@@ -1473,6 +1472,8 @@
       reasoning: "medium",
       maxTokens: null,
       defaultModel: "",
+      activeBizLine: "",
+      modelLimits: {},
       reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
       assetDrawer: false,
       activeId: analysisSessionsSeed[0]?.id || "",
@@ -1504,18 +1505,21 @@
         state.assets.forEach(table=>{if(table.bizLine)meta[table.cnName]=table.bizLine;});
         return meta;
       },
-      groupedTables(){
-        const groups={};
-        this.myTables.forEach(table=>{
-          const label=this.bizLineMeta[table]||"其他";
-          (groups[label]=groups[label]||[]).push(table);
-        });
-        return Object.entries(groups).map(([label,options])=>({label,options})).sort((a,b)=>a.label.localeCompare(b.label,"zh-CN"));
+      bizLineOptions(){
+        return [...new Set(this.myTables.map(table=>this.bizLineMeta[table]).filter(Boolean))];
       },
+      tableOptions(){
+        return this.activeBizLine?this.myTables.filter(table=>this.bizLineMeta[table]===this.activeBizLine):this.myTables;
+      },
+      currentContextLimit(){return this.modelLimits[this.model]||1000000;},
+      contextOptions(){
+        const presets=[[32768,"32K"],[65536,"64K"],[131072,"128K"],[262144,"256K"],[524288,"512K"],[1048576,"1M"]];
+        return presets.filter(preset=>preset[0]<=this.currentContextLimit);
+      },
+      contextDefaultLabel(){return "默认（"+this.fmtTokens(this.currentContextLimit)+" 上下文）";},
       reasoningLabel(){return {low:"低",medium:"中",high:"高"}[this.reasoning]||"中";},
       maxTokensLabel(){
-        const map={4096:"4K",8192:"8K",16384:"16K",32768:"32K"};
-        return this.maxTokens?(map[this.maxTokens]||this.maxTokens):"默认";
+        return this.maxTokens?this.fmtTokens(this.maxTokens):this.contextDefaultLabel;
       },
       ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
       historySessions(){return this.sessions.filter(item=>item.status!=="进行中");},
@@ -1552,9 +1556,21 @@
         this.modelsLoading=true;
         try{
           const response=await fetch(`${analysisGatewayBase}/v1/models`);
-          if(response.ok){const data=await response.json();this.models=data.models||[];this.defaultModel=data.default||this.models[0]||"";if(!this.models.includes(this.model))this.model=this.defaultModel;}
+          if(response.ok){const data=await response.json();this.models=data.models||[];this.defaultModel=data.default||this.models[0]||"";if(!this.models.includes(this.model))this.model=this.defaultModel;this.modelLimits={};(data.details||[]).forEach(item=>{this.modelLimits[item.id]=item.contextLimit;});if(this.maxTokens&&this.modelLimits[this.model]&&this.maxTokens>this.modelLimits[this.model])this.maxTokens=null;}
         }catch(error){/* 网关未启动时保持空列表，界面显示提示 */}
         this.modelsLoading=false;
+      },
+      clampMaxTokens(){
+        const limit=this.modelLimits[this.model];
+        if(this.maxTokens&&limit&&this.maxTokens>limit)this.maxTokens=null;
+      },
+      fmtTokens(value){
+        if(value>=1048576)return (value/1048576)+"M";
+        if(value>=1024)return Math.round(value/1024)+"K";
+        return String(value);
+      },
+      onBizLineChange(){
+        if(this.activeTable&&!this.tableOptions.includes(this.activeTable))this.activeTable="";
       },
       resetModelSettings(){
         this.model=this.models.find(item=>item===this.defaultModel)||this.models[0]||"";

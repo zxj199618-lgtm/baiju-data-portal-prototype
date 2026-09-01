@@ -744,6 +744,21 @@ const users = [
   { name: "李雨航", group: "数据分析师" }
 ];
 
+/* ================= 模型上下文规格（公开规格，约值） ================= */
+
+const MODEL_CONTEXT_RULES = [
+  { match: /^gpt-5/, limit: 400000 },
+  { match: /^gpt-4/, limit: 128000 },
+  { match: /^deepseek/, limit: 128000 },
+  { match: /^glm/, limit: 128000 },
+  { match: /^kimi/, limit: 256000 }
+];
+
+function contextLimitFor(modelId) {
+  const rule = MODEL_CONTEXT_RULES.find(rule => rule.match.test(modelId));
+  return rule ? rule.limit : 1000000;
+}
+
 function loadPermissionOverrides() {
   try { return JSON.parse(fs.readFileSync(PERMISSIONS_FILE, "utf8")); } catch { return {}; }
 }
@@ -965,6 +980,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, {
         models: enabledModels,
         allModels: usable.sort().map(id => ({ id, enabled: !disabled[id], reason: disabled[id]?.reason || "" })),
+        details: enabledModels.map(id => ({ id, contextLimit: contextLimitFor(id) })),
         default: defaultModel
       });
     } catch (error) {
