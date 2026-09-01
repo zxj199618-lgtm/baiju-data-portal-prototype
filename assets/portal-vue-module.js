@@ -1550,12 +1550,23 @@
       }
     },
     mounted(){
-      this.pageHandler=event=>{if(event.detail?.page==="灵犀智析"){this.loadMyTables();this.loadModels();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
+      this.pageHandler=event=>{if(event.detail?.page==="灵犀智析"){this.loadGatewaySkills();this.loadMyTables();this.loadModels();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
       window.addEventListener("portal:page-change",this.pageHandler);
       this.loadModels();
+      this.loadGatewaySkills();
     },
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
+      async loadGatewaySkills(){
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/skills`);
+          if(!response.ok)return;
+          const list=await response.json();
+          if(Array.isArray(list)&&list.length){
+            state.skills=list.map(entry=>({ ...entry, versions: entry.versions || [], stats: entry.stats || { calls: 0, successRate: "—", avgLatency: "—", tokens: "—" } }));
+          }
+        }catch(error){/* 网关未启动时保留内置注册表 */}
+      },
       async loadMyTables(){
         try{
           const user=encodeURIComponent(this.currentUser?.name||"曾祥竞");
@@ -1750,7 +1761,7 @@
           const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,tables:mentionedTables,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,portalContext:this.buildPortalContext(mentionedTables)})
+            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,skillId:this.activeSkill?.id||"",tables:mentionedTables,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,portalContext:this.buildPortalContext(mentionedTables)})
           });
           const contentType=response.headers.get("content-type")||"";
           if(!response.ok||(contentType.includes("application/json")&&!contentType.includes("event-stream"))){

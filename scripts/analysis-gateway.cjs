@@ -16,7 +16,7 @@
  */
 
 const http = require("http");
-const { execFile } = require("child_process");
+const { execFile, spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -751,13 +751,68 @@ const SKILLS_DIR = path.join(DATA_DIR, "skills");
 const REGISTRY_FILE = path.join(DATA_DIR, "skill-registry.json");
 
 /* 共享证据工具：stdin 收 {tables}，读 fields.json + sample-data.json，stdout 出 {evidence} */
-const EVIDENCE_TOOL_SOURCE = `const fs = require("fs");
+const WAREHOUSE_EVIDENCE_TOOL = `const fs = require("fs");
 const path = require("path");
 let input = "";
 process.stdin.on("data", d => input += d);
 process.stdin.on("end", () => {
   const args = input.trim() ? JSON.parse(input) : {};
   const dataDir = process.env.GATEWAY_DATA_DIR || ".";
+  const data = JSON.parse(fs.readFileSync(path.join(dataDir, "sample-data.json"), "utf8"));
+  const defs = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fields.json"), "utf8"));
+  const NUM = /DECIMAL|BIGINT|INT|DOUBLE|FLOAT/i;
+  const round = (v, d = 2) => Number(Number(v).toFixed(d));
+  const sum = (list, key) => list.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+  const wanted = (args.tables || []).filter(n => data.tables[n]);
+  const tables = wanted.length ? wanted : Object.keys(data.tables);
+  /* 与 WorkBuddy explain-table-context 对齐的字段结构 */
+  const result = { schema_version: 1, query: { tables }, status: "ok", producers: [], contexts: [] };
+  tables.forEach(name => {
+    const def = defs.find(t => t.cnName === name) || { fields: [], lineage: { upstream: [], downstream: [] } };
+    const rows = data.tables[name] || [];
+    const ctx = {
+      table: name,
+      physical: (def.database || "") + "." + (def.table || ""),
+      desc: def.desc || "",
+      owner: def.owner || "",
+      fields: (def.fields || []).map(f => ({ name: f.name, type: f.type || "", comment: f.comment || "" })),
+      upstream_tables: (def.lineage && def.lineage.upstream || []).map(u => ({ table: u.table, role: u.role, join: u.join || "" })),
+      downstream_tables: (def.lineage && def.lineage.downstream || []).map(d => ({ table: d.table, role: d.role }))
+    };
+    if (rows.length) {
+      const dateKey = (def.agg && def.agg.dateKey) || "";
+      const numeric = (def.fields || []).filter(f => NUM.test(f.type || "")).map(f => f.name);
+      ctx.row_count = rows.length;
+      if (dateKey) { const ds = rows.map(r => String(r[dateKey]).slice(0, 10)).sort(); ctx.date_range = [ds[0], ds[ds.length - 1]]; }
+      const sums = {};
+      numeric.slice(0, 8).forEach(k => sums[k] = round(sum(rows, k)));
+      if (sums.cost && sums.activate_cnt) sums.cpa = round(sums.cost / sums.activate_cnt);
+      if (Object.keys(sums).length) ctx.aggregates = sums;
+      const groupKey = (def.agg && def.agg.groupBy && def.agg.groupBy[0]) || "";
+      const metric = (def.agg && def.agg.metric) || "";
+      if (groupKey) {
+        const groups = {};
+        rows.forEach(r => { const k = String(r[groupKey]); (groups[k] = groups[k] || []).push(r); });
+        let stats = Object.entries(groups).map(([k, g]) => ({ group: k, rows: g.length, sums: Object.fromEntries(numeric.slice(0, 6).map(k2 => [k2, round(sum(g, k2))])) }));
+        if (metric) stats.sort((a, b) => (b.sums[metric] || 0) - (a.sums[metric] || 0));
+        ctx.groups = stats.slice(0, 8);
+      }
+      ctx.recent_rows = rows.slice(-5);
+    } else {
+      ctx.row_count = 0;
+    }
+    result.contexts.push(ctx);
+  });
+  process.stdout.write(JSON.stringify({ evidence: result.contexts, schema_version: result.schema_version }));
+});`;
+
+const EVIDENCE_TOOL_SOURCE = `const fs = require("fs");
+const path = require("path");
+let input = "";
+process.stdin.on("data", d => input += d);
+process.stdin.on("end", () => {
+  const args = input.trim() ? JSON.parse(input) : {};
+  const dataDir = process.env.GATEWAY_DATA_DIR || path.resolve(__dirname, "..", "..", "..");
   const data = JSON.parse(fs.readFileSync(path.join(dataDir, "sample-data.json"), "utf8"));
   const defs = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fields.json"), "utf8"));
   const NUM = /DECIMAL|BIGINT|INT|DOUBLE|FLOAT/i;
@@ -845,6 +900,25 @@ function installBuiltinPackages() {
     { id: "attribution-analyst", name: "归因分析 Skill", source: "attribution-analyst", version: "v0.5", scenarioKey: "attribution", icon: "🎯", title: "归因分析", displayDesc: "指标异动拆解与定位", sort: 40,
       instructions: "你是观星台数据平台的归因分析助手。\n基于聚合统计中的「近7天 / 前7天 / 环比 / CPA环比」数据对指标异动做维度拆解：1. 先给出整体结论；2. 逐维度列出对比表（Markdown 表格）；3. 定位到具体的组并给出原因判断；4. 给出建议。\n所有数字必须来自证据，不编造。" }
   ];
+  /* 数仓模型分析（服务化）：原 maxcompute-warehouse-analyst 提炼，输出对齐 WorkBuddy 八段式 */
+  const warehouseDef = {
+    id: "numa-warehouse", name: "数仓模型分析（服务化）", source: "maxcompute-warehouse-analyst", version: "v1.2-service", scenarioKey: "warehouse",
+    icon: "🏭", title: "数仓模型分析", displayDesc: "口径、血缘与设计解读（WorkBuddy 同款）", sort: 25,
+    instructions: [
+      "你是 MaxCompute 数仓模型分析师，将门户表证据组织成可复核的 Markdown 口径文档。脚本提供事实，Skill 负责编排和表达。",
+      "## 安全与证据边界",
+      "1. 只基于证据字段中的聚合统计、字段注释、血缘关系作答，不编造数字与关系。",
+      "2. 文本命中只是候选，只有 evidence 明确给出的血缘可表述为确定关系。",
+      "3. 证据不足时标注「待业务确认」，不猜测业务定义。",
+      "## 证据标签",
+      "- SQL/DDL 明确证据：fields 注释、aggregates、upstream/downstream；",
+      "- 结构解释：根据明确字段与聚合做出的技术解释；",
+      "- 待业务确认：desc 缺失、口径无法从证据证明时使用。",
+      "## 报告模板（直接输出八段，不输出计划与工具名）",
+      "一、一句话说明；二、数据概览（行数、时间范围、整体合计）；三、为什么这样设计；四、输出粒度与重要口径；五、重点字段（公式与聚合）；六、上下游血缘（用 mermaid flowchart 绘制）；七、风险与建议；八、证据限制（列明待业务确认项）。"
+    ].join("\n")
+  };
+
   const registry = loadSkillRegistry();
   defs.forEach(def => {
     const dir = skillDir(def.id);
@@ -865,6 +939,27 @@ function installBuiltinPackages() {
       registry.push({ id: def.id, name: def.name, source: def.source, version: def.version, dir: path.join(SKILLS_DIR, def.id), enabled: true, grayUsers: [], installedAt: new Date().toISOString(), builtin: true });
     }
   });
+  /* 服务化数仓包：tools/warehouse-evidence.cjs */
+  (() => {
+    const dir = skillDir(warehouseDef.id);
+    const manifest = {
+      id: warehouseDef.id, name: warehouseDef.name, source: warehouseDef.source, version: warehouseDef.version,
+      scenarioKey: warehouseDef.scenarioKey, icon: warehouseDef.icon, title: warehouseDef.title,
+      displayDesc: warehouseDef.displayDesc, sort: warehouseDef.sort, enabled: true, grayUsers: [],
+      desc: "将门户表证据组织成可复核的 Markdown 口径文档：字段、血缘、聚合、字典；报告结构对齐 WorkBuddy 数仓分析。",
+      tools: [{ name: "lineage", cmd: "node tools/warehouse-evidence.cjs", description: "服务化数仓证据（表上下文 + 字段血缘 + 聚合）" }]
+    };
+    if (!fs.existsSync(path.join(dir, "skill.json"))) {
+      fs.mkdirSync(path.join(dir, "tools"), { recursive: true });
+      fs.writeFileSync(path.join(dir, "skill.json"), JSON.stringify(manifest, null, 2));
+      fs.writeFileSync(path.join(dir, "SKILL.md"), warehouseDef.instructions);
+      fs.writeFileSync(path.join(dir, "tools", "warehouse-evidence.cjs"), WAREHOUSE_EVIDENCE_TOOL);
+      fs.writeFileSync(path.join(dir, "fields.json"), JSON.stringify(tables.map(({ generator, ...rest }) => rest)));
+    }
+    if (!registry.some(item => item.id === warehouseDef.id)) {
+      registry.push({ id: warehouseDef.id, name: warehouseDef.name, source: warehouseDef.source, version: warehouseDef.version, dir, enabled: true, grayUsers: [], installedAt: new Date().toISOString(), builtin: true });
+    }
+  })();
   saveSkillRegistry(registry);
 }
 
@@ -875,16 +970,24 @@ function runSkillTool(registryEntry, toolName, args) {
     const tool = (manifest?.tools || []).find(item => item.name === toolName) || (manifest?.tools || [])[0];
     if (!tool || !tool.cmd) return resolve({ ok: false, error: "该 Skill 未声明可用工具" });
     const parts = tool.cmd.split(" ");
-    const timeoutMs = Number(tool.timeoutMs || 15000);
-    execFile(parts[0], parts.slice(1), {
+    const timeoutMs = Number(tool.timeoutMs || 20000);
+    let stdout = "", stderr = "";
+    const child = spawn(parts[0], parts.slice(1), {
       cwd: registryEntry.dir,
       env: { ...process.env, GATEWAY_DATA_DIR: DATA_DIR },
-      timeout: timeoutMs
-    }, (error, stdout) => {
-      if (error && !stdout) return resolve({ ok: false, error: `工具执行失败：${error.message}` });
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    const timer = setTimeout(() => { child.kill("SIGKILL"); }, timeoutMs);
+    child.stdout.on("data", chunk => { stdout += chunk; });
+    child.stderr.on("data", chunk => { stderr += chunk; });
+    child.on("error", error => { clearTimeout(timer); resolve({ ok: false, error: `工具启动失败：${error.message}` }); });
+    child.on("close", code => {
+      clearTimeout(timer);
+      if (code !== 0) return resolve({ ok: false, error: `工具退出（码 ${code}）：${String(stderr).slice(0, 150) || "无错误输出"}` });
       try { resolve({ ok: true, result: JSON.parse(stdout) }); }
       catch { resolve({ ok: false, error: "工具输出不是合法 JSON" }); }
     });
+    try { child.stdin.end(JSON.stringify(args || {})); } catch { /* 工具可能不读 stdin */ }
   });
 }
 
@@ -1347,7 +1450,9 @@ const server = http.createServer(async (req, res) => {
 
     /* Skill 运行时：优先按 skillId 执行注册表里的包（工具出证据 + SKILL.md 出编排），失败回退内置 */
     let buildEvidenceOverride = null;
-    const registrySkill = loadSkillRegistry().find(item => item.id === (body.skillId || "") && item.enabled !== false && !item.grayUsers?.length || (body.skillId && item.grayUsers?.includes(user)));
+    const registrySkill = body.skillId
+      ? loadSkillRegistry().find(item => item.id === body.skillId && item.enabled !== false && (!item.grayUsers?.length || item.grayUsers.includes(user)))
+      : null;
     let skill = null, scene = null, runtimeError = "";
     if (registrySkill) {
       const toolRun = await runSkillTool(registrySkill, "evidence", { tables: referenced, question });
@@ -1439,7 +1544,8 @@ const server = http.createServer(async (req, res) => {
         report: content,
         meta: {
           skill: skill.name, skillVersion: skill.version, scenario: scene.label,
-          model, reasoningEffort: hasReasoningOptions ? (reasoningOptions.reasoning_effort || "default") : "default",
+          model, skillRuntime: registrySkill ? ("package:" + registrySkill.id) : "builtin", skillFallback: runtimeError || "",
+          reasoningEffort: hasReasoningOptions ? (reasoningOptions.reasoning_effort || "default") : "default",
           maxTokens: reasoningOptions.max_completion_tokens || null,
           tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名),
           deniedTables: denied, latencyMs: Date.now() - started,

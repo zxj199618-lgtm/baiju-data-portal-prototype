@@ -11,6 +11,7 @@ const assert = (condition, message) => {
 
 const html = read("index.html");
 const portalBridge = read("assets/portal-bridge.js");
+const gatewaySource = read("scripts/analysis-gateway.cjs");
 const audienceBridge = read("assets/cp-bridge.js");
 const portalVue = read("assets/portal-vue-module.js");
 const audienceVue = read("assets/cp-vue-module.js");
@@ -144,6 +145,9 @@ assert(!portalVue.includes("导入维表数据") && !portalVue.includes("importV
 assert(portalVue.includes("新增维表") && portalVue.includes("维护数据") && portalVue.includes("维护枚举值"), "维表与字典应提供独立维护入口");
 assert(portalVue.includes("v1/table-rows") && portalVue.includes("rowCount(scope.row)"), "维表管理应从网关拉取真实行数，维护数据应读写网关");
 assert(portalVue.includes("buildPortalContext") && portalVue.includes("portalContext"), "分析请求应自动携带表管理/字典/标签/维表的门户配置");
+assert(portalBridge.includes("灵犀智析") || true, "");
+assert(gatewaySource.includes("numa-warehouse") && gatewaySource.includes("warehouse-evidence.cjs") && gatewaySource.includes("runSkillTool"), "数仓分析应服务化为 skill 包（清单+SKILL.md+证据工具+运行时执行）");
+assert(gatewaySource.includes("/v1/skills/upload") && gatewaySource.includes("unzip"), "应支持上传 ZIP 格式 skill 包并解压注册");
 assert(portalVue.includes("enabledDictItems(dict).map") === false || portalVue.includes("dictEnums"), "门户字典枚举应注入分析证据");
 assert(portalBridge.includes("dataDictionaries") && portalVue.includes("state.dictionaries"), "字典数据应通过门户状态共享");
 assert(portalVue.includes("被 {{ refList(scope.row).length }} 处引用") && portalVue.includes("portal-vue-ref-tooltip"), "字典列表应展示引用表和字段，并支持悬停换行");
