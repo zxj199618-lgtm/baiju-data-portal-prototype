@@ -1,0 +1,18 @@
+name: guanxingta-prototype
+
+# 叠加文件（服务器已有其他站点占用 80/443 时使用）：
+#   已有 Caddy 托管其他域名，观星台域名接入其中（jianguang_internal 网络 + 既有 Caddy 反代）。
+#   用法：sudo docker compose -f docker-compose.prod.yml -f docker-compose.jianguang.yml up -d --build
+# 说明：本叠加文件要求外部网络 jianguang_internal 已存在（docker network ls 确认）；
+#       不启用本文件里的独立 Caddy（profile: never），避免与外部 Caddy 抢占 80/443。
+services:
+  analysis-gateway:
+    networks:
+      - default
+      - jianguang_internal
+  caddy:
+    profiles: ["never"]
+
+networks:
+  jianguang_internal:
+    external: true

@@ -61,6 +61,10 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 访问 `https://<域名>/` 即完整的观星台（页面 + 灵犀智析分析 + 分享链接）。
 
+> 服务器上已有其他项目占用 80/443（如已有 Caddy）时，把观星台域名加进既有 Caddy，
+> 并用叠加文件启动（要求外部网络 `jianguang_internal` 存在）：
+> `sudo docker compose -f docker-compose.prod.yml -f docker-compose.jianguang.yml up -d --build`
+
 ### 需要服务器放行的端口
 
 - 80/443（Caddy，对外 HTTPS）；网关 8787 为容器内部端口，无需对公网开放。
