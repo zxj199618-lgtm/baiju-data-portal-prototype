@@ -1356,6 +1356,10 @@
       const adPlanAsset = dataAssets.find(asset => asset.table === "dm_ad_plan_daily_media_account_product_performance_detail");
       const mediaField = adPlanAsset?.fields.find(field => field.name === "media_source");
       if (mediaField) mediaField.dictId = "DICT001";
+      if (adPlanAsset) {
+        adPlanAsset.dimension = true;
+        adPlanAsset.maintainMode = "sync";
+      }
 
       const accountAsset = dataAssets.find(asset => asset.table === "dwd_ad_account_daily");
       if (accountAsset) {
