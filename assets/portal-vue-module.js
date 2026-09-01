@@ -1615,6 +1615,35 @@
         }
         report._sharing=false;
       },
+      buildPortalContext(cnNames){
+        return cnNames.map(cnName => {
+          const asset = state.assets.find(item => item.cnName === cnName);
+          if (!asset) return null;
+          const dictIds = [...new Set((asset.fields || []).map(field => field.dictId).filter(Boolean))];
+          const dictEnums = dictIds.map(dictId => {
+            const dict = state.dictionaries.find(item => item.dictId === dictId);
+            if (!dict) return null;
+            return { name: dict.name, items: enabledDictItems(dict).map(item => item.code + "=" + item.name) };
+          }).filter(Boolean);
+          const tagTable = state.tables.find(table => table.name === asset.table);
+          return {
+            cnName: asset.cnName,
+            externalName: asset.externalName || "",
+            desc: asset.desc || "",
+            bizLine: asset.bizLine || "",
+            fields: (asset.fields || []).map(field => ({
+              name: field.name,
+              comment: field.comment || "",
+              remark: field.remark || "",
+              dict: field.dictId ? (state.dictionaries.find(item => item.dictId === field.dictId)?.name || "") : ""
+            })),
+            dictEnums,
+            tagConfig: tagTable ? { 名称: tagTable.cn || "", 标签字段: tagTable.exportFields || [] } : null,
+            dimensionRows: (asset.rows || []).slice(0, 30)
+          };
+        }).filter(Boolean);
+      },
+      dictNameById(dictId){ return state.dictionaries.find(item => item.dictId === dictId)?.name || ""; },
       jumpToSource(report){
         const session=report.sourceId?this.findSession(report.sourceId):null;
         if(!session){ep.ElMessage.info("演示数据：来源会话已归档，可在左侧会话记录中查看");return;}
@@ -1684,7 +1713,7 @@
           const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,tables:mentionedTables,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true})
+            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,tables:mentionedTables,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,portalContext:this.buildPortalContext(mentionedTables)})
           });
           const contentType=response.headers.get("content-type")||"";
           if(!response.ok||(contentType.includes("application/json")&&!contentType.includes("event-stream"))){

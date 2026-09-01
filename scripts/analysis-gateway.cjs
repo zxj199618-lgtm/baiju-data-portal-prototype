@@ -686,7 +686,7 @@ function recentRows(table, count = 8) {
   return rowsOf(table.cnName).slice(-count);
 }
 
-function buildEvidence(cnNames) {
+function buildEvidence(cnNames, portalContext = []) {
   const selected = cnNames.length ? tables.filter(table => cnNames.includes(table.cnName)) : tables;
   return selected.map(table => {
     const total = rowsOf(table.cnName).length;
@@ -697,6 +697,24 @@ function buildEvidence(cnNames) {
       负责人: table.owner,
       字段: table.fields.map(field => `${field.name} ${field.type} — ${field.comment}`)
     };
+    /* 门户配置（表管理/字典/标签/维表）由前端自动随请求传入，优先级高于网关内置注释 */
+    const portal = portalContext.find(item => item.cnName === table.cnName);
+    if (portal) {
+      if (portal.desc) evidence.说明 = portal.desc;
+      if (portal.externalName) evidence.对外表名 = portal.externalName;
+      if (portal.bizLine) evidence.业务线 = portal.bizLine;
+      if (Array.isArray(portal.fields) && portal.fields.length) {
+        evidence.字段 = portal.fields.map(field => {
+          let text = `${field.name} — ${field.comment || ""}`;
+          if (field.remark) text += `；备注：${field.remark}`;
+          if (field.dict) text += `；枚举字典：${field.dict}`;
+          return text;
+        });
+      }
+      if (portal.dictEnums?.length) evidence.枚举值 = portal.dictEnums.map(dict => `${dict.name}: ${dict.items.join("、")}`);
+      if (portal.tagConfig) evidence.标签配置 = portal.tagConfig;
+      if (Array.isArray(portal.dimensionRows) && portal.dimensionRows.length) evidence.维表数据样例 = portal.dimensionRows;
+    }
     if (cnNames.length) {
       evidence.聚合统计 = aggregateEvidence(table);
       evidence.最近明细样例 = recentRows(table);
@@ -1067,7 +1085,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && url.pathname === "/v1/analyze") {
     const body = await readBody(req);
-    const { user = "曾祥竞", question = "", scenario = "single", tables: requestedTables = [], model = DEFAULT_MODEL, reasoningEffort = "", maxTokens = null } = body;
+    const { user = "曾祥竞", question = "", scenario = "single", tables: requestedTables = [], model = DEFAULT_MODEL, reasoningEffort = "", maxTokens = null, portalContext = [] } = body;
     if (!question.trim()) return sendJson(res, 400, { error: "问题不能为空" });
 
     const modelConfig = loadModelConfig();
@@ -1085,11 +1103,12 @@ const server = http.createServer(async (req, res) => {
 
     const skill = skills["warehouse-analyst"];
     const scene = skill.scenarios[scenario] || skill.scenarios.single;
-    const evidence = buildEvidence(referenced);
+    const evidence = buildEvidence(referenced, portalContext);
     const prompt = [
       `## 用户问题\n${question}`,
       `## 分析场景\n${scene.label}`,
       referenced.length ? `## 引用数据表\n${referenced.join("、")}` : "## 引用数据表\n（未指定，以下为当前用户权限内全部表的概览，深度分析请引用具体表）",
+      "## 门户配置说明\n表证据中的「枚举值」「字段备注」「标签配置」「维表数据样例」来自门户的表管理、字典管理、标签管理与维表管理配置，分析时优先据此解释编码取值与口径；与网关注释冲突时以门户配置为准。",
       denied.length ? `## 权限提示\n以下表未授权，未纳入分析：${denied.join("、")}` : "",
       `## 表证据（唯一事实来源，所有数字必须来自这里）\n${JSON.stringify(evidence, null, 1)}`
     ].filter(Boolean).join("\n\n");
