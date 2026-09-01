@@ -1434,7 +1434,36 @@
                 </div>
               </div>
               </div>
-            </section>
+
+          <el-dialog v-model="reportDialog" width="900px" top="5vh" :close-on-click-modal="true" class="portal-vue-ai-report-dialog">
+            <template #header>
+              <div class="portal-vue-ai-report-dialog-head">
+                <strong>{{ activeReport()?.title || "分析报告" }}</strong>
+                <div class="portal-vue-ai-report-dialog-actions">
+                  <el-button size="small" :loading="activeReport()?._sharing" @click="shareReport(activeReport())">{{ activeReport()?._shared ? "已复制链接" : "复制链接分享" }}</el-button>
+                  <el-button v-if="activeReport()?.sourceId && findSession(activeReport().sourceId)" size="small" @click="jumpToSource(activeReport())">打开来源会话</el-button>
+                </div>
+              </div>
+            </template>
+            <div v-if="activeReport()" class="portal-vue-ai-report-dialog-body">
+              <div class="portal-vue-ai-refs" style="margin-bottom:10px">
+                <el-tag size="small" :type="activeReport().channel === '飞书机器人' ? 'success' : 'primary'" :effect="activeReport().channel === '飞书机器人' ? 'plain' : 'light'">{{ activeReport().channel }}</el-tag>
+                <el-tag size="small" effect="plain">{{ activeReport().scenario }}</el-tag>
+                <el-tag v-for="table in activeReport().tables" :key="table" size="small" effect="plain">{{ table }}</el-tag>
+                <time style="margin-left:auto;font-size:12px;color:#a5aebd">{{ activeReport().time }}</time>
+              </div>
+              <p v-if="activeReport().summary" class="portal-vue-ai-report-summary"><span>结论摘要</span>{{ activeReport().summary }}</p>
+              <div class="portal-vue-ai-report-dialog-content">
+                <div v-for="(msg, index) in activeReport().messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
+                  <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html }">
+                    <template v-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div></template>
+                    <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
+                  </div>
+                </div>
+                <p v-if="!activeReport().messages.length" class="portal-vue-muted">{{ activeReport().summary || "（无内容）" }}</p>
+              </div>
+            </div>
+          </el-dialog>            </section>
           </div>
         </section>
       </el-config-provider>
