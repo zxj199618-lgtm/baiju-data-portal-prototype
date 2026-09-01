@@ -160,7 +160,9 @@ assert(portalBridge.includes('group: "系统管理"') && portalBridge.includes('
 assert(html.includes('id="menuManagementView"') && portalVue.includes("mount(\"#menuManagementView\""), "菜单管理应挂载独立视图");
 assert(portalVue.includes("MenuManagementApp") && portalVue.includes("权限标识") && portalVue.includes("组件路径"), "菜单管理应提供层级树/组件路径/权限标识配置");
 assert(html.includes('id="skillManagementView"') && portalVue.includes("mount(\"#skillManagementView\""), "Skill 配置应挂载独立视图");
-assert(portalVue.includes("SkillManagementApp") && portalVue.includes("提示词") && portalVue.includes("沙箱试跑") && portalVue.includes("回滚到此版本"), "Skill 配置应支持提示词编辑/版本回滚/沙箱试跑");
+assert(portalVue.includes("SkillManagementApp") && portalVue.includes("提示词") && portalVue.includes("回滚到此版本"), "Skill 配置应支持提示词编辑/版本回滚");
+assert(portalVue.includes("grayUsers") && portalVue.includes("灰度用户") && portalVue.includes("openGray") && portalVue.includes("skillStatus"), "Skill 灰度应按系统内用户配置（不再按流量）");
+assert("testVisible" in portalVue.match(/SkillManagementApp[\s\S]{0,200}/g) === false || !portalVue.includes("沙箱试跑"), "Skill 配置不应再包含沙箱试跑");
 assert(portalVue.includes("skillScenarios") && portalVue.includes("工作台展示") && portalVue.includes("openDisplay"), "工作台场景卡片应由 Skill 配置驱动（icon/标题/描述/排序/展示开关）");
 assert(portalVue.includes('id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100') === false || portalVue.includes('scenarioKey: "single"'), "Skill 注册表应包含工作台展示元数据");
 assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("ModelConfigApp") && portalVue.includes("modelConfigView"), "系统管理应提供模型配置页");

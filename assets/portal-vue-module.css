@@ -483,3 +483,8 @@
 .portal-vue-ai-bubble-streaming { min-width: 120px; }
 .portal-vue-ai-bubble-streaming p::after { content: "▍"; color: #1677ff; animation: portal-vue-ai-blink 1s steps(2) infinite; }
 @keyframes portal-vue-ai-blink { 50% { opacity: 0; } }
+
+/* Skill 灰度用户选择 */
+.portal-vue-gray-users { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.portal-vue-gray-users .el-checkbox { margin: 0; }
+.portal-vue-gray-users .el-checkbox small { display: block; margin-top: 2px; font-size: 11.5px; color: #a5aebd; }

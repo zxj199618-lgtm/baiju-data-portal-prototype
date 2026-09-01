@@ -2067,11 +2067,10 @@
 
   const skillRegistrySeed = [
     {
-      id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100,
+      id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", grayUsers: [],
       icon: "📊", title: "单表分析", displayDesc: "趋势、分布与异常", sort: 10, scenarioKey: "single", enabled: true,
       desc: "将 DataWorks 生产 SQL、SQLGlot 静态分析和只读元数据组织成可复核的口径文档。",
       scenarios: "表名解释 / 业务口径问答 / 血缘上下游",
-      model: "gpt-5.4-mini",
       prompt: "你是观星台数据平台的数仓分析助手…\n\n## 解释规则\n1. 一句话说明：优先使用表 comment；\n2. 为什么这样设计：依次解释写入方式、JOIN、过滤、聚合、CASE、窗口和分区；\n3. 输出粒度：只根据 operators.group_by、窗口分区和目标字段判断；\n4. 重点口径：按目标字段合并 field_lineage，保留完整表达式。\n\n## 证据标签\n- SQL/DDL 明确证据\n- 结构解释\n- 待业务确认",
       versions: [
         { version: "v1.2-portal", time: "2026-08-31 16:00", operator: "曾祥竞", note: "移植到观星台网关，接入中转站模型", current: true },
@@ -2082,11 +2081,10 @@
       stats: { calls: 128, successRate: "98.4%", avgLatency: "14.2s", tokens: "38.6万" }
     },
     {
-      id: "asset-qa", name: "数据资产问答 Skill", source: "asset-qa", version: "v0.9", status: "灰度中", traffic: 20,
+      id: "asset-qa", name: "数据资产问答 Skill", source: "asset-qa", version: "v0.9", grayUsers: ["曾祥竞"],
       icon: "📚", title: "数据资产问答", displayDesc: "有哪些表、口径、负责人", sort: 30, scenarioKey: "asset", enabled: true,
       desc: "基于表资产元数据回答有哪些表、口径是什么、负责人是谁。",
       scenarios: "资产检索 / 口径问答",
-      model: "gpt-5.4-mini",
       prompt: "你是观星台数据平台的资产问答助手。\n只推荐用户有权限的数据表；清单外的可能性标注「权限外，未纳入」。",
       versions: [
         { version: "v0.9", time: "2026-08-30 10:00", operator: "曾祥竞", note: "接入表权限过滤", current: true },
@@ -2095,21 +2093,19 @@
       stats: { calls: 42, successRate: "100%", avgLatency: "6.8s", tokens: "9.1万" }
     },
     {
-      id: "lineage-analyst", name: "数据血缘分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100,
+      id: "lineage-analyst", name: "数据血缘分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", grayUsers: [],
       icon: "🔗", title: "数据血缘分析", displayDesc: "上下游依赖与影响面", sort: 20, scenarioKey: "lineage", enabled: true,
       desc: "基于 SQL 语料与 AST 解析输出表/字段的上下游血缘与变更影响面。",
       scenarios: "血缘上下游 / 变更影响分析",
-      model: "gpt-5.4-mini",
       prompt: "你是观星台数据平台的血缘分析助手。\n基于提供的表上下游血缘证据，输出 Markdown 报告。",
       versions: [{ version: "v1.2-portal", time: "2026-08-31 16:10", operator: "曾祥竞", note: "复用数仓语料血缘能力", current: true }],
       stats: { calls: 87, successRate: "97.7%", avgLatency: "11.5s", tokens: "21.3万" }
     },
     {
-      id: "attribution-analyst", name: "归因分析 Skill", source: "attribution-analyst", version: "v0.5", status: "已发布", traffic: 100,
+      id: "attribution-analyst", name: "归因分析 Skill", source: "attribution-analyst", version: "v0.5", grayUsers: [],
       icon: "🎯", title: "归因分析", displayDesc: "指标异动拆解与定位", sort: 40, scenarioKey: "attribution", enabled: true,
       desc: "对指标异动做维度拆解（媒体/产品/计划），定位贡献度与原因。",
       scenarios: "指标异动 / 维度拆解",
-      model: "gpt-5.4-mini",
       prompt: "你是观星台数据平台的归因分析助手。\n基于聚合统计对指标异动做维度拆解，所有数字必须来自证据。",
       versions: [{ version: "v0.5", time: "2026-08-29 14:00", operator: "曾祥竞", note: "接入聚合证据层", current: true }],
       stats: { calls: 56, successRate: "100%", avgLatency: "13.8s", tokens: "15.7万" }
@@ -2131,11 +2127,10 @@
             <el-table-column prop="source" label="来源包" width="230"><template #default="scope"><code class="portal-vue-code">{{ scope.row.source }}</code></template></el-table-column>
             <el-table-column label="工作台展示" min-width="200"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:6px"><span>{{ scope.row.icon }}</span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">不展示</span></template></el-table-column>
             <el-table-column prop="version" label="当前版本" width="120"></el-table-column>
-            <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="scope.row.status==='已发布'?'success':'warning'" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
-            <el-table-column label="灰度" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:8px"><el-progress :percentage="scope.row.traffic" :stroke-width="6" :show-text="false" style="flex:1"></el-progress><span class="portal-vue-muted">{{ scope.row.traffic }}%</span></div></template></el-table-column>
-            <el-table-column prop="model" label="模型" width="140"></el-table-column>
+            <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="skillStatus(scope.row)==='已发布'?'success':'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></template></el-table-column>
+            <el-table-column label="灰度用户" min-width="170"><template #default="scope"><div v-if="scope.row.grayUsers.length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.grayUsers.slice(0,3)" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="scope.row.grayUsers.length>3" class="portal-vue-muted">+{{ scope.row.grayUsers.length-3 }}</span></div><span v-else class="portal-vue-muted">全量发布</span></template></el-table-column>
             <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
-            <el-table-column label="操作" width="360" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openDisplay(scope.row)">展示设置</el-button><el-button link type="primary" @click="openPrompt(scope.row)">提示词</el-button><el-button link type="primary" @click="openVersions(scope.row)">版本</el-button><el-button link type="primary" @click="toggleStatus(scope.row)">{{ scope.row.status==='已发布'?'灰度调整':'发布' }}</el-button><el-button link type="primary" @click="testRun(scope.row)">试跑</el-button></div></template></el-table-column>
+            <el-table-column label="操作" width="300" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openDisplay(scope.row)">展示设置</el-button><el-button link type="primary" @click="openPrompt(scope.row)">提示词</el-button><el-button link type="primary" @click="openVersions(scope.row)">版本</el-button><el-button link type="primary" @click="openGray(scope.row)">灰度用户</el-button></div></template></el-table-column>
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">Skill 以 ZIP 包（SKILL.md + 脚本 + 依赖清单）上传到网关统一执行；提示词与版本更新即时生效，无需发版。</div>
         </section>
@@ -2171,19 +2166,22 @@
           </el-form>
           <template #footer><el-button @click="displayVisible=false">取消</el-button><el-button type="primary" @click="saveDisplay">保存</el-button></template>
         </el-dialog>
-        <el-dialog v-model="testVisible" :title="(activeSkill?.name || '') + ' · 沙箱试跑'" width="720px">
+        <el-dialog v-model="grayVisible" :title="(activeSkill?.name || '') + ' · 灰度用户'" width="600px">
           <div class="portal-vue-skill-drawer">
-            <el-input v-model="testQuestion" type="textarea" :rows="3" placeholder="输入试跑问题，如：dws_ad_cost_daily 为什么这么设计？"></el-input>
-            <div style="display:flex;gap:10px;justify-content:flex-end"><el-button @click="testVisible=false">关闭</el-button><el-button type="primary" :loading="testing" @click="runTest">运行</el-button></div>
-            <pre v-if="testOutput" class="portal-vue-skill-test-output">{{ testOutput }}</pre>
+            <el-alert type="info" :closable="false" title="不选任何用户 = 全量发布；选择部分用户 = 仅这些用户在灵犀智析和飞书机器人中可见该 Skill。" :show-icon="true"></el-alert>
+            <el-checkbox-group v-model="grayDraft" class="portal-vue-gray-users">
+              <el-checkbox v-for="user in activeUsers" :key="user.name" :value="user.name" border>{{ user.name }}<small>{{ user.dept }}</small></el-checkbox>
+            </el-checkbox-group>
           </div>
+          <template #footer><el-button @click="grayVisible=false">取消</el-button><el-button type="primary" @click="saveGray">保存</el-button></template>
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({keyword:"",promptVisible:false,versionsVisible:false,testVisible:false,displayVisible:false,displayForm:{},activeSkill:null,promptDraft:"",testQuestion:"",testOutput:"",testing:false}),
+    data:()=>({keyword:"",promptVisible:false,versionsVisible:false,grayVisible:false,grayDraft:[],displayVisible:false,displayForm:{},activeSkill:null,promptDraft:""}),
     computed:{
       skills(){refreshTick.value;return state.skills||[];},
-      filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));}
+      filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));},
+      activeUsers(){refreshTick.value;return state.users.filter(user=>user.status!=="已停用");}
     },
     methods:{
       notifyUpload(){ep.ElMessage.info("演示环境：正式版将在此上传 skill ZIP 包并注册到网关");},
@@ -2199,22 +2197,17 @@
       savePrompt(){this.activeSkill.prompt=this.promptDraft;this.promptVisible=false;notify(`「${this.activeSkill.name}」提示词已保存，下次分析生效`);},
       openVersions(row){this.activeSkill=row;this.versionsVisible=true;},
       rollback(item){this.activeSkill.versions.forEach(version=>version.current=version===item);this.activeSkill.version=item.version;this.versionsVisible=false;notify(`「${this.activeSkill.name}」已回滚到 ${item.version}`);},
-      toggleStatus(row){
-        if(row.status==="已发布"){row.status="灰度中";row.traffic=20;notify(`「${row.name}」已切换为灰度 20%`);}
-        else{row.status="已发布";row.traffic=100;notify(`「${row.name}」已全量发布`);}
+      skillStatus(row){
+        if(!row.grayUsers.length)return "已发布";
+        const total=state.users.filter(user=>user.status!=="已停用").length;
+        return row.grayUsers.length>=total?"已发布":"灰度中";
       },
-      async testRun(row){
-        this.activeSkill=row;this.testQuestion="";this.testOutput="";this.testVisible=true;
-      },
-      async runTest(){
-        if(!this.testQuestion.trim())return ep.ElMessage.warning("请输入试跑问题");
-        this.testing=true;this.testOutput="";
-        try{
-          const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user:"曾祥竞",question:this.testQuestion,scenario:"single",tables:[],model:this.activeSkill.model})});
-          const data=await response.json();
-          this.testOutput=response.ok?`# 试跑结果（${data.meta?.model} · ${(data.meta?.latencyMs/1000||0).toFixed(1)}s）\n\n${data.report}`:`试跑失败：${data.error}`;
-        }catch(error){this.testOutput=`试跑失败：${error.message}（请确认网关已启动）`;}
-        this.testing=false;
+      openGray(row){this.activeSkill=row;this.grayDraft=[...row.grayUsers];this.grayVisible=true;},
+      saveGray(){
+        this.activeSkill.grayUsers=[...this.grayDraft];
+        this.grayVisible=false;
+        const status=this.skillStatus(this.activeSkill);
+        notify(`「${this.activeSkill.name}」${status==="已发布"?"已全量发布":"已灰度给 "+this.activeSkill.grayUsers.length+" 位用户"}`);
       }
     }
   };
