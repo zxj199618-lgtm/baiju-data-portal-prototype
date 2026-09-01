@@ -1776,20 +1776,24 @@
             const reader=response.body.getReader();
             const decoder=new TextDecoder();
             let buffer="",full="",meta=null,errorMsg="",reasoningText="";
-            const idleTimeoutMs=45000;
+            const idleTimeoutMs=45000, textIdleMs=60000;
+            let lastDataAt=Date.now(), lastTextAt=Date.now();
+            const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
             while(true){
+              const elapsedData=Date.now()-lastDataAt;
+              if(elapsedData>idleTimeoutMs){errorMsg="连接空闲超时（45s 无数据），模型响应中断，请重试";break;}
+              if((full||reasoningText)&&Date.now()-lastTextAt>textIdleMs){errorMsg="模型输出停滞（60s 无新内容），请重试";break;}
               let chunk;
               try{
                 chunk=await Promise.race([
                   reader.read(),
-                  new Promise((_,reject)=>setTimeout(()=>reject(new Error("idle")),idleTimeoutMs))
+                  wait(Math.min(idleTimeoutMs-elapsedData, textIdleMs))
                 ]);
-              }catch(err){
-                errorMsg=err.message==="idle"?"连接空闲超时，模型响应中断，请重试":err.message;
-                break;
-              }
+              }catch(err){errorMsg="模型响应中断，请重试";break;}
+              if(!chunk)continue;
               const {done,value}=chunk;
               if(done)break;
+              lastDataAt=Date.now();
               buffer+=decoder.decode(value,{stream:true});
               const parts=buffer.split("\n\n");
               buffer=parts.pop();
@@ -1799,12 +1803,14 @@
                 let evt;try{evt=JSON.parse(line.slice(5).trim());}catch(err){continue;}
                 if(evt.delta){
                   this.thinking=false;
+                  lastTextAt=Date.now();
                   full+=evt.delta;
                   liveMsg.lines=[full];
                   this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
                 }
                 if(evt.reasoning){
                   this.thinking=false;
+                  lastTextAt=Date.now();
                   reasoningText+=evt.reasoning;
                   if(!full)liveMsg.lines=["🤔 思考中："+reasoningText.slice(-80)];
                   this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
