@@ -1099,6 +1099,8 @@ async function relayChatStream(model, payload, onEvent) {
           if (obj.usage) usage = obj.usage;
           const delta = obj.choices?.[0]?.delta?.content || "";
           if (delta) { content += delta; onEvent({ delta }); }
+          const reasoning = obj.choices?.[0]?.delta?.reasoning_content || "";
+          if (reasoning) onEvent({ reasoning });
         } catch { /* 忽略心跳等非 JSON 行 */ }
       }
     }
@@ -1392,7 +1394,10 @@ const server = http.createServer(async (req, res) => {
       const reasoningOptions = {};
       if (["low", "medium", "high"].includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
       if (Number.isFinite(maxTokens) && maxTokens >= 256) reasoningOptions.max_completion_tokens = Math.floor(maxTokens);
-      let result = await relayChatStream(model, { messages, ...reasoningOptions }, evt => send({ delta: evt.delta }));
+      let result = await relayChatStream(model, { messages, ...reasoningOptions }, evt => {
+        if (evt.delta) send({ delta: evt.delta });
+        if (evt.reasoning) send({ reasoning: evt.reasoning });
+      });
       if (!result.ok && Object.keys(reasoningOptions).length) {
         send({ notice: "当前模型不支持推理参数，已自动降级重试" });
         result = await relayChatStream(model, { messages }, evt => send({ delta: evt.delta }));

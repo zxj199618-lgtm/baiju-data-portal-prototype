@@ -1764,7 +1764,7 @@
             const liveMsg=session.messages[session.messages.length-1];
             const reader=response.body.getReader();
             const decoder=new TextDecoder();
-            let buffer="",full="",meta=null,errorMsg="";
+            let buffer="",full="",meta=null,errorMsg="",reasoningText="";
             const idleTimeoutMs=45000;
             while(true){
               let chunk;
@@ -1790,6 +1790,12 @@
                   this.thinking=false;
                   full+=evt.delta;
                   liveMsg.lines=[full];
+                  this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
+                }
+                if(evt.reasoning){
+                  this.thinking=false;
+                  reasoningText+=evt.reasoning;
+                  if(!full)liveMsg.lines=["🤔 思考中："+reasoningText.slice(-80)];
                   this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
                 }
                 if(evt.done)meta=evt.meta||{};
