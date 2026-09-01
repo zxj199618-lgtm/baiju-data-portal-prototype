@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>分析报告分享</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 32px 16px; background: #f2f4f8; font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: #2a3446; }
+    .wrap { max-width: 860px; margin: 0 auto; }
+    .head { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .logo { width: 34px; height: 34px; border-radius: 8px; background: #1677ff; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+    .head b { font-size: 17px; color: #1f2733; }
+    .head span { font-size: 12.5px; color: #8a94a6; }
+    .card { background: #fff; border: 1px solid #e4e9f2; border-radius: 14px; padding: 28px 32px; }
+    h1.title { margin: 0 0 6px; font-size: 21px; color: #1f2733; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 18px; }
+    .tag { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: #f0f7ff; color: #1677ff; border: 1px solid #dbe8fb; }
+    .tag.green { background: #f0fff8; color: #12a35b; border-color: #c8f2de; }
+    .question { padding: 12px 16px; border-radius: 10px; background: #f3f6fa; margin-bottom: 18px; font-size: 14px; }
+    .question b { font-size: 12px; color: #8a94a6; display: block; margin-bottom: 4px; }
+    .report { font-size: 14px; line-height: 1.85; overflow-wrap: break-word; }
+    .report h1, .report h2 { font-size: 18px; margin: 18px 0 8px; color: #1f2733; }
+    .report h3 { font-size: 16px; margin: 16px 0 6px; color: #1f2733; }
+    .report h4, .report h5 { font-size: 14px; margin: 12px 0 6px; color: #1f2733; }
+    .report p { margin: 8px 0; }
+    .report ul, .report ol { margin: 8px 0; padding-left: 22px; }
+    .report li { margin: 4px 0; }
+    .report code { padding: 1px 6px; border-radius: 4px; background: #eef1f6; font-size: 12.5px; color: #c74545; }
+    .report pre { padding: 12px 14px; border-radius: 8px; background: #f3f6fa; overflow-x: auto; }
+    .report pre code { background: transparent; color: #2a3446; }
+    .report table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px; }
+    .report th, .report td { border: 1px solid #e4e9f2; padding: 7px 11px; text-align: left; word-break: break-all; }
+    .report th { background: #f7f9fc; font-weight: 650; }
+    .report blockquote { margin: 10px 0; padding: 8px 14px; border-left: 3px solid #dbe8fb; background: #f7faff; color: #51607a; }
+    .foot { margin-top: 22px; text-align: center; font-size: 12px; color: #a5aebd; }
+    .error { text-align: center; padding: 60px 0; color: #8a94a6; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <div class="logo">观</div>
+      <div><b>观星台 · 灵犀智析</b><br /><span>分析报告分享</span></div>
+    </div>
+    <div class="card" id="card">
+      <div class="error">加载中…</div>
+    </div>
+    <div class="foot">本报告由观星台灵犀智析生成 · 数字为生成时点数据 · 转载请注明来源</div>
+  </div>
+  <script>
+    (function () {
+      const id = new URLSearchParams(location.search).get("id");
+      const card = document.getElementById("card");
+      if (!id) { card.innerHTML = '<div class="error">缺少分享 ID</div>'; return; }
+      const gatewayBase = location.port === "8787" ? "" : (location.protocol + "//" + location.hostname + ":8787");
+      fetch(gatewayBase + "/v1/shares/" + encodeURIComponent(id))
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) { card.innerHTML = '<div class="error">' + data.error + "</div>"; return; }
+          card.innerHTML =
+            '<h1 class="title">' + esc(data.title) + "</h1>" +
+            '<div class="meta">' +
+            (data.scenario ? '<span class="tag">' + esc(data.scenario) + "</span>" : "") +
+            (data.model ? '<span class="tag">模型 ' + esc(data.model) + "</span>" : "") +
+            '<span class="tag green">已生成归档</span>' +
+            (data.createdAt ? '<span class="tag">' + esc(data.createdAt.slice(0, 16).replace("T", " ")) + "</span>" : "") +
+            (data.createdBy ? '<span class="tag">生成人 ' + esc(data.createdBy) + "</span>" : "") +
+            "</div>" +
+            (data.question ? '<div class="question"><b>分析问题</b>' + esc(data.question) + "</div>" : "") +
+            (data.tablesUsed && data.tablesUsed.length ? '<div class="meta">' + data.tablesUsed.map(t => '<span class="tag">' + esc(t) + "</span>").join("") + "</div>" : "") +
+            '<div class="report">' + renderMarkdown(String(data.report || "")) + "</div>";
+        })
+        .catch(() => { card.innerHTML = '<div class="error">加载失败：请确认分析网关已启动（' + gatewayBase + "）</div>"; });
+
+      function esc(value) {
+        return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      function renderMarkdown(markdown) {
+        const lines = String(markdown).split(/\r?\n/);
+        let html = "", inCode = false, inTable = false, inList = false, listType = "ul";
+        const inline = value => esc(value)
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        const closeList = () => { if (inList) { html += "</" + listType + ">"; inList = false; } };
+        const closeTable = () => { if (inTable) { html += "</tbody></table>"; inTable = false; } };
+        lines.forEach(raw => {
+          const line = raw.trimEnd();
+          if (/^```/.test(line)) { closeList(); closeTable(); if (inCode) { html += "</code></pre>"; inCode = false; } else { html += "<pre><code>"; inCode = true; } return; }
+          if (inCode) { html += esc(raw) + "\n"; return; }
+          if (/^\|.*\|$/.test(line)) {
+            const cells = line.replace(/^\||\|$/g, "").split("|");
+            if (cells.every(cell => /^\s*:?-{2,}:?\s*$/.test(cell))) return;
+            const isHead = !inTable;
+            if (!inTable) { html += '<table><tbody>'; inTable = true; }
+            html += "<tr>" + cells.map(cell => (isHead ? "<th>" : "<td>") + inline(cell.trim()) + (isHead ? "</th>" : "</td>")).join("") + "</tr>";
+            return;
+          }
+          closeTable();
+          if (/^#{1,4}\s/.test(line)) { closeList(); const level = Math.min(line.match(/^#+/)[0].length + 1, 5); html += "<h" + level + ">" + inline(line.replace(/^#+\s*/, "")) + "</h" + level + ">"; return; }
+          if (/^[-*]\s/.test(line)) { if (!inList || listType !== "ul") { closeList(); html += "<ul>"; inList = true; listType = "ul"; } html += "<li>" + inline(line.replace(/^[-*]\s*/, "")) + "</li>"; return; }
+          if (/^\d+\.\s/.test(line)) { if (!inList || listType !== "ol") { closeList(); html += "<ol>"; inList = true; listType = "ol"; } html += "<li>" + inline(line.replace(/^\d+\.\s*/, "")) + "</li>"; return; }
+          if (/^>\s?/.test(line)) { closeList(); html += "<blockquote>" + inline(line.replace(/^>\s?/, "")) + "</blockquote>"; return; }
+          if (/^(---|\*\*\*)$/.test(line)) { closeList(); html += '<hr style="border:0;border-top:1px solid #e4e9f2;margin:14px 0">'; return; }
+          closeList();
+          if (!line.trim()) return;
+          html += "<p>" + inline(line) + "</p>";
+        });
+        closeList(); closeTable();
+        if (inCode) html += "</code></pre>";
+        return html;
+      }
+    })();
+  </script>
+</body>
+</html>

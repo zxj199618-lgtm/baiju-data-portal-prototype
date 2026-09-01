@@ -1199,6 +1199,7 @@
       tables: seed.tables || [],
       summary: seed.summary || "",
       messages: seed.messages ? seed.messages.map(msg => ({ ...msg, lines: msg.lines ? [...msg.lines] : undefined, refs: msg.refs ? [...msg.refs] : undefined })) : [],
+      markdown: seed.markdown || "",
       starred: seed.starred || false
     };
   }
@@ -1388,6 +1389,7 @@
                     <span class="portal-vue-ai-asset-source-title">{{ report.title.replace(' · 报告', '') }}</span>
                   </el-button>
                   <el-button v-if="report.sourceId && findSession(report.sourceId)" link type="primary" @click="jumpToSource(report)">→ 打开会话</el-button>
+                  <el-button link type="primary" :loading="report._sharing" @click="shareReport(report)">{{ report._shared ? "已复制链接" : "分享" }}</el-button>
                   <el-button link type="danger" @click="removeReport(report)">删除</el-button>
                 </div>
               </article>
@@ -1527,6 +1529,34 @@
         notify(`报告「${report.title}」已删除`);
       },
       findSession(id){return this.sessions.find(item=>item.id===id);},
+      async shareReport(report){
+        report._sharing=true;
+        try{
+          const gatewayBase=analysisGatewayBase;
+          const response=await fetch(`${gatewayBase}/v1/shares`,{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({
+              title:report.title,
+              scenario:report.scenario,
+              model:report.model||"",
+              tablesUsed:report.tables,
+              question:(report.messages.find(msg=>msg.role==="user")?.lines||[]).join(" "),
+              report:report.markdown||report.summary||"",
+              createdBy:this.currentUser?.name||""
+            })
+          });
+          const data=await response.json();
+          if(!response.ok)throw new Error(data.error||"生成失败");
+          const shareUrl=`${location.origin}${location.pathname}share.html?id=${data.id}`;
+          try{await navigator.clipboard.writeText(shareUrl);}catch(error){}
+          report._shared=true;
+          ep.ElMessageBox.alert(`分享链接已生成并复制到剪贴板（网关未连接剪贴板时请手动复制）：<br><input readonly onclick=\"this.select()\" value=\"${shareUrl}\" style="width:100%;margin-top:8px;padding:6px 10px;border:1px solid #dcdfe6;border-radius:6px">`, "分享链接", { dangerouslyUseHTMLString: true, confirmButtonText: "完成" });
+        }catch(error){
+          ep.ElMessage.error(`生成分享链接失败：${error.message}，请确认网关已启动`);
+        }
+        report._sharing=false;
+      },
       jumpToSource(report){
         const session=report.sourceId?this.findSession(report.sourceId):null;
         if(!session){ep.ElMessage.info("演示数据：来源会话已归档，可在左侧会话记录中查看");return;}
@@ -1537,7 +1567,7 @@
         report.starred=!report.starred;
         notify(report.starred?"已收藏":"已取消收藏");
       },
-      archiveReport(session,question,reportData){
+      archiveReport(session,question,reportData,markdownText){
         const report=createAnalysisReport({
           sourceId:session.id,
           title:`${session.title} · 报告`,
@@ -1653,7 +1683,7 @@
               liveMsg.lines=[];
               liveMsg.meta=this.buildMetaLine(meta||{});
               const plainSummary=String(full).replace(/[#*`|>\-]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,2).join("；").slice(0,120);
-              this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:plainSummary});
+              this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:plainSummary},full);
             }
           }
         }catch(error){

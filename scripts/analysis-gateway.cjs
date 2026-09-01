@@ -26,6 +26,7 @@ const PORT = Number(process.env.PORT || 8787);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 const PERMISSIONS_FILE = path.join(DATA_DIR, "user-permissions.json");
 const MODEL_CONFIG_FILE = path.join(DATA_DIR, "model-config.json");
+const SHARES_FILE = path.join(DATA_DIR, "report-shares.json");
 const SAMPLE_DATA_FILE = path.join(DATA_DIR, "sample-data.json");
 const DEFAULT_MODEL = "gpt-5.4-mini";
 const TODAY = "2026-08-31";
@@ -740,6 +741,17 @@ function saveModelConfig(config) {
   fs.renameSync(tmp, MODEL_CONFIG_FILE);
 }
 
+function loadShares() {
+  try { return JSON.parse(fs.readFileSync(SHARES_FILE, "utf8")); } catch { return {}; }
+}
+
+function saveShares(shares) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const tmp = `${SHARES_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(shares, null, 2));
+  fs.renameSync(tmp, SHARES_FILE);
+}
+
 function userTables(userName) {
   const user = users.find(item => item.name === userName);
   if (!user) return [];
@@ -946,6 +958,31 @@ const server = http.createServer(async (req, res) => {
     } catch (error) {
       return sendJson(res, 502, { error: `中转站不可达：${error.message}` });
     }
+  }
+
+  if (req.method === "POST" && url.pathname === "/v1/shares") {
+    const body = await readBody(req);
+    const id = crypto.randomBytes(6).toString("hex");
+    const shares = loadShares();
+    shares[id] = {
+      title: String(body.title || "分析报告").slice(0, 120),
+      scenario: String(body.scenario || "").slice(0, 40),
+      model: String(body.model || "").slice(0, 60),
+      tablesUsed: Array.isArray(body.tablesUsed) ? body.tablesUsed.slice(0, 8).map(item => String(item).slice(0, 60)) : [],
+      report: String(body.report || "").slice(0, 120000),
+      question: String(body.question || "").slice(0, 500),
+      createdBy: String(body.createdBy || "").slice(0, 40),
+      createdAt: new Date().toISOString()
+    };
+    saveShares(shares);
+    return sendJson(res, 200, { id, url: `/share.html?id=${id}` });
+  }
+
+  const shareMatch = url.pathname.match(/^\/v1\/shares\/([a-f0-9]+)$/);
+  if (req.method === "GET" && shareMatch) {
+    const share = loadShares()[shareMatch[1]];
+    if (!share) return sendJson(res, 404, { error: "分享链接不存在或已被删除" });
+    return sendJson(res, 200, share);
   }
 
   const modelConfigMatch = url.pathname.match(/^\/v1\/model-config\/(.+)$/);
