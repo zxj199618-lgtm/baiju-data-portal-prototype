@@ -7,7 +7,7 @@
         { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: ["2.0", "3.0", "4.0"] }, { name: "标签管理", badge: "3.0" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
         { group: "数据推送", icon: "push", badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },
-        { group: "系统管理", icon: "system", items: [{ name: "菜单管理" }, { name: "模型配置" }, { name: "Skill 配置", badge: "5.0" }] }
+        { group: "系统管理", icon: "system", items: [{ name: "菜单管理" }, { name: "模型配置", badge: "5.0" }, { name: "Skill 配置", badge: "5.0" }] }
       ];
       const boardCategories = [
               "全部",
