@@ -18,6 +18,11 @@ const audienceVue = read("assets/cp-vue-module.js");
 const shareHtml = read("share.html");
 assert(exists("share.html"), "缺少公开报告页 share.html");
 assert(shareHtml.includes('gatewayBase = "http://localhost:8787"') && shareHtml.includes('portalGatewayBase'), "share.html 应默认连接本机网关且支持 portalGatewayBase 覆盖，保证线上链接可打开");
+assert(exists("docker-compose.prod.yml") && exists("Caddyfile"), "应提供服务器正式部署的 compose 与 Caddyfile");
+const prodCompose = read("docker-compose.prod.yml");
+assert(prodCompose.includes("caddy") && prodCompose.includes("DOMAIN"), "正式部署应使用 Caddy 自动 HTTPS 并绑定 DOMAIN");
+assert(gatewaySource.includes("PUBLIC_DIR") && gatewaySource.includes("window.PORTAL_GATEWAY_BASE"), "网关应同源托管静态页面并注入网关地址标记");
+assert(portalVue.includes("window.PORTAL_GATEWAY_BASE") && shareHtml.includes("window.PORTAL_GATEWAY_BASE"), "前端与分享页应优先使用同源网关地址（域名部署时链接可直接打开）");
 
 [
   "assets/portal-bridge.js",

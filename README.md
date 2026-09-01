@@ -44,17 +44,31 @@ curl http://localhost:8787/v1/models
 | GET | `/v1/models` | 中转站可用模型列表（已过滤图像/语音模型） |
 | POST | `/v1/analyze` | 发起分析，入参 `{ user, question, scenario, tables, model }` |
 
-## 服务器部署（给开发 / 测试 / UI 演示）
+## 服务器部署（推荐：容器自带页面托管 + Caddy HTTPS）
+
+网关现在**同源托管前端页面与分享页**（`/` 与 `/share.html?id=…`），报告分享链接用你自己的域名即可直接打开，同事无需登录。
 
 ```bash
+# 1. 服务器上安装 Docker + Docker Compose 插件
+# 2. 把域名 A 记录解析到服务器（如 data.example.com -> 服务器 IP），等待生效
+# 3. 获取代码并配置环境
 git clone <本仓库> && cd 观星台原型
-cp .env.example .env             # 填入 RELAY_API_KEY
-docker compose up -d --build     # 网关跑在 8787
-
-# 静态页面用任意静态服务器，例如：
-docker run -d --name guanxingta-web -p 8080:80 \
-  -v "$PWD":/usr/share/nginx/html:ro nginx:alpine
+cp .env.example .env
+vim .env        # 填入 RELAY_API_KEY 与 DOMAIN（如 data.example.com）
+# 4. 启动（首次自动申请 HTTPS 证书）
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-访问 `http://<服务器IP>:8080` 即为原型页面，灵犀智析（分析工作台）会自动连接同机的 8787 网关。
-生产环境建议在前面加一层 Nginx 把 `/v1/*` 反代到网关，避免跨端口。
+访问 `https://<域名>/` 即完整的观星台（页面 + 灵犀智析分析 + 分享链接）。
+
+### 需要服务器放行的端口
+
+- 80/443（Caddy，对外 HTTPS）；网关 8787 为容器内部端口，无需对公网开放。
+
+### 用服务器 IP 快速试（无域名）
+
+```bash
+docker compose up -d --build        # 网关跑在 8787，页面与 API 同源托管
+```
+
+访问 `http://<服务器IP>:8787/` 即可，功能与域名部署一致（无 HTTPS）。

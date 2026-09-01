@@ -1,0 +1,40 @@
+name: guanxingta-prototype
+
+# 服务器正式部署：网关（同源托管页面+API）+ Caddy（自动 HTTPS）
+# 前置：把域名 A 记录解析到本服务器；cp .env.example .env 填入 RELAY_API_KEY 与 DOMAIN
+# 启动：docker compose -f docker-compose.prod.yml up -d --build
+services:
+  analysis-gateway:
+    build: .
+    container_name: guanxingta-gateway
+    restart: unless-stopped
+    environment:
+      RELAY_BASE_URL: "https://simindapi.modelgs.com"
+      RELAY_API_KEY: "${RELAY_API_KEY:?请在 .env 中设置 RELAY_API_KEY（多个 key 用英文逗号分隔）}"
+      PORT: "8787"
+      DATA_DIR: "/app/data"
+      PUBLIC_DIR: "/app"
+    volumes:
+      - gateway-data:/app/data
+
+  caddy:
+    image: caddy:2
+    container_name: guanxingta-caddy
+    restart: unless-stopped
+    depends_on:
+      - analysis-gateway
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: "${DOMAIN:?请在 .env 中设置 DOMAIN，例如 data.example.com}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  gateway-data:
+  caddy-data:
+  caddy-config:

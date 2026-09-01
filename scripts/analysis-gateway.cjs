@@ -25,6 +25,7 @@ const RELAY_BASE_URL = process.env.RELAY_BASE_URL || "https://simindapi.modelgs.
 const RELAY_API_KEYS = (process.env.RELAY_API_KEY || "").split(",").map(key => key.trim()).filter(Boolean);
 const PORT = Number(process.env.PORT || 8787);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+const PUBLIC_DIR = process.env.PUBLIC_DIR || path.join(__dirname, "..");
 const PERMISSIONS_FILE = path.join(DATA_DIR, "user-permissions.json");
 const MODEL_CONFIG_FILE = path.join(DATA_DIR, "model-config.json");
 const SHARES_FILE = path.join(DATA_DIR, "report-shares.json");
@@ -1554,6 +1555,35 @@ const server = http.createServer(async (req, res) => {
       });
     } catch (error) {
       return sendJson(res, 502, { error: `分析失败：${error.message}` });
+    }
+  }
+
+  // 静态页面托管（与 API 同源）：入口与报告分享页由网关直接提供，
+  // 并注入 PORTAL_GATEWAY_BASE="" 让前端用相对路径访问同一网关，域名部署时分享链接可直接打开。
+  if (req.method === "GET" && !url.pathname.startsWith("/v1/")) {
+    const pathname = "/" + decodeURIComponent(url.pathname).replace(/^\/+/, "");
+    const fileName = pathname === "/" ? "/index.html" : pathname;
+    const filePath = path.resolve(PUBLIC_DIR, "." + fileName);
+    const publicRoot = path.resolve(PUBLIC_DIR);
+    if (filePath === publicRoot || filePath.startsWith(publicRoot + path.sep)) {
+      let content = null;
+      try { content = fs.readFileSync(filePath); } catch (error) { /* 不存在则走下方 404 */ }
+      if (content) {
+        if (filePath.endsWith("index.html") || filePath.endsWith("share.html")) {
+          content = Buffer.from(content.toString("utf8").replace(/<\/head>/i, '<script>window.PORTAL_GATEWAY_BASE="";</script></head>'));
+        }
+        const ext = path.extname(filePath).toLowerCase();
+        const types = {
+          ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+          ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".ico": "image/x-icon",
+          ".json": "application/json; charset=utf-8", ".webp": "image/webp", ".woff": "font/woff", ".woff2": "font/woff2"
+        };
+        res.writeHead(200, {
+          "Content-Type": types[ext] || "application/octet-stream",
+          "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=3600"
+        });
+        return res.end(content);
+      }
     }
   }
 

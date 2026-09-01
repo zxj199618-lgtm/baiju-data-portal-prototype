@@ -1,7 +1,9 @@
 FROM node:22-alpine
 WORKDIR /app
 COPY scripts/analysis-gateway.cjs ./analysis-gateway.cjs
-ENV PORT=8787 DATA_DIR=/app/data
+COPY index.html share.html ./
+COPY assets ./assets
+ENV PORT=8787 DATA_DIR=/app/data PUBLIC_DIR=/app
 RUN mkdir -p /app/data && chown node:node /app/data && apk add --no-cache unzip
 VOLUME /app/data
 EXPOSE 8787

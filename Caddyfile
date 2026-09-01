@@ -1,0 +1,5 @@
+# 观星台服务器正式部署：域名 -> 网关（页面+API 同源）
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy analysis-gateway:8787
+}

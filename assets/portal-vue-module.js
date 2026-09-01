@@ -1187,12 +1187,15 @@
   };
 
   const analysisGatewayBase = (() => {
+    // 网关同源托管页面时会注入 window.PORTAL_GATEWAY_BASE（空串），此时直接走相对路径访问同一网关；
+    try {
+      if (typeof window !== "undefined" && window.PORTAL_GATEWAY_BASE !== undefined) return String(window.PORTAL_GATEWAY_BASE).replace(/\/$/, "");
+    } catch (error) { /* 忽略异常 */ }
     try {
       const override = localStorage.getItem("portalGatewayBase");
       if (override !== null) return override.replace(/\/$/, "");
     } catch (error) { /* 忽略隐私模式异常 */ }
-    // 页面可能部署在 https（GitHub Pages 等），网关固定跑在本机 8787；
-    // 远程部署时用 localStorage.portalGatewayBase 覆盖。
+    // 页面可能部署在 GitHub Pages，网关固定跑在本机 8787；远程部署时用 localStorage.portalGatewayBase 覆盖。
     return "http://localhost:8787";
   })();
 
