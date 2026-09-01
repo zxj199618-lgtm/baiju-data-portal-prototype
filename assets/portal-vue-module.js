@@ -1297,14 +1297,14 @@
         <section class="portal-vue-panel">
           <div class="portal-vue-ai-layout">
             <aside class="portal-vue-ai-side">
-              <el-button class="portal-vue-ai-new" type="primary" plain @click="newSession">＋ 新的分析</el-button>
               <button type="button" class="portal-vue-ai-asset-btn" @click="assetDrawer = true">
                 <span class="portal-vue-ai-asset-btn-icon">📊</span>
                 <span class="portal-vue-ai-asset-btn-text">分析资产</span>
                 <el-tag size="small" round effect="plain">{{ reports.length }} 份报告</el-tag>
               </button>
-                            <el-scrollbar height="calc(100vh - 560px)">
+              <el-scrollbar height="calc(100vh - 500px)">
                 <div class="portal-vue-ai-sessions">
+                  <el-button class="portal-vue-ai-new" type="primary" plain @click="newSession">＋ 新的分析</el-button>
                   <p class="portal-vue-ai-group-label">会话记录 <span>含飞书机器人</span></p>
                   <template v-if="ongoingSessions.length">
                     <article v-for="session in ongoingSessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId }" @click="openSession(session.id)">
