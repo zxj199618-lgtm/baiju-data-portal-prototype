@@ -966,7 +966,7 @@
             <el-table-column prop="cnName" label="表中文名" min-width="150" show-overflow-tooltip></el-table-column>
             <el-table-column label="来源" width="120"><template #default="scope">{{ scope.row.maintainMode === "portal" ? "门户新建" : "表管理标记" }}</template></el-table-column>
             <el-table-column prop="owner" label="负责人" width="110"></el-table-column>
-            <el-table-column label="行数" width="80" align="right"><template #default="scope">{{ (scope.row.rows || []).length }}</template></el-table-column>
+            <el-table-column label="行数" width="90" align="right"><template #default="scope">{{ rowCount(scope.row) }}</template></el-table-column>
             <el-table-column prop="lastMaintained" label="最近维护时间" width="170"><template #default="scope">{{ scope.row.lastMaintained || "—" }}</template></el-table-column>
             <el-table-column label="操作" width="168" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openMaintain(scope.row)">维护数据</el-button><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button></div></template></el-table-column>
           </el-table>
@@ -1017,7 +1017,7 @@
         </el-drawer>
       </el-config-provider>
     `,
-    data: () => ({ status: "启用", keyword: "", origin: "", page: 1, pageSize: 10, createVisible: false, createForm: {}, detailVisible: false, detail: null, detailFields: [] }),
+    data: () => ({ status: "启用", keyword: "", origin: "", page: 1, pageSize: 10, createVisible: false, createForm: {}, detailVisible: false, detail: null, detailFields: [], gatewayCounts: null }),
     computed: {
       enabledDicts() { refreshTick.value; return state.dictionaries.filter(item => item.status === "启用"); },
       activeUsers() { return state.users.filter(user => user.status !== "已停用"); },
@@ -1029,9 +1029,23 @@
       pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
       rangeText() { if (!this.filteredRows.length) return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; }
     },
-    mounted() { this.primaryHandler = event => { if (event.detail?.page === "维表管理") this.openCreate(); }; window.addEventListener("portal:primary-action", this.primaryHandler); },
+    mounted() { this.primaryHandler = event => { if (event.detail?.page === "维表管理") { this.openCreate.call(this); this.loadGatewayCounts(); } }; window.addEventListener("portal:primary-action", this.primaryHandler); window.addEventListener("portal:data-change", this.loadGatewayCounts = () => this.fetchGatewayCounts()); this.fetchGatewayCounts(); },
     beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); },
     methods: {
+      async fetchGatewayCounts() {
+        try {
+          const response = await fetch(`${analysisGatewayBase}/v1/catalog`);
+          if (!response.ok) return;
+          const data = await response.json();
+          const counts = {};
+          (data.tables || []).forEach(table => { counts[table.name] = table.rows; });
+          this.gatewayCounts = counts;
+        } catch (error) { /* 网关未启动时显示本地行数 */ }
+      },
+      rowCount(row) {
+        if (this.gatewayCounts && this.gatewayCounts[row.cnName] !== undefined) return this.gatewayCounts[row.cnName];
+        return (row.rows || []).length;
+      },
       dictName(dictId) { return state.dictionaries.find(item => item.dictId === dictId)?.name || "—"; },
       enabledDictItems,
       dictHint,
@@ -1083,11 +1097,11 @@
             <div><span>最近维护</span><strong>{{ asset.lastMaintained || "尚未维护" }}</strong></div>
           </div>
           <div class="portal-vue-toolbar" style="padding:0 0 12px">
-            <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">带下拉的字段来自「关联字典」配置，选项是该字典的枚举值；未关联字典的字段手工输入。可在维表详情或表管理中修改关联。</span></div>
+            <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">带下拉的字段来自「关联字典」配置。<template v-if="gatewayLive">当前展示网关模拟数据前 100 行（共 {{ totalRows }} 行），保存后写回网关，AI 分析将使用最新数据。</template></span></div>
             <div class="portal-vue-actions"><el-button @click="addRow">新增行</el-button></div>
           </div>
           <el-table :data="draftRows" class="portal-vue-table" border empty-text="暂无数据，请新增行">
-            <el-table-column v-for="field in asset.fields" :key="field.name" min-width="180">
+            <el-table-column v-for="field in editorFields" :key="field.name" min-width="180">
               <template #header>
                 <span>{{ field.comment || field.name }}</span>
                 <el-tag v-if="field.dictId" size="small" effect="plain" class="portal-vue-field-dict">{{ dictLabel(field) }}</el-tag>
@@ -1106,14 +1120,31 @@
         <el-empty v-else description="未找到要维护的维表"></el-empty>
       </el-config-provider>
     `,
-    data: () => ({ draftRows: [] }),
+    data: () => ({ draftRows: [], gatewayFields: null, gatewayTotal: 0, gatewayLive: false, saving: false }),
     computed: {
-      asset() { refreshTick.value; return state.assets.find(item => item.assetId === bridge.getDimensionAssetId()) || null; }
+      asset() { refreshTick.value; return state.assets.find(item => item.assetId === bridge.getDimensionAssetId()) || null; },
+      editorFields() { return this.gatewayFields || this.asset?.fields || []; },
+      totalRows() { return this.gatewayLive ? this.gatewayTotal : this.draftRows.length; },
+      currentUser() { refreshTick.value; return state.users.find(user => user.name === "曾祥竞") || state.users[0]; }
     },
     mounted() { this.pageHandler = event => { if (event.detail?.page === "维表数据维护") this.load(); }; window.addEventListener("portal:page-change", this.pageHandler); this.load(); },
     beforeUnmount() { window.removeEventListener("portal:page-change", this.pageHandler); },
     methods: {
-      load() { this.draftRows = (this.asset?.rows || []).map(row => ({ ...row })); },
+      async load() {
+        this.draftRows = (this.asset?.rows || []).map(row => ({ ...row }));
+        this.gatewayFields = null; this.gatewayTotal = 0; this.gatewayLive = false;
+        const name = this.asset?.cnName;
+        if (!name) return;
+        try {
+          const response = await fetch(`${analysisGatewayBase}/v1/table-rows?name=${encodeURIComponent(name)}`);
+          if (!response.ok) return;
+          const data = await response.json();
+          this.gatewayFields = data.fields || null;
+          this.gatewayTotal = data.total || 0;
+          this.gatewayLive = true;
+          this.draftRows = (data.rows || []).slice(0, 100).map(row => ({ ...row }));
+        } catch (error) { /* 网关未启动时使用本地演示数据 */ }
+      },
       dictName(dictId) { return state.dictionaries.find(item => item.dictId === dictId)?.name || "字典"; },
       dictLabel(field) {
         const name = this.dictName(field.dictId);
@@ -1121,9 +1152,30 @@
         return name === title ? "枚举" : name;
       },
       dictItems(dictId) { return enabledDictItems(state.dictionaries.find(item => item.dictId === dictId)); },
-      addRow() { const row = {}; (this.asset?.fields || []).forEach(field => { row[field.name] = ""; }); this.draftRows.push(row); },
+      addRow() { const row = {}; this.editorFields.forEach(field => { row[field.name] = ""; }); this.draftRows.push(row); },
       async removeRow(index) { if (!await confirmAction("删除行", "确认删除该行数据？")) return; this.draftRows.splice(index, 1); },
-      save() { this.asset.rows = this.draftRows.map(row => ({ ...row })); this.asset.lastMaintained = "2026-08-28 16:40"; this.asset.maintainer = "曾祥竞"; notify(`维表「${this.asset.cnName}」已保存 ${this.asset.rows.length} 行`); this.back(); },
+      async save() {
+        const rows = this.draftRows.map(row => ({ ...row }));
+        this.asset.rows = rows.map(row => ({ ...row }));
+        this.asset.lastMaintained = new Date().toLocaleString("zh-CN", { hour12: false }).replaceAll("/", "-");
+        this.asset.maintainer = this.currentUser?.name || "曾祥竞";
+        if (this.gatewayLive) {
+          try {
+            const response = await fetch(`${analysisGatewayBase}/v1/table-rows/${encodeURIComponent(this.asset.cnName)}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ rows })
+            });
+            if (!response.ok) throw new Error("保存失败");
+            notify(`维表「${this.asset.cnName}」已保存并写回网关，AI 分析将使用最新数据`);
+          } catch (error) {
+            ep.ElMessage.warning("已保存到页面，但写回网关失败（网关未启动？）");
+          }
+        } else {
+          notify(`维表「${this.asset.cnName}」已保存 ${rows.length} 行`);
+        }
+        this.back();
+      },
       back() { bridge.setPage("维表管理"); }
     }
   };

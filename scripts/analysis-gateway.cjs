@@ -604,6 +604,13 @@ function rowsOf(cnName) {
   return sampleData?.tables?.[cnName] || [];
 }
 
+function persistSampleRows(cnName, rows) {
+  sampleData.tables[cnName] = rows;
+  const tmp = `${SAMPLE_DATA_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(sampleData));
+  fs.renameSync(tmp, SAMPLE_DATA_FILE);
+}
+
 /* ================= 聚合证据（喂给模型的事实层） ================= */
 
 const NUMERIC = /DECIMAL|BIGINT|INT/;
@@ -1005,6 +1012,29 @@ const server = http.createServer(async (req, res) => {
         return { name: table.cnName, physical: `${table.database}.${table.table}`, desc: table.desc, owner: table.owner, rows: rows.length, range: dates.length ? [dates[0], dates[dates.length - 1]] : null };
       })
     });
+  }
+
+  if (req.method === "GET" && url.pathname === "/v1/table-rows") {
+    const name = url.searchParams.get("name") || "";
+    const limit = Number(url.searchParams.get("limit") || 0);
+    const table = tables.find(item => item.cnName === name);
+    if (!table) return sendJson(res, 404, { error: `表不存在：${name}` });
+    const rows = rowsOf(name);
+    return sendJson(res, 200, {
+      name, total: rows.length,
+      fields: table.fields,
+      rows: limit > 0 ? rows.slice(0, limit) : rows
+    });
+  }
+
+  const tableRowsMatch = url.pathname.match(/^\/v1\/table-rows\/(.+)$/);
+  if (req.method === "PUT" && tableRowsMatch) {
+    const name = decodeURIComponent(tableRowsMatch[1]);
+    if (!tables.some(item => item.cnName === name)) return sendJson(res, 404, { error: `表不存在：${name}` });
+    const body = await readBody(req);
+    if (!Array.isArray(body.rows)) return sendJson(res, 400, { error: "rows 必须是数组" });
+    persistSampleRows(name, body.rows);
+    return sendJson(res, 200, { name, total: body.rows.length, updatedAt: new Date().toISOString() });
   }
 
   if (req.method === "GET" && url.pathname === "/v1/permissions") {
