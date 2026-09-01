@@ -1216,7 +1216,7 @@ async function relayChatStream(model, payload, onEvent) {
 
 /* ================= 路由 ================= */
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   if (req.method === "OPTIONS") return sendJson(res, 204, {});
   const url = new URL(req.url, "http://localhost");
 
@@ -1588,6 +1588,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   sendJson(res, 404, { error: "not found" });
+}
+
+// 全局兜底：任何 handler 异常（如非法 JSON 请求体）只返回 400，不拖垮服务进程
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch(error => {
+    try {
+      sendJson(res, 400, { error: `请求处理失败：${error && error.message ? error.message : "未知错误"}` });
+    } catch (sendError) { /* 响应可能已发出，忽略 */ }
+    if (error && error.message) console.error("网关请求处理异常：", error.message);
+  });
 });
 
 loadSampleData();

@@ -22,6 +22,7 @@ assert(exists("docker-compose.prod.yml") && exists("Caddyfile"), "应提供服�
 const prodCompose = read("docker-compose.prod.yml");
 assert(prodCompose.includes("caddy") && prodCompose.includes("DOMAIN"), "正式部署应使用 Caddy 自动 HTTPS 并绑定 DOMAIN");
 assert(gatewaySource.includes("PUBLIC_DIR") && gatewaySource.includes("window.PORTAL_GATEWAY_BASE"), "网关应同源托管静态页面并注入网关地址标记");
+assert(gatewaySource.includes("handleRequest(req, res).catch") && gatewaySource.includes("请求处理失败"), "网关应全局兜底请求异常，防止非法 JSON 请求拖垮服务进程");
 assert(portalVue.includes("window.PORTAL_GATEWAY_BASE") && shareHtml.includes("window.PORTAL_GATEWAY_BASE"), "前端与分享页应优先使用同源网关地址（域名部署时链接可直接打开）");
 
 [
