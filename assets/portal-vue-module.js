@@ -1824,7 +1824,7 @@
       renderMarkdown(markdown){
         const escape=value=>String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
         const lines=String(markdown).split(/\r?\n/);
-        let html="",inCode=false,inTable=false,inList=false;
+        let html="",inCode=false,inTable=false,inList=false,inMermaid=false,mermaidLines=[];
         const inline=value=>escape(value)
           .replace(/`([^`]+)`/g,"<code>$1</code>")
           .replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
@@ -1832,7 +1832,19 @@
         const closeTable=()=>{if(inTable){html+="</tbody></table>";inTable=false;}};
         lines.forEach(raw=>{
           const line=raw.trimEnd();
-          if(/^```/.test(line)){closeList();closeTable();if(inCode){html+="</code></pre>";inCode=false;}else{html+='<pre><code>';inCode=true;}return;}
+          if(/^```/.test(line)){
+            closeList();closeTable();
+            if(inCode){
+              if(inMermaid){html+="</div>";inMermaid=false;}else{html+="</code></pre>";}
+              inCode=false;
+            }else{
+              const next=(lines[lines.indexOf(line)+1]||"");
+              if(/^mermaid/i.test(next)&&(next.includes("flowchart")||next.includes("graph"))){html+='<div class="portal-vue-mermaid" data-mermaid="1">';inMermaid=true;inCode=true;mermaidLines=[];lines.indexOf(line);return;}
+              html+='<pre><code>';inCode=true;
+            }
+            return;
+          }
+          if(inMermaid){mermaidLines.push(raw);return;}
           if(inCode){html+=escape(raw)+"\n";return;}
           if(/^\|.*\|$/.test(line)){
             const cells=line.replace(/^\||\|$/g,"").split("|");
@@ -1851,7 +1863,71 @@
         });
         closeList();closeTable();
         if(inCode)html+="</code></pre>";
+        if(inMermaid)html+=this.renderMermaidSvg(mermaidLines.join("\n"));
         return html;
+      },
+      renderMermaidSvg(source){
+        const esc=value=>String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        const nodeDefs={};
+        const edgeRe=/(\w+)\s*-{2,}>\s*(?:\|([^|]*)\|\s*)?(\w+)/g;
+        const nodeRe=/(\w+)\s*(?:[\[\(]([^\]\)]+)[\]\)])?/g;
+        let direction="LR";
+        const bodyLines=[];
+        source.split(/\r?\n/).forEach(line=>{
+          const t=line.trim();
+          if(/^flowchart\b/i.test(t)||/^graph\b/i.test(t)){const m=t.match(/\b(TB|TD|LR|RL|BT)\b/i);if(m)direction=m[1].toUpperCase();return;}
+          if(!t||/^%%/.test(t))return;
+          bodyLines.push(t);
+        });
+        const text=bodyLines.join("\n");
+        let m;
+        while((m=nodeRe.exec(text))){const id=m[1];if(!nodeDefs[id]&&!/^(flowchart|graph)$/i.test(id))nodeDefs[id]={id,label:id};}
+        while((m=edgeRe.exec(text))){
+          const from=m[1],to=m[3],label=(m[2]||"").trim();
+          if(!nodeDefs[from])nodeDefs[from]={id:from,label:from};
+          if(!nodeDefs[to])nodeDefs[to]={id:to,label:to};
+          nodeDefs[from].edges=nodeDefs[from].edges||[];
+          nodeDefs[from].edges.push({to,label});
+        }
+        const nodes=Object.values(nodeDefs);
+        if(!nodes.length)return '<pre><code>'+esc(source)+'</code></pre>';
+        const incoming={},outgoing={};
+        nodes.forEach(n=>(n.edges||[]).forEach(e=>{incoming[e.to]=(incoming[e.to]||0)+1;outgoing[n.id]=(outgoing[n.id]||0)+1;}));
+        const column=n=>{const i=incoming[n.id]||0,o=outgoing[n.id]||0;if(i===0)return 0;if(o===0)return 2;return 1;};
+        const cols=[[],[],[]];
+        nodes.forEach(n=>cols[column(n)].push(n));
+        const nodeW=150,nodeH=44,gapX=60,gapY=26;
+        const colX=[20,20+nodeW+gapX,20+2*(nodeW+gapX)];
+        const maxRows=Math.max(...cols.map(c=>c.length),1);
+        const width=20*3+nodeW*3+gapX*2;
+        const height=Math.max(maxRows*(nodeH+gapY)+20,140);
+        const pos={};
+        cols.forEach((col,ci)=>col.forEach((n,ri)=>{
+          const colHeight=col.length*(nodeH+gapY)-gapY;
+          const startY=(height-colHeight)/2;
+          pos[n.id]={x:colX[ci],y:startY+ri*(nodeH+gapY)};
+        }));
+        const colors=["#1677ff","#13a8a8","#7c3aed","#d97706","#35805b"];
+        let svg=`<div class="portal-vue-mermaid-figure"><div class="portal-vue-mermaid-title">血缘图（${direction==="LR"?"从左到右":"从上到下"} · ${nodes.length} 个节点）</div>`;
+        svg+=`<svg viewBox="0 0 ${width} ${height}" style="width:100%;height:auto">`;
+        nodes.forEach(n=>{
+          (n.edges||[]).forEach(e=>{
+            const a=pos[n.id],b=pos[e.to];
+            if(!a||!b)return;
+            const x1=a.x+nodeW,y1=a.y+nodeH/2,x2=b.x,y2=b.y+nodeH/2;
+            const mx=(x1+x2)/2;
+            svg+=`<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="#9db8e8" stroke-width="1.5" marker-end="url(#arrow)"/>`;
+            if(e.label)svg+=`<text x="${mx}" y="${(y1+y2)/2-6}" text-anchor="middle" font-size="11" fill="#6b7280">${esc(e.label)}</text>`;
+          });
+        });
+        svg+=`<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#9db8e8"/></marker></defs>`;
+        nodes.forEach((n,ni)=>{
+          const p=pos[n.id];
+          const color=colors[ni%colors.length];
+          svg+=`<g><rect x="${p.x}" y="${p.y}" width="${nodeW}" height="${nodeH}" rx="8" fill="#fff" stroke="${color}" stroke-width="1.5"/><text x="${p.x+nodeW/2}" y="${p.y+nodeH/2+4}" text-anchor="middle" font-size="12" fill="#1f2733">${esc(n.label).slice(0,14)}</text></g>`;
+        });
+        svg+="</svg></div>";
+        return svg;
       }
     }
   };
@@ -2192,7 +2268,8 @@
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索 Skill 名称、来源"></el-input></div>
-            <el-button type="primary" @click="notifyUpload">上传 Skill</el-button>
+            <el-button type="primary" :loading="uploading" @click="uploadInput?.click()">上传 Skill</el-button>
+            <input ref="uploadInput" type="file" accept=".zip" style="display:none" @change="onUploadFile"></input>
           </div>
           <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无 Skill">
             <el-table-column label="Skill" min-width="240"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.desc }}</div></div></template></el-table-column>
@@ -2249,14 +2326,38 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({keyword:"",promptVisible:false,versionsVisible:false,grayVisible:false,grayDraft:[],displayVisible:false,displayForm:{},activeSkill:null,promptDraft:""}),
+    data:()=>({keyword:"",uploading:false,promptVisible:false,versionsVisible:false,grayVisible:false,grayDraft:[],displayVisible:false,displayForm:{},activeSkill:null,promptDraft:""}),
     computed:{
       skills(){refreshTick.value;return state.skills||[];},
       filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));},
       activeUsers(){refreshTick.value;return state.users.filter(user=>user.status!=="已停用");}
     },
     methods:{
-      notifyUpload(){ep.ElMessage.info("演示环境：正式版将在此上传 skill ZIP 包并注册到网关");},
+      async onUploadFile(event){
+        const file=event.target.files?.[0];
+        event.target.value="";
+        if(!file)return;
+        if(!file.name.toLowerCase().endsWith(".zip"))return ep.ElMessage.warning("请选择 .zip 格式的 Skill 包（skill.json + SKILL.md + tools/）");
+        this.uploading=true;
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/skills/upload`,{method:"POST",headers:{"Content-Type":"application/zip"},body:file});
+          const data=await response.json();
+          if(!response.ok)throw new Error(data.error||"上传失败");
+          await this.loadGatewaySkills();
+          ep.ElMessage.success(`Skill「${data.name}」已上传并注册到网关，即时生效`);
+        }catch(error){ep.ElMessage.error(`上传失败：${error.message}`);}
+        this.uploading=false;
+      },
+      async loadGatewaySkills(){
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/skills`);
+          if(!response.ok)return;
+          const list=await response.json();
+          if(Array.isArray(list)&&list.length){
+            state.skills=list.map(entry=>({ ...entry, versions: entry.versions || [], stats: entry.stats || { calls: 0, successRate: "—", avgLatency: "—", tokens: "—" } }));
+          }
+        }catch(error){/* 网关未启动时保留内置注册表 */}
+      },
       openDisplay(row){this.activeSkill=row;this.displayForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,scenarioKey:row.scenarioKey||"single"};this.displayVisible=true;},
       saveDisplay(){
         const form=this.displayForm;

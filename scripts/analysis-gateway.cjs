@@ -16,6 +16,7 @@
  */
 
 const http = require("http");
+const { execFile } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -744,6 +745,149 @@ const users = [
   { name: "李雨航", group: "数据分析师" }
 ];
 
+/* ================= Skill 包运行时（SKILL.md + 工具脚本 + 注册表） ================= */
+
+const SKILLS_DIR = path.join(DATA_DIR, "skills");
+const REGISTRY_FILE = path.join(DATA_DIR, "skill-registry.json");
+
+/* 共享证据工具：stdin 收 {tables}，读 fields.json + sample-data.json，stdout 出 {evidence} */
+const EVIDENCE_TOOL_SOURCE = `const fs = require("fs");
+const path = require("path");
+let input = "";
+process.stdin.on("data", d => input += d);
+process.stdin.on("end", () => {
+  const args = input.trim() ? JSON.parse(input) : {};
+  const dataDir = process.env.GATEWAY_DATA_DIR || ".";
+  const data = JSON.parse(fs.readFileSync(path.join(dataDir, "sample-data.json"), "utf8"));
+  const defs = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fields.json"), "utf8"));
+  const NUM = /DECIMAL|BIGINT|INT|DOUBLE|FLOAT/i;
+  const round = (v, d = 2) => Number(Number(v).toFixed(d));
+  const sum = (list, key) => list.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+  const wanted = (args.tables || []).filter(n => data.tables[n]);
+  const list = wanted.length ? wanted : Object.keys(data.tables);
+  const evidence = list.map(name => {
+    const def = defs.find(t => t.cnName === name) || { fields: [] };
+    const rows = data.tables[name] || [];
+    const out = { 表名: name, 物理表: (def.database || "") + "." + (def.table || ""), 说明: def.desc || "", 负责人: def.owner || "", 字段: (def.fields || []).map(f => (f.name + " " + (f.type || "") + " — " + (f.comment || "")).trim()) };
+    if (!rows.length) { out.行数 = 0; return out; }
+    const dateKey = (def.agg && def.agg.dateKey) || "";
+    const numeric = (def.fields || []).filter(f => NUM.test(f.type || "")).map(f => f.name);
+    out.行数 = rows.length;
+    if (dateKey) { const ds = rows.map(r => String(r[dateKey]).slice(0, 10)).sort(); out.时间范围 = [ds[0], ds[ds.length - 1]]; }
+    const sums = {};
+    numeric.slice(0, 8).forEach(k => sums[k] = round(sum(rows, k)));
+    if (sums.cost && sums.activate_cnt) sums.cpa = round(sums.cost / sums.activate_cnt);
+    if (Object.keys(sums).length) out.整体合计 = sums;
+    const groupKey = (def.agg && def.agg.groupBy && def.agg.groupBy[0]) || "";
+    const metric = (def.agg && def.agg.metric) || "";
+    if (groupKey) {
+      const groups = {};
+      rows.forEach(r => { const k = String(r[groupKey]); (groups[k] = groups[k] || []).push(r); });
+      let stats = Object.entries(groups).map(([k, g]) => ({ 组: k, 行数: g.length, 合计: Object.fromEntries(numeric.slice(0, 6).map(k2 => [k2, round(sum(g, k2))])) }));
+      if (metric) stats.sort((a, b) => (b.合计[metric] || 0) - (a.合计[metric] || 0));
+      stats = stats.slice(0, 8);
+      if (dateKey && metric) {
+        const mk = back => { const d = new Date(Date.UTC(2026, 7, 31)); d.setUTCDate(d.getUTCDate() - back); return d.toISOString().slice(0, 10); };
+        const s7 = mk(7), s14 = mk(14);
+        stats.forEach(st => {
+          const g = groups[st.组];
+          const recent = g.filter(r => String(r[dateKey]) >= s7);
+          const prior = g.filter(r => String(r[dateKey]) >= s14 && String(r[dateKey]) < s7);
+          const rs = round(sum(recent, metric)), ps = round(sum(prior, metric));
+          st.近7天 = rs; st.前7天 = ps;
+          st.环比 = ps ? round((rs - ps) / ps * 100, 1) + "%" : "—";
+          if (rs && ps && metric === "cost" && numeric.includes("activate_cnt")) {
+            const rc = sum(recent, "cost") / Math.max(1, sum(recent, "activate_cnt"));
+            const pc = sum(prior, "cost") / Math.max(1, sum(prior, "activate_cnt"));
+            st.近7天CPA = round(rc); st.CPA环比 = round((rc - pc) / pc * 100, 1) + "%";
+          }
+        });
+      }
+      out[groupKey + "分组"] = stats;
+    }
+    out.最近明细样例 = rows.slice(-8);
+    return out;
+  });
+  process.stdout.write(JSON.stringify({ evidence }));
+});`;
+
+function loadSkillRegistry() {
+  try { return JSON.parse(fs.readFileSync(REGISTRY_FILE, "utf8")); } catch { return []; }
+}
+
+function saveSkillRegistry(registry) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const tmp = `${REGISTRY_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(registry, null, 2));
+  fs.renameSync(tmp, REGISTRY_FILE);
+}
+
+function skillDir(id) { return path.join(SKILLS_DIR, id); }
+
+function skillManifest(id) {
+  try { return JSON.parse(fs.readFileSync(path.join(skillDir(id), "skill.json"), "utf8")); } catch { return null; }
+}
+
+function skillInstructions(id) {
+  try { return fs.readFileSync(path.join(skillDir(id), "SKILL.md"), "utf8"); } catch { return ""; }
+}
+
+/* 内置包定义：SKILL.md + 工具 + 字段元数据，首次启动落盘安装 */
+function installBuiltinPackages() {
+  fs.mkdirSync(SKILLS_DIR, { recursive: true });
+  const defs = [
+    { id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", scenarioKey: "single", icon: "📊", title: "单表分析", displayDesc: "趋势、分布与异常", sort: 10,
+      instructions: "你是观星台数据平台的数仓分析助手，负责基于给定表证据生成分析报告。\n规则：\n1. 只基于提供的聚合统计、明细样例和字段注释分析，所有数字必须来自证据，不编造。\n2. 引用字段时用反引号；结论必须能追溯到证据中的具体数字。\n3. 样本明细有限时，基于聚合统计下结论，并标注「基于聚合口径」。\n4. 报告使用 Markdown，包含：一句话结论、数据概览、关键发现（含具体数字与对比）、风险与建议、证据限制。" },
+    { id: "lineage-analyst", name: "数据血缘分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", scenarioKey: "lineage", icon: "🔗", title: "数据血缘分析", displayDesc: "上下游依赖与影响面", sort: 20,
+      instructions: "你是观星台数据平台的血缘分析助手。\n基于提供的表上下游血缘证据，输出 Markdown 报告：一、上游表清单；二、本表在数仓链路中的位置；三、下游影响面；四、变更风险与注意事项。\n只把明确给出的血缘写成确定关系；证据不足时标注「待核对，非确定引用」。" },
+    { id: "asset-qa", name: "数据资产问答 Skill", source: "asset-qa", version: "v0.9", scenarioKey: "asset", icon: "📚", title: "数据资产问答", displayDesc: "有哪些表、口径、负责人", sort: 30,
+      instructions: "你是观星台数据平台的资产问答助手。\n基于提供的表资产清单回答用户问题，输出：相关表清单、各表口径说明、负责人、推荐用法。\n只推荐清单内的表；清单外的可能性标注「权限外，未纳入」。" },
+    { id: "attribution-analyst", name: "归因分析 Skill", source: "attribution-analyst", version: "v0.5", scenarioKey: "attribution", icon: "🎯", title: "归因分析", displayDesc: "指标异动拆解与定位", sort: 40,
+      instructions: "你是观星台数据平台的归因分析助手。\n基于聚合统计中的「近7天 / 前7天 / 环比 / CPA环比」数据对指标异动做维度拆解：1. 先给出整体结论；2. 逐维度列出对比表（Markdown 表格）；3. 定位到具体的组并给出原因判断；4. 给出建议。\n所有数字必须来自证据，不编造。" }
+  ];
+  const registry = loadSkillRegistry();
+  defs.forEach(def => {
+    const dir = skillDir(def.id);
+    const manifest = {
+      id: def.id, name: def.name, source: def.source, version: def.version,
+      scenarioKey: def.scenarioKey, icon: def.icon, title: def.title,
+      displayDesc: def.displayDesc, sort: def.sort, enabled: true, grayUsers: [],
+      tools: [{ name: "evidence", cmd: "node tools/evidence.cjs", description: "采集表证据与聚合统计（含环比）" }]
+    };
+    if (!fs.existsSync(path.join(dir, "skill.json"))) {
+      fs.mkdirSync(path.join(dir, "tools"), { recursive: true });
+      fs.writeFileSync(path.join(dir, "skill.json"), JSON.stringify(manifest, null, 2));
+      fs.writeFileSync(path.join(dir, "SKILL.md"), def.instructions);
+      fs.writeFileSync(path.join(dir, "tools", "evidence.cjs"), EVIDENCE_TOOL_SOURCE);
+      fs.writeFileSync(path.join(dir, "fields.json"), JSON.stringify(tables.map(({ generator, ...rest }) => rest)));
+    }
+    if (!registry.some(item => item.id === def.id)) {
+      registry.push({ id: def.id, name: def.name, source: def.source, version: def.version, dir: path.join(SKILLS_DIR, def.id), enabled: true, grayUsers: [], installedAt: new Date().toISOString(), builtin: true });
+    }
+  });
+  saveSkillRegistry(registry);
+}
+
+/* 执行 skill 工具：stdin 传参，stdout 出 JSON */
+function runSkillTool(registryEntry, toolName, args) {
+  return new Promise(resolve => {
+    const manifest = skillManifest(registryEntry.id);
+    const tool = (manifest?.tools || []).find(item => item.name === toolName) || (manifest?.tools || [])[0];
+    if (!tool || !tool.cmd) return resolve({ ok: false, error: "该 Skill 未声明可用工具" });
+    const parts = tool.cmd.split(" ");
+    const timeoutMs = Number(tool.timeoutMs || 15000);
+    execFile(parts[0], parts.slice(1), {
+      cwd: registryEntry.dir,
+      env: { ...process.env, GATEWAY_DATA_DIR: DATA_DIR },
+      timeout: timeoutMs
+    }, (error, stdout) => {
+      if (error && !stdout) return resolve({ ok: false, error: `工具执行失败：${error.message}` });
+      try { resolve({ ok: true, result: JSON.parse(stdout) }); }
+      catch { resolve({ ok: false, error: "工具输出不是合法 JSON" }); }
+    });
+  });
+}
+
 /* ================= 模型上下文规格（公开规格，约值） ================= */
 
 const MODEL_CONTEXT_RULES = [
@@ -1001,6 +1145,88 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  if (req.method === "GET" && url.pathname === "/v1/skills") {
+    return sendJson(res, 200, loadSkillRegistry().map(entry => {
+      const manifest = skillManifest(entry.id) || {};
+      return { ...entry, ...manifest, dir: undefined, tools: (manifest.tools || []).map(tool => tool.name) };
+    }));
+  }
+
+  if (req.method === "POST" && url.pathname === "/v1/skills/upload") {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const zipBuffer = Buffer.concat(chunks);
+    if (!zipBuffer.length) return sendJson(res, 400, { error: "未收到文件内容" });
+    const id = "skill-" + crypto.randomBytes(4).toString("hex");
+    const zipPath = path.join(DATA_DIR, `upload-${id}.zip`);
+    const dir = skillDir(id);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(zipPath, zipBuffer);
+    try {
+      await new Promise((resolve, reject) => execFile("unzip", ["-o", zipPath, "-d", dir], { timeout: 20000 }, (error, stdout, stderr) => error ? reject(new Error(stderr || error.message)) : resolve()));
+      /* 兼容 zip 带一层目录的情况：找到 skill.json 所在层级并上提 */
+      let manifestPath = path.join(dir, "skill.json");
+      if (!fs.existsSync(manifestPath)) {
+        const found = (function walk(base) {
+          for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+            const full = path.join(base, entry.name);
+            if (entry.isDirectory()) {
+              const candidate = path.join(full, "skill.json");
+              if (fs.existsSync(candidate)) return full;
+              const nested = walk(full);
+              if (nested) return nested;
+            }
+          }
+          return null;
+        })(dir);
+        if (!found) throw new Error("包内未找到 skill.json（需要 SKILL.md + skill.json 清单）");
+        for (const entry of fs.readdirSync(found, { withFileTypes: true })) {
+          fs.renameSync(path.join(found, entry.name), path.join(dir, entry.name));
+        }
+      }
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+      if (!manifest.name) throw new Error("skill.json 缺少 name 字段");
+      const registry = loadSkillRegistry();
+      const entry = {
+        id, name: String(manifest.name).slice(0, 60),
+        source: String(manifest.source || id).slice(0, 80),
+        version: String(manifest.version || "v1.0").slice(0, 20),
+        scenarioKey: String(manifest.scenarioKey || "single").slice(0, 20),
+        icon: String(manifest.icon || "✦").slice(0, 8),
+        title: String(manifest.title || manifest.name).slice(0, 30),
+        displayDesc: String(manifest.displayDesc || "").slice(0, 60),
+        sort: Number(manifest.sort) || 50,
+        enabled: manifest.enabled !== false,
+        grayUsers: Array.isArray(manifest.grayUsers) ? manifest.grayUsers.slice(0, 50) : [],
+        desc: String(manifest.desc || "").slice(0, 200),
+        dir, installedAt: new Date().toISOString(), builtin: false
+      };
+      registry.push(entry);
+      saveSkillRegistry(registry);
+      fs.unlinkSync(zipPath);
+      return sendJson(res, 200, { id, name: entry.name, tools: (manifest.tools || []).map(tool => tool.name || tool) });
+    } catch (error) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      try { fs.unlinkSync(zipPath); } catch {}
+      return sendJson(res, 400, { error: `Skill 包无效：${error.message}` });
+    }
+  }
+
+  const skillConfigMatch = url.pathname.match(/^\/v1\/skills\/([a-zA-Z0-9_-]+)\/config$/);
+  if (req.method === "PUT" && skillConfigMatch) {
+    const id = skillConfigMatch[1];
+    const registry = loadSkillRegistry();
+    const entry = registry.find(item => item.id === id);
+    if (!entry) return sendJson(res, 404, { error: `Skill 不存在：${id}` });
+    const body = await readBody(req);
+    ["icon", "title", "displayDesc", "sort", "enabled", "scenarioKey"].forEach(key => {
+      if (body[key] !== undefined) entry[key] = body[key];
+    });
+    if (Array.isArray(body.grayUsers)) entry.grayUsers = body.grayUsers.slice(0, 50);
+    saveSkillRegistry(registry);
+    return sendJson(res, 200, { id, saved: true });
+  }
+
   if (req.method === "POST" && url.pathname === "/v1/shares") {
     const body = await readBody(req);
     const id = crypto.randomBytes(6).toString("hex");
@@ -1117,9 +1343,27 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 403, { error: `引用的数据表均未授权给当前用户（${user}），请检查「权限组 → 数据表权限」` });
     }
 
-    const skill = skills["warehouse-analyst"];
-    const scene = skill.scenarios[scenario] || skill.scenarios.single;
-    const evidence = buildEvidence(referenced, portalContext);
+    /* Skill 运行时：优先按 skillId 执行注册表里的包（工具出证据 + SKILL.md 出编排），失败回退内置 */
+    let buildEvidenceOverride = null;
+    const registrySkill = loadSkillRegistry().find(item => item.id === (body.skillId || "") && item.enabled !== false && !item.grayUsers?.length || (body.skillId && item.grayUsers?.includes(user)));
+    let skill = null, scene = null, runtimeError = "";
+    if (registrySkill) {
+      const toolRun = await runSkillTool(registrySkill, "evidence", { tables: referenced, question });
+      if (toolRun.ok && Array.isArray(toolRun.result.evidence)) {
+        const instructions = skillInstructions(registrySkill.id);
+        skill = { name: registrySkill.name, version: registrySkill.version };
+        scene = { label: registrySkill.title || registrySkill.name, system: instructions || "你是观星台数据平台的数据分析助手，只基于证据回答，不编造数字。" };
+        buildEvidenceOverride = toolRun.result.evidence;
+      } else {
+        runtimeError = toolRun.error || "工具执行失败";
+      }
+    }
+    if (!skill) {
+      const builtin = skills["warehouse-analyst"];
+      skill = builtin;
+      scene = builtin.scenarios[scenario] || builtin.scenarios.single;
+    }
+    const evidence = buildEvidenceOverride || buildEvidence(referenced, portalContext);
     const prompt = [
       `## 用户问题\n${question}`,
       `## 分析场景\n${scene.label}`,
@@ -1206,4 +1450,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 loadSampleData();
-server.listen(PORT, () => console.log(`观星台分析网关已启动: http://localhost:${PORT}（数据目录 ${DATA_DIR}）`));
+installBuiltinPackages();
+server.listen(PORT, () => console.log(`观星台分析网关已启动: http://localhost:${PORT}（数据目录 ${DATA_DIR}，skill 运行时已就绪）`));

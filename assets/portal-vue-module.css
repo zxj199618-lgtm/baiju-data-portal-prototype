@@ -507,3 +507,7 @@
 .portal-vue-ai-report-dialog-actions { display: flex; gap: 8px; }
 .portal-vue-ai-report-dialog-content { display: grid; gap: 12px; }
 .portal-vue-ai-asset-btn.active { background: #dbeafe; border-color: #1677ff; color: #1677ff; }
+
+/* 血缘图（Mermaid 渲染为 SVG） */
+.portal-vue-mermaid-figure { margin: 10px 0; padding: 14px; border: 1px solid #dbe8fb; border-radius: 10px; background: #fbfdff; }
+.portal-vue-mermaid-title { font-size: 12px; color: #1677ff; margin-bottom: 8px; }
