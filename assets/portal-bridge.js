@@ -3351,6 +3351,7 @@
           document.getElementById("portalApp").classList.remove("hidden");
           document.getElementById("sidebar").classList.remove("hidden");
           setSimplePage(savedPage || "灵犀智析");
+          window.__portalBootPage = savedPage || "灵犀智析";
         }
       } catch (error) { /* 隐私模式忽略 */ }
       document.getElementById("noPermissionLoginBtn").addEventListener("click", () => {
@@ -3612,6 +3613,6 @@
       renderBoardManagement();
       renderDataAssets();
       renderApiConfigs();
-      setSimplePage("灵犀智析");
+      if (!window.__portalBootPage) setSimplePage("灵犀智析");
     })();
   
