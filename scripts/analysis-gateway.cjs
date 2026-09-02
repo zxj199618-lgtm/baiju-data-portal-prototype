@@ -29,6 +29,7 @@ const PUBLIC_DIR = process.env.PUBLIC_DIR || path.join(__dirname, "..");
 const PERMISSIONS_FILE = path.join(DATA_DIR, "user-permissions.json");
 const MODEL_CONFIG_FILE = path.join(DATA_DIR, "model-config.json");
 const SHARES_FILE = path.join(DATA_DIR, "report-shares.json");
+const HISTORY_FILE = path.join(DATA_DIR, "workbench-history.json");
 const SAMPLE_DATA_FILE = path.join(DATA_DIR, "sample-data.json");
 const DEFAULT_MODEL = "gpt-5.4-mini";
 const TODAY = "2026-08-31";
@@ -1040,6 +1041,56 @@ function saveShares(shares) {
   fs.renameSync(tmp, SHARES_FILE);
 }
 
+// 工作台会话/分析资产历史（无登录、共享一份：所有人看到同样的记录，刷新可恢复）
+function loadHistory() {
+  try {
+    const data = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf8"));
+    return { sessions: Array.isArray(data.sessions) ? data.sessions.slice(0, 80) : [], reports: Array.isArray(data.reports) ? data.reports.slice(0, 120) : [] };
+  } catch { return { sessions: [], reports: [] }; }
+}
+
+function sanitizeHistoryMessage(msg) {
+  return {
+    role: ["user", "assistant"].includes(msg?.role) ? msg.role : "assistant",
+    lines: Array.isArray(msg?.lines) ? msg.lines.slice(0, 80).map(line => String(line).slice(0, 8000)) : [],
+    refs: Array.isArray(msg?.refs) ? msg.refs.slice(0, 8).map(ref => String(ref).slice(0, 80)) : undefined,
+    html: String(msg?.html || "").slice(0, 120000),
+    meta: String(msg?.meta || "").slice(0, 400),
+    model: String(msg?.model || "").slice(0, 80),
+    streaming: false
+  };
+}
+
+function saveHistory(box) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const sessions = (Array.isArray(box.sessions) ? box.sessions.slice(0, 80) : []).map(s => ({
+    id: String(s?.id || "").slice(0, 80),
+    title: String(s?.title || "新的分析").slice(0, 120),
+    channel: String(s?.channel || "工作台对话").slice(0, 40),
+    scenario: String(s?.scenario || "").slice(0, 40),
+    status: String(s?.status || "已完成").slice(0, 20),
+    time: String(s?.time || "").slice(0, 40),
+    suggested: !!s?.suggested,
+    messages: (Array.isArray(s?.messages) ? s.messages.slice(-60) : []).map(sanitizeHistoryMessage)
+  })).filter(s => s.id);
+  const reports = (Array.isArray(box.reports) ? box.reports.slice(0, 120) : []).map(r => ({
+    id: String(r?.id || "").slice(0, 80),
+    title: String(r?.title || "分析报告").slice(0, 120),
+    scenario: String(r?.scenario || "").slice(0, 40),
+    channel: String(r?.channel || "工作台对话").slice(0, 40),
+    time: String(r?.time || "").slice(0, 40),
+    tables: Array.isArray(r?.tables) ? r.tables.slice(0, 8).map(t => String(t).slice(0, 60)) : [],
+    summary: String(r?.summary || "").slice(0, 500),
+    model: String(r?.model || "").slice(0, 80),
+    markdown: String(r?.markdown || "").slice(0, 120000),
+    starred: !!r?.starred,
+    sourceId: String(r?.sourceId || "").slice(0, 80)
+  })).filter(r => r.id);
+  const tmp = `${HISTORY_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify({ sessions, reports, updatedAt: new Date().toISOString() }, null, 2));
+  fs.renameSync(tmp, HISTORY_FILE);
+}
+
 function userTables(userName) {
   const user = users.find(item => item.name === userName);
   if (!user) return [];
@@ -1111,10 +1162,10 @@ function sendJson(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
-function readBody(req) {
+function readBody(req, maxSize = 2e6) {
   return new Promise((resolve, reject) => {
     let raw = "";
-    req.on("data", chunk => { raw += chunk; if (raw.length > 2e6) req.destroy(); });
+    req.on("data", chunk => { raw += chunk; if (raw.length > maxSize) req.destroy(); });
     req.on("end", () => { try { resolve(raw ? JSON.parse(raw) : {}); } catch (error) { reject(error); } });
   });
 }
@@ -1356,6 +1407,19 @@ async function handleRequest(req, res) {
     const share = loadShares()[shareMatch[1]];
     if (!share) return sendJson(res, 404, { error: "分享链接不存在或已被删除" });
     return sendJson(res, 200, share);
+  }
+
+  // 工作台历史：无登录共享一份，页面刷新后恢复（会话、消息、分析资产）
+  if (req.method === "GET" && url.pathname === "/v1/history") {
+    return sendJson(res, 200, loadHistory());
+  }
+  if (req.method === "PUT" && url.pathname === "/v1/history") {
+    const body = await readBody(req, 30e6);
+    if (!Array.isArray(body.sessions) || !Array.isArray(body.reports)) {
+      return sendJson(res, 400, { error: "历史数据格式不正确" });
+    }
+    saveHistory(body);
+    return sendJson(res, 200, { saved: true });
   }
 
   const modelConfigMatch = url.pathname.match(/^\/v1\/model-config\/(.+)$/);

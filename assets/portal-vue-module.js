@@ -1490,6 +1490,7 @@
       defaultModel: "",
       activeBizLine: "",
       modelLimits: {},
+      historyTimer: null,
       reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
       assetView: false,
       reportDialog: false,
@@ -1558,6 +1559,7 @@
       window.addEventListener("portal:page-change",this.pageHandler);
       this.loadModels();
       this.loadGatewaySkills();
+      this.loadHistory();
     },
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
@@ -1570,6 +1572,43 @@
             state.skills=list.map(entry=>({ ...entry, versions: entry.versions || [], stats: entry.stats || { calls: 0, successRate: "—", avgLatency: "—", tokens: "—" } }));
           }
         }catch(error){/* 网关未启动时保留内置注册表 */}
+      },
+      async loadHistory(){
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/history`);
+          if(!response.ok)return;
+          const data=await response.json();
+          const sessions=Array.isArray(data.sessions)?data.sessions:[];
+          const reports=Array.isArray(data.reports)?data.reports:[];
+          if(sessions.length){
+            this.sessions=sessions.map(s=>createAnalysisSession({
+              ...s,
+              messages:(s.messages||[]).map(m=>({...m,lines:Array.isArray(m.lines)?[...m.lines]:[],refs:m.refs?[...m.refs]:undefined,streaming:false}))
+            }));
+            this.sessions.forEach(s=>{if(s.status==="进行中")s.status="已完成";});
+            this.activeId=this.sessions[0]?.id||this.activeId;
+          }
+          if(reports.length){
+            this.reports=reports.map(r=>createAnalysisReport({
+              ...r,
+              messages:(r.messages||[]).map(m=>({...m,lines:Array.isArray(m.lines)?[...m.lines]:undefined,refs:m.refs?[...m.refs]:undefined}))
+            }));
+          }
+          if(!sessions.length&&!reports.length){
+            // 首次运行：把内置演示记录一次性写入网关，所有访客看到一致的历史
+            this.persistHistory();
+          }
+        }catch(error){/* 网关未启动时保留本地种子 */}
+      },
+      persistHistory(){
+        clearTimeout(this.historyTimer);
+        this.historyTimer=setTimeout(()=>{
+          fetch(`${analysisGatewayBase}/v1/history`,{
+            method:"PUT",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({sessions:this.sessions.map(s=>({...s,messages:s.messages.map(m=>({...m,streaming:false}))})),reports:this.reports})
+          }).catch(()=>{/* 网关未启动时忽略 */});
+        },600);
       },
       async loadMyTables(){
         try{
@@ -1615,6 +1654,7 @@
         this.activeId=session.id;
         this.input="";
         this.mentionOpen=false;
+        this.persistHistory();
       },
       openSession(id){
         this.activeId=id;
@@ -1632,6 +1672,7 @@
         this.reports=this.reports.filter(item=>item.id!==report.id);
         if(this.activeReportId===report.id)this.reportDialog=false;
         notify(`报告「${report.title}」已删除`);
+        this.persistHistory();
       },
       findSession(id){return this.sessions.find(item=>item.id===id);},
       openAssets(){this.assetView=true;},
@@ -1729,6 +1770,7 @@
         });
         this.reports.unshift(report);
         if(liveMsg)liveMsg._reportId=report.id;
+        this.persistHistory();
       },
       onEnter(event){
         if(event.shiftKey)return;
@@ -1760,6 +1802,7 @@
         this.input="";
         this.mentionOpen=false;
         this.thinking=true;
+        this.persistHistory();
         const gatewayAvailable=this.models.length>0;
         if(!gatewayAvailable){
           await new Promise(resolve=>setTimeout(resolve,700));
@@ -1784,6 +1827,7 @@
             session.status="已完成";
             session.time=new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-");
             session.messages.push({role:"assistant",lines:[`分析失败：${data.error||"未知错误"}`]});
+            this.persistHistory();
           }else{
             const live={role:"assistant",lines:[""],streaming:true};
             session.messages.push(live);
@@ -1852,6 +1896,7 @@
           this.thinking=false;
           session.status="已完成";
           session.messages.push({role:"assistant",lines:[`分析请求失败：${error.message}。请确认本地网关已启动（node scripts/analysis-gateway.cjs）。`]});
+          this.persistHistory();
         }
         this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
         this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
