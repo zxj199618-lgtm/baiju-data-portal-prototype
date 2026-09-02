@@ -729,7 +729,7 @@
       min-width: 0;
       max-width: 760px;
     }
-    .page-head > .portal-vue-page-head { max-width: none; width: 100%; }
+    .page-head > div:first-child.portal-vue-page-head { max-width: none; width: 100%; }
 
     .empty-state {
       margin-top: 22px;
