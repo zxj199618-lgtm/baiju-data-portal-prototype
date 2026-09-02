@@ -1368,11 +1368,7 @@
                 </div>
                 <div v-for="(msg, index) in activeSession.messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
                   <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
-                    <template v-if="msg.reportId"><div class="portal-vue-ai-report-linkcard" @click="openReportById(msg.reportId)">
-                      <span class="portal-vue-ai-report-linkcard-icon">📄</span>
-                      <div class="portal-vue-ai-report-linkcard-body"><strong>分析报告</strong><span>{{ reportTitleOf(msg.reportId) }}</span></div>
-                      <span class="portal-vue-ai-report-linkcard-arrow">↗</span>
-                    </div><p v-if="msg.lines && msg.lines.length" class="portal-vue-ai-report-preview">{{ msg.lines[0] }}</p><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
+                    <template v-if="msg.reportId"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><a class="portal-vue-ai-report-hyperlink" @click.prevent="openReportById(msg.reportId)">📄 分析报告：{{ reportTitleOf(msg.reportId) }} ›</a><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
                     <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
@@ -1909,14 +1905,19 @@
             if(errorMsg&&!full){
               session.messages.splice(session.messages.indexOf(liveMsg),1,{role:"assistant",lines:[`分析失败：${errorMsg}`]});
             }else{
-              const plainSummary=String(full).replace(/[#*`|>\-]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,2).join("；").slice(0,120);
+              // 上下总结：取自报告首两行（lead）与末尾要点（trail），报告本体只以超链形式置于中间
+              const allLines=String(full).split(/\r?\n/).map(line=>line.replace(/[#*`|>]/g,"").trim()).filter(Boolean);
+              const lead=allLines.slice(0,2).join("；").slice(0,120);
+              const trail=(allLines.slice(2).filter(line=>line.length>6&&!line.startsWith("证据限制")&&!line.includes("证据限制")).pop()||"分析详情、指标口径与上下游血缘见报告全文。").slice(0,80);
               const isReport=!errorMsg&&full.trim().length>=80;
               liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
               if(isReport){
-                // 真正的分析报告：聊天区收敛为链接卡片 + 归档到分析资产（带有标题）
+                // 真正的分析报告：消息上下总结 + 中间报告超链，归档到分析资产
                 liveMsg.html="";
-                liveMsg.lines=[plainSummary].filter(Boolean);
-                this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:plainSummary},full,liveMsg,meta);
+                liveMsg.lines=[];
+                liveMsg.leadMsg=lead;
+                liveMsg.trailMsg=trail;
+                this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:lead},full,liveMsg,meta);
               }else{
                 // 非报告的回答（过短/中断/普通问答）：不归档，直接在聊天区展示内容
                 liveMsg.html=this.renderMarkdown(full);

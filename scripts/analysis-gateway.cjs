@@ -1058,6 +1058,8 @@ function sanitizeHistoryMessage(msg) {
     meta: String(msg?.meta || "").slice(0, 400),
     model: String(msg?.model || "").slice(0, 80),
     reportId: String(msg?.reportId || "").slice(0, 80),
+    leadMsg: String(msg?.leadMsg || "").slice(0, 300),
+    trailMsg: String(msg?.trailMsg || "").slice(0, 300),
     streaming: false
   };
 }

@@ -457,6 +457,10 @@
 .portal-vue-ai-report-linkcard-body span { font-size: 12.5px; color: #1677ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-ai-report-linkcard-arrow { color: #a5aebd; font-size: 14px; }
 .portal-vue-ai-report-preview { margin: 6px 0 0; font-size: 12.5px; color: #51607a; line-height: 1.6; }
+.portal-vue-ai-report-lead { margin: 0; font-size: 13px; color: #2a3446; line-height: 1.75; }
+.portal-vue-ai-report-hyperlink { display: inline-flex; align-items: center; gap: 6px; margin: 10px 0 4px; font-size: 14px; font-weight: 600; color: #1677ff; text-decoration: none; cursor: pointer; }
+.portal-vue-ai-report-hyperlink:hover { text-decoration: underline; }
+.portal-vue-ai-report-trail { margin: 6px 0 0; font-size: 12.5px; color: #7b8492; line-height: 1.7; }
 .portal-vue-ai-report-dialog-markdown { max-height: 60vh; overflow-y: auto; }
 
 /* 系统管理：菜单管理 / Skill 配置 */
