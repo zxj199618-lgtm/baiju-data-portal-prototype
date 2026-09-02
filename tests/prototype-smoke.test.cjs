@@ -180,6 +180,7 @@ assert(portalVue.includes("assetView") && portalVue.includes("openReport") && po
 assert(portalVue.includes("复制链接分享"), "报告弹窗应支持复制链接分享");
 assert(gatewaySource.includes('url.pathname === "/v1/shares"') && gatewaySource.includes("report-shares.json"), "网关应提供分享创建/读取接口并持久化到数据卷");
 assert(portalVue.includes("openReportById") && portalVue.includes("portal-vue-ai-report-hyperlink"), "完成的分析应以报告超链置于结果中间，上下附总结，点击打开大弹窗");
+assert(portalVue.includes("portal-vue-ai-report-card") && portalVue.includes('class="portal-vue-ai-report-card" @click="openReportById'), "报告总结应与分析资产一致嵌入卡片框，框内点击弹窗查看详情");
 assert(portalVue.includes("markdown:String(markdownText") && portalVue.includes("liveMsg.reportId=report.id"), "报告归档应保存完整正文并绑定到聊天消息，刷新后仍为超链");
 assert(portalVue.includes("leadMsg") && portalVue.includes("trailMsg"), "报告消息应包含上下总结文字");
 assert(portalVue.includes("portal-vue-ai-assets-grid") && portalVue.includes("portal-vue-ai-asset-card") && portalVue.includes('v-if="!assetView"'), "分析资产应以卡片网格整页展示，资产页隐藏聊天与输入框");

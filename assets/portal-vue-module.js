@@ -1369,7 +1369,7 @@
                 </div>
                 <div v-for="(msg, index) in activeSession.messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
                   <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
-                    <template v-if="msg.reportId"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><a class="portal-vue-ai-report-hyperlink" @click.prevent="openReportById(msg.reportId)">📄 分析报告：{{ reportTitleOf(msg.reportId) }} ›</a><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
+                    <template v-if="msg.reportId"><div class="portal-vue-ai-report-card" @click="openReportById(msg.reportId)"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><span class="portal-vue-ai-report-hyperlink">📄 分析报告：{{ reportTitleOf(msg.reportId) }} ›</span><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
                     <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
