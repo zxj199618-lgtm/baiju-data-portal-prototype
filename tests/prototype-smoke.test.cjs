@@ -46,7 +46,9 @@ assert(portalVue.includes("window.PORTAL_GATEWAY_BASE") && shareHtml.includes("w
 
 assert(!/<style[\s>]/.test(html), "入口不应再内联样式");
 assert(!/<script>([\s\S]*?)<\/script>/.test(html), "入口不应再内联脚本");
-assert(html.includes('href="assets/portal-shell.css"'), "入口应加载公共壳层样式");
+assert(html.includes('href="assets/portal-shell.css?v='), "入口应加载公共壳层样式（带版本号，避免缓存旧样式）");
+assert(portalVue.includes("portal-vue-ai-bot-btn") && !html.includes("feishuBotAddBtn"), "添加飞书机器人按钮应在工作台头部行内并贴页面最右");
+assert(exists("assets/portal-shell.css") && read("assets/portal-shell.css").includes("div:first-child.portal-vue-page-head { max-width: none; width: 100%; }"), "页面头部应解除 760px 宽度限制使按钮贴最右");
 [
   "assets/portal-bridge.js",
   "assets/cp-bridge.js",
