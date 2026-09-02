@@ -1336,16 +1336,19 @@
                   <div><h3>分析资产</h3><span class="portal-vue-muted">共 {{ reports.length }} 份分析报告，点击查看详情，右上角可复制链接分享给同事</span></div>
                   <el-button @click="assetView=false">← 返回对话</el-button>
                 </div>
-                <div class="portal-vue-ai-assets-list">
-                  <article v-for="report in reports" :key="report.id" class="portal-vue-ai-report-link" @click="openReport(report)">
-                    <div class="portal-vue-ai-report-link-head">
+                <div class="portal-vue-ai-assets-grid">
+                  <article v-for="report in reports" :key="report.id" class="portal-vue-ai-asset-card" @click="openReport(report)">
+                    <div class="portal-vue-ai-asset-card-head">
                       <strong>{{ report.title }}</strong>
+                      <time>{{ (report.time || "").slice(5, 16) }}</time>
+                    </div>
+                    <div class="portal-vue-ai-asset-card-tags">
                       <el-tag size="small" :type="report.channel === '飞书机器人' ? 'success' : 'primary'" :effect="report.channel === '飞书机器人' ? 'plain' : 'light'">{{ report.channel }}</el-tag>
                       <el-tag size="small" effect="plain">{{ report.scenario }}</el-tag>
-                      <time>{{ report.time }}</time>
+                      <el-tag v-if="report.model" size="small" effect="plain">{{ report.model }}</el-tag>
                     </div>
-                    <p class="portal-vue-ai-report-link-summary">{{ report.summary || (report.markdown || "").slice(0, 80) || "（无摘要）" }}</p>
-                    <div v-if="report.tables.length" class="portal-vue-ai-refs"><el-tag v-for="table in report.tables" :key="table" size="small" effect="plain">{{ table }}</el-tag></div>
+                    <p class="portal-vue-ai-asset-card-summary">{{ report.summary || (report.markdown || "").slice(0, 80) || "（无摘要）" }}</p>
+                    <div v-if="report.tables.length" class="portal-vue-ai-refs"><el-tag v-for="table in report.tables.slice(0, 3)" :key="table" size="small" effect="plain">{{ table }}</el-tag></div>
                   </article>
                   <el-empty v-if="!reports.length" description="暂无分析报告，发起一次分析后自动归档到这里"></el-empty>
                 </div>
@@ -1356,7 +1359,7 @@
                   <span><strong>{{ scene.name }}</strong><small>{{ scene.desc }}</small></span>
                 </button>
               </div>
-              <div class="portal-vue-ai-chat" ref="chatBox">
+              <div v-if="!assetView" class="portal-vue-ai-chat" ref="chatBox">
                 <div v-if="!activeSession.messages.length" class="portal-vue-ai-welcome">
                   <h3>{{ scenarioName }}</h3>
                   <p class="portal-vue-muted">输入问题开始分析，可在输入框用 @ 引用你有权限的数据表；也可以直接在飞书机器人提问，记录同步到这里。</p>
@@ -1377,7 +1380,7 @@
                 </div>
                 <div v-if="thinking" class="portal-vue-ai-message assistant"><div class="portal-vue-ai-bubble"><p class="portal-vue-muted">正在基于你有权限的数据表进行分析…</p></div></div>
               </div>
-              <div class="portal-vue-ai-input">
+              <div v-if="!assetView" class="portal-vue-ai-input">
                 <div v-if="mentionOpen" class="portal-vue-ai-mention">
                   <div class="portal-vue-ai-mention-head"><span>引用数据表</span><span class="portal-vue-muted">仅限你有权限的 {{ myTables.length }} 张表</span></div>
                   <div class="portal-vue-ai-mention-list">
@@ -1906,10 +1909,18 @@
               session.messages.splice(session.messages.indexOf(liveMsg),1,{role:"assistant",lines:[`分析失败：${errorMsg}`]});
             }else{
               const plainSummary=String(full).replace(/[#*`|>\-]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,2).join("；").slice(0,120);
-              liveMsg.html="";
-              liveMsg.lines=[plainSummary].filter(Boolean);
+              const isReport=!errorMsg&&full.trim().length>=80;
               liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
-              this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:plainSummary},full,liveMsg,meta);
+              if(isReport){
+                // 真正的分析报告：聊天区收敛为链接卡片 + 归档到分析资产（带有标题）
+                liveMsg.html="";
+                liveMsg.lines=[plainSummary].filter(Boolean);
+                this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:plainSummary},full,liveMsg,meta);
+              }else{
+                // 非报告的回答（过短/中断/普通问答）：不归档，直接在聊天区展示内容
+                liveMsg.html=this.renderMarkdown(full);
+                liveMsg.lines=[];
+              }
             }
           }
         }catch(error){

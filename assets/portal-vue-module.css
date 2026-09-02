@@ -504,12 +504,14 @@
 .portal-vue-ai-assets-page { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 16px 18px; overflow: hidden; }
 .portal-vue-ai-assets-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .portal-vue-ai-assets-head h3 { margin: 0 0 4px; font-size: 16px; color: #1f2733; }
-.portal-vue-ai-assets-list { flex: 1 1 auto; overflow-y: auto; display: grid; gap: 12px; align-content: start; padding-right: 4px; }
-.portal-vue-ai-report-link { padding: 14px 16px; border: 1px solid #e9edf4; border-radius: 10px; background: #fff; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
-.portal-vue-ai-report-link:hover { border-color: #9cc5ff; box-shadow: 0 2px 10px rgba(22,119,255,.08); }
-.portal-vue-ai-report-link-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.portal-vue-ai-report-link-head time { margin-left: auto; font-size: 12px; color: #a5aebd; }
-.portal-vue-ai-report-link-summary { margin: 8px 0 0; font-size: 13px; color: #51607a; line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.portal-vue-ai-assets-grid { flex: 1 1 auto; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; align-content: start; padding-right: 4px; }
+.portal-vue-ai-asset-card { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid #e9edf4; border-radius: 12px; background: #fff; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.portal-vue-ai-asset-card:hover { border-color: #9cc5ff; box-shadow: 0 4px 14px rgba(22,119,255,.12); transform: translateY(-1px); }
+.portal-vue-ai-asset-card-head { display: flex; align-items: flex-start; gap: 8px; }
+.portal-vue-ai-asset-card-head strong { flex: 1 1 auto; min-width: 0; font-size: 14px; color: #1f2733; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.portal-vue-ai-asset-card-head time { flex: none; font-size: 12px; color: #a5aebd; white-space: nowrap; }
+.portal-vue-ai-asset-card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.portal-vue-ai-asset-card-summary { margin: 0; flex: 1 1 auto; font-size: 13px; color: #51607a; line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .portal-vue-ai-report-dialog .el-dialog__header { padding: 14px 18px; border-bottom: 1px solid #eef1f6; margin-right: 0; }
 .portal-vue-ai-report-dialog .el-dialog__body { padding: 16px 20px 22px; max-height: calc(92vh - 140px); overflow-y: auto; }
 .portal-vue-ai-report-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 24px; }
