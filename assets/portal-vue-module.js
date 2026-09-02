@@ -1907,7 +1907,7 @@
               // 上下总结：取自报告首两行（lead）与末尾要点（trail），报告本体只以超链形式置于中间
               const allLines=String(full).split(/\r?\n/).map(line=>line.replace(/[#*`|>]/g,"").trim()).filter(Boolean);
               const lead=allLines.slice(0,2).join("；").slice(0,120);
-              const trail=(allLines.slice(2).filter(line=>line.length>6&&!line.startsWith("证据限制")&&!line.includes("证据限制")).pop()||"分析详情、指标口径与上下游血缘见报告全文。").slice(0,80);
+              const trail=(allLines.slice(2).map(line=>line.replace(/^[-•\d、.\s]+/,"").trim()).filter(line=>line.length>6&&!line.startsWith("证据限制")&&!line.includes("证据限制")).pop()||"分析详情、指标口径与上下游血缘见报告全文。").slice(0,80);
               const isReport=!errorMsg&&full.trim().length>=80;
               liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
               if(isReport){
