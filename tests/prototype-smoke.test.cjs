@@ -168,8 +168,8 @@ assert(portalVue.includes("被 {{ refList(scope.row).length }} 处引用") && po
 assert(html.includes('id="dimensionView"') && html.includes('id="dictionaryView"') && html.includes('id="dimensionDataView"'), "入口应挂载维表和字典页面");
 
 assert(portalBridge.includes('group: "灵犀智析"') && portalBridge.includes('group: "灵犀智析"') < portalBridge.indexOf('group: "数据看板"'), "灵犀智析应作为首个导航分组");
-assert(html.includes('id="feishuBotAddBtn"') && html.includes('id="pageHeadActions"') && portalBridge.includes("feishuBotAddBtn") && portalBridge.includes("portal:open-feishu"), "添加飞书机器人按钮应位于页面头部最右侧（pageHeadActions）");
-assert(portalVue.includes("portal:open-feishu") && !portalVue.includes("portal-vue-ai-bot-btn"), "飞书抽屉由页面头部按钮事件打开，工作台内不再渲染中间位置按钮");
+assert(portalVue.includes("portal-vue-ai-bot-btn") && !html.includes("feishuBotAddBtn"), "添加飞书机器人按钮应在工作台头部行内并贴页面最右");
+assert(exists("assets/portal-shell.css") && read("assets/portal-shell.css").includes(".portal-vue-page-head { max-width: none; width: 100%; }"), "页面头部应解除 760px 宽度限制使按钮贴最右");
 assert(portalBridge.includes('name: "灵犀智析", badge: "5.0"'), "灵犀智析菜单应标记 5.0");
 assert(html.includes('id="analysisWorkbenchView"') && portalVue.includes("mount(\"#analysisWorkbenchView\""), "灵犀智析应挂载独立视图");
 assert(portalVue.includes("AnalysisWorkbenchApp") && portalVue.includes("飞书机器人"), "灵犀智析应提供飞书机器人沟通入口");
