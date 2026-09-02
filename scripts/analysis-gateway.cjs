@@ -1238,8 +1238,19 @@ async function relayChatStream(model, payload, onEvent) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "", content = "", usage = null;
+    let lastTextAt = Date.now(), stalled = "";
     while (true) {
-      const { done, value } = await reader.read();
+      // 看门狗：上游静默超时（20s 无任何数据）即中断，不无限等待拖死整个请求
+      const readTicket = Promise.race([
+        reader.read(),
+        new Promise(resolve => setTimeout(() => resolve({ _timeout: true }), 20000))
+      ]);
+      const { done, value, _timeout } = await readTicket;
+      if (_timeout) {
+        stalled = "中转站静默超时（20s 无数据）";
+        try { await reader.cancel(); } catch (cancelError) { /* 忽略 */ }
+        break;
+      }
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const parts = buffer.split("\n");
@@ -1253,13 +1264,24 @@ async function relayChatStream(model, payload, onEvent) {
           const obj = JSON.parse(data);
           if (obj.usage) usage = obj.usage;
           const delta = obj.choices?.[0]?.delta?.content || "";
-          if (delta) { content += delta; onEvent({ delta }); }
+          if (delta) { content += delta; lastTextAt = Date.now(); onEvent({ delta }); }
           const reasoning = obj.choices?.[0]?.delta?.reasoning_content || "";
-          if (reasoning) onEvent({ reasoning });
+          if (reasoning) { lastTextAt = Date.now(); onEvent({ reasoning }); }
         } catch { /* 忽略心跳等非 JSON 行 */ }
+      }
+      if (stalled) break;
+      if (content && Date.now() - lastTextAt > 90000) {
+        stalled = "中转站输出停滞（90s 无新内容）";
+        try { await reader.cancel(); } catch (cancelError) { /* 忽略 */ }
+        break;
       }
     }
     modelKeyCache.set(model, key);
+    if (stalled) {
+      // 已有部分内容：把已生成部分交还前端（中断信息随 meta 返回）；无内容则尝试下一个 key
+      if (content) return { ok: true, content, usage, keyUsed: key, stalled };
+      return { ok: false, lastResult: { status: 504, data: { error: stalled } }, stalled };
+    }
     return { ok: true, content, usage, keyUsed: key };
   }
   return { ok: false, lastResult };
@@ -1586,7 +1608,8 @@ async function handleRequest(req, res) {
           maxTokens: reasoningOptions.max_completion_tokens || null,
           tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名),
           deniedTables: denied, latencyMs: Date.now() - started,
-          usage: result.usage || null, requestId: crypto.randomUUID()
+          usage: result.usage || null, requestId: crypto.randomUUID(),
+          warning: result.stalled ? "上游中断，以上为已生成内容" : ""
         }
       });
       return res.end();

@@ -2982,6 +2982,11 @@
         document.getElementById("portalApp").classList.remove("no-permission-mode");
         document.getElementById("sidebar").classList.remove("hidden");
         activePage = page;
+        // 记住当前页面并同步地址（#page=xxx）：刷新回到同一页面，固定地址可直接发给同事
+        try {
+          localStorage.setItem("portalLastPage", page);
+          history.replaceState(null, "", "#page=" + encodeURIComponent(page));
+        } catch (error) { /* 隐私模式忽略 */ }
         setHeader(page);
         document.getElementById("boardTitleSearch")?.classList.add("hidden");
         renderSimpleNav();
@@ -3303,6 +3308,7 @@
       });
 
       document.getElementById("feishuLoginBtn").addEventListener("click", () => {
+        try { localStorage.setItem("portalDemoUser", "1"); } catch (error) { /* 隐私模式忽略 */ }
         document.getElementById("loginView").classList.add("hidden");
         document.getElementById("portalApp").classList.remove("hidden");
         document.getElementById("sidebar").classList.remove("hidden");
@@ -3322,6 +3328,7 @@
         userMenu.classList.toggle("open");
       });
       document.getElementById("logoutBtn").addEventListener("click", () => {
+        try { localStorage.removeItem("portalDemoUser"); } catch (error) { /* 隐私模式忽略 */ }
         userMenu.classList.remove("open");
         closeSimpleDrawer();
         closeFormModal();
@@ -3332,6 +3339,20 @@
       document.addEventListener("click", event => {
         if (!event.target.closest(".user-menu-wrap")) userMenu.classList.remove("open");
       });
+      // 演示环境无账号体系：记住登录态与所在页面，刷新直接回到原页面；
+      // 访问 #page=xxx 固定地址（如分享给同事）时自动进入对应页面。
+      try {
+        const hashPage = location.hash.startsWith("#page=") ? decodeURIComponent(location.hash.slice(6)) : "";
+        let savedPage = hashPage || localStorage.getItem("portalLastPage") || "";
+        if (!/^[\u4e00-\u9fa5A-Za-z0-9 ·\-\[\]（）()]+$/.test(savedPage) || savedPage.length > 24) savedPage = "灵犀智析";
+        if (savedPage && localStorage.getItem("portalDemoUser") !== "1") localStorage.setItem("portalDemoUser", "1");
+        if (localStorage.getItem("portalDemoUser") === "1") {
+          document.getElementById("loginView").classList.add("hidden");
+          document.getElementById("portalApp").classList.remove("hidden");
+          document.getElementById("sidebar").classList.remove("hidden");
+          setSimplePage(savedPage || "灵犀智析");
+        }
+      } catch (error) { /* 隐私模式忽略 */ }
       document.getElementById("noPermissionLoginBtn").addEventListener("click", () => {
         document.getElementById("loginView").classList.add("hidden");
         document.getElementById("portalApp").classList.remove("hidden");

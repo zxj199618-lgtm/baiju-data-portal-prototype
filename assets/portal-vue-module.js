@@ -1491,6 +1491,7 @@
       activeBizLine: "",
       modelLimits: {},
       historyTimer: null,
+      historyLastAt: 0,
       reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
       assetView: false,
       reportDialog: false,
@@ -1865,6 +1866,7 @@
                   lastTextAt=Date.now();
                   full+=evt.delta;
                   liveMsg.lines=[full];
+                  if(Date.now()-this.historyLastAt>5000){this.historyLastAt=Date.now();this.persistHistory();}
                   this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
                 }
                 if(evt.reasoning){
@@ -1872,6 +1874,7 @@
                   lastTextAt=Date.now();
                   reasoningText+=evt.reasoning;
                   if(!full)liveMsg.lines=["🤔 思考中："+reasoningText.slice(-80)];
+                  if(Date.now()-this.historyLastAt>5000){this.historyLastAt=Date.now();this.persistHistory();}
                   this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
                 }
                 if(evt.done)meta=evt.meta||{};
@@ -1887,7 +1890,7 @@
             }else{
               liveMsg.html=this.renderMarkdown(full);
               liveMsg.lines=[];
-              liveMsg.meta=this.buildMetaLine(meta||{});
+              liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
               const plainSummary=String(full).replace(/[#*`|>\-]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,2).join("；").slice(0,120);
               this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:plainSummary},full,liveMsg,meta);
             }
@@ -1902,7 +1905,10 @@
         this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
       },
       buildMetaLine(meta){
-        return `${meta.scenario||""} · ${meta.model||""} · 推理 ${meta.reasoningEffort||"default"}${meta.maxTokens?` · 上下文 ${meta.maxTokens>=1024?Math.round(meta.maxTokens/1024)+"K":meta.maxTokens}`:""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;
+        let line=`${meta.scenario||""} · ${meta.model||""} · 推理 ${meta.reasoningEffort||"default"}${meta.maxTokens?` · 上下文 ${meta.maxTokens>=1024?Math.round(meta.maxTokens/1024)+"K":meta.maxTokens}`:""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;
+        if(meta.warning)line+=` · ⚠️ ${meta.warning}`;
+        if(meta.deniedTables?.length)line+=` · 无权限表 ${meta.deniedTables.join("、")}`;
+        return line;
       },
       renderMarkdown(markdown){
         const escape=value=>String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");

@@ -25,6 +25,9 @@ assert(gatewaySource.includes("PUBLIC_DIR") && gatewaySource.includes("window.PO
 assert(gatewaySource.includes("handleRequest(req, res).catch") && gatewaySource.includes("请求处理失败"), "网关应全局兜底请求异常，防止非法 JSON 请求拖垮服务进程");
 assert(gatewaySource.includes('"/v1/history"') && gatewaySource.includes("workbench-history.json"), "网关应持久化工作台历史（会话/报告）到数据卷");
 assert(portalVue.includes("loadHistory") && portalVue.includes("persistHistory") && portalVue.includes("/v1/history"), "分析工作台应启动时恢复历史并在变更后持久化");
+assert(gatewaySource.includes("_timeout") && gatewaySource.includes("中转站静默超时") && gatewaySource.includes("上游中断"), "网关应对上游流做静默/停滞看门狗，中断时返还已生成内容");
+assert(portalVue.includes("historyLastAt") && portalVue.includes("⚠️"), "流式生成期间应定时持久化并展示中断警告");
+assert(portalBridge.includes("portalDemoUser") && portalBridge.includes("portalLastPage") && portalBridge.includes("#page="), "应记住登录态与当前页面（#page= 固定地址），刷新不再回登录页");
 assert(portalVue.includes("window.PORTAL_GATEWAY_BASE") && shareHtml.includes("window.PORTAL_GATEWAY_BASE"), "前端与分享页应优先使用同源网关地址（域名部署时链接可直接打开）");
 
 [
