@@ -175,8 +175,9 @@ assert(portalVue.includes("会话记录") && portalVue.includes("含飞书机器
 assert(portalVue.includes("assetView") && portalVue.includes("openReport") && portalVue.includes("archiveReport") && portalVue.includes("jumpToSource"), "分析资产应在主区域切换为报告列表页，点击报告弹窗打开并可跳回来源会话");
 assert(portalVue.includes("复制链接分享"), "报告弹窗应支持复制链接分享");
 assert(gatewaySource.includes('url.pathname === "/v1/shares"') && gatewaySource.includes("report-shares.json"), "网关应提供分享创建/读取接口并持久化到数据卷");
-assert(portalVue.includes("分享为链接") && portalVue.includes("shareChatReport"), "工作台生成的报告应可直接一键分享为链接");
-assert(portalVue.includes("markdown:String(markdownText") && portalVue.includes("liveMsg._reportId=report.id"), "报告归档应保存完整正文并挂载到聊天消息");
+assert(portalVue.includes("openReportById") && portalVue.includes("portal-vue-ai-report-linkcard"), "完成的分析应以报告链接卡片展示，点击打开中间大弹窗");
+assert(portalVue.includes("markdown:String(markdownText") && portalVue.includes("liveMsg.reportId=report.id"), "报告归档应保存完整正文并绑定到聊天消息，刷新后仍为卡片");
+assert(portalVue.includes("reportMarkdownHtml") && portalVue.includes("portal-vue-ai-report-dialog-markdown"), "弹窗应优先渲染报告完整 Markdown 正文");
 assert(portalVue.includes("report:report.markdown"), "分享内容应使用完整 markdown 正文");
 assert(portalVue.includes("数据表权限") && portalVue.includes("toggleAllTables") && portalVue.includes("allTables"), "权限组应支持数据表权限配置");
 assert(portalBridge.includes('tables: ["全部数据表"]'), "权限组数据应包含数据表权限维度");

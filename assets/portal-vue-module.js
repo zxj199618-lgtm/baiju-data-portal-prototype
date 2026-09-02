@@ -1366,7 +1366,12 @@
                 </div>
                 <div v-for="(msg, index) in activeSession.messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
                   <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
-                    <template v-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg._reportId" class="portal-vue-ai-report-actions"><el-button size="small" round plain :loading="msg._sharing" @click="shareChatReport(msg)">🔗 {{ msg._shared ? "已分享为链接" : "分享为链接" }}</el-button></div></template>
+                    <template v-if="msg.reportId"><div class="portal-vue-ai-report-linkcard" @click="openReportById(msg.reportId)">
+                      <span class="portal-vue-ai-report-linkcard-icon">📄</span>
+                      <div class="portal-vue-ai-report-linkcard-body"><strong>分析报告</strong><span>{{ reportTitleOf(msg.reportId) }}</span></div>
+                      <span class="portal-vue-ai-report-linkcard-arrow">↗</span>
+                    </div><p v-if="msg.lines && msg.lines.length" class="portal-vue-ai-report-preview">{{ msg.lines[0] }}</p><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
+                    <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div>
@@ -1458,13 +1463,14 @@
               </div>
               <p v-if="activeReport().summary" class="portal-vue-ai-report-summary"><span>结论摘要</span>{{ activeReport().summary }}</p>
               <div class="portal-vue-ai-report-dialog-content">
-                <div v-for="(msg, index) in activeReport().messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
+                <div v-if="activeReport().markdown" class="portal-vue-ai-report-body portal-vue-ai-report-dialog-markdown" v-html="reportMarkdownHtml(activeReport())"></div>
+                <div v-if="!activeReport().markdown && activeReport().messages.length" v-for="(msg, index) in activeReport().messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
                   <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html }">
                     <template v-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div>
-                <p v-if="!activeReport().messages.length" class="portal-vue-muted">{{ activeReport().summary || "（无内容）" }}</p>
+                <p v-if="!activeReport().markdown && !activeReport().messages.length" class="portal-vue-muted">{{ activeReport().summary || "（无内容）" }}</p>
               </div>
             </div>
           </el-dialog>            </section>
@@ -1680,6 +1686,16 @@
       openAssets(){this.assetView=true;},
       openReport(report){this.activeReportId=report.id;this.reportDialog=true;},
       activeReport(){return this.reports.find(item=>item.id===this.activeReportId);},
+      openReportById(reportId){
+        const report=this.reports.find(item=>item.id===reportId);
+        if(!report){ep.ElMessage.info("该报告不存在或已被删除");return;}
+        this.openReport(report);
+      },
+      reportTitleOf(reportId){
+        const report=this.reports.find(item=>item.id===reportId);
+        return report?.title?.replace(/ · 报告$/,"")||"分析报告";
+      },
+      reportMarkdownHtml(report){return this.renderMarkdown(report?.markdown||"");},
       openSessionFromList(id){this.assetView=false;this.openSession(id);},
       async shareReport(report){
         report._sharing=true;
@@ -1771,7 +1787,7 @@
           messages:session.messages.filter(msg=>msg.role==="user"||msg.html||msg.lines?.length).map(msg=>({role:msg.role,lines:msg.lines||[],html:msg.html||"",refs:msg.refs}))
         });
         this.reports.unshift(report);
-        if(liveMsg)liveMsg._reportId=report.id;
+        if(liveMsg)liveMsg.reportId=report.id;
         this.persistHistory();
       },
       onEnter(event){
@@ -1889,10 +1905,10 @@
             if(errorMsg&&!full){
               session.messages.splice(session.messages.indexOf(liveMsg),1,{role:"assistant",lines:[`分析失败：${errorMsg}`]});
             }else{
-              liveMsg.html=this.renderMarkdown(full);
-              liveMsg.lines=[];
-              liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
               const plainSummary=String(full).replace(/[#*`|>\-]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(0,2).join("；").slice(0,120);
+              liveMsg.html="";
+              liveMsg.lines=[plainSummary].filter(Boolean);
+              liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
               this.archiveReport(session,question,{tablesUsed:meta?.tablesUsed||[],summary:plainSummary},full,liveMsg,meta);
             }
           }

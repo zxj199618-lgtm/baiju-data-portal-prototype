@@ -1057,6 +1057,7 @@ function sanitizeHistoryMessage(msg) {
     html: String(msg?.html || "").slice(0, 120000),
     meta: String(msg?.meta || "").slice(0, 400),
     model: String(msg?.model || "").slice(0, 80),
+    reportId: String(msg?.reportId || "").slice(0, 80),
     streaming: false
   };
 }

@@ -449,6 +449,15 @@
 .portal-vue-ai-report-table th { background: #f7f9fc; font-weight: 650; }
 .portal-vue-ai-report-meta { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #dbe2ec; font-size: 11.5px; color: #a5aebd; }
 .portal-vue-ai-report-actions { margin-top: 10px; }
+.portal-vue-ai-report-linkcard { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 6px; padding: 12px 14px; border: 1px solid #dbe4f0; border-radius: 10px; background: #f4f8ff; cursor: pointer; transition: border-color .2s, box-shadow .2s; }
+.portal-vue-ai-report-linkcard:hover { border-color: #1677ff; box-shadow: 0 2px 10px rgba(22,119,255,.14); }
+.portal-vue-ai-report-linkcard-icon { font-size: 20px; }
+.portal-vue-ai-report-linkcard-body { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.portal-vue-ai-report-linkcard-body strong { font-size: 13.5px; color: #1f2733; }
+.portal-vue-ai-report-linkcard-body span { font-size: 12.5px; color: #1677ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portal-vue-ai-report-linkcard-arrow { color: #a5aebd; font-size: 14px; }
+.portal-vue-ai-report-preview { margin: 6px 0 0; font-size: 12.5px; color: #51607a; line-height: 1.6; }
+.portal-vue-ai-report-dialog-markdown { max-height: 60vh; overflow-y: auto; }
 
 /* 系统管理：菜单管理 / Skill 配置 */
 .portal-vue-skill-drawer { display: grid; gap: 12px; }
