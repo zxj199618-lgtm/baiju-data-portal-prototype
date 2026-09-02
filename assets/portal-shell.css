@@ -2623,6 +2623,8 @@
       flex: 0 0 auto;
     }
 
+    .page-head-actions .portal-feishu-add-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 12.5px; }
+
     .page-head-actions .search-wrap {
       width: 360px;
       max-width: 100%;

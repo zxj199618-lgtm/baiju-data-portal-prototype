@@ -200,7 +200,6 @@
         <div v-if="visible" class="portal-vue-page-head">
           <div class="portal-vue-page-head-row">
             <div><h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p></div>
-            <button v-if="page === '灵犀智析' && !feishuBotAdded" type="button" class="portal-vue-ai-bot-btn" @click="feishuOpen = true"><span class="portal-vue-ai-bot-icon">🤖</span><span>添加飞书机器人</span></button>
           </div>
         </div>
         <el-drawer v-if="page === '灵犀智析'" v-model="feishuOpen" title="观星台 · 飞书机器人" size="420px" :close-on-click-modal="true">
@@ -1567,11 +1566,13 @@
     mounted(){
       this.pageHandler=event=>{if(event.detail?.page==="灵犀智析"){this.loadGatewaySkills();this.loadMyTables();this.loadModels();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
       window.addEventListener("portal:page-change",this.pageHandler);
+      this.feishuHandler=()=>{this.feishuOpen=true;};
+      window.addEventListener("portal:open-feishu",this.feishuHandler);
       this.loadModels();
       this.loadGatewaySkills();
       this.loadHistory();
     },
-    beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
+    beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);window.removeEventListener("portal:open-feishu",this.feishuHandler);},
     methods:{
       async loadGatewaySkills(){
         try{

@@ -1750,6 +1750,9 @@
         pageSubtitle.textContent = meta[1];
         primaryAction.textContent = meta[2];
         primaryAction.classList.toggle("hidden", !meta[2]);
+        // 添加飞书机器人按钮：只出现在灵犀智析页，且固定在页面头部最右侧；已添加后隐藏
+        const feishuBtn = document.getElementById("feishuBotAddBtn");
+        if (feishuBtn) feishuBtn.hidden = !(page === "灵犀智析" && localStorage.getItem("feishuBotAdded") !== "1");
         if (!["Quick BI 展示", "新增API", "新建人群包", "维表数据维护"].includes(page)) upsertTab({ name: meta[0], page, icon: pageIcon(page), closable: page !== "数据看板" });
         tabsBar.innerHTML = simpleTabs.map(tab => `
           <button class="tab ${tab.page === page && (!Object.prototype.hasOwnProperty.call(tab, "boardIndex") || activeBoard.name === tab.name) ? "active" : ""}" data-simple-tab="${safeText(tab.name)}">
@@ -3313,6 +3316,9 @@
         document.getElementById("portalApp").classList.remove("hidden");
         document.getElementById("sidebar").classList.remove("hidden");
         setSimplePage("灵犀智析");
+      });
+      document.getElementById("feishuBotAddBtn").addEventListener("click", () => {
+        window.dispatchEvent(new CustomEvent("portal:open-feishu"));
       });
       const sidebar = document.getElementById("sidebar");
       const collapseBtn = document.getElementById("collapseBtn");
