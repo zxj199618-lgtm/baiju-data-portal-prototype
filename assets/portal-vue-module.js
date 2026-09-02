@@ -1673,6 +1673,7 @@
         this.reports=this.reports.filter(item=>item.id!==report.id);
         if(this.activeReportId===report.id)this.reportDialog=false;
         notify(`报告「${report.title}」已删除`);
+        fetch(`${analysisGatewayBase}/v1/history/report/${encodeURIComponent(report.id)}`,{method:"DELETE"}).catch(()=>{/* 网关未启动忽略 */});
         this.persistHistory();
       },
       findSession(id){return this.sessions.find(item=>item.id===id);},

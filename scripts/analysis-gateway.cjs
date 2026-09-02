@@ -1061,6 +1061,18 @@ function sanitizeHistoryMessage(msg) {
   };
 }
 
+// 工作台历史：无登录、共享一份。多标签页并发时按 id 合并（旧标签页的旧状态不会覆盖新记录）
+function mergeHistory(incoming, existing) {
+  const sessions = new Map((existing.sessions || []).map(s => [s.id, s]));
+  for (const s of incoming.sessions || []) if (s.id) sessions.set(s.id, s);
+  const reports = new Map((existing.reports || []).map(r => [r.id, r]));
+  for (const r of incoming.reports || []) if (r.id) reports.set(r.id, r);
+  return {
+    sessions: [...sessions.values()].slice(0, 80),
+    reports: [...reports.values()].slice(0, 120)
+  };
+}
+
 function saveHistory(box) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const sessions = (Array.isArray(box.sessions) ? box.sessions.slice(0, 80) : []).map(s => ({
@@ -1440,8 +1452,18 @@ async function handleRequest(req, res) {
     if (!Array.isArray(body.sessions) || !Array.isArray(body.reports)) {
       return sendJson(res, 400, { error: "历史数据格式不正确" });
     }
-    saveHistory(body);
+    const existing = loadHistory();
+    // 合并而非替换：多标签页各自保存时以 id 互不覆盖（旧标签页的旧状态不会清掉新标签页的记录）
+    saveHistory(mergeHistory({ sessions: body.sessions, reports: body.reports }, existing));
     return sendJson(res, 200, { saved: true });
+  }
+  const historyReportMatch = url.pathname.match(/^\/v1\/history\/report\/(.+)$/);
+  if (req.method === "DELETE" && historyReportMatch) {
+    const reportId = decodeURIComponent(historyReportMatch[1]);
+    const existing = loadHistory();
+    const reports = existing.reports.filter(r => r.id !== reportId);
+    saveHistory({ sessions: existing.sessions, reports });
+    return sendJson(res, 200, { removed: reports.length !== existing.reports.length });
   }
 
   const modelConfigMatch = url.pathname.match(/^\/v1\/model-config\/(.+)$/);
