@@ -1369,7 +1369,12 @@
                 </div>
                 <div v-for="(msg, index) in activeSession.messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
                   <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
-                    <template v-if="msg.reportId"><div class="portal-vue-ai-report-card" @click="openReportById(msg.reportId)"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><span class="portal-vue-ai-report-hyperlink">📄 分析报告：{{ reportTitleOf(msg.reportId) }} ›</span><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
+                    <template v-if="msg.reportId"><div class="portal-vue-ai-report-card">
+  <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file">📄</span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportById(msg.reportId)">打开展示所有 ›</button></div>
+  <p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p>
+  <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
+  <p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p>
+</div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
                     <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
@@ -1694,6 +1699,11 @@
         const report=this.reports.find(item=>item.id===reportId);
         return report?.title?.replace(/ · 报告$/,"")||"分析报告";
       },
+      reportMarkdownOf(reportId){
+        const report=this.reports.find(item=>item.id===reportId);
+        return report?.markdown||"";
+      },
+      reportMarkdownHtmlOf(reportId){return this.renderMarkdown(this.reportMarkdownOf(reportId));},
       reportMarkdownHtml(report){return this.renderMarkdown(report?.markdown||"");},
       openSessionFromList(id){this.assetView=false;this.openSession(id);},
       async shareReport(report){

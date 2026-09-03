@@ -362,7 +362,7 @@
 .portal-vue-ai-feishu-steps span { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 8px; background: #f3f7fd; color: #3f4857; font-size: 13px; line-height: 1.6; }
 .portal-vue-ai-feishu-steps b { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #1677ff; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
 .portal-vue-ai-layout { margin-top: 12px; display: grid; grid-template-columns: 300px minmax(0,1fr); gap: 14px; align-items: stretch; height: calc(100vh - 240px); min-height: 500px; }
-.portal-vue-ai-side { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #e4e9f2; border-radius: 10px; background: #fbfcfe; height: calc(100vh - 220px); min-height: 480px; }
+.portal-vue-ai-side { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #e4e9f2; border-radius: 10px; background: #fbfcfe; height: calc(100vh - 180px); min-height: 480px; }
 .portal-vue-ai-new { width: 100%; }
 .portal-vue-ai-sessions { display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
 .portal-vue-ai-session { padding: 10px 12px; border: 1px solid #e9edf4; border-radius: 8px; background: #fff; cursor: pointer; transition: border-color .15s, background .15s; }
@@ -374,7 +374,7 @@
 .portal-vue-ai-session-meta { margin-top: 6px; display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #8a94a6; }
 .portal-vue-ai-session-status { margin-left: auto; }
 .portal-vue-ai-session-status.running { color: #d97706; }
-.portal-vue-ai-main { display: flex; flex-direction: column; height: calc(100vh - 220px); min-height: 480px; border: 1px solid #e4e9f2; border-radius: 10px; background: #fff; overflow: hidden; }
+.portal-vue-ai-main { display: flex; flex-direction: column; height: calc(100vh - 180px); min-height: 480px; border: 1px solid #e4e9f2; border-radius: 10px; background: #fff; overflow: hidden; }
 .portal-vue-ai-scenarios { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; padding: 12px; border-bottom: 1px solid #eef1f6; }
 .portal-vue-ai-scenario { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid #e4e9f2; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
 .portal-vue-ai-scenario:hover { border-color: #9cc5ff; }
@@ -457,13 +457,19 @@
 .portal-vue-ai-report-linkcard-body span { font-size: 12.5px; color: #1677ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-ai-report-linkcard-arrow { color: #a5aebd; font-size: 14px; }
 .portal-vue-ai-report-preview { margin: 6px 0 0; font-size: 12.5px; color: #51607a; line-height: 1.6; }
-.portal-vue-ai-report-lead { margin: 0; font-size: 13px; color: #2a3446; line-height: 1.75; }
+.portal-vue-ai-report-lead { margin: 0 0 8px; font-size: 13px; color: #2a3446; line-height: 1.75; }
 .portal-vue-ai-report-hyperlink { display: inline-flex; align-items: center; gap: 6px; margin: 10px 0 4px; font-size: 14px; font-weight: 600; color: #1677ff; text-decoration: none; cursor: pointer; }
 .portal-vue-ai-report-hyperlink:hover { text-decoration: underline; }
-.portal-vue-ai-report-trail { margin: 6px 0 0; font-size: 12.5px; color: #7b8492; line-height: 1.7; }
-.portal-vue-ai-report-card { padding: 12px 14px; border: 1px solid #e9edf4; border-radius: 12px; background: #f8fafd; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
-.portal-vue-ai-report-card:hover { border-color: #9cc5ff; box-shadow: 0 2px 10px rgba(22,119,255,.10); }
-.portal-vue-ai-report-dialog-markdown { max-height: 60vh; overflow-y: auto; }
+.portal-vue-ai-report-trail { margin: 8px 0 0; font-size: 12.5px; color: #7b8492; line-height: 1.7; }
+.portal-vue-ai-report-card { display: flex; flex-direction: column; padding: 14px 16px; border: 1px solid #e9edf4; border-radius: 14px; background: #fff; }
+.portal-vue-ai-report-card:hover { border-color: #d3def0; }
+.portal-vue-ai-report-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.portal-vue-ai-report-card-file { font-size: 16px; }
+.portal-vue-ai-report-card-title { flex: 1 1 auto; min-width: 0; font-size: 14.5px; color: #1f2733; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portal-vue-ai-report-open-btn { flex: none; padding: 5px 12px; border: 1px solid #1677ff; border-radius: 999px; background: #1677ff; color: #fff; font-size: 12.5px; cursor: pointer; transition: background .15s; }
+.portal-vue-ai-report-open-btn:hover { background: #0f65e8; }
+.portal-vue-ai-report-preview { max-height: 480px; overflow-y: auto; margin-top: 6px; padding-top: 10px; border-top: 1px dashed #e2e8f2; }
+.portal-vue-ai-report-dialog-markdown { max-height: 76vh; overflow-y: auto; }
 
 /* 系统管理：菜单管理 / Skill 配置 */
 .portal-vue-skill-drawer { display: grid; gap: 12px; }
