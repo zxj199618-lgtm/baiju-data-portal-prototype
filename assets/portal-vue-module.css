@@ -473,6 +473,15 @@
 .portal-vue-ai-report-preview { max-height: 560px; overflow-y: auto; margin-top: 6px; padding-top: 10px; border-top: 1px dashed #e2e8f2; }
 .portal-vue-ai-report-dialog-markdown { max-height: none; }
 
+/* 全屏编辑弹窗/抽屉：标题与操作固定，内容区滚动 */
+.el-drawer.portal-vue-fullscreen-drawer { display: flex; flex-direction: column; }
+.el-drawer.portal-vue-fullscreen-drawer .el-drawer__body { flex: 1; min-height: 0; overflow-y: auto; }
+.el-drawer.portal-vue-fullscreen-drawer .el-drawer__footer { flex: none; border-top: 1px solid #eef1f6; padding: 12px 20px; background: #fff; }
+.el-dialog.portal-vue-fullscreen-dialog { display: flex; flex-direction: column; }
+.el-dialog.portal-vue-fullscreen-dialog .el-dialog__body { flex: 1; min-height: 0; overflow-y: auto; }
+.el-dialog.portal-vue-fullscreen-dialog .el-dialog__footer { flex: none; border-top: 1px solid #eef1f6; padding: 12px 20px; }
+.el-dialog.portal-vue-fullscreen-dialog .el-dialog__header { padding-bottom: 14px; border-bottom: 1px solid #eef1f6; margin-right: 0; }
+
 /* 数据预警 */
 .portal-vue-alert-step { display: flex; align-items: center; gap: 10px; }
 .portal-vue-alert-step b { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #1677ff; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }

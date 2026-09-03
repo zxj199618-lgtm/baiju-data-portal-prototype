@@ -2410,7 +2410,7 @@
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">Skill 以 ZIP 包（SKILL.md + 脚本 + 依赖清单）上传到网关统一执行；提示词与版本更新即时生效，无需发版。</div>
         </section>
-        <el-drawer v-model="editVisible" :title="(activeSkill?.name || '') + ' · 编辑'" size="720px" :close-on-click-modal="true">
+        <el-drawer v-model="editVisible" :title="(activeSkill?.name || '') + ' · 编辑'" size="100%" class="portal-vue-fullscreen-drawer" :close-on-click-modal="true">
           <div v-if="activeSkill" class="portal-vue-skill-drawer">
             <el-alert type="info" :closable="false" title="所有配置在同一个编辑页维护，保存后下一次分析请求立即生效，无需发版。" :show-icon="true"></el-alert>
             <div class="portal-vue-skill-section"><strong>工作台展示</strong>
@@ -2450,8 +2450,10 @@
               </div>
               <p v-if="!activeSkill.versions?.length" class="portal-vue-muted">暂无版本历史</p>
             </div>
-            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px"><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveAll">保存全部</el-button></div>
           </div>
+          <template #footer>
+            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveAll">保存全部</el-button></div>
+          </template>
         </el-drawer>
       </el-config-provider>
     `,
@@ -2583,7 +2585,7 @@
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">预警规则完全来自自然语言描述，AI 解析出的配置与 SQL 需业务核对确认；推送走内置「观星台预警助手」飞书机器人。</div>
         </section>
-        <el-dialog v-model="dialogVisible" :title="(editingId ? '编辑' : '新建') + '数据预警'" width="800px" top="4vh" :close-on-click-modal="false">
+        <el-dialog v-model="dialogVisible" :title="(editingId ? '编辑' : '新建') + '数据预警'" fullscreen class="portal-vue-fullscreen-dialog" :close-on-click-modal="false">
           <div class="portal-vue-skill-drawer" style="gap:14px">
             <div class="portal-vue-alert-step"><b>1</b><div><strong>描述预警需求</strong><span class="portal-vue-muted">用一句话说明监控什么、变化多大时提醒</span></div></div>
             <el-input v-model="text" type="textarea" :rows="3" resize="none" placeholder="例：近 7 天广告计划日报表中，巨量渠道消耗环比下降超过 20% 时每天提醒"></el-input>
