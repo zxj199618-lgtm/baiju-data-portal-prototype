@@ -420,6 +420,9 @@
 .portal-vue-ai-chip-model-btn:hover:not(:disabled) { box-shadow: 0 0 0 1px #9cc5ff inset; }
 .portal-vue-ai-chip-model-btn:disabled { opacity: .5; cursor: not-allowed; }
 .portal-vue-ai-chip-model-value { font-size: 12.5px; color: #1f2733; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portal-vue-ai-chip-model-value.is-empty { color: #a5aebd; }
+.portal-vue-ai-table-panel { padding: 4px 6px; }
+.portal-vue-ai-table-panel .el-select { width: 100%; }
 .portal-vue-ai-chip-model-arrow { font-size: 10px; color: #8a94a6; }
 .portal-vue-ai-model-panel { display: grid; gap: 2px; }
 .portal-vue-ai-model-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 4px; border-bottom: 1px solid #f0f2f6; }

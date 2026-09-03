@@ -1390,14 +1390,22 @@
                 <div class="portal-vue-ai-composer">
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
-                    <el-select v-model="activeBizLine" class="portal-vue-ai-chip-select portal-vue-ai-chip-biz" size="small" filterable clearable placeholder="业务线" popper-class="portal-vue-ai-select-popper" @change="onBizLineChange">
-                      <template #prefix><span class="portal-vue-ai-chip-label">线</span></template>
-                      <el-option v-for="item in bizLineOptions" :key="item" :label="item" :value="item"></el-option>
-                    </el-select>
-                    <el-select v-model="activeTable" class="portal-vue-ai-chip-select" size="small" filterable clearable placeholder="选择数据表" popper-class="portal-vue-ai-select-popper" :disabled="!activeBizLine">
-                      <template #prefix><span class="portal-vue-ai-chip-label">表</span></template>
-                      <el-option v-for="table in tableOptions" :key="table" :label="table" :value="table"></el-option>
-                    </el-select>
+                    <el-popover placement="top-end" :width="380" trigger="click" popper-class="portal-vue-ai-table-panel-popper">
+                      <template #reference>
+                        <button type="button" class="portal-vue-ai-chip-model-btn">
+                          <span class="portal-vue-ai-chip-label">表</span>
+                          <span class="portal-vue-ai-chip-model-value" :class="{ 'is-empty': !activeTable }">{{ activeTable || "选择数据表" }}</span>
+                          <span class="portal-vue-ai-chip-model-arrow">⌄</span>
+                        </button>
+                      </template>
+                      <div class="portal-vue-ai-table-panel">
+                        <el-select v-model="activeTable" size="small" filterable clearable placeholder="搜索数据表（按业务线分组）" popper-class="portal-vue-ai-select-popper">
+                          <el-option-group v-for="group in tableGroups" :key="group.name" :label="group.name">
+                            <el-option v-for="table in group.tables" :key="table" :label="table" :value="table"></el-option>
+                          </el-option-group>
+                        </el-select>
+                      </div>
+                    </el-popover>
                     <el-popover placement="top-end" :width="300" trigger="click" popper-class="portal-vue-ai-model-panel-popper">
                       <template #reference>
                         <button type="button" class="portal-vue-ai-chip-model-btn" :disabled="!models.length">
@@ -1496,7 +1504,6 @@
       reasoning: "medium",
       maxTokens: null,
       defaultModel: "",
-      activeBizLine: "",
       modelLimits: {},
       historyTimer: null,
       historyLastAt: 0,
@@ -1533,11 +1540,16 @@
         state.assets.forEach(table=>{if(table.bizLine)meta[table.cnName]=table.bizLine;});
         return meta;
       },
-      bizLineOptions(){
-        return [...new Set(this.myTables.map(table=>this.bizLineMeta[table]).filter(Boolean))];
-      },
-      tableOptions(){
-        return this.activeBizLine?this.myTables.filter(table=>this.bizLineMeta[table]===this.activeBizLine):this.myTables;
+      tableGroups(){
+        const groups=[];
+        const lines=[...new Set(this.myTables.map(table=>this.bizLineMeta[table]).filter(Boolean))];
+        for(const line of lines){
+          const tables=this.myTables.filter(table=>this.bizLineMeta[table]===line);
+          if(tables.length)groups.push({name:line,tables});
+        }
+        const rest=this.myTables.filter(table=>!this.bizLineMeta[table]);
+        if(rest.length)groups.push({name:"其他",tables:rest});
+        return groups;
       },
       currentContextLimit(){return this.modelLimits[this.model]||1000000;},
       contextOptions(){
@@ -1645,9 +1657,6 @@
         if(value>=1048576)return (value/1048576)+"M";
         if(value>=1024)return Math.round(value/1024)+"K";
         return String(value);
-      },
-      onBizLineChange(){
-        if(this.activeTable&&!this.tableOptions.includes(this.activeTable))this.activeTable="";
       },
       resetModelSettings(){
         this.model=this.models.find(item=>item===this.defaultModel)||this.models[0]||"";
