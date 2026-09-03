@@ -337,7 +337,7 @@
         let pushSt = "推送成功", pushReason = "";
         if (manual) { pushSt = "未推送（手动下载）"; }
         else if (i === 4 && !hourly) { pushSt = "待推送"; }
-        else if (i === 0 && p.id === "AUD1002") { pushSt = "推送失败"; pushReason = "目标渠道凭证失效（AK 过期）"; }
+        else if (i === 0 && p.name === "号卡电竞包-青海") { pushSt = "推送失败"; pushReason = "目标渠道凭证失效（AK 过期）"; }
         else if ((i === 6 && /失败/.test(p.last)) || (!hourly && i % 9 === 5)) {
           pushSt = "推送失败";
           pushReason = i % 2 ? "目标渠道凭证失效（AK 过期）" : "OSS bucket 配额不足，剩余 0B";

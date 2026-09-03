@@ -363,6 +363,11 @@
 .portal-vue-ai-feishu-steps b { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #1677ff; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
 .portal-vue-ai-layout { margin-top: 12px; display: grid; grid-template-columns: 300px minmax(0,1fr); gap: 14px; align-items: stretch; height: calc(100vh - 240px); min-height: 500px; }
 .portal-vue-ai-side { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #e4e9f2; border-radius: 10px; background: #fbfcfe; height: calc(100vh - 180px); min-height: 480px; }
+.portal-vue-ai-session-scroll { flex: 1 1 auto; min-height: 0; height: auto !important; }
+.portal-vue-ai-session-scroll .el-scrollbar__wrap { max-height: none; }
+.portal-vue-ai-side-summary { display: grid; gap: 7px; padding: 10px 12px; border-top: 1px solid #e9edf4; color: #8a94a6; font-size: 11.5px; }
+.portal-vue-ai-side-summary div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.portal-vue-ai-side-summary strong { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #51607a; font-size: 12px; font-weight: 600; }
 .portal-vue-ai-new { width: 100%; }
 .portal-vue-ai-sessions { display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
 .portal-vue-ai-session { padding: 10px 12px; border: 1px solid #e9edf4; border-radius: 8px; background: #fff; cursor: pointer; transition: border-color .15s, background .15s; }
@@ -375,7 +380,7 @@
 .portal-vue-ai-session-status { margin-left: auto; }
 .portal-vue-ai-session-status.running { color: #d97706; }
 .portal-vue-ai-main { display: flex; flex-direction: column; height: calc(100vh - 250px); min-height: 420px; border: 1px solid #e4e9f2; border-radius: 10px; background: #fff; overflow: hidden; }
-.portal-vue-ai-scenarios { flex-shrink: 0; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; padding: 8px 12px; max-height: 112px; overflow-y: auto; border-bottom: 1px solid #eef1f6; }
+.portal-vue-ai-scenarios { flex-shrink: 0; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); grid-auto-rows: minmax(52px, auto); gap: 8px; padding: 8px 12px; height: 132px; max-height: 132px; overflow-y: auto; border-bottom: 1px solid #eef1f6; }
 .portal-vue-ai-scenario { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid #e4e9f2; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
 .portal-vue-ai-scenario:hover { border-color: #9cc5ff; }
 .portal-vue-ai-scenario.active { border-color: #1677ff; background: #e7f1ff; }
@@ -417,11 +422,16 @@
 .portal-vue-ai-chip-select { width: auto; min-width: 132px; max-width: 260px; }
 .portal-vue-ai-chip-biz { min-width: 108px; max-width: 160px; }
 .portal-vue-ai-chip-model-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 190px; padding: 6px 14px; border: 0; border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; cursor: pointer; }
+.portal-vue-ai-chip-table-btn { width: 250px; }
 .portal-vue-ai-chip-model-btn:hover:not(:disabled) { box-shadow: 0 0 0 1px #9cc5ff inset; }
 .portal-vue-ai-chip-model-btn:disabled { opacity: .5; cursor: not-allowed; }
 .portal-vue-ai-chip-model-value { font-size: 12.5px; color: #1f2733; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-ai-chip-model-value.is-empty { color: #a5aebd; }
 .portal-vue-ai-table-panel { padding: 4px 6px; }
+.portal-vue-ai-cascade-grid { display: grid; grid-template-columns: 150px minmax(0,1fr); gap: 10px; }
+.portal-vue-ai-cascade-field { display: grid; gap: 5px; min-width: 0; }
+.portal-vue-ai-cascade-label { color: #667085; font-size: 11.5px; font-weight: 600; }
+.portal-vue-ai-cascade-field .el-select { width: 100%; }
 .portal-vue-ai-table-panel .el-select { width: 100%; }
 .portal-vue-ai-chip-model-arrow { font-size: 10px; color: #8a94a6; }
 .portal-vue-ai-model-panel { display: grid; gap: 2px; }

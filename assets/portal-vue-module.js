@@ -1312,7 +1312,7 @@
                 <span class="portal-vue-ai-asset-btn-text">分析资产</span>
                 <el-tag size="small" round effect="plain">{{ reports.length }} 份报告</el-tag>
               </button>
-              <el-scrollbar height="calc(100vh - 500px)">
+              <el-scrollbar class="portal-vue-ai-session-scroll">
                 <div class="portal-vue-ai-sessions">
                   <el-button class="portal-vue-ai-new" type="primary" plain @click="newSession">＋ 新的分析</el-button>
                   <p class="portal-vue-ai-group-label">会话记录 <span>含飞书机器人</span></p>
@@ -1329,6 +1329,10 @@
                   <p v-if="!sessions.length" class="portal-vue-muted">暂无会话</p>
                 </div>
               </el-scrollbar>
+              <div class="portal-vue-ai-side-summary">
+                <div><span>可用数据表</span><strong>{{ myTables.length }} 张</strong></div>
+                <div><span>当前模型</span><strong>{{ model || "加载中" }}</strong></div>
+              </div>
             </aside>
             <section class="portal-vue-ai-main">
               <div v-if="assetView" class="portal-vue-ai-assets-page">
@@ -1390,20 +1394,30 @@
                 <div class="portal-vue-ai-composer">
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
-                    <el-popover placement="top-end" :width="380" trigger="click" popper-class="portal-vue-ai-table-panel-popper">
+                    <el-popover placement="top-end" :width="430" trigger="click" popper-class="portal-vue-ai-table-panel-popper">
                       <template #reference>
-                        <button type="button" class="portal-vue-ai-chip-model-btn">
+                        <button type="button" class="portal-vue-ai-chip-model-btn portal-vue-ai-chip-table-btn">
                           <span class="portal-vue-ai-chip-label">表</span>
                           <span class="portal-vue-ai-chip-model-value" :class="{ 'is-empty': !activeTable }">{{ activeTable || "选择数据表" }}</span>
                           <span class="portal-vue-ai-chip-model-arrow">⌄</span>
                         </button>
                       </template>
                       <div class="portal-vue-ai-table-panel">
-                        <el-select v-model="activeTable" size="small" filterable clearable placeholder="搜索数据表（按业务线分组）" popper-class="portal-vue-ai-select-popper">
-                          <el-option-group v-for="group in tableGroups" :key="group.name" :label="group.name">
-                            <el-option v-for="table in group.tables" :key="table" :label="table" :value="table"></el-option>
-                          </el-option-group>
-                        </el-select>
+                        <div class="portal-vue-ai-cascade-grid">
+                          <div class="portal-vue-ai-cascade-field">
+                            <span class="portal-vue-ai-cascade-label">业务线</span>
+                            <el-select v-model="activeBizLine" size="small" clearable placeholder="全部业务线" @change="changeBizLine">
+                              <el-option label="全部业务线" value=""></el-option>
+                              <el-option v-for="line in tableGroupNames" :key="line" :label="line" :value="line"></el-option>
+                            </el-select>
+                          </div>
+                          <div class="portal-vue-ai-cascade-field">
+                            <span class="portal-vue-ai-cascade-label">数据表</span>
+                            <el-select v-model="activeTable" size="small" filterable clearable :disabled="!filteredTableOptions.length" placeholder="搜索数据表" popper-class="portal-vue-ai-select-popper">
+                              <el-option v-for="table in filteredTableOptions" :key="table" :label="table" :value="table"></el-option>
+                            </el-select>
+                          </div>
+                        </div>
                       </div>
                     </el-popover>
                     <el-popover placement="top-end" :width="300" trigger="click" popper-class="portal-vue-ai-model-panel-popper">
@@ -1495,6 +1509,7 @@
       thinking: false,
       mentionOpen: false,
       mentionKeyword: "",
+      activeBizLine: "",
       activeTable: "",
       models: [],
       modelsLoading: false,
@@ -1551,6 +1566,8 @@
         if(rest.length)groups.push({name:"其他",tables:rest});
         return groups;
       },
+      tableGroupNames(){return this.tableGroups.map(group=>group.name);},
+      filteredTableOptions(){return this.activeBizLine?(this.tableGroups.find(group=>group.name===this.activeBizLine)?.tables||[]):this.myTables;},
       currentContextLimit(){return this.modelLimits[this.model]||1000000;},
       contextOptions(){
         const presets=[[32768,"32K"],[65536,"64K"],[131072,"128K"],[262144,"256K"],[524288,"512K"],[1048576,"1M"]];
@@ -1652,6 +1669,9 @@
       clampMaxTokens(){
         const limit=this.modelLimits[this.model];
         if(this.maxTokens&&limit&&this.maxTokens>limit)this.maxTokens=null;
+      },
+      changeBizLine(){
+        if(this.activeTable&&!this.filteredTableOptions.includes(this.activeTable))this.activeTable="";
       },
       fmtTokens(value){
         if(value>=1048576)return (value/1048576)+"M";

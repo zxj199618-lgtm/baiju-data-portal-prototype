@@ -2358,6 +2358,47 @@
       padding-top: 22px;
     }
 
+    /* 分析工作台占满 topbar 以下的可用空间，避免固定视口高度造成遮挡和底部留白。 */
+    .main:has(#analysisWorkbenchView:not(.hidden)) {
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .main:has(#analysisWorkbenchView:not(.hidden)) .content {
+      height: calc(100vh - 72px);
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding-bottom: 24px;
+    }
+
+    .main:has(#analysisWorkbenchView:not(.hidden)) #analysisWorkbenchView:not(.hidden) {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .main:has(#analysisWorkbenchView:not(.hidden)) #analysisWorkbenchView:not(.hidden) > .portal-vue-panel {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .main:has(#analysisWorkbenchView:not(.hidden)) .portal-vue-ai-layout {
+      flex: 1 1 auto;
+      height: auto;
+      min-height: 0;
+    }
+
+    .main:has(#analysisWorkbenchView:not(.hidden)) .portal-vue-ai-side,
+    .main:has(#analysisWorkbenchView:not(.hidden)) .portal-vue-ai-main {
+      height: auto;
+      min-height: 0;
+    }
+
     .sync-strip {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));

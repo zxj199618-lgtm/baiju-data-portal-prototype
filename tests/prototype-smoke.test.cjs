@@ -202,7 +202,7 @@ assert(portalVue.includes("skillScenarios") && portalVue.includes("工作台展�
 assert(portalVue.includes('id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100') === false || portalVue.includes('scenarioKey: "single"'), "Skill 注册表应包含工作台展示元数据");
 assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("ModelConfigApp") && portalVue.includes("modelConfigView"), "系统管理应提供模型配置页");
 assert(portalVue.includes("v1/model-config") && portalVue.includes("已禁用"), "模型配置应支持禁用历史模型并持久化到网关");
-assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableGroups") && portalVue.includes("el-option-group"), "业务线与数据表应合并为单一下拉并按业务线分组（与模型选择同尺寸）");
+assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableGroups") && portalVue.includes("activeBizLine") && portalVue.includes("filteredTableOptions") && portalVue.includes("changeBizLine"), "数据表选择应使用业务线到数据表的联动下拉");
 assert(portalVue.includes("contextLimitFor") || portalVue.includes("modelLimits") && portalVue.includes("contextOptions"), "模型设置应提供按模型的上下文长度阶梯（未知默认 1M）");
 assert(portalVue.includes("reasoningEffort") && portalVue.includes("推理强度") && portalVue.includes("maxTokens") && portalVue.includes("上下文长度"), "模型设置面板应支持推理强度与上下文长度配置");
 assert(portalVue.includes('label="业务线"') && portalVue.includes("bizLines()"), "表管理应提供业务线列与筛选");
