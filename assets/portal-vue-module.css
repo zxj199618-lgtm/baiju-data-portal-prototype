@@ -550,6 +550,11 @@
 .portal-vue-ai-report-dialog .el-dialog__body { padding: 16px 20px 22px; max-height: calc(100vh - 180px); overflow-y: auto; }
 .portal-vue-ai-report-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 24px; }
 .portal-vue-ai-report-dialog-head strong { font-size: 16px; color: #1f2733; }
+.portal-vue-ai-share-line { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f2; }
+.portal-vue-ai-share-line > span { flex: none; font-size: 12px; }
+.portal-vue-ai-share-input { flex: 1; }
+.portal-vue-ai-share-input .el-input__wrapper { background: #f3f6fa; box-shadow: 0 0 0 1px #dfe5ee inset; }
+.portal-vue-ai-share-input .el-input__inner { font-size: 12px; color: #51607a; }
 .portal-vue-ai-report-dialog-actions { display: flex; gap: 8px; }
 .portal-vue-ai-report-dialog-content { display: grid; gap: 12px; }
 .portal-vue-ai-asset-btn.active { background: #dbeafe; border-color: #1677ff; color: #1677ff; }

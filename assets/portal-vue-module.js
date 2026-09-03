@@ -1405,12 +1405,20 @@
               </div>
 
           <el-dialog v-model="reportDialog" width="1100px" top="4vh" :close-on-click-modal="true" class="portal-vue-ai-report-dialog">
-            <template #header>
-              <div class="portal-vue-ai-report-dialog-head">
-                <strong>{{ activeReport()?.title || "分析报告" }}</strong>
-                <div class="portal-vue-ai-report-dialog-actions">
-                  <el-button size="small" :loading="activeReport()?._sharing" @click="shareReport(activeReport())">{{ activeReport()?._shared ? "已复制链接" : "复制链接分享" }}</el-button>
-                  <el-button v-if="activeReport()?.sourceId && findSession(activeReport().sourceId)" size="small" @click="jumpToSource(activeReport())">打开来源会话</el-button>
+<template #header>
+              <div style="width:100%">
+                <div class="portal-vue-ai-report-dialog-head">
+                  <strong>{{ activeReport()?.title || "分析报告" }}</strong>
+                  <div class="portal-vue-ai-report-dialog-actions">
+                    <el-button size="small" :loading="activeReport()?._sharing" @click="shareReport(activeReport())">{{ activeReport()?._shared ? "已复制链接" : "复制分享链接" }}</el-button>
+                    <el-button v-if="activeReport()?.sourceId && findSession(activeReport().sourceId)" size="small" @click="jumpToSource(activeReport())">打开来源会话</el-button>
+                  </div>
+                </div>
+                <div v-if="activeReport()?._shareUrl" class="portal-vue-ai-share-line">
+                  <span class="portal-vue-muted">分享链接</span>
+                  <el-input :model-value="activeReport()._shareUrl" readonly size="small" class="portal-vue-ai-share-input" @click="selectShareInput">
+                    <template #append><el-button @click.stop="copyShareUrl(activeReport())">复制</el-button></template>
+                  </el-input>
                 </div>
               </div>
             </template>
@@ -1692,9 +1700,9 @@
           const data=await response.json();
           if(!response.ok)throw new Error(data.error||"生成失败");
           const shareUrl=`${location.origin}${location.pathname}share.html?id=${data.id}`;
-          try{await navigator.clipboard.writeText(shareUrl);}catch(error){}
+          report._shareUrl=shareUrl;
           report._shared=true;
-          ep.ElMessageBox.alert(`分享链接已生成并复制到剪贴板（网关未连接剪贴板时请手动复制）：<br><input readonly onclick=\"this.select()\" value=\"${shareUrl}\" style="width:100%;margin-top:8px;padding:6px 10px;border:1px solid #dcdfe6;border-radius:6px">`, "分享链接", { dangerouslyUseHTMLString: true, confirmButtonText: "完成" });
+          try{await navigator.clipboard.writeText(shareUrl);}catch(error){/* 无剪贴板权限时用户可从界面手动复制 */}
         }catch(error){
           ep.ElMessage.error(`生成分享链接失败：${error.message}，请确认网关已启动`);
         }
@@ -1708,6 +1716,10 @@
         msg._sharing=false;
         msg._shared=report._shared;
       },
+      copyShareUrl(report){
+        try{navigator.clipboard.writeText(report._shareUrl);ep.ElMessage.success("分享链接已复制");}catch(error){ep.ElMessage.warning("复制失败，请点击链接手动选择复制");}
+      },
+      selectShareInput(event){event?.target?.select?.();},
       buildPortalContext(cnNames){
         return cnNames.map(cnName => {
           const asset = state.assets.find(item => item.cnName === cnName);
