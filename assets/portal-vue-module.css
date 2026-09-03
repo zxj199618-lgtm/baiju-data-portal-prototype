@@ -421,11 +421,11 @@
 .portal-vue-ai-composer-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px 8px; }
 .portal-vue-ai-chip-select { width: auto; min-width: 132px; max-width: 260px; }
 .portal-vue-ai-chip-biz { min-width: 108px; max-width: 160px; }
-.portal-vue-ai-chip-table-cascader { width: 250px; }
+.portal-vue-ai-chip-table-cascader { width: 200px; }
 .portal-vue-ai-chip-table-cascader .el-input__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; }
 .portal-vue-ai-chip-table-cascader .el-input__wrapper::before { content: "表"; margin-right: 5px; color: #1677ff; font-size: 12px; font-weight: 600; }
 .portal-vue-ai-chip-table-cascader .el-input__wrapper.is-focus { box-shadow: 0 0 0 1px #9cc5ff inset; }
-.portal-vue-ai-chip-model-select { width: 190px; }
+.portal-vue-ai-chip-model-select { width: 200px; }
 .portal-vue-ai-chip-model-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; }
 .portal-vue-ai-chip-model-select .el-select__wrapper::before { content: "模型"; margin-right: 5px; color: #1677ff; font-size: 12px; font-weight: 600; }
 .portal-vue-ai-chip-model-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }
