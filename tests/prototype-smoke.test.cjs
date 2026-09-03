@@ -202,9 +202,10 @@ assert(portalVue.includes("skillScenarios") && portalVue.includes("工作台展�
 assert(portalVue.includes('id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100') === false || portalVue.includes('scenarioKey: "single"'), "Skill 注册表应包含工作台展示元数据");
 assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("ModelConfigApp") && portalVue.includes("modelConfigView"), "系统管理应提供模型配置页");
 assert(portalVue.includes("v1/model-config") && portalVue.includes("已禁用"), "模型配置应支持禁用历史模型并持久化到网关");
-assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableGroups") && portalVue.includes("activeBizLine") && portalVue.includes("filteredTableOptions") && portalVue.includes("changeBizLine"), "数据表选择应使用业务线到数据表的联动下拉");
-assert(portalVue.includes("contextLimitFor") || portalVue.includes("modelLimits") && portalVue.includes("contextOptions"), "模型设置应提供按模型的上下文长度阶梯（未知默认 1M）");
-assert(portalVue.includes("reasoningEffort") && portalVue.includes("推理强度") && portalVue.includes("maxTokens") && portalVue.includes("上下文长度"), "模型设置面板应支持推理强度与上下文长度配置");
+assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCascadeOptions") && portalVue.includes("activeTablePath") && portalVue.includes("changeTablePath") && portalVue.includes("<el-cascader"), "数据表选择应使用单个业务线到数据表的级联下拉");
+assert(!portalVue.includes("portal-vue-ai-cascade-grid") && !portalVue.includes("activeBizLine") && !portalVue.includes("filteredTableOptions") && !portalVue.includes("changeBizLine"), "数据表选择不应保留拆分的业务线/数据表下拉");
+assert(portalVue.includes('reasoning: "high"') && portalVue.includes("maxTokens=this.currentContextLimit") && portalVue.includes("reasoningEffort:this.reasoning,maxTokens:this.maxTokens"), "分析请求应固定使用最高推理强度和当前模型最高上下文");
+assert(!portalVue.includes("推理强度") && !portalVue.includes("上下文长度") && !portalVue.includes("重置为默认设置") && !portalVue.includes("portal-vue-ai-model-reset"), "模型菜单只应保留模型选择，不展示额外设置");
 assert(portalVue.includes('label="业务线"') && portalVue.includes("bizLines()"), "表管理应提供业务线列与筛选");
 
 console.log("观星台原型 smoke test: passed");
