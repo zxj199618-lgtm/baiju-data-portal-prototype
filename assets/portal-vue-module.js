@@ -2437,9 +2437,9 @@
             </div>
             <div class="portal-vue-skill-section"><strong>灰度用户</strong>
               <el-alert type="info" :closable="false" title="不选任何用户 = 全量发布；选择部分用户 = 仅这些用户在灵犀智析和飞书机器人中可见该 Skill。" :show-icon="true" style="margin-bottom:12px"></el-alert>
-              <el-checkbox-group v-model="editForm.grayUsers" class="portal-vue-gray-users">
-                <el-checkbox v-for="user in activeUsers" :key="user.name" :value="user.name" border>{{ user.name }}<small>{{ user.dept }}</small></el-checkbox>
-              </el-checkbox-group>
+              <el-select v-model="editForm.grayUsers" multiple filterable collapse-tags collapse-tags-tooltip placeholder="选择灰度用户（不选 = 全量发布）" style="width:100%">
+                <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"><span>{{ user.name }}</span><span class="portal-vue-muted" style="float:right;font-size:12px">{{ user.dept }}</span></el-option>
+              </el-select>
             </div>
             <div class="portal-vue-skill-section"><strong>版本历史</strong>
               <div v-for="item in activeSkill.versions" :key="item.version" class="portal-vue-skill-version" :class="{ current: item.current }" style="margin-bottom:10px">

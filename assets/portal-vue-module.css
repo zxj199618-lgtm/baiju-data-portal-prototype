@@ -539,9 +539,6 @@
 @keyframes portal-vue-ai-blink { 50% { opacity: 0; } }
 
 /* Skill 灰度用户选择 */
-.portal-vue-gray-users { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.portal-vue-gray-users .el-checkbox { margin: 0; }
-.portal-vue-gray-users .el-checkbox small { display: block; margin-top: 2px; font-size: 11.5px; color: #a5aebd; }
 
 /* 分析资产页 + 报告弹窗 */
 .portal-vue-ai-assets-page { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 16px 18px; overflow: hidden; }
