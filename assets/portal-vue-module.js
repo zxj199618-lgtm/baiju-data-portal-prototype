@@ -1395,20 +1395,9 @@
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
                     <el-cascader v-model="activeTablePath" size="small" clearable filterable class="portal-vue-ai-chip-table-cascader" :options="tableCascadeOptions" :show-all-levels="false" placeholder="选择数据表" popper-class="portal-vue-ai-select-popper" @change="changeTablePath"></el-cascader>
-                    <el-popover placement="top-end" :width="300" trigger="click" popper-class="portal-vue-ai-model-panel-popper">
-                      <template #reference>
-                        <button type="button" class="portal-vue-ai-chip-model-btn" :disabled="!models.length">
-                          <span class="portal-vue-ai-chip-label">模型</span>
-                          <span class="portal-vue-ai-chip-model-value">{{ model || "请选择" }}</span>
-                          <span class="portal-vue-ai-chip-model-arrow">⌄</span>
-                        </button>
-                      </template>
-                      <div class="portal-vue-ai-model-panel">
-                        <el-select v-model="model" size="small" class="portal-vue-ai-model-inline-select" :loading="modelsLoading" filterable popper-class="portal-vue-ai-select-popper" @change="applyMaxModelSettings">
-                          <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
-                        </el-select>
-                      </div>
-                    </el-popover>
+                    <el-select v-model="model" size="small" filterable class="portal-vue-ai-chip-model-select" :loading="modelsLoading" :disabled="!models.length" placeholder="请选择" popper-class="portal-vue-ai-select-popper" @change="applyMaxModelSettings">
+                      <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
+                    </el-select>
                     <el-button type="primary" size="small" class="portal-vue-ai-composer-send" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
                   </div>
                 </div>
