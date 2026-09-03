@@ -332,10 +332,12 @@
         const stamp = hourly ? ymd + pad2(d.getHours()) : ymd;
         const dailySeq = hourly ? d.getHours() + 1 : 1;
         const tstr = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${hourly ? pad2(d.getHours()) + ":" + pad2(hourlyMinute) : dailyTime}`;
-        const st = ((i < 3 && /失败/.test(p.last)) || i === 8) ? "失败" : "成功";
+        const failed = ((i < 3 && /失败/.test(p.last)) || i === 8 || (i === 0 && p.name === "付费潜力用户"));
+        const st = failed ? "失败" : "成功";
         const calcReason = st === "失败" ? (i % 2 ? "上游分区未就绪，已告警" : "SQL 校验失败：时间分区表达式无效") : "";
         let pushSt = "推送成功", pushReason = "";
         if (manual) { pushSt = "未推送（手动下载）"; }
+        else if (st === "失败") { pushSt = "未推送（计算失败）"; }
         else if (i === 4 && !hourly) { pushSt = "待推送"; }
         else if (i === 0 && p.name === "号卡电竞包-青海") { pushSt = "推送失败"; pushReason = "目标渠道凭证失效（AK 过期）"; }
         else if ((i === 6 && /失败/.test(p.last)) || (!hourly && i % 9 === 5)) {
