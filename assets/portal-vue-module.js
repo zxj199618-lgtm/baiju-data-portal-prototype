@@ -1394,18 +1394,7 @@
                 <div class="portal-vue-ai-composer">
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
-                    <el-popover placement="top-end" :width="300" trigger="click" popper-class="portal-vue-ai-table-panel-popper">
-                      <template #reference>
-                        <button type="button" class="portal-vue-ai-chip-model-btn portal-vue-ai-chip-table-btn">
-                          <span class="portal-vue-ai-chip-label">表</span>
-                          <span class="portal-vue-ai-chip-model-value" :class="{ 'is-empty': !activeTable }">{{ activeTable || "选择数据表" }}</span>
-                          <span class="portal-vue-ai-chip-model-arrow">⌄</span>
-                        </button>
-                      </template>
-                      <div class="portal-vue-ai-table-panel">
-                        <el-cascader v-model="activeTablePath" size="small" clearable filterable :options="tableCascadeOptions" :show-all-levels="false" placeholder="选择数据表" popper-class="portal-vue-ai-select-popper" @change="changeTablePath"></el-cascader>
-                      </div>
-                    </el-popover>
+                    <el-cascader v-model="activeTablePath" size="small" clearable filterable class="portal-vue-ai-chip-table-cascader" :options="tableCascadeOptions" :show-all-levels="false" placeholder="选择数据表" popper-class="portal-vue-ai-select-popper" @change="changeTablePath"></el-cascader>
                     <el-popover placement="top-end" :width="300" trigger="click" popper-class="portal-vue-ai-model-panel-popper">
                       <template #reference>
                         <button type="button" class="portal-vue-ai-chip-model-btn" :disabled="!models.length">
