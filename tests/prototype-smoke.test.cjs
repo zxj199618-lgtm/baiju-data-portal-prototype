@@ -105,6 +105,8 @@ assert(
 );
 
 assert(!audienceVue.includes("audienceIdPreview"), "新增或编辑人群包表单仍展示 ID 预览");
+assert(audienceVue.includes("计算状态") && audienceVue.includes("推送状态") && audienceVue.includes("calcStatus") && audienceVue.includes("pushStatus"), "人群包列表应展示计算状态与推送状态（含各自失败原因）");
+assert(audienceBridge.includes("pushSt") && audienceBridge.includes("pushReason") && audienceBridge.includes("calcReason"), "运行历史数据应包含推送状态与计算/推送失败原因");
 ["手动同步", "保存并同步", "校验 &amp; 预估人数", "estimateAudience"].forEach(token => {
   assert(!audienceVue.includes(token), `人群包模块仍保留旧能力：${token}`);
 });

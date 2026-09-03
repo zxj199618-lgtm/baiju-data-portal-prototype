@@ -309,6 +309,18 @@
                 <template #default="scope">{{ runStats(scope.row).used }} 次</template>
               </el-table-column>
               <el-table-column label="上次运行" prop="last" width="176" show-overflow-tooltip></el-table-column>
+              <el-table-column label="计算状态" width="180">
+                <template #default="scope">
+                  <el-tag :type="calcStatus(scope.row).st === '成功' ? 'success' : 'danger'" effect="light">{{ calcStatus(scope.row).st === '成功' ? '计算成功' : '计算失败' }}</el-tag>
+                  <p v-if="calcStatus(scope.row).reason" class="cp-vue-status-reason">{{ calcStatus(scope.row).reason }}</p>
+                </template>
+              </el-table-column>
+              <el-table-column label="推送状态" width="190">
+                <template #default="scope">
+                  <el-tag :type="pushStatus(scope.row).type" effect="light">{{ pushStatus(scope.row).label }}</el-tag>
+                  <p v-if="pushStatus(scope.row).reason" class="cp-vue-status-reason">{{ pushStatus(scope.row).reason }}</p>
+                </template>
+              </el-table-column>
               <el-table-column label="操作" width="260" fixed="right">
                 <template #default="scope">
                   <div class="cp-vue-actions">
@@ -338,10 +350,11 @@
           </div>
           <div v-for="run in pagedRuns" :key="run.cbid" class="cp-vue-run-item">
             <div class="cp-vue-run-top">
-              <el-tag :type="run.st === '成功' ? 'success' : 'danger'" effect="light">{{ run.st }}</el-tag>
+              <el-tag :type="run.st === '成功' ? 'success' : 'danger'" effect="light">{{ run.st === '成功' ? '计算成功' : '计算失败' }}</el-tag>
+              <el-tag :type="stringPushType(run)" effect="light">{{ stringPushLabel(run) }}</el-tag>
               <strong>生成时间：{{ run.t }}　·　运行时长：{{ formatRunDuration(run.durationSeconds) }}</strong>
             </div>
-            <div class="cp-vue-run-meta">覆盖量：{{ runCoverageText(run) }}<span v-if="run.st === '失败'" class="cp-vue-run-error">　·　上游分区未就绪，已告警</span></div>
+            <div class="cp-vue-run-meta">覆盖量：{{ runCoverageText(run) }}<span v-if="run.st === '失败' && run.calcReason" class="cp-vue-run-error">　·　计算失败原因：{{ run.calcReason }}</span><span v-if="run.pushSt === '推送失败' && run.pushReason" class="cp-vue-run-error">　·　推送失败原因：{{ run.pushReason }}</span></div>
             <div class="cp-vue-run-id">
               <span>回调标识：</span><code>{{ run.cbid }}</code>
               <el-tag :type="run.used ? 'primary' : 'info'" effect="plain">{{ run.used ? '已使用' : '未使用' }}</el-tag>
@@ -745,6 +758,19 @@
       },
       formatWan(value) { return bridge.wan(value); },
       formatRunDuration(value) { return bridge.formatRunDuration(value); },
+      latestRun(item) { const runs = bridge.buildRuns(item); return runs[0] || {}; },
+      stringPushLabel(run) { return run.pushSt || (this.runPackage?.freq === "手动下载" ? "未推送（手动下载）" : "待推送"); },
+      stringPushType(run) { const label = this.stringPushLabel(run); return label === "推送成功" ? "success" : (label === "推送失败" ? "danger" : "info"); },
+      calcStatus(item) {
+        const run = this.latestRun(item);
+        return { st: run.st === "失败" ? "失败" : "成功", reason: run.calcReason || "" };
+      },
+      pushStatus(item) {
+        const run = this.latestRun(item);
+        const label = run.pushSt || (item.freq === "手动下载" ? "未推送（手动下载）" : "待推送");
+        const type = label === "推送成功" ? "success" : (label === "推送失败" ? "danger" : "info");
+        return { label, type, reason: run.pushReason || "" };
+      },
       runCoverageText(run) {
         if (run.st !== "成功") return "—";
         const amount = this.formatWan(run.cnt);

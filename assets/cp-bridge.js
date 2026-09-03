@@ -332,10 +332,18 @@
         const stamp = hourly ? ymd + pad2(d.getHours()) : ymd;
         const dailySeq = hourly ? d.getHours() + 1 : 1;
         const tstr = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${hourly ? pad2(d.getHours()) + ":" + pad2(hourlyMinute) : dailyTime}`;
-        const st = (i === 2 && /失败/.test(p.last)) ? "失败" : "成功";
+        const st = ((i < 3 && /失败/.test(p.last)) || i === 8) ? "失败" : "成功";
+        const calcReason = st === "失败" ? (i % 2 ? "上游分区未就绪，已告警" : "SQL 校验失败：时间分区表达式无效") : "";
+        let pushSt = "推送成功", pushReason = "";
+        if (manual) { pushSt = "未推送（手动下载）"; }
+        else if (i === 4 && !hourly) { pushSt = "待推送"; }
+        else if ((i === 6 && /失败/.test(p.last)) || (!hourly && i % 9 === 5)) {
+          pushSt = "推送失败";
+          pushReason = i % 2 ? "目标渠道凭证失效（AK 过期）" : "OSS bucket 配额不足，剩余 0B";
+        }
         const used = st === "成功" && !manual && (i % 3 === 0 || i === 1);
         const durationSeconds = 2 + ((i * 3 + Math.round(p.cover / 100000)) % 7);
-        runs.push({ t: tstr, durationSeconds, st, cnt: Math.round(p.cover * (1 - ((i * 7) % 20) / 300)), cbid: `${p.id}_${stamp}${pad4(dailySeq)}`, dailySeq, rule: describePackageRule(p), used });
+        runs.push({ t: tstr, durationSeconds, st, calcReason, pushSt, pushReason, cnt: Math.round(p.cover * (1 - ((i * 7) % 20) / 300)), cbid: `${p.id}_${stamp}${pad4(dailySeq)}`, dailySeq, rule: describePackageRule(p), used });
       }
       return runs;
     }
