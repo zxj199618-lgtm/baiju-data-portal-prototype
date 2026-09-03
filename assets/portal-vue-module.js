@@ -2536,7 +2536,7 @@
   ];
   const alertSeeds = [
     {
-      id: "AL20260901001", name: "巨量渠道消耗突降预警", text: "近 7 天广告计划日报表中，巨量渠道消耗环比下降超过 20% 时每天提醒",
+      id: "AL20260901001", name: "巨量渠道消耗突降预警", text: "近 7 天广告计划日报表中，巨量渠道消耗环比下降超过 20% 时每天提醒", creator: "曾祥竞",
       table: "广告计划日报表", metric: "消耗金额", agg: "SUM", filters: ["渠道=巨量"], rule: "环比下降超过 20%", frequency: "每天", time: "09:00",
       sql: "SELECT ds, SUM(consume_amount) AS 消耗金额\nFROM 广告计划日报表\nWHERE 渠道 = '巨量' AND ds >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)\nGROUP BY ds\nHAVING (SUM(consume_amount) - LAG(SUM(consume_amount)) OVER (ORDER BY ds)) / LAG(SUM(consume_amount)) OVER (ORDER BY ds) <= -0.2",
       enabled: true, users: ["曾祥竞"], groups: ["投放运营群"], lastTriggered: "2026-09-03 09:01", triggerCount: 3,
@@ -2547,7 +2547,7 @@
       ]
     },
     {
-      id: "AL20260901002", name: "CPA 连续超目标预警", text: "广告计划日报表里 CPA 连续 3 天超过 80 元的时候提醒我",
+      id: "AL20260901002", name: "CPA 连续超目标预警", text: "广告计划日报表里 CPA 连续 3 天超过 80 元的时候提醒我", creator: "李雨航",
       table: "广告计划日报表", metric: "CPA（获客成本）", agg: "AVG", filters: [], rule: "CPA 连续 3 天超过 80 元", frequency: "每天", time: "10:00",
       sql: "SELECT ds, AVG(cpa) AS CPA\nFROM 广告计划日报表\nWHERE ds >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)\nGROUP BY ds\nHAVING AVG(cpa) > 80",
       enabled: true, users: ["李雨航"], groups: ["数据分析师群"], lastTriggered: "2026-09-02 18:30", triggerCount: 2,
@@ -2557,7 +2557,7 @@
       ]
     },
     {
-      id: "AL20260901003", name: "订单量波动预警", text: "用户订单明细表每日订单数环比波动超过 30% 时发预警",
+      id: "AL20260901003", name: "订单量波动预警", text: "用户订单明细表每日订单数环比波动超过 30% 时发预警", creator: "王鑫宇",
       table: "用户订单明细", metric: "订单数", agg: "COUNT", filters: [], rule: "订单数环比波动超过 30%", frequency: "每天", time: "08:30",
       sql: "SELECT ds, COUNT(order_id) AS 订单数\nFROM 用户订单明细\nWHERE ds >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)\nGROUP BY ds\nHAVING ABS(COUNT(order_id) - LAG(COUNT(order_id)) OVER (ORDER BY ds)) / LAG(COUNT(order_id)) OVER (ORDER BY ds) > 0.3",
       enabled: false, users: ["王鑫宇"], groups: [], lastTriggered: "2026-08-28 08:31", triggerCount: 1,
@@ -2571,10 +2571,16 @@
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
-            <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索预警名称、监控表或指标"></el-input></div>
+            <div class="portal-vue-toolbar-left">
+              <el-radio-group v-model="view" size="default">
+                <el-radio-button value="mine">我的<template v-if="myCount !== allCount">&nbsp;（{{ myCount }}）</template></el-radio-button>
+                <el-radio-button v-if="canViewAll" value="all">全部（{{ allCount }}）</el-radio-button>
+              </el-radio-group>
+              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索预警名称、监控表或指标"></el-input>
+            </div>
             <el-button type="primary" @click="openCreate">＋ 新建预警</el-button>
           </div>
-          <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无预警，点右上角「新建预警」用一句话创建">
+          <el-table :data="filteredRows" class="portal-vue-table" border :empty-text="view === 'mine' ? '你还没有创建预警，点右上角「新建预警」用一句话创建' : '暂无预警数据，点右上角「新建预警」用一句话创建'">
             <el-table-column label="预警名称" min-width="230"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px;max-width:340px">{{ scope.row.text }}</div></div></template></el-table-column>
             <el-table-column label="监控指标" min-width="180"><template #default="scope"><div style="display:flex;flex-direction:column;gap:3px"><el-tag size="small" effect="plain" style="width:fit-content">{{ scope.row.table }}</el-tag><span style="font-size:13px">{{ scope.row.agg }}（{{ scope.row.metric }}）</span></div></template></el-table-column>
             <el-table-column label="触发条件" min-width="200"><template #default="scope"><div><span style="font-size:13px">{{ scope.row.rule }}</span><div class="portal-vue-muted" style="font-size:12px;margin-top:2px">{{ scope.row.frequency }}{{ scope.row.frequency==='每天' ? ' ' + scope.row.time : '' }} · {{ scope.row.filters.length ? '筛选：' + scope.row.filters.join('，') : '无筛选' }}</div></div></template></el-table-column>
@@ -2637,12 +2643,17 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data: () => ({ keyword: "", dialogVisible: false, historyVisible: false, historyTitle: "", historyRows: [], editingId: "", text: "", parsing: false, parsed: null, filterDraft: "", users: [], groups: [], alertExampleTexts, alertGroupChoices, alertFrequencyChoices, alertTimeChoices, alertMetricChoices, alerts: [] }),
+    data: () => ({ view: "mine", keyword: "", dialogVisible: false, historyVisible: false, historyTitle: "", historyRows: [], editingId: "", text: "", parsing: false, parsed: null, filterDraft: "", users: [], groups: [], alertExampleTexts, alertGroupChoices, alertFrequencyChoices, alertTimeChoices, alertMetricChoices, alerts: [] }),
     computed: {
+      currentUser() { refreshTick.value; return state.users.find(user => user.name === "曾祥竞") || state.users[0]; },
+      canViewAll() { return this.currentUser?.group === "门户管理员"; },
+      myCount() { return this.alerts.filter(item => (item.creator || "曾祥竞") === this.currentUser?.name).length; },
+      allCount() { return this.alerts.length; },
       filteredRows() {
         const keyword = this.keyword.trim().toLowerCase();
-        if (!keyword) return this.alerts;
-        return this.alerts.filter(item => `${item.name} ${item.table} ${item.metric} ${item.rule}`.toLowerCase().includes(keyword));
+        const base = this.view === "all" ? this.alerts : this.alerts.filter(item => (item.creator || "曾祥竞") === this.currentUser?.name);
+        if (!keyword) return base;
+        return base.filter(item => `${item.name} ${item.table} ${item.metric} ${item.rule}`.toLowerCase().includes(keyword));
       },
       alertTables() { return state.assets.map(table => table.cnName); },
       activeUsers() { refreshTick.value; return state.users.filter(user => user.status !== "已停用"); },
@@ -2744,11 +2755,12 @@
           table: this.parsed.table, metric: this.parsed.metric, agg: this.parsed.agg,
           filters: [...this.parsed.filters], rule: this.parsed.rule, frequency: this.parsed.frequency, time: this.parsed.time,
           sql: this.alertSql, enabled: true, users: [...this.users], groups: [...this.groups],
+          creator: this.currentUser?.name || "曾祥竞",
           lastTriggered: "—", triggerCount: 0, history: []
         };
         if (this.editingId) {
           const target = this.alerts.find(item => item.id === this.editingId);
-          if (target) Object.assign(target, payload, { enabled: target.enabled, lastTriggered: target.lastTriggered, triggerCount: target.triggerCount, history: target.history });
+          if (target) Object.assign(target, payload, { enabled: target.enabled, lastTriggered: target.lastTriggered, triggerCount: target.triggerCount, history: target.history, creator: target.creator });
         } else {
           this.alerts.unshift({ id: "AL" + Date.now(), ...payload });
         }

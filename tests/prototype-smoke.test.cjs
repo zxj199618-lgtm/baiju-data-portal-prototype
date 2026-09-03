@@ -211,6 +211,7 @@ assert(html.includes('id="alertManagementView"') && portalVue.includes('mount("#
 assert(portalVue.includes("AlertManagementApp") && portalVue.includes("runParse") && portalVue.includes("parseAlertBrain"), "数据预警应支持自然语言描述并由 AI 解析为配置清单");
 assert(portalVue.includes("portal-vue-alert-sql") && portalVue.includes("alertSql") && portalVue.includes("保存预警"), "数据预警应生成背后 SQL 规则，业务核对后保存");
 assert(portalVue.includes("观星台预警助手") && portalVue.includes("通知群") && portalVue.includes("通知人"), "数据预警应内置飞书机器人推送通道（通知人/通知群）");
+assert(portalVue.includes('view: "mine"') && portalVue.includes("canViewAll") && portalVue.includes("门户管理员"), "数据预警列表应默认展示「我的」预警，管理员可切换查看全部");
 assert(portalVue.includes("portal-vue-ai-chip-table-cascader") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "表选择按钮应直接展开级联菜单，不应先打开中间弹层");
 assert(portalVue.includes("portal-vue-ai-chip-model-select") && !portalVue.includes("portal-vue-ai-model-panel-popper"), "模型选择按钮应直接展开模型列表，不应先打开中间弹层");
 assert(portalCss.includes(".portal-vue-ai-chip-table-cascader { width: 200px; }") && portalCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }"), "表与模型下拉应统一为紧凑的 200px 宽度");
