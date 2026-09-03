@@ -1455,20 +1455,32 @@
                 <p v-if="!activeReport().markdown && !activeReport().messages.length" class="portal-vue-muted">{{ activeReport().summary || "（无内容）" }}</p>
               </div>
             </div>
-          </el-dialog>            </section>
+          </el-dialog>
+          <el-dialog v-model="businessLineVisible" title="业务线咨询" width="460px" :close-on-click-modal="false">
+            <div class="portal-vue-skill-drawer">
+              <p style="margin:0;color:#1f2733;font-size:15px;font-weight:600">{{ activeSkill?.clarification?.question || "你问的是哪个业务线？" }}</p>
+              <p class="portal-vue-muted" style="margin:6px 0 14px">确定业务线后，数据查询与指标解答 Skill 会在你有权限的对应表和字段中检索。</p>
+              <div style="display:flex;flex-wrap:wrap;gap:10px">
+                <el-button v-for="line in businessLineOptions" :key="line" @click="confirmBusinessLine(line)">{{ line }}</el-button>
+              </div>
+            </div>
+          </el-dialog>
+            </section>
           </div>
         </section>
       </el-config-provider>
     `,
     data:()=>({
       feishuOpen: false,
-      scenario: "single",
+      scenario: "data-query",
       input: "",
       thinking: false,
       mentionOpen: false,
       mentionKeyword: "",
       activeTable: "",
       activeTablePath: [],
+      businessLineVisible: false,
+      pendingQuestion: "",
       models: [],
       modelsLoading: false,
       model: "",
@@ -1491,7 +1503,7 @@
       scenarios(){refreshTick.value;return this.skillScenarios;},
       skillScenarios(){
         const source = state.skills?.length ? state.skills : skillScenarioFallback;
-        return source.filter(item=>item.enabled!==false&&item.status!=="已停用").sort((a,b)=>(a.sort||99)-(b.sort||99)).map(item=>({key:item.scenarioKey||item.id,id:item.id,icon:item.icon||"✦",name:item.title||item.name,desc:item.displayDesc||item.desc||""}));
+        return source.filter(item=>item.id!=="numa-warehouse"&&item.enabled!==false&&item.status!=="已停用").sort((a,b)=>(a.sort||99)-(b.sort||99)).map(item=>({...item,key:item.scenarioKey||item.id,icon:item.icon||"✦",name:item.title||item.name,desc:item.displayDesc||item.desc||""}));
       },
       activeSkill(){return this.skillScenarios.find(item=>item.key===this.scenario);},
       scenarioName(){return this.activeSkill?.name||"单表分析";},
@@ -1525,6 +1537,7 @@
         return groups;
       },
       tableCascadeOptions(){return this.tableGroups.map(group=>({value:group.name,label:group.name,children:group.tables.map(table=>({value:table,label:table}))}));},
+      businessLineOptions(){return this.activeSkill?.clarification?.options||["存量","权益","保险","短剧","其他"];},
       currentContextLimit(){return this.modelLimits[this.model]||1000000;},
       ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
       historySessions(){return this.sessions.filter(item=>item.status!=="进行中");},
@@ -1555,7 +1568,10 @@
           if(!response.ok)return;
           const list=await response.json();
           if(Array.isArray(list)&&list.length){
-            state.skills=list.map(entry=>({ ...entry, versions: entry.versions || [], stats: entry.stats || { calls: 0, successRate: "—", avgLatency: "—", tokens: "—" } }));
+            state.skills=list.map(entry=>{
+              const builtin=skillRegistrySeed.find(item=>item.id===entry.id);
+              return builtin?{...entry,name:builtin.name,version:builtin.version,icon:builtin.icon,title:builtin.title,displayDesc:builtin.displayDesc,sort:builtin.sort,scenarioKey:builtin.scenarioKey,desc:builtin.desc,clarification:entry.clarification||builtin.clarification,assetScope:entry.assetScope||builtin.assetScope,responseContract:entry.responseContract||builtin.responseContract,versions:entry.versions||builtin.versions,stats:entry.stats||builtin.stats}:{...entry,versions:entry.versions||[],stats:entry.stats||{calls:0,successRate:"—",avgLatency:"—",tokens:"—"}};
+            });
           }
         }catch(error){/* 网关未启动时保留内置注册表 */}
       },
@@ -1786,9 +1802,23 @@
         this.mentionOpen=false;
         this.mentionKeyword="";
       },
-      async sendMessage(){
-        const question=this.input.trim();
+      tablesForBusinessLine(line){return this.tableGroups.find(group=>group.name===line)?.tables||[];},
+      confirmBusinessLine(line){
+        const question=this.pendingQuestion;
+        this.businessLineVisible=false;
+        this.pendingQuestion="";
+        this.sendMessage({question,businessLine:line});
+      },
+      async sendMessage({question:questionOverride="",businessLine=""}={}){
+        const question=(questionOverride||this.input).trim();
         if(!question||this.thinking)return;
+        const explicitlyReferenced=this.myTables.some(table=>question.includes(`@${table}`))||!!this.activeTable;
+        if(this.activeSkill?.clarification?.enabled&&!explicitlyReferenced&&!businessLine){
+          this.pendingQuestion=question;
+          this.businessLineVisible=true;
+          return;
+        }
+        const assetCandidates=businessLine?this.tablesForBusinessLine(businessLine):[];
         let session=this.activeSession;
         if(!session.id||session.suggested){
           session=createAnalysisSession({title:question.slice(0,18)||"新的分析",scenario:this.scenarioName});
@@ -1796,7 +1826,8 @@
           this.activeId=session.id;
         }
         const mentionedTables=[...new Set([...this.myTables.filter(table=>question.includes(`@${table}`)),...(this.activeTable?[this.activeTable]:[])])];
-        session.messages.push({role:"user",lines:[question],refs:mentionedTables.length?mentionedTables:undefined});
+        const evidenceTables=assetCandidates.length?assetCandidates:mentionedTables;
+        session.messages.push({role:"user",lines:[question],refs:evidenceTables.length?evidenceTables:undefined});
         session.title=session.title==="新的分析"?question.slice(0,18):session.title;
         this.input="";
         this.mentionOpen=false;
@@ -1811,14 +1842,14 @@
           const lines=this.myTables.length
             ?["本地分析网关未启动（scripts/analysis-gateway.cjs），当前为原型演示回复。","启动方式：RELAY_API_KEY=<中转站Key> node scripts/analysis-gateway.cjs，刷新后即可获得真实分析报告。"]
             :["当前权限组未配置数据表权限，无法发起分析，请联系管理员在「权限组 → 数据表权限」中授权。"];
-          session.messages.push({role:"assistant",lines,refs:(mentionedTables.length?mentionedTables:this.myTables).slice(0,3)});
+          session.messages.push({role:"assistant",lines:businessLine?[`已按「${businessLine}」业务线筛选 ${assetCandidates.length} 张可检索数据表。`,...lines]:lines,refs:(evidenceTables.length?evidenceTables:this.myTables).slice(0,3)});
           return this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
         }
         try{
           const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,skillId:this.activeSkill?.id||"",tables:mentionedTables,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,portalContext:this.buildPortalContext(mentionedTables)})
+            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question,scenario:this.scenario,skillId:this.activeSkill?.id||"",tables:mentionedTables,assetCandidates,businessLine,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,portalContext:this.buildPortalContext(evidenceTables)})
           });
           const contentType=response.headers.get("content-type")||"";
           if(!response.ok||(contentType.includes("application/json")&&!contentType.includes("event-stream"))){
@@ -2315,10 +2346,13 @@
 
   const skillRegistrySeed = [
     {
-      id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", grayUsers: [],
-      icon: "📊", title: "单表分析", displayDesc: "趋势、分布与异常", sort: 10, scenarioKey: "single", enabled: true,
-      desc: "将 DataWorks 生产 SQL、SQLGlot 静态分析和只读元数据组织成可复核的口径文档。",
-      scenarios: "表名解释 / 业务口径问答 / 血缘上下游",
+      id: "warehouse-analyst", name: "数据查询与指标解答 Skill", source: "maxcompute-warehouse-analyst", version: "v1.3-portal", grayUsers: [],
+      icon: "📊", title: "数据查询与指标解答", displayDesc: "先选业务线，再检索表与字段", sort: 10, scenarioKey: "data-query", enabled: true,
+      desc: "未指定数据表时先咨询业务线，再在授权资产中检索指标口径、表和字段。",
+      scenarios: "指标查询 / 数据解答 / 口径说明",
+      clarification: { enabled:true, question:"你问的是哪个业务线？", options:["存量","权益","保险","短剧","其他"] },
+      assetScope: "按业务线检索已授权的表与字段",
+      responseContract: ["引用表和字段","指标口径与时间范围","证据限制"],
       prompt: "你是观星台数据平台的数仓分析助手…\n\n## 解释规则\n1. 一句话说明：优先使用表 comment；\n2. 为什么这样设计：依次解释写入方式、JOIN、过滤、聚合、CASE、窗口和分区；\n3. 输出粒度：只根据 operators.group_by、窗口分区和目标字段判断；\n4. 重点口径：按目标字段合并 field_lineage，保留完整表达式。\n\n## 证据标签\n- SQL/DDL 明确证据\n- 结构解释\n- 待业务确认",
       versions: [
         { version: "v1.2-portal", time: "2026-08-31 16:00", operator: "曾祥竞", note: "移植到观星台网关，接入中转站模型", current: true },
@@ -2333,6 +2367,7 @@
       icon: "📚", title: "数据资产问答", displayDesc: "有哪些表、口径、负责人", sort: 30, scenarioKey: "asset", enabled: true,
       desc: "基于表资产元数据回答有哪些表、口径是什么、负责人是谁。",
       scenarios: "资产检索 / 口径问答",
+      clarification: { enabled:false, question:"", options:[] }, assetScope: "全部已授权数据资产", responseContract: ["推荐表","关键字段","负责人"],
       prompt: "你是观星台数据平台的资产问答助手。\n只推荐用户有权限的数据表；清单外的可能性标注「权限外，未纳入」。",
       versions: [
         { version: "v0.9", time: "2026-08-30 10:00", operator: "曾祥竞", note: "接入表权限过滤", current: true },
@@ -2341,19 +2376,21 @@
       stats: { calls: 42, successRate: "100%", avgLatency: "6.8s", tokens: "9.1万" }
     },
     {
-      id: "lineage-analyst", name: "数据血缘分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", grayUsers: [],
-      icon: "🔗", title: "数据血缘分析", displayDesc: "上下游依赖与影响面", sort: 20, scenarioKey: "lineage", enabled: true,
+      id: "lineage-analyst", name: "数据血缘与变更影响 Skill", source: "maxcompute-warehouse-analyst", version: "v1.3-portal", grayUsers: [],
+      icon: "🔗", title: "数据血缘与变更影响", displayDesc: "上下游依赖与影响面", sort: 20, scenarioKey: "lineage", enabled: true,
       desc: "基于 SQL 语料与 AST 解析输出表/字段的上下游血缘与变更影响面。",
       scenarios: "血缘上下游 / 变更影响分析",
+      clarification: { enabled:false, question:"", options:[] }, assetScope: "引用表、字段与下游依赖", responseContract: ["直接影响","间接影响","待核对项"],
       prompt: "你是观星台数据平台的血缘分析助手。\n基于提供的表上下游血缘证据，输出 Markdown 报告。",
       versions: [{ version: "v1.2-portal", time: "2026-08-31 16:10", operator: "曾祥竞", note: "复用数仓语料血缘能力", current: true }],
       stats: { calls: 87, successRate: "97.7%", avgLatency: "11.5s", tokens: "21.3万" }
     },
     {
-      id: "attribution-analyst", name: "归因分析 Skill", source: "attribution-analyst", version: "v0.5", grayUsers: [],
-      icon: "🎯", title: "归因分析", displayDesc: "指标异动拆解与定位", sort: 40, scenarioKey: "attribution", enabled: true,
+      id: "attribution-analyst", name: "指标异动诊断 Skill", source: "attribution-analyst", version: "v0.5", grayUsers: [],
+      icon: "🎯", title: "指标异动诊断", displayDesc: "指标异动拆解与定位", sort: 40, scenarioKey: "attribution", enabled: true,
       desc: "对指标异动做维度拆解（媒体/产品/计划），定位贡献度与原因。",
       scenarios: "指标异动 / 维度拆解",
+      clarification: { enabled:false, question:"", options:[] }, assetScope: "引用指标表与可拆解维度", responseContract: ["异动幅度","维度贡献","证据限制"],
       prompt: "你是观星台数据平台的归因分析助手。\n基于聚合统计对指标异动做维度拆解，所有数字必须来自证据。",
       versions: [{ version: "v0.5", time: "2026-08-29 14:00", operator: "曾祥竞", note: "接入聚合证据层", current: true }],
       stats: { calls: 56, successRate: "100%", avgLatency: "13.8s", tokens: "15.7万" }
@@ -2379,7 +2416,7 @@
             <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="skillStatus(scope.row)==='已发布'?'success':'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></template></el-table-column>
             <el-table-column label="灰度用户" min-width="170"><template #default="scope"><div v-if="scope.row.grayUsers.length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.grayUsers.slice(0,3)" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="scope.row.grayUsers.length>3" class="portal-vue-muted">+{{ scope.row.grayUsers.length-3 }}</span></div><span v-else class="portal-vue-muted">全量发布</span></template></el-table-column>
             <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
-            <el-table-column label="操作" width="300" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openDisplay(scope.row)">展示设置</el-button><el-button link type="primary" @click="openPrompt(scope.row)">提示词</el-button><el-button link type="primary" @click="openVersions(scope.row)">版本</el-button><el-button link type="primary" @click="openGray(scope.row)">灰度用户</el-button></div></template></el-table-column>
+            <el-table-column label="操作" width="360" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openCapability(scope.row)">能力配置</el-button><el-button link type="primary" @click="openDisplay(scope.row)">展示设置</el-button><el-button link type="primary" @click="openPrompt(scope.row)">提示词</el-button><el-button link type="primary" @click="openVersions(scope.row)">版本</el-button><el-button link type="primary" @click="openGray(scope.row)">灰度用户</el-button></div></template></el-table-column>
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">Skill 以 ZIP 包（SKILL.md + 脚本 + 依赖清单）上传到网关统一执行；提示词与版本更新即时生效，无需发版。</div>
         </section>
@@ -2388,6 +2425,21 @@
             <el-alert type="info" :closable="false" title="保存后下一次分析请求立即使用新提示词，无需重新部署网关。"></el-alert>
             <el-input v-model="promptDraft" type="textarea" :rows="16" resize="none"></el-input>
             <div style="display:flex;gap:10px;justify-content:flex-end"><el-button @click="promptVisible=false">取消</el-button><el-button type="primary" @click="savePrompt">保存提示词</el-button></div>
+          </div>
+        </el-drawer>
+        <el-drawer v-model="capabilityVisible" :title="(activeSkill?.name || '') + ' · 能力配置'" size="600px" :close-on-click-modal="true">
+          <div v-if="activeSkill" class="portal-vue-skill-drawer">
+            <el-alert type="info" :closable="false" title="能力配置决定何时咨询用户、检索哪些数据资产，以及回答必须包含哪些证据。"></el-alert>
+            <el-form class="portal-vue-dialog-form" label-position="top" style="margin-top:16px">
+              <el-form-item label="澄清策略"><el-switch v-model="capabilityForm.clarification.enabled" active-text="未引用表时先咨询" inactive-text="直接检索"></el-switch></el-form-item>
+              <template v-if="capabilityForm.clarification.enabled">
+                <el-form-item label="咨询问题"><el-input v-model="capabilityForm.clarification.question" placeholder="你问的是哪个业务线？"></el-input></el-form-item>
+                <el-form-item label="可选业务线"><el-checkbox-group v-model="capabilityForm.clarification.options"><el-checkbox v-for="line in businessLineChoices" :key="line" :value="line">{{ line }}</el-checkbox></el-checkbox-group></el-form-item>
+              </template>
+              <el-form-item label="资产检索范围"><el-input v-model="capabilityForm.assetScope" placeholder="如：按业务线检索已授权的表与字段"></el-input></el-form-item>
+              <el-form-item label="回答契约"><el-checkbox-group v-model="capabilityForm.responseContract"><el-checkbox v-for="item in responseContractChoices" :key="item" :value="item">{{ item }}</el-checkbox></el-checkbox-group></el-form-item>
+            </el-form>
+            <div style="display:flex;justify-content:flex-end"><el-button @click="capabilityVisible=false">取消</el-button><el-button type="primary" @click="saveCapability">保存能力配置</el-button></div>
           </div>
         </el-drawer>
         <el-drawer v-model="versionsVisible" :title="(activeSkill?.name || '') + ' · 版本历史'" size="520px" :close-on-click-modal="true">
@@ -2411,7 +2463,7 @@
               <el-form-item label="排序（越小越靠前）" required><el-input-number v-model="displayForm.sort" :min="1" :max="999" style="width:100%"></el-input-number></el-form-item>
               <el-form-item label="在灵犀智析展示"><el-switch v-model="displayForm.enabled"></el-switch></el-form-item>
             </div>
-            <el-form-item v-if="displayForm.enabled" label="绑定分析场景（调网关时使用）"><el-select v-model="displayForm.scenarioKey"><el-option label="单表分析" value="single"></el-option><el-option label="数据血缘分析" value="lineage"></el-option><el-option label="数据资产问答" value="asset"></el-option><el-option label="归因分析" value="attribution"></el-option></el-select></el-form-item>
+            <el-form-item v-if="displayForm.enabled" label="绑定分析场景（调网关时使用）"><el-select v-model="displayForm.scenarioKey"><el-option label="数据查询与指标解答" value="data-query"></el-option><el-option label="数据血缘与变更影响" value="lineage"></el-option><el-option label="数据资产问答" value="asset"></el-option><el-option label="指标异动诊断" value="attribution"></el-option></el-select></el-form-item>
           </el-form>
           <template #footer><el-button @click="displayVisible=false">取消</el-button><el-button type="primary" @click="saveDisplay">保存</el-button></template>
         </el-dialog>
@@ -2426,9 +2478,9 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({keyword:"",uploading:false,promptVisible:false,versionsVisible:false,grayVisible:false,grayDraft:[],displayVisible:false,displayForm:{},activeSkill:null,promptDraft:""}),
+    data:()=>({keyword:"",uploading:false,promptVisible:false,versionsVisible:false,grayVisible:false,grayDraft:[],displayVisible:false,displayForm:{},capabilityVisible:false,capabilityForm:{clarification:{enabled:false,question:"",options:[]},assetScope:"",responseContract:[]},activeSkill:null,promptDraft:"",businessLineChoices:["存量","权益","保险","短剧","其他"],responseContractChoices:["引用表和字段","指标口径与时间范围","直接影响","间接影响","维度贡献","负责人","证据限制"]}),
     computed:{
-      skills(){refreshTick.value;return state.skills||[];},
+      skills(){refreshTick.value;return (state.skills||[]).filter(item=>item.id!=="numa-warehouse");},
       filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));},
       activeUsers(){refreshTick.value;return state.users.filter(user=>user.status!=="已停用");}
     },
@@ -2458,7 +2510,16 @@
           }
         }catch(error){/* 网关未启动时保留内置注册表 */}
       },
-      openDisplay(row){this.activeSkill=row;this.displayForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,scenarioKey:row.scenarioKey||"single"};this.displayVisible=true;},
+      openDisplay(row){this.activeSkill=row;this.displayForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,scenarioKey:row.scenarioKey||"data-query"};this.displayVisible=true;},
+      openCapability(row){this.activeSkill=row;this.capabilityForm={clarification:{enabled:!!row.clarification?.enabled,question:row.clarification?.question||"",options:[...(row.clarification?.options||[])]},assetScope:row.assetScope||"全部已授权数据资产",responseContract:[...(row.responseContract||[])]};this.capabilityVisible=true;},
+      async saveCapability(){
+        const form=this.capabilityForm;
+        if(form.clarification.enabled&&!String(form.clarification.question||"").trim())return ep.ElMessage.warning("请输入咨询问题");
+        Object.assign(this.activeSkill,{clarification:{enabled:form.clarification.enabled,question:String(form.clarification.question||"").trim(),options:[...form.clarification.options]},assetScope:String(form.assetScope||"").trim(),responseContract:[...form.responseContract]});
+        try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(this.activeSkill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({clarification:this.activeSkill.clarification,assetScope:this.activeSkill.assetScope,responseContract:this.activeSkill.responseContract})});}catch(error){/* 网关未连接时保留原型状态 */}
+        this.capabilityVisible=false;
+        notify(`「${this.activeSkill.name}」能力配置已保存`);
+      },
       saveDisplay(){
         const form=this.displayForm;
         if(!String(form.title||"").trim())return ep.ElMessage.warning("请输入标题");

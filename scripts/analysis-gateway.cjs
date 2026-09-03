@@ -893,13 +893,17 @@ function skillInstructions(id) {
 function installBuiltinPackages() {
   fs.mkdirSync(SKILLS_DIR, { recursive: true });
   const defs = [
-    { id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", scenarioKey: "single", icon: "📊", title: "单表分析", displayDesc: "趋势、分布与异常", sort: 10,
-      instructions: "你是观星台数据平台的数仓分析助手，负责基于给定表证据生成分析报告。\n规则：\n1. 只基于提供的聚合统计、明细样例和字段注释分析，所有数字必须来自证据，不编造。\n2. 引用字段时用反引号；结论必须能追溯到证据中的具体数字。\n3. 样本明细有限时，基于聚合统计下结论，并标注「基于聚合口径」。\n4. 报告使用 Markdown，包含：一句话结论、数据概览、关键发现（含具体数字与对比）、风险与建议、证据限制。" },
-    { id: "lineage-analyst", name: "数据血缘分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", scenarioKey: "lineage", icon: "🔗", title: "数据血缘分析", displayDesc: "上下游依赖与影响面", sort: 20,
+    { id: "warehouse-analyst", name: "数据查询与指标解答 Skill", source: "maxcompute-warehouse-analyst", version: "v1.3-portal", scenarioKey: "data-query", icon: "📊", title: "数据查询与指标解答", displayDesc: "先选业务线，再检索表与字段", sort: 10,
+      clarification: { enabled: true, question: "你问的是哪个业务线？", options: ["存量", "权益", "保险", "短剧", "其他"] }, assetScope: "按业务线检索已授权的表与字段", responseContract: ["引用表和字段", "指标口径与时间范围", "证据限制"],
+      instructions: "你是观星台数据平台的数据查询与指标解答助手。未指定数据表时，先依据业务线范围检索用户有权限的表和字段。\n规则：\n1. 只基于提供的聚合统计、明细样例和字段注释分析，所有数字必须来自证据，不编造。\n2. 引用字段时用反引号；结论必须说明引用表、指标口径与时间范围。\n3. 样本明细有限时，基于聚合统计下结论，并标注「基于聚合口径」。\n4. 报告使用 Markdown，包含：一句话回答、引用数据资产、关键数据、口径说明、证据限制。" },
+    { id: "lineage-analyst", name: "数据血缘与变更影响 Skill", source: "maxcompute-warehouse-analyst", version: "v1.3-portal", scenarioKey: "lineage", icon: "🔗", title: "数据血缘与变更影响", displayDesc: "上下游依赖与影响面", sort: 20,
+      clarification: { enabled: false, question: "", options: [] }, assetScope: "引用表、字段与下游依赖", responseContract: ["直接影响", "间接影响", "待核对项"],
       instructions: "你是观星台数据平台的血缘分析助手。\n基于提供的表上下游血缘证据，输出 Markdown 报告：一、上游表清单；二、本表在数仓链路中的位置；三、下游影响面；四、变更风险与注意事项。\n只把明确给出的血缘写成确定关系；证据不足时标注「待核对，非确定引用」。" },
-    { id: "asset-qa", name: "数据资产问答 Skill", source: "asset-qa", version: "v0.9", scenarioKey: "asset", icon: "📚", title: "数据资产问答", displayDesc: "有哪些表、口径、负责人", sort: 30,
+    { id: "asset-qa", name: "数据资产问答 Skill", source: "asset-qa", version: "v1.0-portal", scenarioKey: "asset", icon: "📚", title: "数据资产问答", displayDesc: "有哪些表、口径、负责人", sort: 30,
+      clarification: { enabled: false, question: "", options: [] }, assetScope: "全部已授权数据资产", responseContract: ["推荐表", "关键字段", "负责人"],
       instructions: "你是观星台数据平台的资产问答助手。\n基于提供的表资产清单回答用户问题，输出：相关表清单、各表口径说明、负责人、推荐用法。\n只推荐清单内的表；清单外的可能性标注「权限外，未纳入」。" },
-    { id: "attribution-analyst", name: "归因分析 Skill", source: "attribution-analyst", version: "v0.5", scenarioKey: "attribution", icon: "🎯", title: "归因分析", displayDesc: "指标异动拆解与定位", sort: 40,
+    { id: "attribution-analyst", name: "指标异动诊断 Skill", source: "attribution-analyst", version: "v0.6-portal", scenarioKey: "attribution", icon: "🎯", title: "指标异动诊断", displayDesc: "指标异动拆解与定位", sort: 40,
+      clarification: { enabled: false, question: "", options: [] }, assetScope: "引用指标表与可拆解维度", responseContract: ["异动幅度", "维度贡献", "证据限制"],
       instructions: "你是观星台数据平台的归因分析助手。\n基于聚合统计中的「近7天 / 前7天 / 环比 / CPA环比」数据对指标异动做维度拆解：1. 先给出整体结论；2. 逐维度列出对比表（Markdown 表格）；3. 定位到具体的组并给出原因判断；4. 给出建议。\n所有数字必须来自证据，不编造。" }
   ];
   /* 数仓模型分析（服务化）：原 maxcompute-warehouse-analyst 提炼，输出对齐 WorkBuddy 八段式 */
@@ -927,17 +931,21 @@ function installBuiltinPackages() {
     const manifest = {
       id: def.id, name: def.name, source: def.source, version: def.version,
       scenarioKey: def.scenarioKey, icon: def.icon, title: def.title,
-      displayDesc: def.displayDesc, sort: def.sort, enabled: true, grayUsers: [],
+      displayDesc: def.displayDesc, sort: def.sort, clarification: def.clarification, assetScope: def.assetScope, responseContract: def.responseContract, enabled: true, grayUsers: [],
       tools: [{ name: "evidence", cmd: "node tools/evidence.cjs", description: "采集表证据与聚合统计（含环比）" }]
     };
-    if (!fs.existsSync(path.join(dir, "skill.json"))) {
+    const existing = registry.find(item => item.id === def.id);
+    const needsBuiltinUpgrade = existing?.builtin && existing.version !== def.version;
+    if (!fs.existsSync(path.join(dir, "skill.json")) || needsBuiltinUpgrade) {
       fs.mkdirSync(path.join(dir, "tools"), { recursive: true });
       fs.writeFileSync(path.join(dir, "skill.json"), JSON.stringify(manifest, null, 2));
       fs.writeFileSync(path.join(dir, "SKILL.md"), def.instructions);
       fs.writeFileSync(path.join(dir, "tools", "evidence.cjs"), EVIDENCE_TOOL_SOURCE);
       fs.writeFileSync(path.join(dir, "fields.json"), JSON.stringify(tables.map(({ generator, ...rest }) => rest)));
     }
-    if (!registry.some(item => item.id === def.id)) {
+    if (existing?.builtin) {
+      Object.assign(existing, { name: def.name, source: def.source, version: def.version, scenarioKey: def.scenarioKey, icon: def.icon, title: def.title, displayDesc: def.displayDesc, sort: def.sort, clarification: existing.clarification || def.clarification, assetScope: existing.assetScope || def.assetScope, responseContract: existing.responseContract || def.responseContract });
+    } else if (!existing) {
       registry.push({ id: def.id, name: def.name, source: def.source, version: def.version, dir: path.join(SKILLS_DIR, def.id), enabled: true, grayUsers: [], installedAt: new Date().toISOString(), builtin: true });
     }
   });
@@ -1124,6 +1132,14 @@ const skills = {
     name: "数仓分析 Skill（maxcompute-warehouse-analyst 移植版）",
     version: "1.2-portal",
     scenarios: {
+      "data-query": {
+        label: "数据查询与指标解答",
+        system: [
+          "你是观星台数据平台的数据查询与指标解答助手。",
+          "只基于提供的业务线范围、表字段和聚合统计回答；先说明引用表、字段、指标口径与时间范围。",
+          "没有证据时明确标注证据限制，不能推测原因或数值。"
+        ].join("\n")
+      },
       single: {
         label: "单表分析",
         system: [
@@ -1342,7 +1358,7 @@ async function handleRequest(req, res) {
   if (req.method === "GET" && url.pathname === "/v1/skills") {
     return sendJson(res, 200, loadSkillRegistry().map(entry => {
       const manifest = skillManifest(entry.id) || {};
-      return { ...entry, ...manifest, dir: undefined, tools: (manifest.tools || []).map(tool => tool.name) };
+      return { ...manifest, ...entry, dir: undefined, tools: (manifest.tools || []).map(tool => tool.name) };
     }));
   }
 
@@ -1413,7 +1429,7 @@ async function handleRequest(req, res) {
     const entry = registry.find(item => item.id === id);
     if (!entry) return sendJson(res, 404, { error: `Skill 不存在：${id}` });
     const body = await readBody(req);
-    ["icon", "title", "displayDesc", "sort", "enabled", "scenarioKey"].forEach(key => {
+    ["icon", "title", "displayDesc", "sort", "enabled", "scenarioKey", "clarification", "assetScope", "responseContract"].forEach(key => {
       if (body[key] !== undefined) entry[key] = body[key];
     });
     if (Array.isArray(body.grayUsers)) entry.grayUsers = body.grayUsers.slice(0, 50);
@@ -1544,7 +1560,7 @@ async function handleRequest(req, res) {
 
   if (req.method === "POST" && url.pathname === "/v1/analyze") {
     const body = await readBody(req);
-    const { user = "曾祥竞", question = "", scenario = "single", tables: requestedTables = [], model = DEFAULT_MODEL, reasoningEffort = "", maxTokens = null, portalContext = [] } = body;
+    const { user = "曾祥竞", question = "", scenario = "data-query", tables: requestedTables = [], assetCandidates = [], businessLine = "", model = DEFAULT_MODEL, reasoningEffort = "", maxTokens = null, portalContext = [] } = body;
     if (!question.trim()) return sendJson(res, 400, { error: "问题不能为空" });
 
     const modelConfig = loadModelConfig();
@@ -1556,8 +1572,12 @@ async function handleRequest(req, res) {
     const wanted = requestedTables.length ? requestedTables.slice(0, 3) : [];
     const referenced = wanted.filter(name => allowed.includes(name));
     const denied = wanted.filter(name => !allowed.includes(name));
+    const scopedCandidates = Array.isArray(assetCandidates) ? assetCandidates.slice(0, 12).filter(name => allowed.includes(name)) : [];
     if (wanted.length && !referenced.length) {
       return sendJson(res, 403, { error: `引用的数据表均未授权给当前用户（${user}），请检查「权限组 → 数据表权限」` });
+    }
+    if (businessLine && !referenced.length && !scopedCandidates.length) {
+      return sendJson(res, 404, { error: `「${businessLine}」业务线下没有可用数据资产，请先在表管理中配置业务线或确认权限` });
     }
 
     /* Skill 运行时：优先按 skillId 执行注册表里的包（工具出证据 + SKILL.md 出编排），失败回退内置 */
@@ -1567,7 +1587,7 @@ async function handleRequest(req, res) {
       : null;
     let skill = null, scene = null, runtimeError = "";
     if (registrySkill) {
-      const toolRun = await runSkillTool(registrySkill, "evidence", { tables: referenced, question });
+      const toolRun = await runSkillTool(registrySkill, "evidence", { tables: referenced.length ? referenced : scopedCandidates, question, businessLine });
       if (toolRun.ok && Array.isArray(toolRun.result.evidence)) {
         const instructions = skillInstructions(registrySkill.id);
         skill = { name: registrySkill.name, version: registrySkill.version };
@@ -1582,11 +1602,12 @@ async function handleRequest(req, res) {
       skill = builtin;
       scene = builtin.scenarios[scenario] || builtin.scenarios.single;
     }
-    const evidence = buildEvidenceOverride || buildEvidence(referenced, portalContext);
+    const evidenceTables = referenced.length ? referenced : scopedCandidates;
+    const evidence = buildEvidenceOverride || buildEvidence(evidenceTables, portalContext);
     const prompt = [
       `## 用户问题\n${question}`,
       `## 分析场景\n${scene.label}`,
-      referenced.length ? `## 引用数据表\n${referenced.join("、")}` : "## 引用数据表\n（未指定，以下为当前用户权限内全部表的概览，深度分析请引用具体表）",
+      referenced.length ? `## 引用数据表\n${referenced.join("、")}` : scopedCandidates.length ? `## 业务线范围\n${businessLine || "已选择业务线"}；候选数据表：${scopedCandidates.join("、")}` : "## 引用数据表\n（未指定，以下为当前用户权限内全部表的概览，深度分析请引用具体表）",
       "## 门户配置说明\n表证据中的「枚举值」「字段备注」「标签配置」「维表数据样例」来自门户的表管理、字典管理、标签管理与维表管理配置，分析时优先据此解释编码取值与口径；与网关注释冲突时以门户配置为准。",
       denied.length ? `## 权限提示\n以下表未授权，未纳入分析：${denied.join("、")}` : "",
       `## 表证据（唯一事实来源，所有数字必须来自这里）\n${JSON.stringify(evidence, null, 1)}`
