@@ -1446,7 +1446,7 @@
               </div>
               </div>
 
-          <el-dialog v-model="reportDialog" width="900px" top="5vh" :close-on-click-modal="true" class="portal-vue-ai-report-dialog">
+          <el-dialog v-model="reportDialog" width="1100px" top="4vh" :close-on-click-modal="true" class="portal-vue-ai-report-dialog">
             <template #header>
               <div class="portal-vue-ai-report-dialog-head">
                 <strong>{{ activeReport()?.title || "分析报告" }}</strong>
@@ -1686,7 +1686,15 @@
       },
       findSession(id){return this.sessions.find(item=>item.id===id);},
       openAssets(){this.assetView=true;},
-      openReport(report){this.activeReportId=report.id;this.reportDialog=true;},
+      openReport(report){
+        this.activeReportId=report.id;
+        this.reportDialog=true;
+        // 打开弹窗后自动滚动到正文最底部，方便直接读到报告结尾
+        this.$nextTick(()=>{
+          const body=document.querySelector(".portal-vue-ai-report-dialog .el-dialog__body");
+          if(body)body.scrollTop=body.scrollHeight;
+        });
+      },
       activeReport(){return this.reports.find(item=>item.id===this.activeReportId);},
       openReportById(reportId){
         const report=this.reports.find(item=>item.id===reportId);

@@ -468,8 +468,8 @@
 .portal-vue-ai-report-card-title { flex: 1 1 auto; min-width: 0; font-size: 14.5px; color: #1f2733; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-ai-report-open-btn { flex: none; padding: 5px 12px; border: 1px solid #1677ff; border-radius: 999px; background: #1677ff; color: #fff; font-size: 12.5px; cursor: pointer; transition: background .15s; }
 .portal-vue-ai-report-open-btn:hover { background: #0f65e8; }
-.portal-vue-ai-report-preview { max-height: 480px; overflow-y: auto; margin-top: 6px; padding-top: 10px; border-top: 1px dashed #e2e8f2; }
-.portal-vue-ai-report-dialog-markdown { max-height: 76vh; overflow-y: auto; }
+.portal-vue-ai-report-preview { max-height: 560px; overflow-y: auto; margin-top: 6px; padding-top: 10px; border-top: 1px dashed #e2e8f2; }
+.portal-vue-ai-report-dialog-markdown { max-height: none; }
 
 /* 系统管理：菜单管理 / Skill 配置 */
 .portal-vue-skill-drawer { display: grid; gap: 12px; }
@@ -525,7 +525,7 @@
 .portal-vue-ai-asset-card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .portal-vue-ai-asset-card-summary { margin: 0; flex: 1 1 auto; font-size: 13px; color: #51607a; line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .portal-vue-ai-report-dialog .el-dialog__header { padding: 14px 18px; border-bottom: 1px solid #eef1f6; margin-right: 0; }
-.portal-vue-ai-report-dialog .el-dialog__body { padding: 16px 20px 22px; max-height: calc(92vh - 140px); overflow-y: auto; }
+.portal-vue-ai-report-dialog .el-dialog__body { padding: 16px 20px 22px; max-height: calc(100vh - 180px); overflow-y: auto; }
 .portal-vue-ai-report-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 24px; }
 .portal-vue-ai-report-dialog-head strong { font-size: 16px; color: #1f2733; }
 .portal-vue-ai-report-dialog-actions { display: flex; gap: 8px; }
