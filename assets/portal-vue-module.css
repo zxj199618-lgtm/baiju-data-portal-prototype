@@ -475,6 +475,9 @@
 
 /* 系统管理：菜单管理 / Skill 配置 */
 .portal-vue-skill-drawer { display: grid; gap: 12px; }
+.portal-vue-skill-section { border-top: 1px dashed #e2e8f2; padding-top: 14px; }
+.portal-vue-skill-section:first-of-type { border-top: 0; padding-top: 0; }
+.portal-vue-skill-section > strong { display: block; margin-bottom: 12px; font-size: 13px; color: #1f2733; }
 .portal-vue-skill-version { padding: 12px 14px; border: 1px solid #e9edf4; border-radius: 8px; }
 .portal-vue-skill-version.current { border-color: #1677ff; background: #f0f7ff; }
 .portal-vue-skill-version-head { display: flex; align-items: center; gap: 8px; }

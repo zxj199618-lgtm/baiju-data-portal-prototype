@@ -2389,74 +2389,61 @@
           <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无 Skill">
             <el-table-column label="Skill" min-width="240"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.desc }}</div></div></template></el-table-column>
             <el-table-column prop="source" label="来源包" width="230"><template #default="scope"><code class="portal-vue-code">{{ scope.row.source }}</code></template></el-table-column>
-            <el-table-column label="工作台展示" min-width="200"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:6px"><span>{{ scope.row.icon }}</span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">不展示</span></template></el-table-column>
+            <el-table-column label="工作台展示" min-width="200"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:6px"><span>{{ scope.row.icon }}</span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">已下线</span></template></el-table-column>
             <el-table-column prop="version" label="当前版本" width="120"></el-table-column>
-            <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="skillStatus(scope.row)==='已发布'?'success':'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></template></el-table-column>
+            <el-table-column label="状态" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:6px"><el-switch v-model="scope.row.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch><el-tag v-if="scope.row.enabled!==false && skillStatus(scope.row)==='灰度中'" size="small" type="warning" effect="light">灰度中</el-tag></div></template></el-table-column>
             <el-table-column label="灰度用户" min-width="170"><template #default="scope"><div v-if="scope.row.grayUsers.length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.grayUsers.slice(0,3)" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="scope.row.grayUsers.length>3" class="portal-vue-muted">+{{ scope.row.grayUsers.length-3 }}</span></div><span v-else class="portal-vue-muted">全量发布</span></template></el-table-column>
             <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
-            <el-table-column label="操作" width="360" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openCapability(scope.row)">能力配置</el-button><el-button link type="primary" @click="openDisplay(scope.row)">展示设置</el-button><el-button link type="primary" @click="openPrompt(scope.row)">提示词</el-button><el-button link type="primary" @click="openVersions(scope.row)">版本</el-button><el-button link type="primary" @click="openGray(scope.row)">灰度用户</el-button></div></template></el-table-column>
+            <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button link type="primary" @click="openEdit(scope.row)">编辑</el-button></template></el-table-column>
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">Skill 以 ZIP 包（SKILL.md + 脚本 + 依赖清单）上传到网关统一执行；提示词与版本更新即时生效，无需发版。</div>
         </section>
-        <el-drawer v-model="promptVisible" :title="(activeSkill?.name || '') + ' · 提示词编辑'" size="560px" :close-on-click-modal="true">
+        <el-drawer v-model="editVisible" :title="(activeSkill?.name || '') + ' · 编辑'" size="720px" :close-on-click-modal="true">
           <div v-if="activeSkill" class="portal-vue-skill-drawer">
-            <el-alert type="info" :closable="false" title="保存后下一次分析请求立即使用新提示词，无需重新部署网关。"></el-alert>
-            <el-input v-model="promptDraft" type="textarea" :rows="16" resize="none"></el-input>
-            <div style="display:flex;gap:10px;justify-content:flex-end"><el-button @click="promptVisible=false">取消</el-button><el-button type="primary" @click="savePrompt">保存提示词</el-button></div>
-          </div>
-        </el-drawer>
-        <el-drawer v-model="capabilityVisible" :title="(activeSkill?.name || '') + ' · 能力配置'" size="600px" :close-on-click-modal="true">
-          <div v-if="activeSkill" class="portal-vue-skill-drawer">
-            <el-alert type="info" :closable="false" title="能力配置决定何时咨询用户、检索哪些数据资产，以及回答必须包含哪些证据。"></el-alert>
-            <el-form class="portal-vue-dialog-form" label-position="top" style="margin-top:16px">
-              <el-form-item label="澄清策略"><el-switch v-model="capabilityForm.clarification.enabled" active-text="未引用表时先咨询" inactive-text="直接检索"></el-switch></el-form-item>
-              <template v-if="capabilityForm.clarification.enabled">
-                <el-form-item label="咨询问题"><el-input v-model="capabilityForm.clarification.question" placeholder="你问的是哪个业务线？"></el-input></el-form-item>
-                <el-form-item label="可选业务线"><el-checkbox-group v-model="capabilityForm.clarification.options"><el-checkbox v-for="line in businessLineChoices" :key="line" :value="line">{{ line }}</el-checkbox></el-checkbox-group></el-form-item>
+            <el-alert type="info" :closable="false" title="所有配置在同一个编辑页维护，保存后下一次分析请求立即生效，无需发版。" :show-icon="true"></el-alert>
+            <div class="portal-vue-skill-section"><strong>工作台展示</strong>
+              <div style="display:grid;grid-template-columns:100px 1fr;gap:0 14px">
+                <el-form-item label="图标" required><el-input v-model="editForm.icon" maxlength="4" placeholder="📊"></el-input></el-form-item>
+                <el-form-item label="标题" required><el-input v-model="editForm.title" placeholder="如：单表分析"></el-input></el-form-item>
+              </div>
+              <el-form-item label="描述"><el-input v-model="editForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 14px">
+                <el-form-item label="排序（越小越靠前）" required><el-input-number v-model="editForm.sort" :min="1" :max="999" style="width:100%"></el-input-number></el-form-item>
+                <el-form-item label="绑定分析场景"><el-select v-model="editForm.scenarioKey"><el-option label="数据查询与指标解答" value="data-query"></el-option><el-option label="数据血缘与变更影响" value="lineage"></el-option><el-option label="数据资产问答" value="asset"></el-option><el-option label="指标异动诊断" value="attribution"></el-option></el-select></el-form-item>
+                <el-form-item label="上线状态"><el-switch v-model="editForm.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch></el-form-item>
+              </div>
+            </div>
+            <div class="portal-vue-skill-section"><strong>提示词</strong><el-input v-model="editForm.prompt" type="textarea" :rows="8" resize="none"></el-input></div>
+            <div class="portal-vue-skill-section"><strong>能力配置</strong>
+              <el-form-item label="澄清策略"><el-switch v-model="editForm.clarification.enabled" active-text="未引用表时先咨询" inactive-text="直接检索"></el-switch></el-form-item>
+              <template v-if="editForm.clarification.enabled">
+                <el-form-item label="咨询问题"><el-input v-model="editForm.clarification.question" placeholder="你问的是哪个业务线？"></el-input></el-form-item>
+                <el-form-item label="可选业务线"><el-checkbox-group v-model="editForm.clarification.options"><el-checkbox v-for="line in businessLineChoices" :key="line" :value="line">{{ line }}</el-checkbox></el-checkbox-group></el-form-item>
               </template>
-              <el-form-item label="资产检索范围"><el-input v-model="capabilityForm.assetScope" placeholder="如：按业务线检索已授权的表与字段"></el-input></el-form-item>
-              <el-form-item label="回答契约"><el-checkbox-group v-model="capabilityForm.responseContract"><el-checkbox v-for="item in responseContractChoices" :key="item" :value="item">{{ item }}</el-checkbox></el-checkbox-group></el-form-item>
-            </el-form>
-            <div style="display:flex;justify-content:flex-end"><el-button @click="capabilityVisible=false">取消</el-button><el-button type="primary" @click="saveCapability">保存能力配置</el-button></div>
+              <el-form-item label="资产检索范围"><el-input v-model="editForm.assetScope" placeholder="如：按业务线检索已授权的表与字段"></el-input></el-form-item>
+              <el-form-item label="回答契约"><el-checkbox-group v-model="editForm.responseContract"><el-checkbox v-for="item in responseContractChoices" :key="item" :value="item">{{ item }}</el-checkbox></el-checkbox-group></el-form-item>
+            </div>
+            <div class="portal-vue-skill-section"><strong>灰度用户</strong>
+              <el-alert type="info" :closable="false" title="不选任何用户 = 全量发布；选择部分用户 = 仅这些用户在灵犀智析和飞书机器人中可见该 Skill。" :show-icon="true" style="margin-bottom:12px"></el-alert>
+              <el-checkbox-group v-model="editForm.grayUsers" class="portal-vue-gray-users">
+                <el-checkbox v-for="user in activeUsers" :key="user.name" :value="user.name" border>{{ user.name }}<small>{{ user.dept }}</small></el-checkbox>
+              </el-checkbox-group>
+            </div>
+            <div class="portal-vue-skill-section"><strong>版本历史</strong>
+              <div v-for="item in activeSkill.versions" :key="item.version" class="portal-vue-skill-version" :class="{ current: item.current }" style="margin-bottom:10px">
+                <div class="portal-vue-skill-version-head"><strong>{{ item.version }}</strong><el-tag v-if="item.current" size="small" type="success" effect="light">当前</el-tag><time>{{ item.time }}</time></div>
+                <p>{{ item.note }}</p>
+                <div class="portal-vue-muted">操作人：{{ item.operator }}</div>
+                <el-button v-if="!item.current" link type="primary" @click="rollback(item)">回滚到此版本</el-button>
+              </div>
+              <p v-if="!activeSkill.versions?.length" class="portal-vue-muted">暂无版本历史</p>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px"><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveAll">保存全部</el-button></div>
           </div>
         </el-drawer>
-        <el-drawer v-model="versionsVisible" :title="(activeSkill?.name || '') + ' · 版本历史'" size="520px" :close-on-click-modal="true">
-          <div v-if="activeSkill" class="portal-vue-skill-drawer">
-            <div v-for="item in activeSkill.versions" :key="item.version" class="portal-vue-skill-version" :class="{ current: item.current }">
-              <div class="portal-vue-skill-version-head"><strong>{{ item.version }}</strong><el-tag v-if="item.current" size="small" type="success" effect="light">当前</el-tag><time>{{ item.time }}</time></div>
-              <p>{{ item.note }}</p>
-              <div class="portal-vue-muted">操作人：{{ item.operator }}</div>
-              <el-button v-if="!item.current" link type="primary" @click="rollback(item)">回滚到此版本</el-button>
-            </div>
-          </div>
-        </el-drawer>
-        <el-dialog v-model="displayVisible" :title="(activeSkill?.name || '') + ' · 工作台展示设置'" width="520px">
-          <el-form class="portal-vue-dialog-form" label-position="top">
-            <div style="display:grid;grid-template-columns:100px 1fr;gap:0 14px">
-              <el-form-item label="图标" required><el-input v-model="displayForm.icon" maxlength="4" placeholder="📊"></el-input></el-form-item>
-              <el-form-item label="标题" required><el-input v-model="displayForm.title" placeholder="如：单表分析"></el-input></el-form-item>
-            </div>
-            <el-form-item label="描述"><el-input v-model="displayForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
-              <el-form-item label="排序（越小越靠前）" required><el-input-number v-model="displayForm.sort" :min="1" :max="999" style="width:100%"></el-input-number></el-form-item>
-              <el-form-item label="在灵犀智析展示"><el-switch v-model="displayForm.enabled"></el-switch></el-form-item>
-            </div>
-            <el-form-item v-if="displayForm.enabled" label="绑定分析场景（调网关时使用）"><el-select v-model="displayForm.scenarioKey"><el-option label="数据查询与指标解答" value="data-query"></el-option><el-option label="数据血缘与变更影响" value="lineage"></el-option><el-option label="数据资产问答" value="asset"></el-option><el-option label="指标异动诊断" value="attribution"></el-option></el-select></el-form-item>
-          </el-form>
-          <template #footer><el-button @click="displayVisible=false">取消</el-button><el-button type="primary" @click="saveDisplay">保存</el-button></template>
-        </el-dialog>
-        <el-dialog v-model="grayVisible" :title="(activeSkill?.name || '') + ' · 灰度用户'" width="600px">
-          <div class="portal-vue-skill-drawer">
-            <el-alert type="info" :closable="false" title="不选任何用户 = 全量发布；选择部分用户 = 仅这些用户在灵犀智析和飞书机器人中可见该 Skill。" :show-icon="true"></el-alert>
-            <el-checkbox-group v-model="grayDraft" class="portal-vue-gray-users">
-              <el-checkbox v-for="user in activeUsers" :key="user.name" :value="user.name" border>{{ user.name }}<small>{{ user.dept }}</small></el-checkbox>
-            </el-checkbox-group>
-          </div>
-          <template #footer><el-button @click="grayVisible=false">取消</el-button><el-button type="primary" @click="saveGray">保存</el-button></template>
-        </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({keyword:"",uploading:false,promptVisible:false,versionsVisible:false,grayVisible:false,grayDraft:[],displayVisible:false,displayForm:{},capabilityVisible:false,capabilityForm:{clarification:{enabled:false,question:"",options:[]},assetScope:"",responseContract:[]},activeSkill:null,promptDraft:"",businessLineChoices:["存量","权益","保险","短剧","其他"],responseContractChoices:["引用表和字段","指标口径与时间范围","直接影响","间接影响","维度贡献","负责人","证据限制"]}),
+    data:()=>({keyword:"",uploading:false,editVisible:false,editForm:{},activeSkill:null,businessLineChoices:["存量","权益","保险","短剧","其他"],responseContractChoices:["引用表和字段","指标口径与时间范围","直接影响","间接影响","维度贡献","负责人","证据限制"]}),
     computed:{
       skills(){refreshTick.value;return (state.skills||[]).filter(item=>item.id!=="numa-warehouse");},
       filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));},
@@ -2488,39 +2475,32 @@
           }
         }catch(error){/* 网关未启动时保留内置注册表 */}
       },
-      openDisplay(row){this.activeSkill=row;this.displayForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,scenarioKey:row.scenarioKey||"data-query"};this.displayVisible=true;},
-      openCapability(row){this.activeSkill=row;this.capabilityForm={clarification:{enabled:!!row.clarification?.enabled,question:row.clarification?.question||"",options:[...(row.clarification?.options||[])]},assetScope:row.assetScope||"全部已授权数据资产",responseContract:[...(row.responseContract||[])]};this.capabilityVisible=true;},
-      async saveCapability(){
-        const form=this.capabilityForm;
-        if(form.clarification.enabled&&!String(form.clarification.question||"").trim())return ep.ElMessage.warning("请输入咨询问题");
-        Object.assign(this.activeSkill,{clarification:{enabled:form.clarification.enabled,question:String(form.clarification.question||"").trim(),options:[...form.clarification.options]},assetScope:String(form.assetScope||"").trim(),responseContract:[...form.responseContract]});
-        try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(this.activeSkill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({clarification:this.activeSkill.clarification,assetScope:this.activeSkill.assetScope,responseContract:this.activeSkill.responseContract})});}catch(error){/* 网关未连接时保留原型状态 */}
-        this.capabilityVisible=false;
-        notify(`「${this.activeSkill.name}」能力配置已保存`);
-      },
-      saveDisplay(){
-        const form=this.displayForm;
+      openEdit(row){this.activeSkill=row;this.editForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,scenarioKey:row.scenarioKey||"data-query",clarification:{enabled:!!row.clarification?.enabled,question:row.clarification?.question||"",options:[...(row.clarification?.options||[])]},assetScope:row.assetScope||"",responseContract:[...(row.responseContract||[])],grayUsers:[...(row.grayUsers||[])],prompt:row.prompt||""};this.editVisible=true;},
+      async saveAll(){
+        const form=this.editForm;
         if(!String(form.title||"").trim())return ep.ElMessage.warning("请输入标题");
-        Object.assign(this.activeSkill,{icon:form.icon,title:form.title.trim(),displayDesc:form.displayDesc.trim(),sort:form.sort,enabled:form.enabled,scenarioKey:form.scenarioKey});
-        this.displayVisible=false;
-        notify(`「${this.activeSkill.name}」展示设置已保存，灵犀智析已同步`);
+        if(form.clarification.enabled&&!String(form.clarification.question||"").trim())return ep.ElMessage.warning("请输入咨询问题");
+        Object.assign(this.activeSkill,{
+          icon:form.icon,title:form.title.trim(),displayDesc:form.displayDesc.trim(),sort:form.sort,enabled:form.enabled,scenarioKey:form.scenarioKey,
+          clarification:{enabled:form.clarification.enabled,question:String(form.clarification.question||"").trim(),options:[...form.clarification.options]},
+          assetScope:String(form.assetScope||"").trim(),responseContract:[...form.responseContract],
+          grayUsers:[...form.grayUsers],prompt:form.prompt
+        });
+        try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(this.activeSkill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:this.activeSkill.icon,title:this.activeSkill.title,displayDesc:this.activeSkill.displayDesc,sort:this.activeSkill.sort,enabled:this.activeSkill.enabled,scenarioKey:this.activeSkill.scenarioKey,clarification:this.activeSkill.clarification,assetScope:this.activeSkill.assetScope,responseContract:this.activeSkill.responseContract,grayUsers:this.activeSkill.grayUsers})});}catch(error){/* 网关未连接时保留原型状态 */}
+        this.editVisible=false;
+        notify(`「${this.activeSkill.name}」配置已保存，灵犀智析已同步`);
       },
-      openPrompt(row){this.activeSkill=row;this.promptDraft=row.prompt;this.promptVisible=true;},
-      savePrompt(){this.activeSkill.prompt=this.promptDraft;this.promptVisible=false;notify(`「${this.activeSkill.name}」提示词已保存，下次分析生效`);},
-      openVersions(row){this.activeSkill=row;this.versionsVisible=true;},
-      rollback(item){this.activeSkill.versions.forEach(version=>version.current=version===item);this.activeSkill.version=item.version;this.versionsVisible=false;notify(`「${this.activeSkill.name}」已回滚到 ${item.version}`);},
+      async toggleEnabled(row){
+        const enabled=row.enabled!==false;
+        try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(row.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled})});}catch(error){/* 网关未连接时保留原型状态 */}
+        notify(`「${row.name}」已${enabled?"上线，灵犀智析恢复展示":"下线，灵犀智析立即隐藏"}`);
+      },
+      rollback(item){this.activeSkill.versions.forEach(version=>version.current=version===item);this.activeSkill.version=item.version;notify(`「${this.activeSkill.name}」已回滚到 ${item.version}`);},
       skillStatus(row){
         if(!row.grayUsers.length)return "已发布";
         const total=state.users.filter(user=>user.status!=="已停用").length;
         return row.grayUsers.length>=total?"已发布":"灰度中";
       },
-      openGray(row){this.activeSkill=row;this.grayDraft=[...row.grayUsers];this.grayVisible=true;},
-      saveGray(){
-        this.activeSkill.grayUsers=[...this.grayDraft];
-        this.grayVisible=false;
-        const status=this.skillStatus(this.activeSkill);
-        notify(`「${this.activeSkill.name}」${status==="已发布"?"已全量发布":"已灰度给 "+this.activeSkill.grayUsers.length+" 位用户"}`);
-      }
     }
   };
 
