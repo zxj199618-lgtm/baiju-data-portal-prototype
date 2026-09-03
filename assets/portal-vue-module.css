@@ -473,6 +473,23 @@
 .portal-vue-ai-report-preview { max-height: 560px; overflow-y: auto; margin-top: 6px; padding-top: 10px; border-top: 1px dashed #e2e8f2; }
 .portal-vue-ai-report-dialog-markdown { max-height: none; }
 
+/* 数据预警 */
+.portal-vue-alert-step { display: flex; align-items: center; gap: 10px; }
+.portal-vue-alert-step b { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #1677ff; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.portal-vue-alert-step strong { display: block; font-size: 14px; color: #1f2733; line-height: 22px; }
+.portal-vue-alert-step span { font-size: 12px; }
+.portal-vue-alert-step > div span { display: block; font-size: 12px; }
+.portal-vue-alert-ok { color: #1677ff; font-size: 13px; font-weight: 600; }
+.portal-vue-alert-field { display: grid; gap: 6px; margin-bottom: 14px; }
+.portal-vue-alert-field label { font-size: 12px; color: #667085; font-weight: 600; }
+.portal-vue-alert-field label::after { content: ""; }
+.portal-vue-alert-sql { margin: 0; padding: 10px 12px; border-radius: 8px; background: #f3f6fa; font-size: 12px; line-height: 1.7; color: #2a3446; white-space: pre-wrap; word-break: break-word; }
+.portal-vue-alert-bot { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #dbe8fb; border-radius: 10px; background: #f0f7ff; margin-bottom: 14px; }
+.portal-vue-alert-bot .portal-vue-ai-bot-icon { font-size: 20px; }
+.portal-vue-alert-bot strong { display: block; font-size: 13px; color: #1f2733; }
+.portal-vue-alert-bot span { display: block; font-size: 12px; }
+.portal-vue-alert-bot .el-tag { margin-left: auto; }
+
 /* 系统管理：菜单管理 / Skill 配置 */
 .portal-vue-skill-drawer { display: grid; gap: 12px; }
 .portal-vue-skill-section { border-top: 1px dashed #e2e8f2; padding-top: 14px; }

@@ -2504,6 +2504,264 @@
     }
   };
 
+  const alertMetricChoices = [
+    { label: "消耗金额", field: "consume_amount" },
+    { label: "CPA（获客成本）", field: "cpa" },
+    { label: "点击量", field: "click_cnt" },
+    { label: "订单数", field: "order_cnt" },
+    { label: "新增用户数", field: "new_user_cnt" }
+  ];
+  const alertFrequencyChoices = ["每小时", "每天", "每周"];
+  const alertTimeChoices = ["08:00", "09:00", "10:00", "18:00"];
+  const alertGroupChoices = ["投放运营群", "数据分析师群", "权益业务群", "高管数据群"];
+  const alertExampleTexts = [
+    "近 7 天广告计划日报表中，巨量渠道消耗环比下降超过 20% 时每天提醒",
+    "广告计划日报表里 CPA 连续 3 天超过 80 元的时候提醒我",
+    "用户订单明细表每日订单数环比波动超过 30% 时发预警",
+    "渠道归因明细表中，新增用户数每周减少超过 15% 时提醒"
+  ];
+  const alertSeeds = [
+    {
+      id: "AL20260901001", name: "巨量渠道消耗突降预警", text: "近 7 天广告计划日报表中，巨量渠道消耗环比下降超过 20% 时每天提醒",
+      table: "广告计划日报表", metric: "消耗金额", agg: "SUM", filters: ["渠道=巨量"], rule: "环比下降超过 20%", frequency: "每天", time: "09:00",
+      sql: "SELECT ds, SUM(consume_amount) AS 消耗金额\nFROM 广告计划日报表\nWHERE 渠道 = '巨量' AND ds >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)\nGROUP BY ds\nHAVING (SUM(consume_amount) - LAG(SUM(consume_amount)) OVER (ORDER BY ds)) / LAG(SUM(consume_amount)) OVER (ORDER BY ds) <= -0.2",
+      enabled: true, users: ["曾祥竞"], groups: ["投放运营群"], lastTriggered: "2026-09-03 09:01", triggerCount: 3,
+      history: [
+        { time: "2026-09-03 09:01", summary: "巨量渠道昨日消耗 12.4 万，环比下降 23.6%，触发预警并推送飞书", status: "已推送" },
+        { time: "2026-09-02 09:00", summary: "巨量渠道昨日消耗 16.2 万，环比下降 21.1%，触发预警并推送飞书", status: "已推送" },
+        { time: "2026-08-31 09:00", summary: "巨量渠道昨日消耗 15.1 万，环比下降 20.4%，触发预警并推送飞书", status: "已推送" }
+      ]
+    },
+    {
+      id: "AL20260901002", name: "CPA 连续超目标预警", text: "广告计划日报表里 CPA 连续 3 天超过 80 元的时候提醒我",
+      table: "广告计划日报表", metric: "CPA（获客成本）", agg: "AVG", filters: [], rule: "CPA 连续 3 天超过 80 元", frequency: "每天", time: "10:00",
+      sql: "SELECT ds, AVG(cpa) AS CPA\nFROM 广告计划日报表\nWHERE ds >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)\nGROUP BY ds\nHAVING AVG(cpa) > 80",
+      enabled: true, users: ["李雨航"], groups: ["数据分析师群"], lastTriggered: "2026-09-02 18:30", triggerCount: 2,
+      history: [
+        { time: "2026-09-02 18:30", summary: "CPA 已连续 3 天高于 80 元（82.4 / 81.7 / 84.2），触发预警并推送飞书", status: "已推送" },
+        { time: "2026-08-28 18:05", summary: "CPA 已连续 3 天高于 80 元（81.2 / 80.9 / 83.5），触发预警并推送飞书", status: "已推送" }
+      ]
+    },
+    {
+      id: "AL20260901003", name: "订单量波动预警", text: "用户订单明细表每日订单数环比波动超过 30% 时发预警",
+      table: "用户订单明细", metric: "订单数", agg: "COUNT", filters: [], rule: "订单数环比波动超过 30%", frequency: "每天", time: "08:30",
+      sql: "SELECT ds, COUNT(order_id) AS 订单数\nFROM 用户订单明细\nWHERE ds >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)\nGROUP BY ds\nHAVING ABS(COUNT(order_id) - LAG(COUNT(order_id)) OVER (ORDER BY ds)) / LAG(COUNT(order_id)) OVER (ORDER BY ds) > 0.3",
+      enabled: false, users: ["王鑫宇"], groups: [], lastTriggered: "2026-08-28 08:31", triggerCount: 1,
+      history: [{ time: "2026-08-28 08:31", summary: "昨日订单数 3,214，环比下降 34.2%，触发预警并推送飞书", status: "已推送" }]
+    }
+  ];
+
+  /* 数据预警：自然语言描述 → AI 解析为指标配置/SQL 规则 → 业务核对保存 → 飞书机器人推送 */
+  const AlertManagementApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <div class="portal-vue-toolbar">
+            <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索预警名称、监控表或指标"></el-input></div>
+            <el-button type="primary" @click="openCreate">＋ 新建预警</el-button>
+          </div>
+          <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无预警，点右上角「新建预警」用一句话创建">
+            <el-table-column label="预警名称" min-width="230"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px;max-width:340px">{{ scope.row.text }}</div></div></template></el-table-column>
+            <el-table-column label="监控指标" min-width="180"><template #default="scope"><div style="display:flex;flex-direction:column;gap:3px"><el-tag size="small" effect="plain" style="width:fit-content">{{ scope.row.table }}</el-tag><span style="font-size:13px">{{ scope.row.agg }}（{{ scope.row.metric }}）</span></div></template></el-table-column>
+            <el-table-column label="触发条件" min-width="200"><template #default="scope"><div><span style="font-size:13px">{{ scope.row.rule }}</span><div class="portal-vue-muted" style="font-size:12px;margin-top:2px">{{ scope.row.frequency }}{{ scope.row.frequency==='每天' ? ' ' + scope.row.time : '' }} · {{ scope.row.filters.length ? '筛选：' + scope.row.filters.join('，') : '无筛选' }}</div></div></template></el-table-column>
+            <el-table-column label="推送对象" min-width="180"><template #default="scope"><div style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.users" :key="user" size="small" effect="plain">{{ user }}</el-tag><el-tag v-for="group in scope.row.groups" :key="group" size="small" type="success" effect="plain">{{ group }}</el-tag><span v-if="!scope.row.users.length && !scope.row.groups.length" class="portal-vue-muted">未配置</span></div></template></el-table-column>
+            <el-table-column label="最近触发" width="150"><template #default="scope"><div><span style="font-size:13px">{{ scope.row.lastTriggered === '—' ? '—' : scope.row.lastTriggered }}</span><div v-if="scope.row.triggerCount" class="portal-vue-muted" style="font-size:12px;margin-top:2px">累计触发 {{ scope.row.triggerCount }} 次</div></div></template></el-table-column>
+            <el-table-column label="状态" width="90"><template #default="scope"><el-switch v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch></template></el-table-column>
+            <el-table-column label="操作" width="150" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openEdit(scope.row)">编辑</el-button><el-button link type="primary" @click="openHistory(scope.row)">记录</el-button><el-button link type="danger" @click="removeAlert(scope.row)">删除</el-button></div></template></el-table-column>
+          </el-table>
+          <div class="portal-vue-muted" style="margin-top:12px">预警规则完全来自自然语言描述，AI 解析出的配置与 SQL 需业务核对确认；推送走内置「观星台预警助手」飞书机器人。</div>
+        </section>
+        <el-dialog v-model="dialogVisible" :title="(editingId ? '编辑' : '新建') + '数据预警'" width="800px" top="4vh" :close-on-click-modal="false">
+          <div class="portal-vue-skill-drawer" style="gap:14px">
+            <div class="portal-vue-alert-step"><b>1</b><div><strong>描述预警需求</strong><span class="portal-vue-muted">用一句话说明监控什么、变化多大时提醒</span></div></div>
+            <el-input v-model="text" type="textarea" :rows="3" resize="none" placeholder="例：近 7 天广告计划日报表中，巨量渠道消耗环比下降超过 20% 时每天提醒"></el-input>
+            <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="portal-vue-muted" style="font-size:12px;line-height:24px">试试：</span><el-button v-for="sample in alertExampleTexts" :key="sample" size="small" round plain @click="text = sample">{{ sample }}</el-button></div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <el-button type="primary" :loading="parsing" @click="runParse">🤖 AI 解析为配置清单</el-button>
+              <span v-if="parsing" class="portal-vue-muted">正在把需求解析为指标配置与 SQL 规则…</span>
+              <span v-else-if="parsed" class="portal-vue-alert-ok">✓ AI 解析完成，请业务核对下方配置</span>
+            </div>
+            <template v-if="parsed">
+              <div class="portal-vue-alert-step"><b>2</b><div><strong>核对配置清单</strong><span class="portal-vue-muted">可修改任意字段，SQL 会随之更新</span></div></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 14px">
+                <div class="portal-vue-alert-field"><label>监控表</label><el-select v-model="parsed.table" filterable><el-option v-for="table in alertTables" :key="table" :label="table" :value="table"></el-option></el-select></div>
+                <div class="portal-vue-alert-field"><label>监控指标</label><el-select v-model="parsed.metric"><el-option v-for="item in alertMetricChoices" :key="item.label" :label="item.label" :value="item.label"></el-option></el-select></div>
+                <div class="portal-vue-alert-field"><label>聚合方式</label><el-select v-model="parsed.agg"><el-option v-for="item in ['SUM','AVG','COUNT','MAX','MIN']" :key="item" :label="item" :value="item"></el-option></el-select></div>
+                <div class="portal-vue-alert-field"><label>检查频率</label><el-select v-model="parsed.frequency"><el-option v-for="item in alertFrequencyChoices" :key="item" :label="item" :value="item"></el-option></el-select></div>
+                <div class="portal-vue-alert-field"><label>执行时间</label><el-select v-model="parsed.time"><el-option v-for="item in alertTimeChoices" :key="item" :label="item" :value="item"></el-option></el-select></div>
+                <div class="portal-vue-alert-field"><label>预警名称</label><el-input v-model="parsed.name" placeholder="自动生成，可修改"></el-input></div>
+              </div>
+              <div class="portal-vue-alert-field"><label>筛选条件</label>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+                  <el-tag v-for="(filter, index) in parsed.filters" :key="filter" closable @close="parsed.filters.splice(index, 1)">{{ filter }}</el-tag>
+                  <el-input v-model="filterDraft" size="small" style="width:180px" placeholder="如：渠道=巨量" @keyup.enter="parsed.filters.push(filterDraft);filterDraft=''"></el-input>
+                  <el-button size="small" @click="parsed.filters.push(filterDraft);filterDraft=''">添加</el-button>
+                </div>
+              </div>
+              <div class="portal-vue-alert-field"><label>触发规则</label><el-input v-model="parsed.rule" placeholder="如：环比下降超过 20%"></el-input></div>
+              <div class="portal-vue-alert-field"><label>背后 SQL（随配置自动生成）</label><pre class="portal-vue-alert-sql">{{ alertSql }}</pre></div>
+            </template>
+            <template v-if="parsed">
+              <div class="portal-vue-alert-step"><b>3</b><div><strong>设置推送通道</strong><span class="portal-vue-muted">通过内置飞书机器人通知对应人与对应群</span></div></div>
+              <div class="portal-vue-alert-bot"><span class="portal-vue-ai-bot-icon">🤖</span><div><strong>观星台预警助手</strong><span class="portal-vue-muted">已接入飞书，触发时按下方对象推送卡片消息（人 + 群可多选）</span></div><el-tag size="small" type="success" effect="light">已接入</el-tag></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+                <div class="portal-vue-alert-field"><label>通知人</label><el-select v-model="users" multiple filterable placeholder="选择要通知的用户"><el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"><span>{{ user.name }}</span><span class="portal-vue-muted" style="float:right;font-size:12px">{{ user.dept }}</span></el-option></el-select></div>
+                <div class="portal-vue-alert-field"><label>通知群</label><el-select v-model="groups" multiple filterable placeholder="选择要通知的飞书群"><el-option v-for="group in alertGroupChoices" :key="group" :label="group" :value="group"></el-option></el-select></div>
+              </div>
+            </template>
+          </div>
+          <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" :disabled="!parsed || (!users.length && !groups.length)" @click="saveAlert">保存预警</el-button></template>
+        </el-dialog>
+        <el-dialog v-model="historyVisible" :title="historyTitle + ' · 触发记录'" width="560px">
+          <div class="portal-vue-skill-drawer">
+            <div v-for="item in historyRows" :key="item.time" class="portal-vue-skill-version">
+              <div class="portal-vue-skill-version-head"><strong>{{ item.time }}</strong><el-tag size="small" type="success" effect="light">{{ item.status }}</el-tag></div>
+              <p>{{ item.summary }}</p>
+            </div>
+            <p v-if="!historyRows.length" class="portal-vue-muted">暂无触发记录，规则启用后将在这里展示每次触发的推送情况。</p>
+          </div>
+        </el-dialog>
+      </el-config-provider>
+    `,
+    data: () => ({ keyword: "", dialogVisible: false, historyVisible: false, historyTitle: "", historyRows: [], editingId: "", text: "", parsing: false, parsed: null, filterDraft: "", users: [], groups: [], alertExampleTexts, alertGroupChoices, alertFrequencyChoices, alertTimeChoices, alertMetricChoices, alerts: [] }),
+    computed: {
+      filteredRows() {
+        const keyword = this.keyword.trim().toLowerCase();
+        if (!keyword) return this.alerts;
+        return this.alerts.filter(item => `${item.name} ${item.table} ${item.metric} ${item.rule}`.toLowerCase().includes(keyword));
+      },
+      alertTables() { return state.assets.map(table => table.cnName); },
+      activeUsers() { refreshTick.value; return state.users.filter(user => user.status !== "已停用"); },
+      alertSql() {
+        const parsed = this.parsed;
+        if (!parsed) return "";
+        const metric = alertMetricChoices.find(item => item.label === parsed.metric)?.field || "value";
+        const filters = [...parsed.filters];
+        const dateFilter = parsed.frequency === "每周" ? "ds >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)" : "ds = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
+        return `SELECT ds, ${parsed.agg}(${metric}) AS ${parsed.metric}\nFROM ${parsed.table}\n${filters.length ? "WHERE " + filters.map(item => item.includes("=") ? item.split("=")[0] + " = '" + item.split("=").slice(1).join("=") + "'" : item).join(" AND ") + " AND " : "WHERE "}${dateFilter}\nGROUP BY ds\nHAVING ${parsed.rule}`;
+      }
+    },
+    methods: {
+      loadAlerts() {
+        let saved = [];
+        try { saved = JSON.parse(localStorage.getItem("portal-alert-rules") || "[]"); } catch (error) { saved = []; }
+        this.alerts = [...saved, ...alertSeeds];
+      },
+      persistAlerts() {
+        try {
+          const saved = this.alerts.filter(item => !alertSeeds.some(seed => seed.id === item.id));
+          localStorage.setItem("portal-alert-rules", JSON.stringify(saved));
+        } catch (error) { /* 隐私模式下仅本次会话生效 */ }
+      },
+      openCreate() {
+        this.editingId = "";
+        this.text = "";
+        this.parsed = null;
+        this.users = [];
+        this.groups = [];
+        this.dialogVisible = true;
+      },
+      openEdit(row) {
+        this.editingId = row.id;
+        this.text = row.text;
+        this.parsed = { name: row.name, table: row.table, metric: row.metric, agg: row.agg, filters: [...row.filters], rule: row.rule, frequency: row.frequency, time: row.time };
+        this.users = [...row.users];
+        this.groups = [...row.groups];
+        this.dialogVisible = true;
+      },
+      runParse() {
+        if (!String(this.text || "").trim()) return ep.ElMessage.warning("先描述预警需求，再点解析");
+        this.parsing = true;
+        this.parsed = null;
+        setTimeout(() => {
+          this.parsed = this.parseAlertBrain(this.text.trim());
+          this.parsing = false;
+        }, 900);
+      },
+      /* AI 解析器（原型内置规则版，后续可切换为网关模型解析） */
+      parseAlertBrain(text) {
+        const lower = text.toLowerCase();
+        let table = "广告计划日报表";
+        if (lower.includes("订单") || lower.includes("成交")) table = "用户订单明细";
+        else if (lower.includes("画像") || lower.includes("标签")) table = "用户画像标签明细表";
+        else if (lower.includes("归因")) table = "渠道归因明细";
+        else if (lower.includes("媒体消耗") || lower.includes("消耗汇总")) table = "媒体消耗汇总";
+        let metric = "消耗金额", agg = "SUM";
+        if (lower.includes("cpa") || lower.includes("获客成本")) { metric = "CPA（获客成本）"; agg = "AVG"; }
+        else if (lower.includes("点击")) { metric = "点击量"; agg = "SUM"; }
+        else if (lower.includes("订单") || lower.includes("成交")) { metric = "订单数"; agg = "COUNT"; }
+        else if (lower.includes("新增用户") || lower.includes("用户数")) { metric = "新增用户数"; agg = "COUNT"; }
+        const filters = [];
+        ["巨量", "抖音", "腾讯", "快手"].forEach(channel => { if (text.includes(channel)) filters.push(`渠道=${channel}`); });
+        ["存量", "权益", "保险", "短剧"].forEach(line => { if (text.includes(line)) filters.push(`业务线=${line}`); });
+        if (text.includes("计划")) filters.push("计划层级=全部");
+        let rule = "环比变化超过 20%";
+        const match = text.match(/(\d+(?:\.\d+)?)\s*%/);
+        const pct = match ? match[1] : "20";
+        if (text.includes("环比")) {
+          if (text.includes("下降") || text.includes("跌")) rule = `环比下降超过 ${pct}%`;
+          else if (text.includes("上升") || text.includes("涨")) rule = `环比上升超过 ${pct}%`;
+          else if (text.includes("波动") || text.includes("变化")) rule = `环比${text.includes("波动") ? "波动" : "变化"}超过 ${pct}%`;
+          else rule = `环比变化超过 ${pct}%`;
+        } else if (text.includes("连续") && text.includes("天")) {
+          const days = text.match(/连续\s*(\d+)\s*天/);
+          rule = `${metric} 连续 ${days ? days[1] : "3"} 天超过阈值`;
+        } else if (text.includes("减少") || text.includes("下降") || text.includes("跌")) {
+          rule = `环比下降超过 ${pct}%`;
+        } else if (text.includes("增长") || text.includes("上升") || text.includes("涨")) {
+          rule = `环比上升超过 ${pct}%`;
+        } else if (text.includes("超过") || text.includes("大于") || text.includes("高于")) {
+          const value = text.match(/(\d+(?:\.\d+)?)/);
+          rule = `${metric} 超过 ${value ? value[1] : "80"}`;
+        }
+        let frequency = "每天", time = "09:00";
+        if (text.includes("每小") || text.includes("每小时")) frequency = "每小时";
+        else if (text.includes("每周")) frequency = "每周";
+        const timeMatch = text.match(/(\d{1,2})[:：](\d{2})/);
+        if (timeMatch) time = `${String(Number(timeMatch[1])).padStart(2, "0")}:${timeMatch[2]}`;
+        return { name: `${metric}${rule.includes("连续") ? "连续异常" : rule.replace(metric, "").replace(/超过/g, "超").replace(/大于/g, ">")}预警`, table, metric, agg, filters: filters.slice(0, 6), rule, frequency, time };
+      },
+      saveAlert() {
+        if (!this.parsed) return;
+        if (!this.users.length && !this.groups.length) return ep.ElMessage.warning("至少配置一个通知人或通知群");
+        const payload = {
+          name: this.parsed.name || `${this.parsed.metric}预警`,
+          text: this.text.trim(),
+          table: this.parsed.table, metric: this.parsed.metric, agg: this.parsed.agg,
+          filters: [...this.parsed.filters], rule: this.parsed.rule, frequency: this.parsed.frequency, time: this.parsed.time,
+          sql: this.alertSql, enabled: true, users: [...this.users], groups: [...this.groups],
+          lastTriggered: "—", triggerCount: 0, history: []
+        };
+        if (this.editingId) {
+          const target = this.alerts.find(item => item.id === this.editingId);
+          if (target) Object.assign(target, payload, { enabled: target.enabled, lastTriggered: target.lastTriggered, triggerCount: target.triggerCount, history: target.history });
+        } else {
+          this.alerts.unshift({ id: "AL" + Date.now(), ...payload });
+        }
+        this.persistAlerts();
+        this.dialogVisible = false;
+        notify(`预警「${payload.name}」已保存${this.editingId ? "并更新" : "，飞书机器人将按配置推送"}`);
+      },
+      toggleEnabled(row) {
+        notify(`预警「${row.name}」已${row.enabled ? "启用，触发时将推送飞书" : "停用，不再推送"}`);
+      },
+      async removeAlert(row) {
+        try {
+          await ep.ElMessageBox.confirm(`删除后该预警将停止推送，确认删除「${row.name}」？`, "删除预警", { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" });
+        } catch (error) { return; }
+        this.alerts = this.alerts.filter(item => item.id !== row.id);
+        this.persistAlerts();
+        notify(`预警「${row.name}」已删除`);
+      },
+      openHistory(row) {
+        this.historyTitle = row.name;
+        this.historyRows = row.history || [];
+        this.historyVisible = true;
+      }
+    },
+    mounted() { this.loadAlerts(); }
+  };
+
   mount("#sidebar", SidebarApp, "sidebar");
   mount("#analysisWorkbenchView", AnalysisWorkbenchApp, "analysis-workbench");
   mount(".topbar", TopbarApp, "topbar");
@@ -2526,6 +2784,7 @@
   mount("#menuManagementView", MenuManagementApp, "menu-management");
   mount("#modelConfigView", ModelConfigApp, "model-config");
   mount("#skillManagementView", SkillManagementApp, "skill-management");
+  window.alertVueApi = mount("#alertManagementView", AlertManagementApp, "alert-management");
 
   document.getElementById("portalApp").dataset.elementMigrated = "true";
   document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", ["新增API","新建人群包","Quick BI 展示","配置权限","无权限","维表数据维护"].includes(currentPage.value));

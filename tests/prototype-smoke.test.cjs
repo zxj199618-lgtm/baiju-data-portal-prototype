@@ -206,6 +206,11 @@ assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("Mode
 assert(portalVue.includes("v1/model-config") && portalVue.includes("已禁用"), "模型配置应支持禁用历史模型并持久化到网关");
 assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCascadeOptions") && portalVue.includes("activeTablePath") && portalVue.includes("changeTablePath") && portalVue.includes("<el-cascader"), "数据表选择应使用单个业务线到数据表的级联下拉");
 assert(!portalVue.includes("portal-vue-ai-cascade-grid") && !portalVue.includes("activeBizLine") && !portalVue.includes("filteredTableOptions") && !portalVue.includes("changeBizLine"), "数据表选择不应保留拆分的业务线/数据表下拉");
+assert(portalBridge.includes('name: "数据预警"') && portalBridge.includes('icon: "alert"'), "侧边栏应在数据资产上方提供数据预警菜单");
+assert(html.includes('id="alertManagementView"') && portalVue.includes('mount("#alertManagementView"'), "数据预警应挂载独立视图");
+assert(portalVue.includes("AlertManagementApp") && portalVue.includes("runParse") && portalVue.includes("parseAlertBrain"), "数据预警应支持自然语言描述并由 AI 解析为配置清单");
+assert(portalVue.includes("portal-vue-alert-sql") && portalVue.includes("alertSql") && portalVue.includes("保存预警"), "数据预警应生成背后 SQL 规则，业务核对后保存");
+assert(portalVue.includes("观星台预警助手") && portalVue.includes("通知群") && portalVue.includes("通知人"), "数据预警应内置飞书机器人推送通道（通知人/通知群）");
 assert(portalVue.includes("portal-vue-ai-chip-table-cascader") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "表选择按钮应直接展开级联菜单，不应先打开中间弹层");
 assert(portalVue.includes("portal-vue-ai-chip-model-select") && !portalVue.includes("portal-vue-ai-model-panel-popper"), "模型选择按钮应直接展开模型列表，不应先打开中间弹层");
 assert(portalCss.includes(".portal-vue-ai-chip-table-cascader { width: 200px; }") && portalCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }"), "表与模型下拉应统一为紧凑的 200px 宽度");

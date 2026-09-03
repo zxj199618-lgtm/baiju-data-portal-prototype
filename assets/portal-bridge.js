@@ -4,6 +4,7 @@
         { group: "灵犀智析", icon: "analysis", badge: "5.0", items: [{ name: "灵犀智析", badge: "5.0" }] },
         { group: "数据看板", icon: "dashboard", items: [{ name: "数据看板" }] },
         { group: "数据服务", icon: "gateway", badge: "3.0", items: [{ name: "人群包管理", badge: "3.0" }, { name: "数据开放平台", badge: "2.0" }] },
+        { group: "数据预警", icon: "alert", items: [{ name: "数据预警" }] },
         { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: ["2.0", "3.0", "4.0"] }, { name: "标签管理", badge: "3.0" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
         { group: "数据推送", icon: "push", badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },
@@ -1192,7 +1193,7 @@
       window.simpleUsers = simpleUsers;
 
       const permissionGroups = [
-        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "系统管理", "菜单管理", "Skill 配置", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
+        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "系统管理", "菜单管理", "Skill 配置", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据预警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
         { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["灵犀智析", "数据看板"], boards: ["CPA事业部", "大盘数据"], tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"], status: "启用" },
         { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["灵犀智析", "数据看板"], boards: ["CPA事业部", "新媒体"], tables: ["广告计划日报表", "广告账户日报"], status: "启用" },
         { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["灵犀智析", "数据看板"], boards: ["大盘数据", "产品运营部"], tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"], status: "启用" },
@@ -1497,6 +1498,7 @@
 
       const pageMeta = {
         "灵犀智析": ["灵犀智析", "通过对话或飞书机器人发起数据分析，仅可分析你有权限的数据表。", ""],
+        "数据预警": ["数据预警", "用一句话描述预警需求，AI 解析为指标配置与 SQL 规则，业务核对后通过飞书机器人推送。", "新建预警"],
         "Skill 配置": ["Skill 配置", "管理可用于灵犀智析和飞书机器人的分析 skill：展示、提示词、版本与用户灰度。", "上传 Skill"],
         "菜单管理": ["菜单管理", "维护门户侧边导航结构：层级、图标、排序、组件路径与权限标识。", "添加"],
         "模型配置": ["模型配置", "管理灵犀智析可用的模型：来自中转站的全部模型，可禁用历史或不可用模型。", ""],
@@ -1691,6 +1693,7 @@
           asset: { default: "assets/nav-asset-default.png", active: "assets/nav-asset-active.png" },
           permission: { default: "assets/nav-permission-default.png", active: "assets/nav-permission-active.png" },
           system: { default: "assets/nav-system-default.svg", active: "assets/nav-system-active.svg" },
+          alert: { default: "assets/nav-alert-default.svg", active: "assets/nav-alert-active.svg" },
           analysis: { default: "assets/nav-analysis-default.svg", active: "assets/nav-analysis-active.svg" }
         };
         return (icons[icon] || icons.asset)[active ? "active" : "default"];
@@ -2992,6 +2995,7 @@
         renderSimpleNav();
         dashboardView.classList.add("hidden");
         document.getElementById("analysisWorkbenchView")?.classList.toggle("hidden", page !== "灵犀智析");
+        document.getElementById("alertManagementView")?.classList.toggle("hidden", page !== "数据预警");
         document.getElementById("skillManagementView")?.classList.toggle("hidden", page !== "Skill 配置");
         document.getElementById("menuManagementView")?.classList.toggle("hidden", page !== "菜单管理");
         document.getElementById("modelConfigView")?.classList.toggle("hidden", page !== "模型配置");
@@ -3041,6 +3045,7 @@
         document.getElementById("sidebar").classList.add("hidden");
         dashboardView.classList.add("hidden");
         document.getElementById("analysisWorkbenchView")?.classList.add("hidden");
+        document.getElementById("alertManagementView")?.classList.add("hidden");
         document.getElementById("skillManagementView")?.classList.add("hidden");
         document.getElementById("menuManagementView")?.classList.add("hidden");
         document.getElementById("modelConfigView")?.classList.add("hidden");
@@ -3577,6 +3582,7 @@
         else if (activePage === "用户管理") showToast("已发起飞书用户同步");
         else if (activePage === "人群包管理") { if (window.cpCancelEdit) window.cpCancelEdit(); setSimplePage("新建人群包"); }
         else if (activePage === "人群包推送渠道") { if (window.cpOpenTargetModal) window.cpOpenTargetModal(); }
+        else if (activePage === "数据预警") { if (window.alertVueApi?.openCreate) window.alertVueApi.openCreate(); }
         else setSimplePage("看板管理");
       });
 
