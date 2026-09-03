@@ -197,7 +197,7 @@
   const PageHeadApp = {
     template: `
       <el-config-provider :locale="locale">
-        <div v-if="visible" class="portal-vue-page-head">
+        <div v-if="visible" class="portal-vue-page-head" :class="{ 'portal-vue-head-compact': page === '灵犀智析' }">
           <div class="portal-vue-page-head-row">
             <div><h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p></div>
             <button v-if="page === '灵犀智析' && !feishuBotAdded" type="button" class="portal-vue-ai-bot-btn" @click="feishuOpen = true"><span class="portal-vue-ai-bot-icon">🤖</span><span>添加飞书机器人</span></button>
