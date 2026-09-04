@@ -66,12 +66,13 @@
   }
 
   function enabledDictItems(dict) {
-    return (dict?.items || []).filter(item => item.enabled !== false);
+    /* 枚举值无启停概念：维护界面里停用即删除，这里返回全部 */
+    return (dict?.items || []).filter(item => item.code && item.name);
   }
 
   function dictHint(dict) {
     const items = enabledDictItems(dict);
-    if (!items.length) return "暂无启用枚举值";
+    if (!items.length) return "暂无枚举值";
     return `${items[0].code} → ${items[0].name}${items.length > 1 ? ` 等 ${items.length} 项` : ""}`;
   }
 
@@ -2155,11 +2156,10 @@
                 <span class="tag-enum-row-index">{{ index + 1 }}</span>
                 <el-input v-model="item.code" placeholder="编码"></el-input>
                 <el-input v-model="item.name" placeholder="中文名"></el-input>
-                <el-switch v-model="item.enabled" inline-prompt active-text="启用" inactive-text="停用"></el-switch>
                 <el-button text type="danger" :disabled="draftItems.length===1" @click="removeItem(index)">×</el-button>
               </div>
             </div>
-            <el-button class="tag-enum-add" @click="draftItems.push({code:'',name:'',sort:draftItems.length+1,enabled:true})">添加枚举值</el-button>
+            <el-button class="tag-enum-add" @click="draftItems.push({code:'',name:'',sort:draftItems.length+1})">添加枚举值</el-button>
           </div>
           <template #footer><el-button @click="itemVisible=false">取消</el-button><el-button type="primary" @click="saveItems">保存枚举值</el-button></template>
         </el-drawer>
@@ -2196,10 +2196,10 @@
         if (!/^[a-z]+(?:_[a-z0-9]+)*$/.test(this.form.code.trim())) return ep.ElMessage.warning("字典编码仅支持小写字母、数字与下划线");
         if (!this.editing && state.dictionaries.some(item => item.code === this.form.code.trim())) return ep.ElMessage.warning("字典编码已存在");
         if (this.editing) Object.assign(this.editing, { name: this.form.name.trim(), owner: this.form.owner, desc: this.form.desc.trim(), updatedAt: "2026-08-28 16:40" });
-        else state.dictionaries.unshift({ dictId: `DICT${String(state.dictionaries.length + 1).padStart(3, "0")}`, code: this.form.code.trim(), name: this.form.name.trim(), desc: this.form.desc.trim(), owner: this.form.owner, status: "启用", updatedAt: "2026-08-28 16:40", items: [{ code: "", name: "", sort: 1, enabled: true }] });
+        else state.dictionaries.unshift({ dictId: `DICT${String(state.dictionaries.length + 1).padStart(3, "0")}`, code: this.form.code.trim(), name: this.form.name.trim(), desc: this.form.desc.trim(), owner: this.form.owner, status: "启用", updatedAt: "2026-08-28 16:40", items: [{ code: "", name: "", sort: 1 }] });
         this.formVisible = false; notify(this.editing ? "字典已保存" : "字典已新增");
       },
-      openItems(dict) { this.current = dict; this.draftItems = dict.items.map(item => ({ ...item, enabled: item.enabled !== false })); this.itemVisible = true; },
+      openItems(dict) { this.current = dict; this.draftItems = dict.items.map(item => ({ ...item })); this.itemVisible = true; },
       async removeItem(index) { if (!await confirmAction("删除枚举值", "确认删除该枚举值？")) return; this.draftItems.splice(index, 1); },
       async toggleStatus(dict, enabled) {
         const refs = this.refCount(dict);
@@ -2211,7 +2211,7 @@
         notify(`字典已${dict.status}`);
       },
       saveItems() {
-        const items = this.draftItems.filter(item => item.code.trim() && item.name.trim()).map((item, index) => ({ code: item.code.trim(), name: item.name.trim(), sort: index + 1, enabled: item.enabled !== false }));
+        const items = this.draftItems.filter(item => item.code.trim() && item.name.trim()).map((item, index) => ({ code: item.code.trim(), name: item.name.trim(), sort: index + 1 }));
         if (!items.length) return ep.ElMessage.warning("请至少保留 1 个有效枚举值");
         const codes = items.map(item => item.code);
         if (new Set(codes).size !== codes.length) return ep.ElMessage.warning("编码不能重复");
