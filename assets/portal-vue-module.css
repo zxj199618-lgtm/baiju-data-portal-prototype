@@ -127,6 +127,8 @@
   background: #f8fbff;
 }
 .portal-vue-dim-meta span { display: block; color: #98a2b3; font-size: 12px; margin-bottom: 4px; }
+.portal-vue-dim-meta .portal-vue-code { display: block; word-break: break-all; overflow-wrap: anywhere; line-height: 1.5; }
+.portal-vue-form-header .el-page-header__content { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
 .portal-vue-dict-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) 76px 32px; align-items: center; gap: 8px; }
 
 /* 维表数据维护：行只读 + 弹窗编辑模式 */
