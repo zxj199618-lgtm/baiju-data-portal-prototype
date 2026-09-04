@@ -2413,30 +2413,28 @@
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">Skill 以 ZIP 包（SKILL.md + 脚本 + 依赖清单）上传到网关统一执行；提示词与版本更新即时生效，无需发版。</div>
         </section>
-        <el-drawer v-model="editVisible" :title="(activeSkill?.name || '') + ' · 编辑'" size="100%" class="portal-vue-fullscreen-drawer" :close-on-click-modal="true">
-          <div v-if="activeSkill" class="portal-vue-skill-drawer" style="max-width:860px;width:100%;margin:0 auto">
+        <el-drawer v-model="editVisible" :title="(activeSkill?.name || '') + ' · 编辑'" size="620px" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
+          <div v-if="activeSkill" class="portal-vue-skill-drawer">
             <div class="portal-vue-skill-section"><el-form-item label="标题" required><el-input v-model="editForm.title" placeholder="如：数据查询与指标解答"></el-input></el-form-item></div>
-            <div class="portal-vue-skill-section"><el-form-item label="图标（支持上传图片或直接填 emoji）">
+            <div class="portal-vue-skill-section"><el-form-item label="图标">
               <div class="portal-vue-skill-icon-upload" @click="iconInput?.click()">
-                <img v-if="isImageIcon(editForm.icon)" :src="editForm.icon" alt="图标" class="portal-vue-skill-icon-img" />
-                <span v-else class="portal-vue-skill-icon-emoji">{{ editForm.icon || "✦" }}</span>
-                <span class="portal-vue-skill-icon-tip">点击上传图标</span>
+                <span class="portal-vue-skill-icon-preview"><img v-if="isImageIcon(editForm.icon)" :src="editForm.icon" alt="图标" /><span v-else>{{ editForm.icon || "✦" }}</span></span>
+                <span class="portal-vue-skill-icon-tips"><strong>点击上传图标</strong><small>支持 png / jpg / gif / svg，不超过 300KB；也可在下方直接粘贴图片地址或填 emoji</small></span>
               </div>
-              <el-input v-model="editForm.icon" maxlength="80" placeholder="📊 或粘贴图片地址" style="max-width:280px"></el-input>
+              <el-input v-model="editForm.icon" maxlength="120" placeholder="📊 或粘贴图片地址" style="margin-top:10px"></el-input>
               <input ref="iconInput" type="file" accept="image/*" style="display:none" @change="onIconUpload"></input>
             </el-form-item></div>
             <div class="portal-vue-skill-section"><el-form-item label="描述"><el-input v-model="editForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item></div>
-            <div class="portal-vue-skill-section"><el-form-item label="排序（越小越靠前）"><el-input-number v-model="editForm.sort" :min="1" :max="999" style="width:220px"></el-input-number></el-form-item></div>
-            <div class="portal-vue-skill-section"><el-form-item label="提示词"><el-input v-model="editForm.prompt" type="textarea" :rows="10" resize="none"></el-input></el-form-item></div>
+            <div class="portal-vue-skill-section"><el-form-item label="排序（越小越靠前）"><el-input-number v-model="editForm.sort" :min="1" :max="999"></el-input-number></el-form-item></div>
+            <div class="portal-vue-skill-section"><el-form-item label="提示词"><el-input v-model="editForm.prompt" type="textarea" :rows="9" resize="none"></el-input></el-form-item></div>
             <div class="portal-vue-skill-section"><el-form-item label="上线状态"><el-switch v-model="editForm.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">下线后该 Skill 立即从灵犀智析隐藏</span></el-form-item></div>
+            <div class="portal-vue-skill-section">
+              <el-form-item label="版本号" required><el-input v-model="editForm.version" placeholder="如：v1.4"></el-input></el-form-item>
+              <el-form-item label="版本内容说明"><el-input v-model="editForm.versionNote" type="textarea" :rows="2" resize="none" placeholder="如：新增自动澄清、修复口径问题"></el-input></el-form-item>
+            </div>
           </div>
           <template #footer>
-            <div class="portal-vue-skill-save-bar">
-              <el-input v-model="editForm.version" style="width:180px" placeholder="版本号，如 v1.4"></el-input>
-              <el-input v-model="editForm.versionNote" style="flex:1" placeholder="版本内容说明，如：新增自动澄清"></el-input>
-              <el-button @click="editVisible=false">取消</el-button>
-              <el-button type="primary" @click="saveAll">保存为新版本</el-button>
-            </div>
+            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveAll">保存为新版本</el-button></div>
           </template>
         </el-drawer>
         <el-drawer v-model="publishVisible" :title="(publishSkill?.name || '') + ' · 版本发布'" size="640px" :close-on-click-modal="true">
