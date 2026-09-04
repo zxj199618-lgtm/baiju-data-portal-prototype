@@ -478,6 +478,11 @@
 .el-drawer.portal-vue-fullscreen-drawer .el-drawer__body { flex: 1; min-height: 0; overflow-y: auto; }
 .el-drawer.portal-vue-fullscreen-drawer .el-drawer__footer { flex: none; border-top: 1px solid #eef1f6; padding: 12px 20px; background: #fff; }
 .portal-vue-skill-save-bar { display: flex; align-items: center; gap: 10px; width: 100%; }
+.portal-vue-skill-icon-upload { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; cursor: pointer; }
+.portal-vue-skill-icon-upload:hover .portal-vue-skill-icon-tip { color: #1677ff; }
+.portal-vue-skill-icon-img { width: 44px; height: 44px; object-fit: contain; border: 1px solid #e4e9f2; border-radius: 8px; padding: 4px; background: #fff; }
+.portal-vue-skill-icon-emoji { width: 44px; height: 44px; display: grid; place-items: center; font-size: 24px; border: 1px dashed #dbe4f0; border-radius: 8px; background: #fafcff; }
+.portal-vue-skill-icon-tip { color: #98a2b3; font-size: 12px; }
 .el-dialog.portal-vue-fullscreen-dialog { display: flex; flex-direction: column; }
 .el-dialog.portal-vue-fullscreen-dialog .el-dialog__body { flex: 1; min-height: 0; overflow-y: auto; }
 .el-dialog.portal-vue-fullscreen-dialog .el-dialog__footer { flex: none; border-top: 1px solid #eef1f6; padding: 12px 20px; }
