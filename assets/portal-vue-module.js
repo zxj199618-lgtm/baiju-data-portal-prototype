@@ -2417,11 +2417,10 @@
           <div v-if="activeSkill" class="portal-vue-skill-drawer">
             <div class="portal-vue-skill-section"><el-form-item label="标题" required><el-input v-model="editForm.title" placeholder="如：数据查询与指标解答"></el-input></el-form-item></div>
             <div class="portal-vue-skill-section"><el-form-item label="图标">
-              <div class="portal-vue-skill-icon-upload" @click="iconInput?.click()">
+              <div class="portal-vue-skill-icon-upload" @click="openIconPicker">
                 <span class="portal-vue-skill-icon-preview"><img v-if="isImageIcon(editForm.icon)" :src="editForm.icon" alt="图标" /><span v-else>{{ editForm.icon || "✦" }}</span></span>
-                <span class="portal-vue-skill-icon-tips"><strong>点击上传图标</strong><small>支持 png / jpg / gif / svg，不超过 300KB；也可在下方直接粘贴图片地址或填 emoji</small></span>
+                <span class="portal-vue-skill-icon-tips"><strong>点击上传图标</strong><small>支持 png / jpg / gif / svg，不超过 300KB</small></span>
               </div>
-              <el-input v-model="editForm.icon" maxlength="120" placeholder="📊 或粘贴图片地址" style="margin-top:10px"></el-input>
               <input ref="iconInput" type="file" accept="image/*" style="display:none" @change="onIconUpload"></input>
             </el-form-item></div>
             <div class="portal-vue-skill-section"><el-form-item label="描述"><el-input v-model="editForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item></div>
@@ -2578,6 +2577,7 @@
         notify(`「${row.name}」已${enabled?"上线，灵犀智析恢复展示":"下线，灵犀智析立即隐藏"}`);
       },
       isImageIcon(icon){return /^(data:image|https?:|blob:)/i.test(String(icon||""));},
+      openIconPicker(){this.$refs.iconInput?.click();},
       onIconUpload(event){
         const file=event.target.files?.[0];
         event.target.value="";
