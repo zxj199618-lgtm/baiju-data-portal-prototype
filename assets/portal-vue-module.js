@@ -2213,19 +2213,14 @@
           <el-table :data="filteredRows" class="portal-vue-table" border empty-text="网关未连接或中转站不可达">
             <el-table-column prop="id" label="模型" min-width="220"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
             <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="scope.row.enabled ? 'success' : 'info'" effect="light">{{ scope.row.enabled ? "可用" : "已禁用" }}</el-tag></template></el-table-column>
-            <el-table-column label="禁用原因" min-width="240"><template #default="scope"><span v-if="scope.row.reason">{{ scope.row.reason }}</span><span v-else class="portal-vue-muted">—</span></template></el-table-column>
-            <el-table-column prop="disabledAt" label="禁用时间" width="180"><template #default="scope">{{ scope.row.disabledAt ? scope.row.disabledAt.slice(0, 16).replace("T", " ") : "—" }}</template></el-table-column>
-            <el-table-column label="操作" width="200" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-switch :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch><el-button v-if="!scope.row.enabled" link type="primary" @click="openReason(scope.row)">填写原因</el-button></div></template></el-table-column>
+            <el-table-column label="禁用时间" width="180"><template #default="scope">{{ scope.row.disabledAt ? scope.row.disabledAt.slice(0, 16).replace("T", " ") : "—" }}</template></el-table-column>
+            <el-table-column label="操作" width="130" fixed="right"><template #default="scope"><el-switch :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch></template></el-table-column>
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">禁用后模型立即从灵犀智析的下拉框隐藏，进行中的分析不受影响；配置保存在网关数据卷，重启不丢失。</div>
         </section>
-        <el-dialog v-model="reasonVisible" title="禁用模型" width="480px">
-          <el-form class="portal-vue-dialog-form" label-position="top"><el-form-item label="禁用原因（可选）"><el-input v-model="reasonDraft" type="textarea" :rows="3" placeholder="如：旧版本模型，效果不稳定，已切换到 v4-pro"></el-input></el-form-item></el-form>
-          <template #footer><el-button @click="reasonVisible=false">取消</el-button><el-button type="primary" @click="confirmDisable">确认禁用</el-button></template>
-        </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({models:[],keyword:"",loading:false,reasonVisible:false,reasonDraft:"",pendingModel:null}),
+    data:()=>({models:[],keyword:"",loading:false}),
     computed:{
       filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.models.filter(item=>!keyword||item.id.toLowerCase().includes(keyword));}
     },
@@ -2241,18 +2236,10 @@
         this.loading=false;
       },
       async toggleModel(row,value){
-        if(!value){this.pendingModel=row;this.reasonDraft=row.reason||"";this.reasonVisible=true;return;}
-        await this.putConfig(row.id,{enabled:true});
-        row.enabled=true;row.reason="";row.disabledAt="";
-        notify(`模型「${row.id}」已启用`);
-      },
-      openReason(row){this.pendingModel=row;this.reasonDraft=row.reason||"";this.reasonVisible=true;},
-      async confirmDisable(){
-        if(!this.pendingModel)return;
-        await this.putConfig(this.pendingModel.id,{enabled:false,reason:this.reasonDraft});
-        this.pendingModel.enabled=false;this.pendingModel.reason=this.reasonDraft;this.pendingModel.disabledAt=new Date().toISOString();
-        this.reasonVisible=false;
-        notify(`模型「${this.pendingModel.id}」已禁用`);
+        await this.putConfig(row.id,{enabled:value});
+        row.enabled=value;
+        row.disabledAt=value?"":new Date().toISOString();
+        notify(`模型「${row.id}」已${value?"启用":"禁用"}`);
       },
       async putConfig(modelId,body){
         try{
