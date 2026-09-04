@@ -1103,30 +1103,76 @@
             <div><span>最近维护</span><strong>{{ asset.lastMaintained || "尚未维护" }}</strong></div>
           </div>
           <div class="portal-vue-toolbar" style="padding:0 0 12px">
-            <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">带下拉的字段来自「关联字典」配置。<template v-if="gatewayLive">当前展示网关模拟数据前 100 行（共 {{ totalRows }} 行），保存后写回网关，AI 分析将使用最新数据。</template></span></div>
-            <div class="portal-vue-actions"><el-button @click="addRow">新增行</el-button></div>
+            <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">带下拉的字段来自「关联字典」配置。默认行只读，点「编辑」后可修改；字段较多超宽时可切换「弹窗编辑」逐字段维护。<template v-if="gatewayLive">当前展示网关模拟数据前 100 行（共 {{ totalRows }} 行），保存后写回网关，AI 分析将使用最新数据。</template></span></div>
+            <div class="portal-vue-actions">
+              <el-button @click="toggleViewMode">{{ viewMode === "table" ? "⛶ 弹窗编辑" : "▦ 表格编辑" }}</el-button>
+              <el-button type="primary" @click="addRow">＋ 新增行</el-button>
+            </div>
           </div>
-          <el-table :data="draftRows" class="portal-vue-table" border empty-text="暂无数据，请新增行">
+          <el-table v-if="viewMode === 'table'" :data="draftRows" class="portal-vue-table" border empty-text="暂无数据，请新增行">
             <el-table-column v-for="field in editorFields" :key="field.name" min-width="180">
               <template #header>
                 <span>{{ field.comment || field.name }}</span>
                 <el-tag v-if="field.dictId" size="small" effect="plain" class="portal-vue-field-dict">{{ dictLabel(field) }}</el-tag>
               </template>
               <template #default="scope">
-                <el-select v-if="field.dictId" v-model="scope.row[field.name]" clearable filterable placeholder="请选择枚举值">
-                  <el-option v-for="item in dictItems(field.dictId)" :key="item.code" :label="item.code + ' / ' + item.name" :value="item.code"></el-option>
-                </el-select>
-                <el-input v-else v-model="scope.row[field.name]"></el-input>
+                <template v-if="scope.$index === editingKey">
+                  <el-select v-if="field.dictId" v-model="scope.row[field.name]" clearable filterable placeholder="请选择枚举值">
+                    <el-option v-for="item in dictItems(field.dictId)" :key="item.code" :label="item.code + ' / ' + item.name" :value="item.code"></el-option>
+                  </el-select>
+                  <el-input v-else v-model="scope.row[field.name]"></el-input>
+                </template>
+                <span v-else class="portal-vue-dim-cell">{{ displayValue(scope.row[field.name], field) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="88" fixed="right"><template #default="scope"><el-button link type="danger" @click="removeRow(scope.$index)">删除</el-button></template></el-table-column>
+            <el-table-column label="操作" width="150" fixed="right"><template #default="scope">
+              <template v-if="scope.$index === editingKey">
+                <el-button link type="primary" @click="saveRow">保存</el-button>
+                <el-button link @click="cancelRow(scope.$index)">取消</el-button>
+              </template>
+              <template v-else>
+                <el-button link type="primary" @click="editRow(scope.$index)">编辑</el-button>
+                <el-button link type="danger" @click="removeRow(scope.$index)">删除</el-button>
+              </template>
+            </template></el-table-column>
           </el-table>
-          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button type="primary" @click="save">保存数据</el-button></div>
+          <div v-else class="portal-vue-dim-cards">
+            <div v-for="(row, index) in draftRows" :key="index" class="portal-vue-dim-card" :class="{ editing: index === editingKey }" v-if="draftRows.length">
+              <div class="portal-vue-dim-card-head">
+                <strong>#{{ index + 1 }}</strong><span class="portal-vue-muted">{{ summaryOf(row) }}</span>
+                <template v-if="index === editingKey">
+                  <el-button size="small" type="primary" @click="saveRow">保存</el-button>
+                  <el-button size="small" @click="cancelRow(index)">取消</el-button>
+                </template>
+                <template v-else>
+                  <el-button size="small" @click="editRow(index)">编辑</el-button>
+                  <el-button size="small" type="danger" plain @click="removeRow(index)">删除</el-button>
+                </template>
+              </div>
+              <div v-if="index === editingKey" class="portal-vue-dim-card-form">
+                <div v-for="field in editorFields" :key="field.name" class="portal-vue-alert-field">
+                  <label>{{ field.comment || field.name }}<el-tag v-if="field.dictId" size="small" effect="plain" style="margin-left:6px">{{ dictLabel(field) }}</el-tag></label>
+                  <el-select v-if="field.dictId" v-model="row[field.name]" clearable filterable placeholder="请选择枚举值">
+                    <el-option v-for="item in dictItems(field.dictId)" :key="item.code" :label="item.code + ' / ' + item.name" :value="item.code"></el-option>
+                  </el-select>
+                  <el-input v-else v-model="row[field.name]"></el-input>
+                </div>
+              </div>
+              <div v-else class="portal-vue-dim-card-grid">
+                <div v-for="field in editorFields" :key="field.name" class="portal-vue-dim-card-field">
+                  <label>{{ field.comment || field.name }}</label>
+                  <span>{{ displayValue(row[field.name], field) }}</span>
+                </div>
+              </div>
+            </div>
+            <el-empty v-if="!draftRows.length" description="暂无数据，请新增行"></el-empty>
+          </div>
+          <div class="portal-vue-form-actions" style="margin-top:16px"><el-button @click="back">取消</el-button><el-button type="primary" @click="save">保存数据</el-button></div>
         </div>
         <el-empty v-else description="未找到要维护的维表"></el-empty>
       </el-config-provider>
     `,
-    data: () => ({ draftRows: [], gatewayFields: null, gatewayTotal: 0, gatewayLive: false, saving: false }),
+    data: () => ({ draftRows: [], gatewayFields: null, gatewayTotal: 0, gatewayLive: false, saving: false, viewMode: "table", editingKey: null, editBackup: null }),
     computed: {
       asset() { refreshTick.value; return state.assets.find(item => item.assetId === bridge.getDimensionAssetId()) || null; },
       editorFields() { return this.gatewayFields || this.asset?.fields || []; },
@@ -1158,8 +1204,21 @@
         return name === title ? "枚举" : name;
       },
       dictItems(dictId) { return enabledDictItems(state.dictionaries.find(item => item.dictId === dictId)); },
-      addRow() { const row = {}; this.editorFields.forEach(field => { row[field.name] = ""; }); this.draftRows.push(row); },
-      async removeRow(index) { if (!await confirmAction("删除行", "确认删除该行数据？")) return; this.draftRows.splice(index, 1); },
+      toggleViewMode() { this.viewMode = this.viewMode === "table" ? "modal" : "table"; this.editingKey = null; this.editBackup = null; },
+      displayValue(value, field) {
+        if (value === undefined || value === null || value === "") return "—";
+        if (field.dictId) {
+          const item = this.dictItems(field.dictId).find(item => item.code === value);
+          return item ? `${item.code} / ${item.name}` : value;
+        }
+        return value;
+      },
+      summaryOf(row) { return this.editorFields.slice(0, 2).map(field => this.displayValue(row[field.name], field)).filter(v => v !== "—").join(" · ") || "空行"; },
+      addRow() { this.editingKey = 0; this.editBackup = null; const row = {}; this.editorFields.forEach(field => { row[field.name] = ""; }); this.draftRows.unshift(row); },
+      editRow(index) { if (index === this.editingKey) return; this.editingKey = index; this.editBackup = { ...this.draftRows[index] }; },
+      saveRow() { this.editingKey = null; this.editBackup = null; },
+      cancelRow(index) { if (this.editBackup) { this.draftRows[index] = this.editBackup; } this.editBackup = null; this.editingKey = null; },
+      async removeRow(index) { if (!await confirmAction("删除行", "确认删除该行数据？")) return; if (this.editingKey === index) this.editingKey = null; this.draftRows.splice(index, 1); },
       async save() {
         const rows = this.draftRows.map(row => ({ ...row }));
         this.asset.rows = rows.map(row => ({ ...row }));

@@ -129,6 +129,19 @@
 .portal-vue-dim-meta span { display: block; color: #98a2b3; font-size: 12px; margin-bottom: 4px; }
 .portal-vue-dict-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) 76px 32px; align-items: center; gap: 8px; }
 
+/* 维表数据维护：行只读 + 弹窗编辑模式 */
+.portal-vue-dim-cell { font-size: 13px; color: #3f4857; }
+.portal-vue-dim-cards { display: grid; gap: 12px; }
+.portal-vue-dim-card { border: 1px solid #e4e9f2; border-radius: 10px; background: #fff; overflow: hidden; }
+.portal-vue-dim-card.editing { border-color: #8ab7ff; box-shadow: 0 2px 10px rgba(22, 119, 255, .08); }
+.portal-vue-dim-card-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #eef1f6; background: #fbfcfe; }
+.portal-vue-dim-card-head strong { color: #1f2733; font-size: 13px; }
+.portal-vue-dim-card-head .portal-vue-muted { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-vue-dim-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 16px; padding: 14px; }
+.portal-vue-dim-card-field label { display: block; font-size: 12px; color: #98a2b3; margin-bottom: 3px; }
+.portal-vue-dim-card-field span { font-size: 13px; color: #344054; word-break: break-all; }
+.portal-vue-dim-card-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; padding: 14px; }
+
 .portal-vue-topbar { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .portal-vue-tabs { min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .portal-vue-tabs::-webkit-scrollbar { display: none; }
