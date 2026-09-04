@@ -4,7 +4,7 @@
         { group: "灵犀智析", icon: "analysis", badge: "5.0", items: [{ name: "灵犀智析", badge: "5.0" }] },
         { group: "数据看板", icon: "dashboard", items: [{ name: "数据看板" }] },
         { group: "数据服务", icon: "gateway", badge: "3.0", items: [{ name: "人群包管理", badge: "3.0" }, { name: "数据开放平台", badge: "2.0" }] },
-        { group: "数据预警", icon: "alert", items: [{ name: "数据预警" }] },
+        { group: "数据预警", icon: "alert", badge: "6.0", items: [{ name: "数据预警", badge: "6.0" }] },
         { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: ["2.0", "3.0", "4.0"] }, { name: "标签管理", badge: "3.0" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
         { group: "数据推送", icon: "push", badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },

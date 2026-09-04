@@ -477,6 +477,7 @@
 .el-drawer.portal-vue-fullscreen-drawer { display: flex; flex-direction: column; }
 .el-drawer.portal-vue-fullscreen-drawer .el-drawer__body { flex: 1; min-height: 0; overflow-y: auto; }
 .el-drawer.portal-vue-fullscreen-drawer .el-drawer__footer { flex: none; border-top: 1px solid #eef1f6; padding: 12px 20px; background: #fff; }
+.portal-vue-skill-save-bar { display: flex; align-items: center; gap: 10px; width: 100%; }
 .el-dialog.portal-vue-fullscreen-dialog { display: flex; flex-direction: column; }
 .el-dialog.portal-vue-fullscreen-dialog .el-dialog__body { flex: 1; min-height: 0; overflow-y: auto; }
 .el-dialog.portal-vue-fullscreen-dialog .el-dialog__footer { flex: none; border-top: 1px solid #eef1f6; padding: 12px 20px; }

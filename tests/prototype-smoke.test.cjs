@@ -196,7 +196,7 @@ assert(portalBridge.includes('group: "系统管理"') && portalBridge.includes('
 assert(html.includes('id="menuManagementView"') && portalVue.includes("mount(\"#menuManagementView\""), "菜单管理应挂载独立视图");
 assert(portalVue.includes("MenuManagementApp") && portalVue.includes("权限标识") && portalVue.includes("组件路径"), "菜单管理应提供层级树/组件路径/权限标识配置");
 assert(html.includes('id="skillManagementView"') && portalVue.includes("mount(\"#skillManagementView\""), "Skill 配置应挂载独立视图");
-assert(portalVue.includes("SkillManagementApp") && portalVue.includes("提示词") && portalVue.includes("回滚到此版本") && portalVue.includes("保存全部"), "Skill 配置应合并为单一编辑页（提示词/版本回滚/保存全部）");
+assert(portalVue.includes("SkillManagementApp") && portalVue.includes("提示词") && portalVue.includes("回滚到此版本") && portalVue.includes("保存为新版本") && portalVue.includes("versionNote"), "Skill 配置应合并为单一编辑页，保存即创建新版本（版本号+说明+发布/灰度）");
 assert(portalVue.includes("grayUsers") && portalVue.includes("灰度用户") && portalVue.includes("toggleEnabled") && portalVue.includes("skillStatus"), "Skill 灰度应按系统内用户配置（不再按流量），并支持上下线开关");
 assert("testVisible" in portalVue.match(/SkillManagementApp[\s\S]{0,200}/g) === false || !portalVue.includes("沙箱试跑"), "Skill 配置不应再包含沙箱试跑");
 assert(portalVue.includes("skillScenarios") && portalVue.includes("工作台展示") && portalVue.includes("openEdit") && portalVue.includes("saveAll"), "工作台场景卡片应由 Skill 配置驱动（icon/标题/描述/排序），操作列只保留单个编辑按钮");
@@ -221,6 +221,6 @@ assert(portalVue.includes('label="业务线"') && portalVue.includes("bizLines()
 assert(portalVue.includes("业务线咨询") && portalVue.includes("你问的是哪个业务线？") && portalVue.includes("businessLineVisible") && portalVue.includes("confirmBusinessLine"), "数据查询与指标解答在未引用数据表时应咨询业务线");
 assert(portalVue.includes("存量") && portalVue.includes("权益") && portalVue.includes("保险") && portalVue.includes("短剧") && portalVue.includes("其他"), "业务线咨询应提供完整选项");
 assert(portalVue.includes("assetCandidates") && portalVue.includes("businessLine") && gatewaySource.includes("assetCandidates") && gatewaySource.includes("业务线范围"), "选择业务线后应把候选数据资产范围交给 Skill");
-assert(portalVue.includes("能力配置") && portalVue.includes("澄清策略") && portalVue.includes("资产检索范围") && portalVue.includes("回答契约"), "Skill 配置页应支持配置澄清、资产范围和回答契约");
+assert(portalVue.includes("ability") === false || (portalVue.includes("能力配置") && portalVue.includes("资产检索范围") && portalVue.includes("回答契约") && portalVue.includes("自动向用户追问")), "Skill 配置页应支持资产范围与回答契约，澄清改为模型自动追问");
 
 console.log("观星台原型 smoke test: passed");

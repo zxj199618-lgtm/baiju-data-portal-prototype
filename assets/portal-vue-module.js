@@ -2414,11 +2414,11 @@
           <div v-if="activeSkill" class="portal-vue-skill-drawer">
             <el-alert type="info" :closable="false" title="所有配置在同一个编辑页维护，保存后下一次分析请求立即生效，无需发版。" :show-icon="true"></el-alert>
             <div class="portal-vue-skill-section"><strong>工作台展示</strong>
-              <div style="display:grid;grid-template-columns:100px 1fr;gap:0 14px">
+              <div style="display:grid;grid-template-columns:100px 1fr 1fr;gap:0 14px">
                 <el-form-item label="图标" required><el-input v-model="editForm.icon" maxlength="4" placeholder="📊"></el-input></el-form-item>
                 <el-form-item label="标题" required><el-input v-model="editForm.title" placeholder="如：单表分析"></el-input></el-form-item>
+                <el-form-item label="描述"><el-input v-model="editForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item>
               </div>
-              <el-form-item label="描述"><el-input v-model="editForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item>
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 14px">
                 <el-form-item label="排序（越小越靠前）" required><el-input-number v-model="editForm.sort" :min="1" :max="999" style="width:100%"></el-input-number></el-form-item>
                 <el-form-item label="绑定分析场景"><el-select v-model="editForm.scenarioKey"><el-option label="数据查询与指标解答" value="data-query"></el-option><el-option label="数据血缘与变更影响" value="lineage"></el-option><el-option label="数据资产问答" value="asset"></el-option><el-option label="指标异动诊断" value="attribution"></el-option></el-select></el-form-item>
@@ -2427,11 +2427,7 @@
             </div>
             <div class="portal-vue-skill-section"><strong>提示词</strong><el-input v-model="editForm.prompt" type="textarea" :rows="8" resize="none"></el-input></div>
             <div class="portal-vue-skill-section"><strong>能力配置</strong>
-              <el-form-item label="澄清策略"><el-switch v-model="editForm.clarification.enabled" active-text="未引用表时先咨询" inactive-text="直接检索"></el-switch></el-form-item>
-              <template v-if="editForm.clarification.enabled">
-                <el-form-item label="咨询问题"><el-input v-model="editForm.clarification.question" placeholder="你问的是哪个业务线？"></el-input></el-form-item>
-                <el-form-item label="可选业务线"><el-checkbox-group v-model="editForm.clarification.options"><el-checkbox v-for="line in businessLineChoices" :key="line" :value="line">{{ line }}</el-checkbox></el-checkbox-group></el-form-item>
-              </template>
+              <el-alert type="info" :closable="false" title="信息不足时由模型自动向用户追问（如缺少业务线、时间范围），无需手工配置澄清话术；业务线范围跟随用户表权限自动识别。" :show-icon="true" style="margin-bottom:14px"></el-alert>
               <el-form-item label="资产检索范围"><el-input v-model="editForm.assetScope" placeholder="如：按业务线检索已授权的表与字段"></el-input></el-form-item>
               <el-form-item label="回答契约"><el-checkbox-group v-model="editForm.responseContract"><el-checkbox v-for="item in responseContractChoices" :key="item" :value="item">{{ item }}</el-checkbox></el-checkbox-group></el-form-item>
             </div>
@@ -2443,8 +2439,9 @@
             </div>
             <div class="portal-vue-skill-section"><strong>版本历史</strong>
               <div v-for="item in activeSkill.versions" :key="item.version" class="portal-vue-skill-version" :class="{ current: item.current }" style="margin-bottom:10px">
-                <div class="portal-vue-skill-version-head"><strong>{{ item.version }}</strong><el-tag v-if="item.current" size="small" type="success" effect="light">当前</el-tag><time>{{ item.time }}</time></div>
+                <div class="portal-vue-skill-version-head"><strong>{{ item.version }}</strong><el-tag v-if="item.current" size="small" type="success" effect="light">当前</el-tag><el-tag size="small" :type="(item.status || '发布') === '灰度' ? 'warning' : 'primary'" effect="light">{{ item.status || "发布" }}</el-tag><time>{{ item.time }}</time></div>
                 <p>{{ item.note }}</p>
+                <div v-if="(item.status || '发布') === '灰度' && item.grayUsers?.length" style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0"><el-tag v-for="user in item.grayUsers" :key="user" size="small" effect="plain">{{ user }}</el-tag></div>
                 <div class="portal-vue-muted">操作人：{{ item.operator }}</div>
                 <el-button v-if="!item.current" link type="primary" @click="rollback(item)">回滚到此版本</el-button>
               </div>
@@ -2452,7 +2449,12 @@
             </div>
           </div>
           <template #footer>
-            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveAll">保存全部</el-button></div>
+            <div class="portal-vue-skill-save-bar">
+              <el-input v-model="editForm.version" style="width:180px" placeholder="版本号，如 v1.4"></el-input>
+              <el-input v-model="editForm.versionNote" style="flex:1" placeholder="版本说明，如：新增业务线自动澄清"></el-input>
+              <el-button @click="editVisible=false">取消</el-button>
+              <el-button type="primary" @click="saveAll">保存为新版本</el-button>
+            </div>
           </template>
         </el-drawer>
       </el-config-provider>
@@ -2489,20 +2491,29 @@
           }
         }catch(error){/* 网关未启动时保留内置注册表 */}
       },
-      openEdit(row){this.activeSkill=row;this.editForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,scenarioKey:row.scenarioKey||"data-query",clarification:{enabled:!!row.clarification?.enabled,question:row.clarification?.question||"",options:[...(row.clarification?.options||[])]},assetScope:row.assetScope||"",responseContract:[...(row.responseContract||[])],grayUsers:[...(row.grayUsers||[])],prompt:row.prompt||""};this.editVisible=true;},
+      openEdit(row){this.activeSkill=row;this.editForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,scenarioKey:row.scenarioKey||"data-query",assetScope:row.assetScope||"",responseContract:[...(row.responseContract||[])],grayUsers:[...(row.grayUsers||[])],prompt:row.prompt||"",version:"",versionNote:""};this.editVisible=true;},
       async saveAll(){
         const form=this.editForm;
         if(!String(form.title||"").trim())return ep.ElMessage.warning("请输入标题");
-        if(form.clarification.enabled&&!String(form.clarification.question||"").trim())return ep.ElMessage.warning("请输入咨询问题");
+        const version=String(form.version||"").trim()||this.nextVersion();
+        const note=String(form.versionNote||"").trim()||"更新配置";
         Object.assign(this.activeSkill,{
           icon:form.icon,title:form.title.trim(),displayDesc:form.displayDesc.trim(),sort:form.sort,enabled:form.enabled,scenarioKey:form.scenarioKey,
-          clarification:{enabled:form.clarification.enabled,question:String(form.clarification.question||"").trim(),options:[...form.clarification.options]},
+          clarification:{enabled:true,question:"",options:[]},
           assetScope:String(form.assetScope||"").trim(),responseContract:[...form.responseContract],
           grayUsers:[...form.grayUsers],prompt:form.prompt
         });
-        try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(this.activeSkill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:this.activeSkill.icon,title:this.activeSkill.title,displayDesc:this.activeSkill.displayDesc,sort:this.activeSkill.sort,enabled:this.activeSkill.enabled,scenarioKey:this.activeSkill.scenarioKey,clarification:this.activeSkill.clarification,assetScope:this.activeSkill.assetScope,responseContract:this.activeSkill.responseContract,grayUsers:this.activeSkill.grayUsers})});}catch(error){/* 网关未连接时保留原型状态 */}
+        this.activeSkill.versions=(this.activeSkill.versions||[]).map(item=>({...item,current:false}));
+        this.activeSkill.versions.unshift({version,time:new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-"),operator:this.currentUser?.name||"曾祥竞",note,current:true,status:form.grayUsers.length?"灰度":"发布",grayUsers:[...form.grayUsers]});
+        this.activeSkill.version=version;
+        try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(this.activeSkill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:this.activeSkill.icon,title:this.activeSkill.title,displayDesc:this.activeSkill.displayDesc,sort:this.activeSkill.sort,enabled:this.activeSkill.enabled,scenarioKey:this.activeSkill.scenarioKey,clarification:this.activeSkill.clarification,assetScope:this.activeSkill.assetScope,responseContract:this.activeSkill.responseContract,grayUsers:this.activeSkill.grayUsers,latestVersion:{version,note,status:form.grayUsers.length?"灰度":"发布",grayUsers:[...form.grayUsers]}})});}catch(error){/* 网关未连接时保留原型状态 */}
         this.editVisible=false;
-        notify(`「${this.activeSkill.name}」配置已保存，灵犀智析已同步`);
+        notify(`「${this.activeSkill.name}」已保存为 ${version}（${form.grayUsers.length ? "灰度 " + form.grayUsers.length + " 人" : "全量发布"}）`);
+      },
+      nextVersion(){
+        const current=String(this.activeSkill?.version||"v1.0");
+        const match=current.match(/^v(\d+)\.(\d+)$/);
+        return match?`v${match[1]}.${Number(match[2])+1}`:current+"-new";
       },
       async toggleEnabled(row){
         const enabled=row.enabled!==false;
