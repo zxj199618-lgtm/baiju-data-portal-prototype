@@ -1884,7 +1884,9 @@
                   this.thinking=false;
                   lastTextAt=Date.now();
                   full+=evt.delta;
-                  liveMsg.lines=[full];
+                  // 流式中按 markdown 渲染，换行/列表/标题即时生效，避免整段文本挤在一起
+                  liveMsg.html=this.renderMarkdown(full);
+                  liveMsg.lines=[];
                   if(Date.now()-this.historyLastAt>5000){this.historyLastAt=Date.now();this.persistHistory();}
                   this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
                 }
