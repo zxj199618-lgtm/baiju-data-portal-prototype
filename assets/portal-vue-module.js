@@ -2409,11 +2409,11 @@
             <el-table-column label="状态" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:6px"><el-switch v-model="scope.row.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch><el-tag v-if="scope.row.enabled!==false && skillStatus(scope.row)!=='已发布'" size="small" :type="skillStatus(scope.row)==='未发布' ? 'info' : 'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></div></template></el-table-column>
             <el-table-column label="灰度用户" min-width="170"><template #default="scope"><div v-if="scope.row.grayUsers.length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.grayUsers.slice(0,3)" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="scope.row.grayUsers.length>3" class="portal-vue-muted">+{{ scope.row.grayUsers.length-3 }}</span></div><span v-else class="portal-vue-muted">全量发布</span></template></el-table-column>
             <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
-            <el-table-column label="操作" width="140" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openEdit(scope.row)">编辑</el-button><el-button link type="primary" @click="openPublish(scope.row)">发版</el-button></div></template></el-table-column>
+            <el-table-column label="操作" width="100" fixed="right"><template #default="scope"><el-button link type="primary" @click="openVersionManage(scope.row)">版本管理</el-button></template></el-table-column>
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">Skill 以 ZIP 包（SKILL.md + 脚本 + 依赖清单）上传到网关统一执行；提示词与版本更新即时生效，无需发版。</div>
         </section>
-        <el-drawer v-model="editVisible" :title="(activeSkill?.name || '') + ' · 编辑'" size="620px" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
+        <el-drawer v-model="editVisible" :title="(addMode ? '新增版本' : '编辑版本') + ' · ' + (activeSkill?.name || '')" size="620px" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
           <div v-if="activeSkill" class="portal-vue-skill-drawer">
             <div class="portal-vue-skill-section"><el-form-item label="标题" required><el-input v-model="editForm.title" placeholder="如：数据查询与指标解答"></el-input></el-form-item></div>
             <div class="portal-vue-skill-section"><el-form-item label="图标">
@@ -2429,30 +2429,59 @@
             <div class="portal-vue-skill-section"><el-form-item label="提示词"><el-input v-model="editForm.prompt" type="textarea" :rows="9" resize="none"></el-input></el-form-item></div>
             <div class="portal-vue-skill-section"><el-form-item label="上线状态"><el-switch v-model="editForm.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">下线后该 Skill 立即从灵犀智析隐藏</span></el-form-item></div>
             <div class="portal-vue-skill-section">
-              <el-form-item label="版本号" required><el-input v-model="editForm.version" placeholder="如：v1.4"></el-input></el-form-item>
+              <el-form-item label="版本号" required><el-input v-model="editForm.version" placeholder="如：v1.4" :disabled="!addMode"></el-input><span v-if="!addMode" class="portal-vue-muted" style="margin-left:8px;font-size:12px">编辑未发布版本不可改版本号</span></el-form-item>
               <el-form-item label="版本内容说明"><el-input v-model="editForm.versionNote" type="textarea" :rows="2" resize="none" placeholder="如：新增自动澄清、修复口径问题"></el-input></el-form-item>
             </div>
           </div>
           <template #footer>
-            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveAll">保存为新版本</el-button></div>
+            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveAll">{{ addMode ? "保存为新版本" : "保存修改" }}</el-button></div>
           </template>
         </el-drawer>
-        <el-drawer v-model="publishVisible" :title="(publishSkill?.name || '') + ' · 版本发布'" size="640px" :close-on-click-modal="true">
+        <el-drawer v-model="publishVisible" size="640px" :close-on-click-modal="true">
+          <template #header>
+            <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+              <span style="font-size:16px;font-weight:600">{{ publishSkill?.name || "" }} · 版本管理</span>
+              <el-button type="primary" size="small" @click="openNewVersion">＋ 新增版本</el-button>
+            </div>
+          </template>
           <div class="portal-vue-skill-drawer">
-            <el-alert type="info" :closable="false" title="保存/编辑生成的是未发布版本：先选灰度用户测试，验证没问题后点「发版」成为正式版本；正式版本可随时回滚。" :show-icon="true"></el-alert>
+            <el-alert type="info" :closable="false" title="新增/编辑生成的是未发布版本：可编辑、可选灰度用户测试，验证没问题后「发版」成为正式版本；历史版本可查看，正式版本可回滚。" :show-icon="true"></el-alert>
             <div v-for="item in publishSkill?.versions || []" :key="item.version" class="portal-vue-skill-version" :class="{ current: item.current }">
-              <div class="portal-vue-skill-version-head"><strong>{{ item.version }}</strong><el-tag v-if="item.current" size="small" type="success" effect="light">当前</el-tag><el-tag size="small" :type="versionStatusType(item)" effect="light">{{ versionStatusName(item) }}</el-tag><time>{{ item.time }}</time></div>
+              <div class="portal-vue-skill-version-head">
+                <strong>{{ item.version }}</strong><el-tag v-if="item.current" size="small" type="success" effect="light">当前</el-tag><el-tag size="small" :type="versionStatusType(item)" effect="light">{{ versionStatusName(item) }}</el-tag><time>{{ item.time }}</time>
+              </div>
               <p>{{ item.note }}</p>
-              <div v-if="item.grayUsers?.length" style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0"><el-tag v-for="user in item.grayUsers" :key="user" size="small" effect="plain">{{ user }}</el-tag></div>
+              <div v-if="item.grayUsers?.length" style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0"><el-tag v-for="user in item.grayUsers" :key="user" size="small" effect="plain">{{ user }}</el-tag><span class="portal-vue-muted" style="font-size:12px">（灰度用户）</span></div>
               <div class="portal-vue-muted">操作人：{{ item.operator }}</div>
               <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-                <el-button v-if="versionStatusName(item) === '未发布'" size="small" @click="openGrayDraft(item)">灰度</el-button>
-                <el-button v-if="versionStatusName(item) === '灰度中'" size="small" type="primary" @click="publishVersion(item)">发版</el-button>
-                <el-button v-if="versionStatusName(item) === '灰度中'" size="small" @click="openGrayDraft(item)">调整灰度</el-button>
-                <el-button v-if="versionStatusName(item) === '已发布' && !item.current" size="small" @click="rollback(item)">回滚到此版本</el-button>
+                <template v-if="versionStatusName(item) !== '已发布'">
+                  <el-button size="small" @click="openEditVersion(item)">编辑</el-button>
+                  <el-button v-if="versionStatusName(item) === '未发布'" size="small" @click="openGrayDraft(item)">灰度</el-button>
+                  <el-button v-if="versionStatusName(item) === '灰度中'" size="small" @click="openGrayDraft(item)">调整灰度</el-button>
+                  <el-button v-if="versionStatusName(item) === '灰度中'" size="small" type="primary" @click="publishVersion(item)">发版</el-button>
+                </template>
+                <template v-else>
+                  <el-button size="small" @click="openViewVersion(item)">查看</el-button>
+                  <el-button v-if="!item.current" size="small" @click="rollback(item)">回滚到此版本</el-button>
+                </template>
               </div>
             </div>
-            <p v-if="!publishSkill?.versions?.length" class="portal-vue-muted">暂无版本历史</p>
+            <p v-if="!publishSkill?.versions?.length" class="portal-vue-muted">暂无版本，点右上角「新增版本」创建</p>
+          </div>
+        </el-drawer>
+        <el-drawer v-model="viewVisible" :title="(publishSkill?.name || '') + ' · ' + (viewVersion?.version || '') + ' 版本详情'" size="560px" :close-on-click-modal="true">
+          <div v-if="viewVersion" class="portal-vue-skill-drawer">
+            <div style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #e9edf4;border-radius:10px;background:#fafcff">
+              <span class="portal-vue-skill-icon-preview" style="width:48px;height:48px"><img v-if="isImageIcon(viewVersion.snapshot?.icon)" :src="viewVersion.snapshot?.icon" alt="" /><span v-else style="font-size:22px">{{ viewVersion.snapshot?.icon || "✦" }}</span></span>
+              <div style="display:grid;gap:2px"><strong style="font-size:14px">{{ viewVersion.snapshot?.title || publishSkill?.title || "—" }}</strong><span class="portal-vue-muted" style="font-size:12px">{{ viewVersion.snapshot?.displayDesc || "（无描述）" }}</span></div>
+              <el-tag style="margin-left:auto" size="small" :type="versionStatusType(viewVersion)" effect="light">{{ versionStatusName(viewVersion) }}</el-tag>
+            </div>
+            <div class="portal-vue-alert-field"><label>排序</label><span>{{ viewVersion.snapshot?.sort ?? publishSkill?.sort ?? "—" }}</span></div>
+            <div class="portal-vue-alert-field"><label>上线状态</label><span>{{ viewVersion.snapshot?.enabled === false ? "下线" : "上线" }}</span></div>
+            <div class="portal-vue-alert-field"><label>版本内容说明</label><span>{{ viewVersion.note || "—" }}</span></div>
+            <div class="portal-vue-alert-field"><label>灰度用户</label><div style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in viewVersion.grayUsers || []" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="!viewVersion.grayUsers?.length" class="portal-vue-muted">无（全量发布）</span></div></div>
+            <div class="portal-vue-alert-field"><label>提示词</label><pre class="portal-vue-alert-sql" style="white-space:pre-wrap">{{ viewVersion.snapshot?.prompt || publishSkill?.prompt || "（无）" }}</pre></div>
+            <div class="portal-vue-muted" style="font-size:12px">版本时间：{{ viewVersion.time }} · 操作人：{{ viewVersion.operator }}</div>
           </div>
         </el-drawer>
         <el-dialog v-model="grayDialogVisible" :title="'灰度测试 - ' + (grayVersion?.version || '')" width="520px">
@@ -2466,7 +2495,7 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({keyword:"",uploading:false,editVisible:false,editForm:{},activeSkill:null,publishVisible:false,publishSkill:null,grayDialogVisible:false,grayVersion:null,grayDraft:[]}),
+    data:()=>({keyword:"",uploading:false,editVisible:false,editForm:{},addMode:true,editingVersion:null,activeSkill:null,publishVisible:false,publishSkill:null,viewVisible:false,viewVersion:null,grayDialogVisible:false,grayVersion:null,grayDraft:[]}),
     computed:{
       skills(){refreshTick.value;return (state.skills||[]).filter(item=>item.id!=="numa-warehouse");},
       filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));},
@@ -2498,21 +2527,45 @@
           }
         }catch(error){/* 网关未启动时保留内置注册表 */}
       },
-      openEdit(row){this.activeSkill=row;this.editForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,prompt:row.prompt||"",version:this.nextVersion(),versionNote:""};this.editVisible=true;},
+      openVersionManage(row){this.publishSkill=row;this.publishVisible=true;},
+      openNewVersion(){
+        const row=this.publishSkill;
+        this.activeSkill=row;
+        this.addMode=true;
+        this.editingVersion=null;
+        this.editForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,prompt:row.prompt||"",version:this.nextVersion(),versionNote:""};
+        this.editVisible=true;
+      },
+      openEditVersion(item){
+        const row=this.publishSkill;
+        this.activeSkill=row;
+        this.addMode=false;
+        this.editingVersion=item;
+        this.editForm={icon:item.snapshot?.icon||row.icon||"✦",title:item.snapshot?.title??row.title,displayDesc:item.snapshot?.displayDesc??row.displayDesc,sort:item.snapshot?.sort??row.sort,enabled:(item.snapshot?.enabled!==undefined?item.snapshot.enabled:row.enabled)!==false,prompt:item.snapshot?.prompt??row.prompt,version:item.version,versionNote:item.note||""};
+        this.editVisible=true;
+      },
+      openViewVersion(item){this.viewVersion=item;this.viewVisible=true;},
       async saveAll(){
         const form=this.editForm;
         if(!String(form.title||"").trim())return ep.ElMessage.warning("请输入标题");
-        const version=String(form.version||"").trim()||this.nextVersion();
         const note=String(form.versionNote||"").trim()||"更新配置";
-        Object.assign(this.activeSkill,{
-          icon:form.icon||"✦",title:form.title.trim(),displayDesc:form.displayDesc.trim(),sort:form.sort,enabled:form.enabled,prompt:form.prompt
-        });
-        this.activeSkill.versions=(this.activeSkill.versions||[]).map(item=>({...item,current:false}));
-        this.activeSkill.versions.unshift({version,time:new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-"),operator:this.currentUser?.name||"曾祥竞",note,current:true,status:"未发布",grayUsers:[]});
-        this.activeSkill.version=version;
-        try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(this.activeSkill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:this.activeSkill.icon,title:this.activeSkill.title,displayDesc:this.activeSkill.displayDesc,sort:this.activeSkill.sort,enabled:this.activeSkill.enabled,prompt:this.activeSkill.prompt,latestVersion:{version,note,status:"未发布",grayUsers:[]}})});}catch(error){/* 网关未连接时保留原型状态 */}
-        this.editVisible=false;
-        notify(`「${this.activeSkill.name}」已保存为 ${version}（未发布，可到「发版」灰度或发布）`);
+        const snapshot={icon:form.icon||"✦",title:form.title.trim(),displayDesc:form.displayDesc.trim(),sort:form.sort,enabled:form.enabled,prompt:form.prompt};
+        Object.assign(this.activeSkill,snapshot);
+        if(this.addMode){
+          const version=String(form.version||"").trim()||this.nextVersion();
+          this.activeSkill.versions=(this.activeSkill.versions||[]).map(item=>({...item,current:false}));
+          this.activeSkill.versions.unshift({version,time:new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-"),operator:this.currentUser?.name||"曾祥竞",note,current:true,status:"未发布",grayUsers:[],snapshot});
+          this.activeSkill.version=version;
+          try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(this.activeSkill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:snapshot.icon,title:snapshot.title,displayDesc:snapshot.displayDesc,sort:snapshot.sort,enabled:snapshot.enabled,prompt:snapshot.prompt,latestVersion:{version,note,status:"未发布",grayUsers:[]}})});}catch(error){/* 网关未连接时保留原型状态 */}
+          this.editVisible=false;
+          notify(`「${this.activeSkill.name}」已保存为 ${version}（未发布，可到「版本管理」灰度/发布）`);
+        }else{
+          const item=this.editingVersion;
+          if(item){item.note=note;item.snapshot={...snapshot};}
+          try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(this.activeSkill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:snapshot.icon,title:snapshot.title,displayDesc:snapshot.displayDesc,sort:snapshot.sort,enabled:snapshot.enabled,prompt:snapshot.prompt,latestVersion:{version:item?.version||this.activeSkill.version,note,status:item?.status||"未发布",grayUsers:item?.grayUsers||[]}})});}catch(error){/* 网关未连接时保留原型状态 */}
+          this.editVisible=false;
+          notify(`「${this.activeSkill.name}」${item?.version||""} 已更新`);
+        }
       },
       nextVersion(){
         const current=String(this.activeSkill?.version||"v1.0");
@@ -2535,7 +2588,7 @@
         reader.onload=()=>{this.editForm.icon=String(reader.result||"").slice(0,200000);ep.ElMessage.success("图标已上传，保存后生效");};
         reader.readAsDataURL(file);
       },
-      openPublish(row){this.publishSkill=row;this.publishVisible=true;},
+      openVersionManage(row){this.publishSkill=row;this.publishVisible=true;},
       versionStatusName(item){return item.status||"已发布";},
       versionStatusType(item){
         const status=item.status||"已发布";
@@ -2556,9 +2609,13 @@
       },
       rollback(item){
         const skill=this.publishSkill||this.activeSkill;
+        if(item.snapshot){
+          Object.assign(skill,{icon:item.snapshot.icon,title:item.snapshot.title,displayDesc:item.snapshot.displayDesc,sort:item.snapshot.sort,enabled:item.snapshot.enabled,prompt:item.snapshot.prompt});
+          try{fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(skill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:item.snapshot.icon,title:item.snapshot.title,displayDesc:item.snapshot.displayDesc,sort:item.snapshot.sort,enabled:item.snapshot.enabled,prompt:item.snapshot.prompt})});}catch(error){}
+        }
         skill.versions.forEach(version=>version.current=version===item);
         skill.version=item.version;
-        notify(`「${skill.name}」已回滚到 ${item.version}`);
+        notify(`「${skill.name}」已回滚到 ${item.version}${item.snapshot?"，配置已恢复":""}`);
       },
       skillStatus(row){
         const current=(row.versions||[]).find(item=>item.current);
