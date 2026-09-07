@@ -2971,8 +2971,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
-          <el-alert type="info" :closable="false" show-icon title="媒体报表数据运维工具" description="数据来源：生产环境 · bytedance_ad 库。补数据接口为异步执行，返回成功仅代表任务已提交，实际入库在后台完成。" />
-          <el-tabs v-model="tool" style="margin-top:14px">
+          <el-alert type="info" :closable="false" show-icon title="媒体报表数据运维工具" description="数据来源：生产环境 · bytedance_ad 库。补数据接口为异步执行，返回成功仅代表任务已提交，实际入库在后台完成。" style="margin:16px 20px 14px" />
+          <el-tabs v-model="tool" style="padding:0 20px 20px">
             <el-tab-pane label="🔄 补数据" name="backfill">
               <div class="portal-vue-toolbar" style="margin-bottom:14px">
                 <div class="portal-vue-toolbar-left">
@@ -3491,7 +3491,7 @@ const TableDetailApp = {
     const OpsEnvApp = {
     template: `
       <el-config-provider :locale="locale">
-        <section class="portal-vue-panel">
+        <section class="portal-vue-panel" style="padding:16px 20px 20px">
           <el-alert type="warning" :closable="false" show-icon title="内部环境速查（演示数据已脱敏）" description="以下为生产环境常用入口；敏感凭据仅内网可见、密文存储，不落入门户界面与日志。" style="margin-bottom:16px" />
           <div class="portal-vue-section-line"><h3>🌐 服务域名</h3></div>
           <el-table :data="domainRows" class="portal-vue-table" border>
