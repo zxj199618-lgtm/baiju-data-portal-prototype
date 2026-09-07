@@ -3491,34 +3491,67 @@ const TableDetailApp = {
     const OpsEnvApp = {
     template: `
       <el-config-provider :locale="locale">
-        <section class="portal-vue-panel" style="padding:16px 20px 20px">
-          <el-alert type="warning" :closable="false" show-icon title="内部环境速查（演示数据已脱敏）" description="以下为生产环境常用入口；敏感凭据仅内网可见、密文存储，不落入门户界面与日志。" style="margin-bottom:16px" />
+        <section class="portal-vue-panel" style="padding:18px 22px 24px">
+          <style>
+            .ops-launcher { background:#10141b; border:1px solid #1e2530; border-radius:14px; padding:18px 16px 20px; margin:2px 8px 0 0; }
+            .ops-launcher-group-title { color:#98a2b3; font-size:12px; letter-spacing:.06em; margin:0 0 10px; font-weight:600; }
+            .ops-launcher-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; }
+            .ops-launcher-grid + .ops-launcher-grid { margin-top:18px; }
+            .ops-launcher-item { display:flex; flex-direction:column; align-items:center; gap:10px; padding:16px 10px 14px; background:#1a2029; border:1px solid #242c38; border-radius:12px; cursor:pointer; color:inherit; font:inherit; transition:border-color .15s, background .15s; }
+            .ops-launcher-item:hover { border-color:#3b82f6; background:#202838; }
+            .ops-launcher-icon { width:52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:26px; line-height:1; }
+            .ops-launcher-name { color:#e8ecf2; font-size:13px; font-weight:600; text-align:center; }
+            .ops-launcher-url { color:#8b93a3; font-size:11px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          </style>
+          <el-alert type="warning" :closable="false" show-icon title="内部环境速查（演示数据已脱敏）" description="以下为生产环境常用入口与说明；敏感凭据仅内网可见、密文存储，不落入门户界面与日志。" style="margin-bottom:18px" />
+          <div class="portal-vue-section-line"><h3>🔗 平台入口（点击图标直达）</h3></div>
+          <div class="ops-launcher">
+            <template v-for="group in launcherGroups" :key="group.title">
+              <div class="ops-launcher-group-title">{{ group.title }}</div>
+              <div class="ops-launcher-grid">
+                <button v-for="item in group.items" :key="item.name" class="ops-launcher-item" type="button" :title="item.url" @click="openUrl(item.url)">
+                  <span class="ops-launcher-icon" :style="{ background: item.color }">{{ item.emoji }}</span>
+                  <span class="ops-launcher-name">{{ item.name }}</span>
+                  <span class="ops-launcher-url">{{ shortUrl(item.url) }}</span>
+                </button>
+              </div>
+            </template>
+          </div>
           <div class="portal-vue-section-line"><h3>🌐 服务域名</h3></div>
           <el-table :data="domainRows" class="portal-vue-table" border>
-            <el-table-column label="服务" width="200"><template #default="scope"><span class="portal-vue-name">{{ scope.row.service }}</span></template></el-table-column>
-            <el-table-column label="域名" min-width="260"><template #default="scope"><code class="portal-vue-code">{{ scope.row.domain }}</code></template></el-table-column>
+            <el-table-column label="服务" width="180"><template #default="scope"><span class="portal-vue-name">{{ scope.row.service }}</span></template></el-table-column>
+            <el-table-column label="域名" min-width="300"><template #default="scope"><code class="portal-vue-code">{{ scope.row.domain }}</code></template></el-table-column>
             <el-table-column prop="env" label="环境" width="90"></el-table-column>
-            <el-table-column prop="note" label="用途" min-width="260"></el-table-column>
-            <el-table-column label="操作" width="90" align="center"><template #default="scope"><el-button link type="primary" @click="copyText(scope.row.domain)">复制</el-button></template></el-table-column>
+            <el-table-column prop="note" label="用途" min-width="280"></el-table-column>
           </el-table>
           <div class="portal-vue-section-line"><h3>🔑 日志与凭据（脱敏）</h3></div>
           <el-table :data="credRows" class="portal-vue-table" border>
             <el-table-column label="资源" width="230"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
-            <el-table-column prop="detail" label="说明" min-width="320"></el-table-column>
+            <el-table-column prop="detail" label="说明" min-width="340"></el-table-column>
             <el-table-column prop="account" label="账号 / 密码" width="220"></el-table-column>
             <el-table-column prop="note" label="备注" min-width="200"></el-table-column>
-          </el-table>
-          <div class="portal-vue-section-line"><h3>🔗 平台入口</h3></div>
-          <el-table :data="entries" class="portal-vue-table" border>
-            <el-table-column label="平台" width="220"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
-            <el-table-column label="地址" min-width="300"><template #default="scope"><code class="portal-vue-code">{{ scope.row.url }}</code></template></el-table-column>
-            <el-table-column prop="note" label="用途" min-width="220"></el-table-column>
-            <el-table-column label="操作" width="160" align="center"><template #default="scope"><div style="display:flex;gap:8px;justify-content:center"><el-button link type="primary" @click="openUrl(scope.row.url)">打开</el-button><el-button link type="primary" @click="copyText(scope.row.url)">复制</el-button></div></template></el-table-column>
           </el-table>
         </section>
       </el-config-provider>
     `,
     data: () => ({
+      launcherGroups: [
+        {
+          title: "数据平台",
+          items: [
+            { name: "观星台门户", url: "https://gxt.lumofyi.com", emoji: "🔭", color: "#3b82f6" },
+            { name: "StarRocks 监控", url: "https://starrocks-web.kaboss.cn/", emoji: "🚀", color: "#7c3aed" },
+            { name: "大数据工具箱", url: "https://ad-report-tool.kaboss.cn/", emoji: "🧰", color: "#0ea5e9" }
+          ]
+        },
+        {
+          title: "监控与调度",
+          items: [
+            { name: "Grafana", url: "https://grafana.kaboss.cn/login", emoji: "📈", color: "#ea580c" },
+            { name: "海豚调度", url: "http://47.113.107.109:12345/dolphinscheduler/ui/", emoji: "🐬", color: "#059669" }
+          ]
+        }
+      ],
       domainRows: [
         { service: "观星台门户", domain: "https://gxt.lumofyi.com", env: "生产", note: "数据资产 / 灵犀智析 / 数据服务门户（本系统）" },
         { service: "大数据工具箱", domain: "https://ad-report-tool.kaboss.cn", env: "生产", note: "补数据 / 消耗对比 / 数据血缘 / 域名速查工具集" },
@@ -3529,24 +3562,11 @@ const TableDetailApp = {
         { name: "Redis（SIT + DEV）", detail: "阿里云实例 · 定时任务与缓存", account: "密文存储，仅后端可见", note: "生产 / 预发与开发环境分开" },
         { name: "日志检索（ELK）", detail: "可搜索项目：prod_ad_specialist_helper / prod_ad-report-api / apigatewayadmin", account: "密文存储，仅后端可见", note: "两个环境共用只读账号" },
         { name: "服务负载监控（Grafana）", detail: "监控面板：jvm-prod(ad_specialist_helper)", account: "密文存储，仅后端可见", note: "登录 grafana.kaboss.cn/login" }
-      ],
-      entries: [
-        { name: "StarRocks 监控运维管理", url: "https://starrocks-web.kaboss.cn/", note: "集群监控、查询诊断" },
-        { name: "大数据工具箱", url: "https://ad-report-tool.kaboss.cn/", note: "数据开发运维工具集（工具箱）" },
-        { name: "Grafana", url: "https://grafana.kaboss.cn/login", note: "服务负载监控" },
-        { name: "海豚调度", url: "http://47.113.107.109:12345/dolphinscheduler/ui/", note: "定时同步任务编排" }
       ]
     }),
     methods: {
       openUrl(url) { window.open(url, "_blank"); },
-      copyText(text) {
-        try {
-          navigator.clipboard.writeText(text);
-          ep.ElMessage.success(`已复制 ${text}`);
-        } catch (error) {
-          ep.ElMessage.error("复制失败，请手动复制");
-        }
-      }
+      shortUrl(url) { return String(url).replace(/^https?:\/\//, "").replace(/\/+$/, ""); }
     }
   };
 
