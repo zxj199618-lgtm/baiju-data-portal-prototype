@@ -8,7 +8,7 @@
         { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: ["2.0", "3.0", "4.0"] }, { name: "标签管理", badge: "3.0" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
         { group: "数据推送", icon: "push", badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },
-        { group: "系统管理", icon: "system", items: [{ name: "菜单管理" }, { name: "模型配置", badge: "5.0" }, { name: "Skill 配置", badge: "5.0" }] }
+        { group: "系统管理", icon: "system", items: [{ name: "菜单管理" }, { name: "模型配置", badge: "5.0" }, { name: "Skill 配置", badge: "5.0" }, { name: "任务运维", badge: "1.0" }, { name: "环境域名" }] }
       ];
       const boardCategories = [
               "全部",
@@ -1193,7 +1193,7 @@
       window.simpleUsers = simpleUsers;
 
       const permissionGroups = [
-        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "系统管理", "菜单管理", "Skill 配置", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据预警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
+        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "系统管理", "菜单管理", "Skill 配置", "任务运维", "环境域名", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据预警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
         { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["灵犀智析", "数据看板"], boards: ["CPA事业部", "大盘数据"], tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"], status: "启用" },
         { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["灵犀智析", "数据看板"], boards: ["CPA事业部", "新媒体"], tables: ["广告计划日报表", "广告账户日报"], status: "启用" },
         { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["灵犀智析", "数据看板"], boards: ["大盘数据", "产品运营部"], tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"], status: "启用" },
@@ -1502,6 +1502,9 @@
         "Skill 配置": ["Skill 配置", "管理可用于灵犀智析和飞书机器人的分析 skill：展示、提示词、版本与用户灰度。", "上传 Skill"],
         "菜单管理": ["菜单管理", "维护门户侧边导航结构：层级、图标、排序、组件路径与权限标识。", "添加"],
         "模型配置": ["模型配置", "管理灵犀智析可用的模型：来自中转站的全部模型，可禁用历史或不可用模型。", ""],
+        "任务运维": ["任务运维", "媒体报表数据运维：按广告主账户补拉分时数据、跟踪异步执行日志、对比分时表间消耗差异。", ""],
+        "环境域名": ["环境域名", "服务域名、日志与监控入口速查；敏感凭据密文存储，仅后端可见。", ""],
+        "血缘查询": ["血缘查询", "按表名检索下游使用情况，覆盖 QuickBI 报表、API 外部数据配置与 DataX 同步任务三类下游。", ""],
         "数据看板": ["数据看板", "", "新增看板入口"],
         "看板管理": ["看板管理", "", "新增看板"],
         "表管理": ["表管理", "同步来自 StarRocks 的表和字段元数据，沉淀可对外服务的数据资产。", "新增表"],
@@ -1681,7 +1684,8 @@
         if (page === "标签管理") return "asset";
         if (page === "人群包推送渠道") return "push";
         if (page === "用户管理" || page === "权限组") return "permission";
-        if (page === "菜单管理" || page === "模型配置" || page === "Skill 配置") return "system";
+        if (page === "菜单管理" || page === "模型配置" || page === "Skill 配置" || page === "任务运维" || page === "环境域名") return "system";
+        if (page === "血缘查询") return "asset";
         return "asset";
       }
 
@@ -2999,6 +3003,9 @@
         document.getElementById("skillManagementView")?.classList.toggle("hidden", page !== "Skill 配置");
         document.getElementById("menuManagementView")?.classList.toggle("hidden", page !== "菜单管理");
         document.getElementById("modelConfigView")?.classList.toggle("hidden", page !== "模型配置");
+        document.getElementById("opsTaskView")?.classList.toggle("hidden", page !== "任务运维");
+        document.getElementById("opsEnvView")?.classList.toggle("hidden", page !== "环境域名");
+        document.getElementById("opsLineageView")?.classList.toggle("hidden", page !== "血缘查询");
         dataBoardView.classList.toggle("hidden", page !== "数据看板");
         document.getElementById("boardManagementView").classList.toggle("hidden", page !== "看板管理");
         document.getElementById("dataAssetView").classList.toggle("hidden", page !== "表管理");
@@ -3049,6 +3056,9 @@
         document.getElementById("skillManagementView")?.classList.add("hidden");
         document.getElementById("menuManagementView")?.classList.add("hidden");
         document.getElementById("modelConfigView")?.classList.add("hidden");
+        document.getElementById("opsTaskView")?.classList.add("hidden");
+        document.getElementById("opsEnvView")?.classList.add("hidden");
+        document.getElementById("opsLineageView")?.classList.add("hidden");
         dataBoardView.classList.add("hidden");
         document.getElementById("boardManagementView").classList.add("hidden");
         document.getElementById("dataAssetView").classList.add("hidden");

@@ -131,6 +131,7 @@
         if (this.page === "维表数据维护") return "维表管理";
         if (this.page === "Quick BI 展示") return "数据看板";
         if (this.page === "配置权限") return "用户管理";
+        if (this.page === "血缘查询") return "表管理";
         return this.page;
       },
       openGroups() { return state.nav.filter(section => section.items.length > 1).map(section => section.group); }
@@ -424,7 +425,7 @@
               <el-select v-model="owner" class="portal-vue-filter" placeholder="全部表负责人" @change="resetPage"><el-option label="全部表负责人" value=""></el-option><el-option v-for="item in owners" :key="item" :label="item" :value="item"></el-option></el-select>
               <el-select v-model="bizLine" class="portal-vue-filter" placeholder="全部业务线" @change="resetPage"><el-option label="全部业务线" value=""></el-option><el-option v-for="item in bizLines" :key="item" :label="item" :value="item"></el-option></el-select>
             </div>
-            <el-button type="primary" @click="openCreate">新增表</el-button>
+            <el-button @click="openLineage">血缘查询</el-button><el-button type="primary" @click="openCreate">新增表</el-button>
           </div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无数据表">
             <el-table-column prop="assetId" label="表编号" width="92" fixed="left"></el-table-column>
@@ -503,11 +504,12 @@
       rangeText() { if (!this.filteredRows.length) return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; },
       enabledDicts() { refreshTick.value; return state.dictionaries.filter(item => item.status === "启用"); },
       detailMeta() { if (!this.detail) return []; return [{label:"表编号",value:this.detail.assetId || "—"},{label:"对外表名",value:this.detail.externalName || "—"},{label:"数据源",value:this.detail.source},{label:"业务线",value:this.detail.bizLine || "—"},{label:"库名",value:this.detail.database},{label:"表名",value:this.detail.table,code:true},{label:"最近同步时间",value:this.detail.lastSuccessSync || "—"},{label:"字段数量",value:this.detail.fields.length},{label:"近30日调用次数",value:this.callCount(this.detail).toLocaleString()}]; },
-      activeUsers() { return state.users.filter(user => user.status !== "已停用"); }
+activeUsers() { return state.users.filter(user => user.status !== "已停用"); }
     },
     mounted() { this.primaryHandler = event => { if (event.detail?.page === "表管理") this.openCreate(); }; window.addEventListener("portal:primary-action", this.primaryHandler); },
     beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); },
     methods: {
+      openLineage() { bridge.setPage("血缘查询"); },
       resetPage() { this.page = 1; },
       changeSource() { if (this.database && !this.databases.includes(this.database)) this.database = ""; this.resetPage(); },
       apiAssets(api) { return Array.isArray(api.assets) && api.assets.length ? api.assets : [{ database: api.database, table: api.assetTable }]; },
@@ -2254,7 +2256,9 @@
       children: [
         { id: "M1010", name: "菜单管理", icon: "--", sort: 10, path: "/system/menu-management/index", cache: true, permission: "system_menu_management", children: [] },
         { id: "M1030", name: "模型配置", icon: "--", sort: 30, path: "/system/model-config/index", cache: true, permission: "system_model_config", children: [] },
-        { id: "M1020", name: "Skill 配置", icon: "--", sort: 20, path: "/system/skill-management/index", cache: true, permission: "system_skill_management", children: [] }
+        { id: "M1020", name: "Skill 配置", icon: "--", sort: 20, path: "/system/skill-management/index", cache: true, permission: "system_skill_management", children: [] },
+        { id: "M1040", name: "任务运维", icon: "--", sort: 40, path: "/system/ops-task/index", cache: true, permission: "system_ops_task", children: [] },
+        { id: "M1050", name: "环境域名", icon: "--", sort: 50, path: "/system/env-domains/index", cache: true, permission: "system_env_domains", children: [] }
       ]
     }
   ];
@@ -2963,6 +2967,512 @@
   mount("#menuManagementView", MenuManagementApp, "menu-management");
   mount("#modelConfigView", ModelConfigApp, "model-config");
   mount("#skillManagementView", SkillManagementApp, "skill-management");
+
+  const OpsTaskApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <el-alert type="info" :closable="false" show-icon title="媒体报表数据运维工具" description="数据来源：生产环境 · bytedance_ad 库。补数据接口为异步执行，返回成功仅代表任务已提交，实际入库在后台完成。" />
+          <el-tabs v-model="tool" style="margin-top:14px">
+            <el-tab-pane label="🔄 补数据" name="backfill">
+              <div class="portal-vue-toolbar" style="margin-bottom:14px">
+                <div class="portal-vue-toolbar-left">
+                  <el-select v-model="bfPlatform" style="width:190px"><el-option v-for="item in platforms" :key="item" :label="item" :value="item"></el-option></el-select>
+                  <el-select v-model="bfApi" style="width:200px"><el-option v-for="item in apiOptions" :key="item" :label="item" :value="item"></el-option></el-select>
+                  <el-select v-model="bfEnv" style="width:110px"><el-option v-for="item in envOptions" :key="item" :label="item" :value="item"></el-option></el-select>
+                </div>
+              </div>
+              <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;margin-bottom:16px;background:#fafafa">
+                <span class="portal-vue-muted">请求地址：</span><code class="portal-vue-code">{{ apiPath }}</code>
+                <span class="portal-vue-muted">（GET · 原型示意，不真实调用）</span>
+              </div>
+              <el-form label-position="top" class="portal-vue-dialog-form">
+                <el-form-item label="广告主 ID（账户） *" required>
+                  <el-input v-model="accounts" type="textarea" :rows="3" placeholder="多个账户用逗号分隔，例如：123456,789012"></el-input>
+                </el-form-item>
+                <el-form-item label="时间范围类型 *">
+                  <el-radio-group v-model="rangeType">
+                    <el-radio-button label="当天"></el-radio-button>
+                    <el-radio-button label="近 3 天"></el-radio-button>
+                    <el-radio-button label="近 7 天"></el-radio-button>
+                    <el-radio-button label="自定义日期"></el-radio-button>
+                  </el-radio-group>
+                  <el-date-picker v-if="rangeType === '自定义日期'" v-model="customRange" type="daterange" value-format="YYYY-MM-DD" unlink-panels start-placeholder="开始日期" end-placeholder="结束日期" style="width:320px;margin-top:10px"></el-date-picker>
+                  <p class="portal-vue-muted" style="margin-top:6px">补数窗口：{{ spanText }}</p>
+                </el-form-item>
+                <el-form-item label="管理员账户 ID">
+                  <el-input v-model="adminId" placeholder="可选，逗号分隔"></el-input>
+                </el-form-item>
+                <el-form-item label="应用 ID">
+                  <el-select v-model="appId" clearable filterable placeholder="选择应用（可选）" style="width:320px"><el-option v-for="item in appOptions" :key="item" :label="item" :value="item"></el-option></el-select>
+                </el-form-item>
+              </el-form>
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px">
+                <el-button type="primary" @click="submitBackfill">🚀 重跑</el-button>
+                <el-button plain @click="tool='logs'">在「执行日志」中跟踪 →</el-button>
+              </div>
+              <template v-if="recent.length">
+                <div class="portal-vue-section-line" style="margin-top:22px"><h3>📊 本次执行结果</h3></div>
+                <el-alert type="success" :closable="false" show-icon title="任务已提交" description="接口为异步执行，提交成功仅代表任务已排队，后台完成后自动入库；状态以「执行日志」为准。" style="margin-bottom:12px" />
+                <el-table :data="recent" class="portal-vue-table" border>
+                  <el-table-column prop="id" label="任务ID" width="150"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
+                  <el-table-column label="任务名称" min-width="220"><template #default="scope">{{ scope.row.name }}</template></el-table-column>
+                  <el-table-column prop="span" label="时间范围" width="170"></el-table-column>
+                  <el-table-column prop="startedAt" label="开始时间" width="150"></el-table-column>
+                  <el-table-column label="状态" width="100"><template #default="scope"><el-tag :type="scope.row.status === '成功' ? 'success' : 'warning'" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
+                </el-table>
+              </template>
+            </el-tab-pane>
+            <el-tab-pane label="📋 执行日志" name="logs">
+              <p class="portal-vue-muted" style="margin-bottom:12px">数据来源：{{ bfEnv }} 环境 · api_task_execution_log 表 · 默认查当天，按开始时间倒序 · 最多返回 500 条</p>
+              <div class="portal-vue-toolbar">
+                <div class="portal-vue-toolbar-left">
+                  <el-date-picker v-model="logRange" type="daterange" value-format="YYYY-MM-DD" unlink-panels start-placeholder="开始日期" end-placeholder="结束日期" style="width:250px"></el-date-picker>
+                  <el-select v-model="logApi" style="width:160px"><el-option label="全部接口" value="全部"></el-option><el-option v-for="item in apiOptions" :key="item" :label="item" :value="item"></el-option></el-select>
+                  <el-select v-model="logStatus" style="width:120px"><el-option v-for="item in statusOptions" :key="item" :label="item" :value="item"></el-option></el-select>
+                  <el-input v-model="logKeyword" class="portal-vue-search" clearable placeholder="任务名称（模糊）"></el-input>
+                  <el-input v-model="logTrace" class="portal-vue-search" clearable placeholder="traceId 搜索" style="width:200px"></el-input>
+                </div>
+                <el-button type="primary" @click="logPage=1">🔍 查询</el-button>
+              </div>
+              <el-table :data="pagedLogs" class="portal-vue-table" border style="margin-top:14px" empty-text="暂无执行日志">
+                <el-table-column prop="id" label="任务ID" width="152" fixed="left"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
+                <el-table-column label="任务名称" min-width="230" show-overflow-tooltip><template #default="scope">{{ scope.row.name }}</template></el-table-column>
+                <el-table-column prop="platform" label="平台" width="120"></el-table-column>
+                <el-table-column prop="api" label="接口" width="150"></el-table-column>
+                <el-table-column prop="env" label="环境" width="88"></el-table-column>
+                <el-table-column prop="accounts" label="账户数" width="86" align="center"></el-table-column>
+                <el-table-column prop="submitAt" label="提交时间" width="150"></el-table-column>
+                <el-table-column prop="startedAt" label="开始时间" width="150"></el-table-column>
+                <el-table-column prop="cost" label="耗时" width="88" align="center"></el-table-column>
+                <el-table-column label="状态" width="96" align="center"><template #default="scope"><el-tag :type="statusType(scope.row.status)" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
+                <el-table-column prop="submitter" label="提交人" width="90"></el-table-column>
+                <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button link type="primary" @click="logDetail=scope.row; logDetailVisible=true">详情</el-button></template></el-table-column>
+              </el-table>
+              <div class="portal-vue-pagination"><span>共 {{ filteredLogs.length }} 条，当前 {{ logRangeText }}</span><el-pagination v-model:current-page="logPage" v-model:page-size="logPageSize" :page-sizes="[10,20,50]" :total="filteredLogs.length" layout="sizes, prev, pager, next"></el-pagination></div>
+            </el-tab-pane>
+            <el-tab-pane label="📊 消耗对比" name="compare">
+              <el-alert type="info" :closable="false" show-icon title="以账户分时表 (hour_data) 为基准，与二级计划分时表 (ad_hour_data) 或创意分时表 (new_creative_hour_data_v2) 进行两两对比" description="账户分时表每 5 / 20 / 30 分钟更新（分高、中、低三个频次间隔）；二级计划分时表每 10 / 60 / 120 分钟更新；创意分时表每小时更新一次。由于各表调度频率不同，短时间内单一两个小时数据对不齐属于正常现象。" style="margin-bottom:16px"/>
+              <el-form label-position="top" class="portal-vue-dialog-form">
+                <el-form-item label="对比模式">
+                  <el-select v-model="cmpMode" style="width:340px"><el-option label="账户分时 vs 二级计划分时" value="二级计划分时"></el-option><el-option label="账户分时 vs 创意分时" value="创意分时"></el-option></el-select>
+                </el-form-item>
+                <el-form-item label="时间范围">
+                  <el-radio-group v-model="cmpDateType">
+                    <el-radio-button label="指定日期"></el-radio-button>
+                    <el-radio-button label="指定小时"></el-radio-button>
+                    <el-radio-button label="指定小时范围"></el-radio-button>
+                  </el-radio-group>
+                  <div style="display:flex;gap:10px;margin-top:10px;align-items:center">
+                    <el-date-picker v-model="cmpDate" type="date" value-format="YYYY-MM-DD" style="width:170px"></el-date-picker>
+                    <template v-if="cmpDateType === '指定小时'"><span class="portal-vue-muted">小时</span><el-select v-model="cmpHour" style="width:100px"><el-option v-for="h in hours" :key="h" :label="pad(h)" :value="h"></el-option></el-select></template>
+                    <template v-if="cmpDateType === '指定小时范围'"><span class="portal-vue-muted">从</span><el-select v-model="cmpHourStart" style="width:90px"><el-option v-for="h in hours" :key="h" :label="pad(h)" :value="h"></el-option></el-select><span class="portal-vue-muted">到</span><el-select v-model="cmpHourEnd" style="width:90px"><el-option v-for="h in hours" :key="h" :label="pad(h)" :value="h"></el-option></el-select></template>
+                  </div>
+                </el-form-item>
+                <el-form-item label="广告账户 ID（可选）">
+                  <el-input v-model="cmpAccount" placeholder="多个账户用逗号分隔，如：12345,67890"></el-input>
+                </el-form-item>
+                <el-form-item label="差异阈值（元）">
+                  <el-input-number v-model="cmpThreshold" :precision="2" :step="0.5" :min="0"></el-input-number>
+                </el-form-item>
+              </el-form>
+              <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">
+                <el-button type="primary" @click="runCompare">🔍 查询对比</el-button>
+                <el-checkbox v-if="compareRows.length" v-model="onlyDiff">仅看差异记录</el-checkbox>
+              </div>
+              <template v-if="compareMeta">
+                <div style="display:flex;gap:20px;align-items:center;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:14px;background:#fafafa">
+                  <span class="portal-vue-muted">对比范围</span><strong>{{ compareMeta.span }}</strong>
+                  <span class="portal-vue-muted">账户</span><strong>{{ compareMeta.accounts }} 个</strong>
+                  <span class="portal-vue-muted">记录</span><strong>{{ compareMeta.total }} 条</strong>
+                  <span class="portal-vue-muted">阈值</span><strong>≥ {{ compareMeta.threshold }} 元</strong>
+                  <span class="portal-vue-muted">差异</span><strong style="color:#dc4c64">{{ compareMeta.diff }} 条</strong>
+                </div>
+                <el-table :data="pagedCompare" class="portal-vue-table" border style="margin-top:14px" empty-text="无差异记录">
+                  <el-table-column prop="time" label="时间" width="150"></el-table-column>
+                  <el-table-column label="广告账户" min-width="200"><template #default="scope"><span class="portal-vue-name">{{ scope.row.acc }}</span><code class="portal-vue-code" style="margin-left:8px">{{ scope.row.accId }}</code></template></el-table-column>
+                  <el-table-column label="账户分时表（元）" width="140" align="right"><template #default="scope">{{ scope.row.a.toLocaleString() }}</template></el-table-column>
+                  <el-table-column :label="compareTable + '（元）'" width="170" align="right"><template #default="scope">{{ scope.row.b.toLocaleString() }}</template></el-table-column>
+                  <el-table-column label="差额（元）" width="120" align="right"><template #default="scope"><span :style="{color: scope.row.status==='差异' ? '#dc4c64' : '#98a2b3'}">{{ scope.row.diff.toLocaleString() }}</span></template></el-table-column>
+                  <el-table-column label="差额率" width="100" align="right"><template #default="scope">{{ scope.row.rate.toFixed(1) }}%</template></el-table-column>
+                  <el-table-column label="判定" width="96" align="center"><template #default="scope"><el-tag :type="scope.row.status==='差异' ? 'danger' : 'success'" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
+                </el-table>
+                <div class="portal-vue-pagination"><span>共 {{ filteredCompare.length }} 条，当前 {{ cmpRangeText }}</span><el-pagination v-model:current-page="cmpPage" v-model:page-size="cmpPageSize" :page-sizes="[10,20,50]" :total="filteredCompare.length" layout="sizes, prev, pager, next"></el-pagination></div>
+              </template>
+              <p v-else class="portal-vue-muted">选择对比模式和时间范围后点击「查询对比」。</p>
+            </el-tab-pane>
+          </el-tabs>
+
+          <el-drawer v-model="logDetailVisible" :title="logDetail ? '任务详情 · ' + logDetail.id : '任务详情'" size="520px" :close-on-click-modal="true">
+            <template v-if="logDetail">
+              <div class="portal-vue-detail-grid">
+                <div class="portal-vue-detail-item"><span>任务ID</span><strong><code class="portal-vue-code">{{ logDetail.id }}</code></strong></div>
+                <div class="portal-vue-detail-item"><span>任务名称</span><strong>{{ logDetail.name }}</strong></div>
+                <div class="portal-vue-detail-item"><span>平台</span><strong>{{ logDetail.platform }}</strong></div>
+                <div class="portal-vue-detail-item"><span>接口</span><strong>{{ logDetail.api }}</strong></div>
+                <div class="portal-vue-detail-item"><span>环境</span><strong>{{ logDetail.env }}</strong></div>
+                <div class="portal-vue-detail-item"><span>时间范围</span><strong>{{ logDetail.span }}</strong></div>
+                <div class="portal-vue-detail-item"><span>账户数</span><strong>{{ logDetail.accounts }}</strong></div>
+                <div class="portal-vue-detail-item"><span>提交人</span><strong>{{ logDetail.submitter }}</strong></div>
+                <div class="portal-vue-detail-item"><span>提交 / 开始</span><strong>{{ logDetail.submitAt }} / {{ logDetail.startedAt }}</strong></div>
+                <div class="portal-vue-detail-item"><span>耗时</span><strong>{{ logDetail.cost }}</strong></div>
+                <div class="portal-vue-detail-item"><span>状态</span><strong><el-tag :type="statusType(logDetail.status)" effect="light">{{ logDetail.status }}</el-tag></strong></div>
+                <div class="portal-vue-detail-item"><span>traceId</span><strong><code class="portal-vue-code">{{ logDetail.trace }}</code></strong></div>
+              </div>
+              <div class="portal-vue-section-line"><h3>请求参数</h3></div>
+              <pre style="white-space:pre-wrap;background:#f6f7f9;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.7;color:#475467;margin:0">{{ logDetail.paramText }}</pre>
+              <el-alert v-if="logDetail.reason" type="error" :closable="false" show-icon :title="logDetail.reason" style="margin-top:12px" />
+            </template>
+          </el-drawer>
+        </section>
+      </el-config-provider>
+    `,
+    data: () => {
+      const pad = value => String(value).padStart(2, "0");
+      const day = value => `2026-09-${pad(value)}`;
+      const mkLog = (dayValue, seq, api, status, accounts, submitTime, cost, trace, extra = {}) => ({ id: `TR2026${seq}`, day: day(dayValue), name: `${api} · 按账户重跑`, platform: "头条 / 字节跳动", api, env: "生产", accounts, span: extra.span || "当天", submitAt: `${day(dayValue)} ${submitTime}`, startedAt: extra.startedAt || `${day(dayValue)} ${submitTime}`, cost, status, submitter: extra.submitter || "曾祥竞", trace, reason: extra.reason || "", paramText: `广告主 ID：${extra.accountText || "123456, 789012"}\n管理员账户 ID：${extra.adminId || "—"}\n应用 ID：${extra.appId || "主应用（直投）"}\n时间范围：${extra.span || "当天"}` });
+      const trace = seed => `tcb-${seed}4f8d2a9c1e7b0a3f`;
+      const seedLogs = [
+        mkLog(7, "078", "二级计划分时消耗", "成功", 5, "09:18:42", "14.2s", trace("a71f")),
+        mkLog(7, "077", "账户分时消耗", "成功", 3, "09:10:06", "12.8s", trace("9c02")),
+        mkLog(7, "076", "创意分时消耗", "成功", 2, "09:02:31", "9.6s", trace("f3e8")),
+        mkLog(7, "075", "账户分时消耗", "成功", 8, "08:55:18", "16.4s", trace("b58a")),
+        mkLog(7, "074", "二级计划分时消耗", "失败", 4, "08:47:55", "27.3s", trace("d21c"), { reason: "上游接口 500：时间窗内无数据，请重试或联系媒体侧确认调度是否正常。", span: "近 7 天" }),
+        mkLog(7, "073", "账户分时消耗", "成功", 6, "08:40:12", "13.1s", trace("77be")),
+        mkLog(7, "072", "创意分时消耗", "成功", 3, "08:33:47", "10.2s", trace("e5a0")),
+        mkLog(7, "071", "账户分时消耗", "执行中", 5, "08:26:19", "—", trace("1de4"), { startedAt: `${day(7)} 08:26:19`, cost: "—" }),
+        mkLog(6, "070", "二级计划分时消耗", "成功", 7, "22:41:33", "15.8s", trace("ab5f")),
+        mkLog(6, "069", "账户分时消耗", "成功", 4, "22:30:27", "11.9s", trace("c7d9")),
+        mkLog(6, "068", "创意分时消耗", "成功", 2, "22:24:08", "8.7s", trace("90e2")),
+        mkLog(6, "067", "账户分时消耗", "成功", 9, "22:15:51", "17.6s", trace("44b1")),
+        mkLog(6, "066", "账户分时消耗", "排队中", 3, "22:06:14", "—", trace("8f7a"), { startedAt: "—", span: "近 3 天" })
+      ];
+      return {
+        tool: "backfill",
+        platforms: ["头条 / 字节跳动"],
+        bfPlatform: "头条 / 字节跳动",
+        bfApi: "账户分时消耗",
+        bfEnv: "生产",
+        envOptions: ["生产", "预发"],
+        apiOptions: ["账户分时消耗", "二级计划分时消耗", "创意分时消耗"],
+        apiPaths: { "账户分时消耗": "/bytedance/api/account-hour-cost/account", "二级计划分时消耗": "/bytedance/api/ad-hour-cost/ad", "创意分时消耗": "/bytedance/api/creative-hour-cost/creative" },
+        accounts: "20894512, 20894513",
+        rangeType: "当天",
+        customRange: null,
+        adminId: "",
+        appId: "",
+        appOptions: ["主应用（直投）", "备用应用"],
+        recent: [],
+        seq: 10079,
+        logRange: [day(7), day(7)],
+        logApi: "全部",
+        logStatus: "全部",
+        logKeyword: "",
+        logTrace: "",
+        statusOptions: ["全部", "排队中", "执行中", "成功", "失败"],
+        logPage: 1,
+        logPageSize: 10,
+        logDetailVisible: false,
+        logDetail: null,
+        logs: seedLogs,
+        cmpMode: "二级计划分时",
+        cmpDateType: "指定日期",
+        cmpDate: day(6),
+        cmpHour: 18,
+        cmpHourStart: 10,
+        cmpHourEnd: 12,
+        hours: Array.from({ length: 24 }, (_, index) => index),
+        cmpAccount: "",
+        cmpThreshold: 1,
+        onlyDiff: false,
+        compareMeta: null,
+        compareRows: [],
+        cmpPage: 1,
+        cmpPageSize: 10
+      };
+    },
+    computed: {
+      apiPath() { return this.apiPaths[this.bfApi] || ""; },
+      spanText() {
+        if (this.rangeType === "自定义日期") return this.customRange && this.customRange[0] ? `${this.customRange[0]} ~ ${this.customRange[1]}` : "自定义日期";
+        return this.rangeType;
+      },
+      filteredLogs() {
+        const from = this.logRange && this.logRange[0];
+        const to = this.logRange && this.logRange[1];
+        const keyword = this.logKeyword.trim().toLowerCase();
+        return this.logs.filter(row => (!from || row.day >= from) && (!to || row.day <= to) && (this.logApi === "全部" || row.api === this.logApi) && (this.logStatus === "全部" || row.status === this.logStatus) && (!keyword || row.name.toLowerCase().includes(keyword)) && (!this.logTrace.trim() || row.trace.includes(this.logTrace.trim())));
+      },
+      pagedLogs() { const result = paginate(this.filteredLogs, this.logPage, this.logPageSize); if (result.safePage !== this.logPage) this.logPage = result.safePage; return result.rows; },
+      logRangeText() { if (!this.filteredLogs.length) return "0-0"; return `${(this.logPage - 1) * this.logPageSize + 1}-${Math.min(this.logPage * this.logPageSize, this.filteredLogs.length)}`; },
+      compareTable() { return this.cmpMode === "二级计划分时" ? "ad_hour_data" : "new_creative_hour_data_v2"; },
+      cmpSpanText() {
+        const pad = value => String(value).padStart(2, "0");
+        if (this.cmpDateType === "指定日期") return `${this.cmpDate} 全天`;
+        if (this.cmpDateType === "指定小时") return `${this.cmpDate} ${pad(this.cmpHour)}:00`;
+        return `${this.cmpDate} ${pad(this.cmpHourStart)}:00 ~ ${pad(this.cmpHourEnd)}:00`;
+      },
+      filteredCompare() { return this.onlyDiff ? this.compareRows.filter(row => row.status === "差异") : this.compareRows; },
+      pagedCompare() { const result = paginate(this.filteredCompare, this.cmpPage, this.cmpPageSize); if (result.safePage !== this.cmpPage) this.cmpPage = result.safePage; return result.rows; },
+      cmpRangeText() { if (!this.filteredCompare.length) return "0-0"; return `${(this.cmpPage - 1) * this.cmpPageSize + 1}-${Math.min(this.cmpPage * this.cmpPageSize, this.filteredCompare.length)}`; }
+    },
+    methods: {
+      statusType(status) { if (status === "成功") return "success"; if (status === "失败") return "danger"; if (status === "执行中") return "warning"; return "info"; },
+      pad(value) { return String(value).padStart(2, "0"); },
+      submitBackfill() {
+        const list = this.accounts.split(/[,，\s]+/).map(item => item.trim()).filter(Boolean);
+        if (!list.length) return ep.ElMessage.warning("「广告主 ID（账户）」不能为空");
+        if (this.rangeType === "自定义日期" && (!this.customRange || !this.customRange[0])) return ep.ElMessage.warning("请选择自定义日期范围");
+        const now = new Date();
+        const pad = value => String(value).padStart(2, "0");
+        const day = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        const id = `TR${day.replace(/-/g, "")}${String(this.seq++).padStart(4, "0")}`;
+        const row = { id, day, name: `${this.bfApi} · 按账户重跑`, platform: this.bfPlatform, api: this.bfApi, env: this.bfEnv, accounts: list.length, span: this.spanText, submitAt: `${day} ${time}`, startedAt: "—", cost: "—", status: "执行中", submitter: "曾祥竞", trace: `tcb-${Array.from({ length: 12 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`, reason: "", paramText: `广告主 ID：${list.join(", ")}\n管理员账户 ID：${this.adminId.trim() || "—"}\n应用 ID：${this.appId || "—"}\n时间范围：${this.spanText}` };
+        this.logs.unshift(row);
+        this.recent.unshift({ id: row.id, name: row.name, span: row.span, startedAt: `${day} ${time}`, status: "执行中" });
+        this.logPage = 1;
+        ep.ElMessage.success(`已提交 ${list.length} 个账户的补数任务（${this.bfApi}），实际入库在后台完成`);
+        setTimeout(() => {
+          row.status = "成功";
+          row.cost = "18.4s";
+          if (this.recent[0] && this.recent[0].id === row.id) this.recent[0].status = "成功";
+          ep.ElMessage.success(`任务 ${row.id} 执行成功`);
+        }, 2600);
+      },
+      runCompare() {
+        const accs = [
+          { name: "权益-信息流主账户", id: "20894512" }, { name: "巨量-权益账户B", id: "20894513" },
+          { name: "存量-巨量账户C", id: "20894514" }, { name: "号卡-巨量账户D", id: "20894515" },
+          { name: "达人-巨量账户E", id: "20894516" }, { name: "保险-巨量账户F", id: "20894517" },
+          { name: "权益-广点通账户G", id: "20894518" }, { name: "存量-信息流账户H", id: "20894519" },
+          { name: "创新-巨量账户I", id: "20894520" }, { name: "CPA-巨量账户J", id: "20894521" }
+        ];
+        const times = this.cmpDateType === "指定日期" ? ["全天"] : this.cmpDateType === "指定小时" ? [String(this.cmpHour)] : Array.from({ length: this.cmpHourEnd - this.cmpHourStart + 1 }, (_, index) => String(this.cmpHourStart + index));
+        const threshold = Number(this.cmpThreshold || 0);
+        const rows = [];
+        times.forEach((hour, timeIndex) => {
+          accs.forEach((acc, accIndex) => {
+            const base = +(240 + ((accIndex * 37 + timeIndex * 13) % 260)).toFixed(2);
+            let compared;
+            if ((accIndex + timeIndex) % 5 === 0) {
+              const sign = (accIndex * 7 + timeIndex * 3) % 5 === 0 ? -1 : 1;
+              compared = +(base * (1 + sign * (0.06 + ((accIndex + timeIndex) % 4) * 0.04))).toFixed(2);
+            } else {
+              compared = +((accIndex + timeIndex) % 3 === 0 ? base + 0.3 : base).toFixed(2);
+            }
+            const diff = +(base - compared).toFixed(2);
+            const status = Math.abs(diff) > threshold ? "差异" : "一致";
+            rows.push({ time: this.cmpDateType === "指定日期" ? `${this.cmpDate} 全天` : `${this.cmpDate} ${String(hour).padStart(2, "0")}:00`, acc: acc.name, accId: acc.id, a: base, b: compared, diff, rate: Math.abs(diff) / base * 100, status, matched: this.cmpAccount ? acc.id.includes(this.cmpAccount.trim()) : true });
+          });
+        });
+        const shown = this.cmpAccount ? rows.filter(row => row.matched) : rows;
+        this.compareRows = shown;
+        this.compareMeta = { mode: this.cmpMode, table: this.compareTable, span: this.cmpSpanText, total: shown.length, diff: shown.filter(row => row.status === "差异").length, accounts: new Set(shown.map(row => row.accId)).size, threshold };
+        this.cmpPage = 1;
+        ep.ElMessage.success(`已生成对比结果：${this.compareMeta.diff} 条差异记录（阈值 ≥ ${threshold} 元）`);
+      }
+    }
+  };
+
+  const OpsLineageApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <div class="portal-vue-toolbar">
+            <div class="portal-vue-toolbar-left" style="flex:1;flex-wrap:wrap;row-gap:10px">
+              <el-input v-model="tableName" class="portal-vue-search" clearable style="width:440px" placeholder="输入表名，如 dm_ad_plan_daily_media_account_product_performance_detail" @keyup.enter="runQuery"></el-input>
+              <el-checkbox v-model="pro" style="margin-left:4px">增强模式（is_pro）</el-checkbox>
+              <el-input-number v-model="depth" :min="1" :max="10" controls-position="right" style="width:130px"></el-input-number>
+              <el-select v-model="orderBy" style="width:220px"><el-option label="first — 最早血缘层级优先" value="first"></el-option><el-option label="recent — 最近使用优先" value="recent"></el-option></el-select>
+              <el-button type="primary" @click="runQuery">🔍 查询</el-button>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin:12px 0 16px">
+            <span class="portal-vue-muted">可查示例：</span>
+            <el-tag v-for="item in sampleTables" :key="item.name" style="cursor:pointer" effect="plain" @click="queryTable(item.name)">{{ item.cn }}（{{ item.name }}）</el-tag>
+          </div>
+          <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;margin-bottom:16px;background:#fafafa">
+            <span class="portal-vue-muted">请求地址：</span><code class="portal-vue-code">/api/table-blood-relationship</code>
+            <span class="portal-vue-muted">（GET · 经观星台分析网关转发 · 原型示意）</span>
+          </div>
+          <p class="portal-vue-muted" style="margin-bottom:12px">按表名检索其下游使用情况，覆盖 QuickBI 报表、API 外部数据配置、DataX 同步任务三类下游；血缘层级越深覆盖越广。</p>
+
+          <template v-if="queried">
+            <div style="display:flex;gap:16px;align-items:center;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:14px;background:#fafafa">
+              <span class="portal-vue-muted">起点表</span><code class="portal-vue-code">{{ result.key }}</code>
+              <span class="portal-vue-muted">血缘层级</span><strong>{{ depth }}</strong>
+              <span class="portal-vue-muted">增强模式</span><strong>{{ pro ? "开" : "关" }}</strong>
+              <span class="portal-vue-muted">下游合计</span><strong>{{ total }} 个</strong>
+            </div>
+            <el-tabs v-model="tab">
+              <el-tab-pane :label="'QuickBI 报表（' + result.qb.length + '）'" name="qb">
+                <el-table :data="result.qb" class="portal-vue-table" border empty-text="未发现 QuickBI 报表下游">
+                  <el-table-column label="看板名称" min-width="220"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+                  <el-table-column prop="id" label="Quick BI ID" width="160"></el-table-column>
+                  <el-table-column prop="field" label="使用字段" width="200"></el-table-column>
+                  <el-table-column prop="freq" label="更新频率" width="140"></el-table-column>
+                  <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
+                </el-table>
+              </el-tab-pane>
+              <el-tab-pane :label="'API 外部数据配置（' + result.api.length + '）'" name="api">
+                <el-table :data="result.api" class="portal-vue-table" border empty-text="未发现 API 外部数据配置下游">
+                  <el-table-column label="接口 / 服务名称" min-width="220"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+                  <el-table-column prop="consumer" label="使用方" width="220"></el-table-column>
+                  <el-table-column prop="field" label="授权字段" width="200"></el-table-column>
+                  <el-table-column label="状态" width="90" align="center"><template #default="scope"><el-tag type="success" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
+                  <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
+                </el-table>
+              </el-tab-pane>
+              <el-tab-pane :label="'DataX 同步任务（' + result.dx.length + '）'" name="dx">
+                <el-table :data="result.dx" class="portal-vue-table" border empty-text="未发现 DataX 同步任务下游">
+                  <el-table-column label="任务名称" min-width="240"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+                  <el-table-column prop="target" label="同步目标" width="220"></el-table-column>
+                  <el-table-column prop="freq" label="调度频率" width="130"></el-table-column>
+                  <el-table-column prop="last" label="最近运行" width="160"></el-table-column>
+                  <el-table-column label="状态" width="90" align="center"><template #default="scope"><el-tag type="success" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
+                  <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
+                </el-table>
+              </el-tab-pane>
+            </el-tabs>
+          </template>
+          <el-empty v-else description="输入表名或点击上方示例表，检索该表的下游 QuickBI 报表、API 外部数据配置与 DataX 同步任务" />
+        </section>
+      </el-config-provider>
+    `,
+    data: () => ({
+      tableName: "",
+      pro: false,
+      depth: 5,
+      orderBy: "first",
+      queried: false,
+      tab: "qb",
+      result: null,
+      sampleTables: [
+        { name: "dm_ad_plan_daily_media_account_product_performance_detail", cn: "广告计划日报表" },
+        { name: "dwd_user_profile_tag", cn: "用户画像标签明细表" },
+        { name: "ads_rta_request_hour", cn: "RTA 请求小时监控表" }
+      ],
+      lineageMap: {
+        "dm_ad_plan_daily_media_account_product_performance_detail": {
+          qb: [
+            { name: "存量经营分析（江总）", id: "QB_001", field: "消耗、转化成本", freq: "每日 08:30", owner: "谭嘉颖" },
+            { name: "信息流广告账户流水（财务对账用）", id: "QB_006", field: "账户日消耗", freq: "每日 07:00", owner: "曾祥竞" }
+          ],
+          api: [
+            { name: "广告计划日报查询服务", consumer: "观星台 · 数据开放平台", field: "计划维度消耗 / 转化成本", status: "启用", owner: "黄佩贤" },
+            { name: "投放日报同步（外部）", consumer: "CPA 数据服务", field: "消耗、CPA 成本", status: "启用", owner: "林金维" }
+          ],
+          dx: [
+            { name: "dws 广告计划日汇总 → 门户资产库", target: "StarRocks · prod_callup", freq: "每日 02:30", last: "2026-09-07 02:32", status: "成功", owner: "黄佩贤" },
+            { name: "广告计划 → QuickBI 数据源", target: "MySQL · quickbi_ds", freq: "每日 06:00", last: "2026-09-07 06:03", status: "成功", owner: "谭嘉颖" }
+          ],
+          proQb: [{ name: "CPA 大盘消耗周看板", id: "QB_WEEK_CPA", field: "消耗 / 成本趋势", freq: "每周一 09:00", owner: "曾祥竞" }],
+          proApi: [{ name: "信息流消耗对账接口", consumer: "财务对账单程", field: "账户日消耗汇总", status: "启用", owner: "谭嘉颖" }],
+          proDx: [{ name: "日报热表同步 → 分析网关", target: "ClickHouse · gateway_hot", freq: "每 30 分钟", last: "2026-09-07 09:30", status: "成功", owner: "曾祥竞" }]
+        },
+        "dwd_user_profile_tag": {
+          qb: [{ name: "存量客户画像看板", id: "QB_012", field: "标签覆盖率", freq: "每日 09:00", owner: "黄佩贤" }],
+          api: [{ name: "用户画像标签查询服务", consumer: "灵犀智析 · 标签条件圈选", field: "tag_value 等标签字段", status: "启用", owner: "曾祥竞" }],
+          dx: [{ name: "标签宽表每日同步", target: "StarRocks · prod_callup", freq: "每日 03:10", last: "2026-09-07 03:13", status: "成功", owner: "黄佩贤" }],
+          proQb: [], proApi: [], proDx: []
+        },
+        "ads_rta_request_hour": {
+          qb: [],
+          api: [{ name: "RTA 小时监控对外接口", consumer: "投放中台 · RTA 服务", field: "请求量 / 命中率", status: "启用", owner: "林金维" }],
+          dx: [{ name: "rta 小时粒度同步", target: "MySQL · rta_ops", freq: "每 10 分钟", last: "2026-09-07 09:40", status: "成功", owner: "林金维" }],
+          proQb: [], proApi: [], proDx: []
+        }
+      }
+    }),
+    computed: {
+      total() { return this.result ? this.result.qb.length + this.result.api.length + this.result.dx.length : 0; }
+    },
+    methods: {
+      queryTable(name) { this.tableName = name; this.runQuery(); },
+      runQuery() {
+        const key = this.tableName.trim();
+        if (!key) return ep.ElMessage.warning("请输入表名");
+        const base = this.lineageMap[key] || { qb: [], api: [], dx: [], proQb: [], proApi: [], proDx: [] };
+        this.result = {
+          key,
+          qb: this.pro ? [...base.qb, ...base.proQb] : [...base.qb],
+          api: this.pro ? [...base.api, ...base.proApi] : [...base.api],
+          dx: this.pro ? [...base.dx, ...base.proDx] : [...base.dx]
+        };
+        this.queried = true;
+        this.tab = "qb";
+        const found = this.sampleTables.some(item => item.name === key);
+        if (!found) ep.ElMessage.info(`「${key}」未登记下游血缘，可联系表负责人补充`);
+      }
+    }
+  };
+
+  const OpsEnvApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <el-alert type="warning" :closable="false" show-icon title="内部环境速查（演示数据已脱敏）" description="以下为生产环境常用入口；敏感凭据仅内网可见、密文存储，不落入门户界面与日志。" style="margin-bottom:16px" />
+          <div class="portal-vue-section-line"><h3>🌐 服务域名</h3></div>
+          <el-table :data="domainRows" class="portal-vue-table" border>
+            <el-table-column label="服务" width="200"><template #default="scope"><span class="portal-vue-name">{{ scope.row.service }}</span></template></el-table-column>
+            <el-table-column label="域名" min-width="260"><template #default="scope"><code class="portal-vue-code">{{ scope.row.domain }}</code></template></el-table-column>
+            <el-table-column prop="env" label="环境" width="90"></el-table-column>
+            <el-table-column prop="note" label="用途" min-width="260"></el-table-column>
+            <el-table-column label="操作" width="90" align="center"><template #default="scope"><el-button link type="primary" @click="copyText(scope.row.domain)">复制</el-button></template></el-table-column>
+          </el-table>
+          <div class="portal-vue-section-line"><h3>🔑 日志与凭据（脱敏）</h3></div>
+          <el-table :data="credRows" class="portal-vue-table" border>
+            <el-table-column label="资源" width="230"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+            <el-table-column prop="detail" label="说明" min-width="320"></el-table-column>
+            <el-table-column prop="account" label="账号 / 密码" width="220"></el-table-column>
+            <el-table-column prop="note" label="备注" min-width="200"></el-table-column>
+          </el-table>
+          <div class="portal-vue-section-line"><h3>🔗 平台入口</h3></div>
+          <el-table :data="entries" class="portal-vue-table" border>
+            <el-table-column label="平台" width="220"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+            <el-table-column label="地址" min-width="300"><template #default="scope"><code class="portal-vue-code">{{ scope.row.url }}</code></template></el-table-column>
+            <el-table-column prop="note" label="用途" min-width="220"></el-table-column>
+            <el-table-column label="操作" width="160" align="center"><template #default="scope"><div style="display:flex;gap:8px;justify-content:center"><el-button link type="primary" @click="openUrl(scope.row.url)">打开</el-button><el-button link type="primary" @click="copyText(scope.row.url)">复制</el-button></div></template></el-table-column>
+          </el-table>
+        </section>
+      </el-config-provider>
+    `,
+    data: () => ({
+      domainRows: [
+        { service: "观星台门户", domain: "https://gxt.lumofyi.com", env: "生产", note: "数据资产 / 灵犀智析 / 数据服务门户（本系统）" },
+        { service: "大数据工具箱", domain: "https://ad-report-tool.kaboss.cn", env: "生产", note: "补数据 / 消耗对比 / 数据血缘 / 域名速查工具集" },
+        { service: "媒体报表 API", domain: "https://ad-api-report.kaboss.cn", env: "生产", note: "头条广告报表分时数据接口，任务运维依赖（GET）" },
+        { service: "StarRocks 监控运维", domain: "https://starrocks-web.kaboss.cn", env: "生产", note: "集群监控、查询诊断" }
+      ],
+      credRows: [
+        { name: "Redis（SIT + DEV）", detail: "阿里云实例 · 定时任务与缓存", account: "密文存储，仅后端可见", note: "生产 / 预发与开发环境分开" },
+        { name: "日志检索（ELK）", detail: "可搜索项目：prod_ad_specialist_helper / prod_ad-report-api / apigatewayadmin", account: "密文存储，仅后端可见", note: "两个环境共用只读账号" },
+        { name: "服务负载监控（Grafana）", detail: "监控面板：jvm-prod(ad_specialist_helper)", account: "密文存储，仅后端可见", note: "登录 grafana.kaboss.cn/login" }
+      ],
+      entries: [
+        { name: "StarRocks 监控运维管理", url: "https://starrocks-web.kaboss.cn/", note: "集群监控、查询诊断" },
+        { name: "大数据工具箱", url: "https://ad-report-tool.kaboss.cn/", note: "数据开发运维工具集（工具箱）" },
+        { name: "Grafana", url: "https://grafana.kaboss.cn/login", note: "服务负载监控" },
+        { name: "海豚调度", url: "http://47.113.107.109:12345/dolphinscheduler/ui/", note: "定时同步任务编排" }
+      ]
+    }),
+    methods: {
+      openUrl(url) { window.open(url, "_blank"); },
+      copyText(text) {
+        try {
+          navigator.clipboard.writeText(text);
+          ep.ElMessage.success(`已复制 ${text}`);
+        } catch (error) {
+          ep.ElMessage.error("复制失败，请手动复制");
+        }
+      }
+    }
+  };
+
+  mount("#opsTaskView", OpsTaskApp, "ops-task");
+  mount("#opsLineageView", OpsLineageApp, "ops-lineage");
+  mount("#opsEnvView", OpsEnvApp, "ops-env");
   window.alertVueApi = mount("#alertManagementView", AlertManagementApp, "alert-management");
 
   document.getElementById("portalApp").dataset.elementMigrated = "true";
