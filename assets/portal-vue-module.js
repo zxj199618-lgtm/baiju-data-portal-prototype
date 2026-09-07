@@ -131,7 +131,7 @@
         if (this.page === "维表数据维护") return "维表管理";
         if (this.page === "Quick BI 展示") return "数据看板";
         if (this.page === "配置权限") return "用户管理";
-        if (this.page === "血缘查询") return "表管理";
+        if (this.page === "表详情") return "表管理";
         return this.page;
       },
       openGroups() { return state.nav.filter(section => section.items.length > 1).map(section => section.group); }
@@ -223,7 +223,7 @@
     computed: {
       page() { return currentPage.value; },
       meta() { refreshTick.value; return bridge.pageMeta[this.page] || bridge.pageMeta["数据看板"]; },
-      visible() { return !["新增API", "新建人群包", "Quick BI 展示", "配置权限", "无权限", "维表数据维护"].includes(this.page); },
+      visible() { return !["新增API", "新建人群包", "Quick BI 展示", "配置权限", "无权限", "维表数据维护", "表详情"].includes(this.page); },
       title() { return this.meta?.[0] || this.page; },
       subtitle() { return this.meta?.[1] || ""; }
     },
@@ -425,7 +425,7 @@
               <el-select v-model="owner" class="portal-vue-filter" placeholder="全部表负责人" @change="resetPage"><el-option label="全部表负责人" value=""></el-option><el-option v-for="item in owners" :key="item" :label="item" :value="item"></el-option></el-select>
               <el-select v-model="bizLine" class="portal-vue-filter" placeholder="全部业务线" @change="resetPage"><el-option label="全部业务线" value=""></el-option><el-option v-for="item in bizLines" :key="item" :label="item" :value="item"></el-option></el-select>
             </div>
-            <el-button @click="openLineage">血缘查询</el-button><el-button type="primary" @click="openCreate">新增表</el-button>
+            <el-button type="primary" @click="openCreate">新增表</el-button>
           </div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无数据表">
             <el-table-column prop="assetId" label="表编号" width="92" fixed="left"></el-table-column>
@@ -509,7 +509,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     mounted() { this.primaryHandler = event => { if (event.detail?.page === "表管理") this.openCreate(); }; window.addEventListener("portal:primary-action", this.primaryHandler); },
     beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); },
     methods: {
-      openLineage() { bridge.setPage("血缘查询"); },
       resetPage() { this.page = 1; },
       changeSource() { if (this.database && !this.databases.includes(this.database)) this.database = ""; this.resetPage(); },
       apiAssets(api) { return Array.isArray(api.assets) && api.assets.length ? api.assets : [{ database: api.database, table: api.assetTable }]; },
@@ -532,7 +531,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         }
         this.createVisible = false; notify(`数据表「${form.externalName}」已新增${notes.length ? "，" + notes.join("，") : ""}`);
       },
-      openDetail(asset) { this.detail = asset; const tag = state.tables.find(table => table.name === asset.table); this.detailDraft = { owner:asset.owner || "", desc:asset.desc || "", tagTable:!!tag, dimension:!!asset.dimension, exportFields:[...(tag?.exportFields || [])], fields:asset.fields.map(field => ({...field, dictId: field.dictId || ""})) }; this.detailVisible = true; },
+      openDetail(asset) { bridge.setTableDetailAsset(asset); bridge.setPage("表详情"); },
       semanticType(type) { const value = String(type || "").toUpperCase(); if (/DATE|TIME/.test(value)) return "日期"; if (/BOOL/.test(value)) return "布尔"; if (/ARRAY/.test(value)) return "数组"; if (/INT|DECIMAL|DOUBLE|FLOAT|BIGINT|NUMERIC/.test(value)) return "数值"; return "文本"; },
       saveDetail() {
         if (!this.detailDraft.owner) return ep.ElMessage.warning("请选择表负责人");
@@ -3275,78 +3274,122 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     }
   };
 
-  const OpsLineageApp = {
+const TableDetailApp = {
     template: `
       <el-config-provider :locale="locale">
-        <section class="portal-vue-panel">
-          <div class="portal-vue-toolbar">
-            <div class="portal-vue-toolbar-left" style="flex:1;flex-wrap:wrap;row-gap:10px">
-              <el-input v-model="tableName" class="portal-vue-search" clearable style="width:440px" placeholder="输入表名，如 dm_ad_plan_daily_media_account_product_performance_detail" @keyup.enter="runQuery"></el-input>
-              <el-checkbox v-model="pro" style="margin-left:4px">增强模式（is_pro）</el-checkbox>
-              <el-input-number v-model="depth" :min="1" :max="10" controls-position="right" style="width:130px"></el-input-number>
-              <el-select v-model="orderBy" style="width:220px"><el-option label="first — 最早血缘层级优先" value="first"></el-option><el-option label="recent — 最近使用优先" value="recent"></el-option></el-select>
-              <el-button type="primary" @click="runQuery">🔍 查询</el-button>
+        <div>
+          <el-page-header class="portal-vue-form-header" title="返回表管理" :content="headerTitle" @back="back"></el-page-header>
+          <div v-if="!detail" style="padding:60px 20px"><el-empty description="请先从「表管理」选择一张表进入详情" /></div>
+          <template v-else>
+            <div class="portal-vue-dim-meta">
+              <div><span>表编号</span><code class="portal-vue-code">{{ detail.assetId }}</code></div>
+              <div><span>对外表名</span><code class="portal-vue-code">{{ detail.externalName }}</code></div>
+              <div><span>数据源</span><strong>{{ detail.source }}</strong></div>
+              <div><span>业务线</span><strong>{{ detail.bizLine || "—" }}</strong></div>
+              <div><span>库名</span><code class="portal-vue-code">{{ detail.database }}</code></div>
+              <div><span>最近同步</span><strong>{{ detail.lastSuccessSync || "—" }}</strong></div>
+              <div><span>字段数量</span><strong>{{ detail.fields.length }}</strong></div>
+              <div><span>近30日调用</span><strong>{{ callCount.toLocaleString() }}</strong></div>
             </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;margin:12px 0 16px">
-            <span class="portal-vue-muted">可查示例：</span>
-            <el-tag v-for="item in sampleTables" :key="item.name" style="cursor:pointer" effect="plain" @click="queryTable(item.name)">{{ item.cn }}（{{ item.name }}）</el-tag>
-          </div>
-          <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;margin-bottom:16px;background:#fafafa">
-            <span class="portal-vue-muted">请求地址：</span><code class="portal-vue-code">/api/table-blood-relationship</code>
-            <span class="portal-vue-muted">（GET · 经观星台分析网关转发 · 原型示意）</span>
-          </div>
-          <p class="portal-vue-muted" style="margin-bottom:12px">按表名检索其下游使用情况，覆盖 QuickBI 报表、API 外部数据配置、DataX 同步任务三类下游；血缘层级越深覆盖越广。</p>
-
-          <template v-if="queried">
-            <div style="display:flex;gap:16px;align-items:center;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:14px;background:#fafafa">
-              <span class="portal-vue-muted">起点表</span><code class="portal-vue-code">{{ result.key }}</code>
-              <span class="portal-vue-muted">血缘层级</span><strong>{{ depth }}</strong>
-              <span class="portal-vue-muted">增强模式</span><strong>{{ pro ? "开" : "关" }}</strong>
-              <span class="portal-vue-muted">下游合计</span><strong>{{ total }} 个</strong>
-            </div>
-            <el-tabs v-model="tab">
-              <el-tab-pane :label="'QuickBI 报表（' + result.qb.length + '）'" name="qb">
-                <el-table :data="result.qb" class="portal-vue-table" border empty-text="未发现 QuickBI 报表下游">
-                  <el-table-column label="看板名称" min-width="220"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
-                  <el-table-column prop="id" label="Quick BI ID" width="160"></el-table-column>
-                  <el-table-column prop="field" label="使用字段" width="200"></el-table-column>
-                  <el-table-column prop="freq" label="更新频率" width="140"></el-table-column>
-                  <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
+            <el-tabs v-model="tab" style="margin-top:8px">
+              <el-tab-pane label="基本配置" name="basic">
+                <el-form label-position="top" class="portal-vue-dialog-form" style="max-width:760px">
+                  <el-form-item label="表负责人" required>
+                    <el-select v-model="detailDraft.owner" filterable placeholder="请选择表负责人">
+                      <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name">
+                        <div class="portal-vue-asset-owner-option"><span>{{ user.name }}</span><small>{{ user.dept }} · {{ user.role }}</small></div>
+                      </el-option>
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="表描述"><el-input v-model="detailDraft.desc" type="textarea" :rows="3" placeholder="请输入表描述"></el-input></el-form-item>
+                  <div class="portal-vue-section-line"><h3>标签表设置</h3><el-checkbox v-model="detailDraft.tagTable">设为标签表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「标签管理」</p></div>
+                  <div class="portal-vue-section-line"><h3>维表设置</h3><el-checkbox v-model="detailDraft.dimension">设为维表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「维表管理」，可在线维护行数据。</p></div>
+                  <div v-if="detailDraft.tagTable" class="portal-vue-section-line"><h3>人群包导出字段配置</h3><el-checkbox-group v-model="detailDraft.exportFields" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px"><el-checkbox v-for="field in detail.fields" :key="field.name" :value="field.name">{{ field.name }} / {{ field.comment || field.type }}</el-checkbox></el-checkbox-group></div>
+                </el-form>
+              </el-tab-pane>
+              <el-tab-pane label="字段配置" name="fields">
+                <div class="portal-vue-section-line" style="margin-top:0"><h3>字段列表</h3><p class="portal-vue-muted">字段来自 StarRocks 同步，可在此配置关联字典与备注。</p></div>
+                <el-table :data="detailDraft.fields" class="portal-vue-table" border empty-text="暂无字段">
+                  <el-table-column prop="name" label="字段名称" width="180"></el-table-column>
+                  <el-table-column prop="type" label="字段类型" width="120"></el-table-column>
+                  <el-table-column prop="comment" label="字段中文名" width="150"></el-table-column>
+                  <el-table-column label="关联字典" min-width="260"><template #default="scope"><el-select v-model="scope.row.dictId" clearable filterable placeholder="不关联"><el-option v-for="dict in enabledDicts" :key="dict.dictId" :label="dict.name" :value="dict.dictId">{{ dict.name }} / {{ dict.code }} · {{ dictItems(dict).length }} 个枚举值</el-option></el-select></template></el-table-column>
+                  <el-table-column label="字段备注" min-width="220"><template #default="scope"><el-input v-model="scope.row.remark" placeholder="填写备注"></el-input></template></el-table-column>
                 </el-table>
               </el-tab-pane>
-              <el-tab-pane :label="'API 外部数据配置（' + result.api.length + '）'" name="api">
-                <el-table :data="result.api" class="portal-vue-table" border empty-text="未发现 API 外部数据配置下游">
-                  <el-table-column label="接口 / 服务名称" min-width="220"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
-                  <el-table-column prop="consumer" label="使用方" width="220"></el-table-column>
-                  <el-table-column prop="field" label="授权字段" width="200"></el-table-column>
-                  <el-table-column label="状态" width="90" align="center"><template #default="scope"><el-tag type="success" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
-                  <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
-                </el-table>
-              </el-tab-pane>
-              <el-tab-pane :label="'DataX 同步任务（' + result.dx.length + '）'" name="dx">
-                <el-table :data="result.dx" class="portal-vue-table" border empty-text="未发现 DataX 同步任务下游">
-                  <el-table-column label="任务名称" min-width="240"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
-                  <el-table-column prop="target" label="同步目标" width="220"></el-table-column>
-                  <el-table-column prop="freq" label="调度频率" width="130"></el-table-column>
-                  <el-table-column prop="last" label="最近运行" width="160"></el-table-column>
-                  <el-table-column label="状态" width="90" align="center"><template #default="scope"><el-tag type="success" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
-                  <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
-                </el-table>
+              <el-tab-pane label="血缘查询" name="lineage">
+                <div class="portal-vue-toolbar" style="padding:0 0 12px">
+                  <div class="portal-vue-toolbar-left" style="flex-wrap:wrap;row-gap:10px">
+                    <el-input v-model="lineageTable" clearable style="width:420px" placeholder="输入表名，默认当前表" @keyup.enter="runQuery"></el-input>
+                    <el-checkbox v-model="pro" style="margin-left:4px">增强模式（is_pro）</el-checkbox>
+                    <el-input-number v-model="depth" :min="1" :max="10" controls-position="right" style="width:130px"></el-input-number>
+                    <el-select v-model="orderBy" style="width:220px"><el-option label="first — 最早血缘层级优先" value="first"></el-option><el-option label="recent — 最近使用优先" value="recent"></el-option></el-select>
+                    <el-button type="primary" @click="runQuery">🔍 查询</el-button>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin:0 0 14px">
+                  <span class="portal-vue-muted">可查示例：</span>
+                  <el-tag v-for="item in sampleTables" :key="item.name" style="cursor:pointer" effect="plain" @click="queryTable(item.name)">{{ item.cn }}</el-tag>
+                </div>
+                <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;margin-bottom:14px;background:#fafafa"><span class="portal-vue-muted">按表名检索下游使用情况，覆盖 QuickBI 报表 / API 外部数据配置 / DataX 同步任务三类下游（GET · 经分析网关转发 · 原型示意）</span></div>
+                <template v-if="queried">
+                  <div style="display:flex;gap:16px;align-items:center;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:14px;background:#fafafa">
+                    <span class="portal-vue-muted">起点表</span><code class="portal-vue-code">{{ result.key }}</code>
+                    <span class="portal-vue-muted">血缘层级</span><strong>{{ depth }}</strong>
+                    <span class="portal-vue-muted">下游合计</span><strong>{{ total }} 个</strong>
+                  </div>
+                  <el-tabs v-model="cat">
+                    <el-tab-pane :label="'QuickBI 报表（' + result.qb.length + '）'" name="qb">
+                      <el-table :data="result.qb" class="portal-vue-table" border empty-text="未发现 QuickBI 报表下游">
+                        <el-table-column label="看板名称" min-width="220"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+                        <el-table-column prop="id" label="Quick BI ID" width="160"></el-table-column>
+                        <el-table-column prop="field" label="使用字段" width="200"></el-table-column>
+                        <el-table-column prop="freq" label="更新频率" width="140"></el-table-column>
+                        <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
+                      </el-table>
+                    </el-tab-pane>
+                    <el-tab-pane :label="'API 外部数据配置（' + result.api.length + '）'" name="api">
+                      <el-table :data="result.api" class="portal-vue-table" border empty-text="未发现 API 外部数据配置下游">
+                        <el-table-column label="接口 / 服务名称" min-width="220"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+                        <el-table-column prop="consumer" label="使用方" width="220"></el-table-column>
+                        <el-table-column prop="field" label="授权字段" width="200"></el-table-column>
+                        <el-table-column label="状态" width="90" align="center"><template #default="scope"><el-tag type="success" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
+                        <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
+                      </el-table>
+                    </el-tab-pane>
+                    <el-tab-pane :label="'DataX 同步任务（' + result.dx.length + '）'" name="dx">
+                      <el-table :data="result.dx" class="portal-vue-table" border empty-text="未发现 DataX 同步任务下游">
+                        <el-table-column label="任务名称" min-width="240"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+                        <el-table-column prop="target" label="同步目标" width="220"></el-table-column>
+                        <el-table-column prop="freq" label="调度频率" width="130"></el-table-column>
+                        <el-table-column prop="last" label="最近运行" width="160"></el-table-column>
+                        <el-table-column label="状态" width="90" align="center"><template #default="scope"><el-tag type="success" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
+                        <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
+                      </el-table>
+                    </el-tab-pane>
+                  </el-tabs>
+                </template>
+                <el-empty v-else description="查询当前表的下游使用情况，或切换示例表查看其他表的血缘" />
               </el-tab-pane>
             </el-tabs>
+            <div class="api-create-footer">
+              <el-button @click="back">返回表管理</el-button>
+              <el-button type="primary" @click="save">保存配置</el-button>
+            </div>
           </template>
-          <el-empty v-else description="输入表名或点击上方示例表，检索该表的下游 QuickBI 报表、API 外部数据配置与 DataX 同步任务" />
-        </section>
+        </div>
       </el-config-provider>
     `,
     data: () => ({
-      tableName: "",
+      tab: "basic",
+      detail: null,
+      detailDraft: {},
+      cat: "qb",
+      lineageTable: "",
       pro: false,
       depth: 5,
       orderBy: "first",
       queried: false,
-      tab: "qb",
       result: null,
       sampleTables: [
         { name: "dm_ad_plan_daily_media_account_product_performance_detail", cn: "广告计划日报表" },
@@ -3386,12 +3429,47 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       }
     }),
     computed: {
+      headerTitle() { return this.detail ? (this.detail.cnName || this.detail.table) + " · 表详情" : "表详情"; },
+      activeUsers() { return state.users.filter(user => user.status !== "已停用"); },
+      enabledDicts() { refreshTick.value; return state.dictionaries.filter(item => item.status === "启用"); },
+      dictItems() { return dict => enabledDictItems(dict); },
+      callCount() {
+        if (!this.detail) return 0;
+        return state.apis.filter(api => Array.isArray(api.assets) && api.assets.length ? api.assets.some(item => item.database === this.detail.database && item.table === this.detail.table) : api.database === this.detail.database && api.assetTable === this.detail.table).reduce((sum, api) => sum + Number(api.callCount30d || api.callCount || 0), 0);
+      },
       total() { return this.result ? this.result.qb.length + this.result.api.length + this.result.dx.length : 0; }
     },
     methods: {
-      queryTable(name) { this.tableName = name; this.runQuery(); },
+      back() { bridge.setPage("表管理"); },
+      loadDetail() {
+        const asset = bridge.getTableDetailAsset();
+        if (!asset) return;
+        this.detail = asset;
+        const tag = state.tables.find(table => table.name === asset.table);
+        this.detailDraft = { owner: asset.owner || "", desc: asset.desc || "", tagTable: !!tag, dimension: !!asset.dimension, exportFields: [...(tag?.exportFields || [])], fields: asset.fields.map(field => ({ ...field, dictId: field.dictId || "" })) };
+        this.lineageTable = asset.table;
+        this.queried = false;
+        this.result = null;
+        this.tab = "basic";
+        this.cat = "qb";
+      },
+      save() {
+        if (!this.detailDraft.owner) return ep.ElMessage.warning("请选择表负责人");
+        this.detail.owner = this.detailDraft.owner;
+        this.detail.desc = this.detailDraft.desc.trim();
+        this.detail.dimension = !!this.detailDraft.dimension;
+        this.detail.fields.splice(0, this.detail.fields.length, ...this.detailDraft.fields.map(field => ({ ...field, dictId: field.dictId || "" })));
+        if (this.detail.dimension && !Array.isArray(this.detail.rows)) this.detail.rows = [];
+        const tagIndex = state.tables.findIndex(table => table.name === this.detail.table);
+        if (this.detailDraft.tagTable && tagIndex < 0) state.tables.push({ name: this.detail.table, cn: this.detail.cnName || this.detail.table, exportFields: [...this.detailDraft.exportFields], fields: this.detail.fields.map(field => ({ name: field.name, cn: field.comment || field.name, type: this.semanticType(field.type), cov: 80, def: "", calc: "", freq: "", enumv: "" })) });
+        else if (this.detailDraft.tagTable && tagIndex >= 0) state.tables[tagIndex].exportFields = [...this.detailDraft.exportFields];
+        else if (!this.detailDraft.tagTable && tagIndex >= 0) state.tables.splice(tagIndex, 1);
+        notify("表详情配置已保存");
+      },
+      semanticType(type) { const value = String(type || "").toUpperCase(); if (/DATE|TIME/.test(value)) return "日期"; if (/BOOL/.test(value)) return "布尔"; if (/ARRAY/.test(value)) return "数组"; if (/INT|DECIMAL|DOUBLE|FLOAT|BIGINT|NUMERIC/.test(value)) return "数值"; return "文本"; },
+      queryTable(name) { this.lineageTable = name; this.runQuery(); },
       runQuery() {
-        const key = this.tableName.trim();
+        const key = this.lineageTable.trim();
         if (!key) return ep.ElMessage.warning("请输入表名");
         const base = this.lineageMap[key] || { qb: [], api: [], dx: [], proQb: [], proApi: [], proDx: [] };
         this.result = {
@@ -3401,14 +3479,16 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           dx: this.pro ? [...base.dx, ...base.proDx] : [...base.dx]
         };
         this.queried = true;
-        this.tab = "qb";
+        this.cat = "qb";
         const found = this.sampleTables.some(item => item.name === key);
         if (!found) ep.ElMessage.info(`「${key}」未登记下游血缘，可联系表负责人补充`);
       }
-    }
+    },
+    mounted() { this.pageHandler = event => { if (event.detail?.page === "表详情") this.loadDetail(); }; window.addEventListener("portal:page-change", this.pageHandler); },
+    beforeUnmount() { window.removeEventListener("portal:page-change", this.pageHandler); }
   };
 
-  const OpsEnvApp = {
+    const OpsEnvApp = {
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
@@ -3471,7 +3551,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   };
 
   mount("#opsTaskView", OpsTaskApp, "ops-task");
-  mount("#opsLineageView", OpsLineageApp, "ops-lineage");
+  mount("#tableDetailView", TableDetailApp, "table-detail");
   mount("#opsEnvView", OpsEnvApp, "ops-env");
   window.alertVueApi = mount("#alertManagementView", AlertManagementApp, "alert-management");
 

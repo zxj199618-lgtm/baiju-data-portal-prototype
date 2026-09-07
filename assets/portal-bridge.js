@@ -1504,7 +1504,7 @@
         "模型配置": ["模型配置", "管理灵犀智析可用的模型：来自中转站的全部模型，可禁用历史或不可用模型。", ""],
         "任务运维": ["任务运维", "媒体报表数据运维：按广告主账户补拉分时数据、跟踪异步执行日志、对比分时表间消耗差异。", ""],
         "环境域名": ["环境域名", "服务域名、日志与监控入口速查；敏感凭据密文存储，仅后端可见。", ""],
-        "血缘查询": ["血缘查询", "按表名检索下游使用情况，覆盖 QuickBI 报表、API 外部数据配置与 DataX 同步任务三类下游。", ""],
+        "表详情": ["表详情", "", ""],
         "数据看板": ["数据看板", "", "新增看板入口"],
         "看板管理": ["看板管理", "", "新增看板"],
         "表管理": ["表管理", "同步来自 StarRocks 的表和字段元数据，沉淀可对外服务的数据资产。", "新增表"],
@@ -1685,7 +1685,7 @@
         if (page === "人群包推送渠道") return "push";
         if (page === "用户管理" || page === "权限组") return "permission";
         if (page === "菜单管理" || page === "模型配置" || page === "Skill 配置" || page === "任务运维" || page === "环境域名") return "system";
-        if (page === "血缘查询") return "asset";
+        if (page === "表详情") return "asset";
         return "asset";
       }
 
@@ -1757,7 +1757,7 @@
         pageSubtitle.textContent = meta[1];
         primaryAction.textContent = meta[2];
         primaryAction.classList.toggle("hidden", !meta[2]);
-        if (!["Quick BI 展示", "新增API", "新建人群包", "维表数据维护"].includes(page)) upsertTab({ name: meta[0], page, icon: pageIcon(page), closable: page !== "数据看板" });
+        if (!["Quick BI 展示", "新增API", "新建人群包", "维表数据维护", "表详情"].includes(page)) upsertTab({ name: meta[0], page, icon: pageIcon(page), closable: page !== "数据看板" });
         tabsBar.innerHTML = simpleTabs.map(tab => `
           <button class="tab ${tab.page === page && (!Object.prototype.hasOwnProperty.call(tab, "boardIndex") || activeBoard.name === tab.name) ? "active" : ""}" data-simple-tab="${safeText(tab.name)}">
             <img class="nav-icon ${tab.icon}" src="${navIconPath(tab.icon, tab.page === page)}" alt="" aria-hidden="true" /><span>${safeText(tab.name)}</span>
@@ -3006,6 +3006,7 @@
         document.getElementById("opsTaskView")?.classList.toggle("hidden", page !== "任务运维");
         document.getElementById("opsEnvView")?.classList.toggle("hidden", page !== "环境域名");
         document.getElementById("opsLineageView")?.classList.toggle("hidden", page !== "血缘查询");
+        document.getElementById("tableDetailView")?.classList.toggle("hidden", page !== "表详情");
         dataBoardView.classList.toggle("hidden", page !== "数据看板");
         document.getElementById("boardManagementView").classList.toggle("hidden", page !== "看板管理");
         document.getElementById("dataAssetView").classList.toggle("hidden", page !== "表管理");
@@ -3059,6 +3060,7 @@
         document.getElementById("opsTaskView")?.classList.add("hidden");
         document.getElementById("opsEnvView")?.classList.add("hidden");
         document.getElementById("opsLineageView")?.classList.add("hidden");
+        document.getElementById("tableDetailView")?.classList.add("hidden");
         dataBoardView.classList.add("hidden");
         document.getElementById("boardManagementView").classList.add("hidden");
         document.getElementById("dataAssetView").classList.add("hidden");
@@ -3622,7 +3624,9 @@
         copyToken: copyTokenValue,
         notifyDataChange: () => window.dispatchEvent(new CustomEvent("portal:data-change")),
         getDimensionAssetId: () => window.portalDimensionAssetId || "",
-        setDimensionAssetId: value => { window.portalDimensionAssetId = value; }
+        setDimensionAssetId: value => { window.portalDimensionAssetId = value; },
+        getTableDetailAsset: () => window.portalTableDetailAsset || null,
+        setTableDetailAsset: value => { window.portalTableDetailAsset = value; }
       };
 
       renderSimpleUsers();
