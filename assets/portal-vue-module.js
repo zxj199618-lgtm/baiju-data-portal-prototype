@@ -2986,10 +2986,17 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <span class="portal-vue-muted">（GET · 原型示意，不真实调用）</span>
               </div>
               <el-form label-position="top" class="portal-vue-dialog-form">
-                <el-form-item label="广告主 ID（账户） *" required>
+                <el-form-item label="广告主 ID（账户）" required>
                   <el-input v-model="accounts" type="textarea" :rows="3" placeholder="多个账户用逗号分隔，例如：123456,789012"></el-input>
+                  <div class="portal-vue-csv-row">
+                    <el-upload action="#" :auto-upload="false" :show-file-list="false" accept=".csv" :on-change="handleCsvUpload">
+                      <template #trigger><el-button>⬆ Upload</el-button></template>
+                    </el-upload>
+                    <span class="portal-vue-muted">上传账户 CSV（单列账户 ID，最多 1000 个）自动解析合并</span>
+                    <el-button link type="primary" @click="downloadCsvTemplate">⬇ 下载模板</el-button>
+                  </div>
                 </el-form-item>
-                <el-form-item label="时间范围类型 *">
+                <el-form-item label="时间范围类型" required>
                   <el-select v-model="rangeType" style="width:300px" @change="onRangeTypeChange">
                     <el-option label="昨天" value="昨天"></el-option>
                     <el-option label="过去N小时" value="过去N小时"></el-option>
@@ -3012,14 +3019,15 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <el-form-item label="管理员账户 ID">
                   <el-input v-model="adminId" placeholder="可选，逗号分隔"></el-input>
                 </el-form-item>
-                <el-form-item label="应用 ID">
-                  <el-select v-model="appId" clearable filterable placeholder="选择应用（可选）" style="width:320px"><el-option v-for="item in appOptions" :key="item" :label="item" :value="item"></el-option></el-select>
+                <el-form-item label="应用 ID" required>
+                  <el-select v-model="appIdList" multiple filterable placeholder="请选择应用（可多选）" style="width:420px"><el-option v-for="item in appOptions" :key="item" :label="item" :value="item"></el-option></el-select>
                 </el-form-item>
               </el-form>
               <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px">
                 <el-button type="primary" @click="submitBackfill">🚀 重跑</el-button>
                 <el-button plain @click="logDialogVisible=true">📋 执行日志</el-button>
               </div>
+              <p class="portal-vue-muted" style="margin:0 0 6px">补数据任务将分配固定开发者执行，与生产环境隔离互不影响。</p>
               <template v-if="recent.length">
                 <div class="portal-vue-section-line" style="margin-top:22px"><h3>📊 本次执行结果</h3></div>
                 <el-alert type="success" :closable="false" show-icon title="任务已提交" description="接口为异步执行，提交成功仅代表任务已排队，后台完成后自动入库；状态以「执行日志」为准。" style="margin-bottom:12px" />
@@ -3177,15 +3185,15 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         bfApi: "账户分时消耗",
         bfEnv: "生产",
         envOptions: ["生产", "预发"],
-        apiOptions: ["账户分时消耗", "二级计划分时消耗", "创意分时消耗"],
-        apiPaths: { "账户分时消耗": "/bytedance/api/account-hour-cost/account", "二级计划分时消耗": "/bytedance/api/ad-hour-cost/ad", "创意分时消耗": "/bytedance/api/creative-hour-cost/creative" },
+        apiOptions: ["账户分时消耗", "二级计划分时消耗", "创意分时消耗", "账户分天流水", "账户分时消耗（短剧）", "计划分时消耗（短剧）", "创意分时消耗（短剧）", "投放助手调度任务查看", "广告信息", "项目信息", "账户分时消耗（STD）"],
+        apiPaths: { "账户分时消耗": "/bytedance/api/account-hour-cost/account", "二级计划分时消耗": "/bytedance/api/ad-hour-cost/ad", "创意分时消耗": "/bytedance/api/creative-hour-cost/creative", "账户分天流水": "/bytedance/api/account-day-flow/account", "账户分时消耗（短剧）": "/bytedance/api/drama-account-hour-cost/account", "计划分时消耗（短剧）": "/bytedance/api/drama-ad-hour-cost/ad", "创意分时消耗（短剧）": "/bytedance/api/drama-creative-hour-cost/creative", "投放助手调度任务查看": "/bytedance/api/scheduler-task/query", "广告信息": "/bytedance/api/ad-info/ad", "项目信息": "/bytedance/api/project-info/project", "账户分时消耗（STD）": "/bytedance/api/std-account-hour-cost/account" },
         accounts: "20894512, 20894513",
         rangeType: "过去N小时",
         rangeN: 24,
         customRange: null,
         adminId: "",
-        appId: "",
-        appOptions: ["主应用（直投）", "备用应用"],
+        appIdList: [],
+        appOptions: ["伯都（1875017553198140）", "服微（75294102174026）", "小炭（1875282462158952）"],
         recent: [],
         seq: 10079,
         logRange: [day(7), day(7)],
@@ -3273,6 +3281,32 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const defaults = { "过去N小时": 24, "过去N天": 7, "过去N月": 1, "过去N周": 1, "过去第N天": 1 };
         if (value in defaults) this.rangeN = defaults[value];
       },
+      downloadCsvTemplate() {
+        const blob = new Blob(["account_id\n20894512\n20894513\n"], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "广告主ID模板.csv";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      },
+      handleCsvUpload(file) {
+        const raw = (file && file.raw) || file;
+        if (!raw || typeof FileReader === "undefined") return ep.ElMessage.warning("当前浏览器不支持文件读取");
+        const reader = new FileReader();
+        reader.onload = () => {
+          const ids = [...new Set(String(reader.result || "").split(/\r?\n/).map(line => line.trim()).filter(line => /^\d+$/.test(line)))];
+          if (!ids.length) return ep.ElMessage.warning("CSV 中未解析到账户 ID（需要单列纯数字 ID）");
+          const existing = this.accounts.split(/[,，\s]+/).map(item => item.trim()).filter(Boolean);
+          const merged = [...new Set([...existing, ...ids])].slice(0, 1000);
+          this.accounts = merged.join(",");
+          ep.ElMessage.success(`已从 CSV 解析 ${ids.length} 个账户 ID，合并后共 ${merged.length} 个（最多 1000 个）`);
+        };
+        reader.onerror = () => ep.ElMessage.warning("CSV 读取失败，请重试");
+        reader.readAsText(raw);
+      },
       fmt2(value) { return Number(value || 0).toFixed(2); },
       fmtMoney(value) { return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
       copyDiffIds() {
@@ -3292,6 +3326,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       submitBackfill() {
         const list = this.accounts.split(/[,，\s]+/).map(item => item.trim()).filter(Boolean);
         if (!list.length) return ep.ElMessage.warning("「广告主 ID（账户）」不能为空");
+        if (!this.appIdList.length) return ep.ElMessage.warning("请选择「应用 ID」（可多选，至少选择 1 个）");
         if (this.rangeType === "自定义日期" && (!this.customRange || !this.customRange[0])) return ep.ElMessage.warning("请选择自定义日期范围");
         if (["过去N小时", "过去N天", "过去N月", "过去N周", "过去第N天"].includes(this.rangeType) && !(this.rangeN >= 1)) return ep.ElMessage.warning("请填写 N 的取值");
         const now = new Date();
@@ -3299,7 +3334,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const day = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
         const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
         const id = `TR${day.replace(/-/g, "")}${String(this.seq++).padStart(4, "0")}`;
-        const row = { id, day, name: `${this.bfApi} · 按账户重跑`, platform: this.bfPlatform, api: this.bfApi, env: this.bfEnv, accounts: list.length, span: this.spanText, submitAt: `${day} ${time}`, startedAt: "—", cost: "—", status: "执行中", submitter: "曾祥竞", trace: `tcb-${Array.from({ length: 12 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`, reason: "", paramText: `广告主 ID：${list.join(", ")}\n管理员账户 ID：${this.adminId.trim() || "—"}\n应用 ID：${this.appId || "—"}\n时间范围：${this.spanText}` };
+        const row = { id, day, name: `${this.bfApi} · 按账户重跑`, platform: this.bfPlatform, api: this.bfApi, env: this.bfEnv, accounts: list.length, span: this.spanText, submitAt: `${day} ${time}`, startedAt: "—", cost: "—", status: "执行中", submitter: "曾祥竞", trace: `tcb-${Array.from({ length: 12 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`, reason: "", paramText: `广告主 ID：${list.join(", ")}\n管理员账户 ID：${this.adminId.trim() || "—"}\n应用 ID：${this.appIdList.join("、")}\n时间范围：${this.spanText}` };
         this.logs.unshift(row);
         this.recent.unshift({ id: row.id, name: row.name, span: row.span, startedAt: `${day} ${time}`, status: "执行中" });
         this.logPage = 1;

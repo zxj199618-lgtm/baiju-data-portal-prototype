@@ -600,6 +600,9 @@
 .portal-vue-mermaid-figure { margin: 10px 0; padding: 14px; border: 1px solid #dbe8fb; border-radius: 10px; background: #fbfdff; }
 .portal-vue-mermaid-title { font-size: 12px; color: #1677ff; margin-bottom: 8px; }
 
+/* 补数据：CSV 上传行 */
+.portal-vue-csv-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+
 /* 消耗对比：查询表单 */
 .portal-vue-compare-form { max-width: 720px; }
 .portal-vue-compare-dates { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
