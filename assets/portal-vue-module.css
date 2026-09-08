@@ -624,7 +624,6 @@
 .portal-vue-env-group { margin-top: 20px; }
 .portal-vue-env-group-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .portal-vue-env-group-head h3 { margin: 0; font-size: 15px; color: #1f2937; }
-.portal-vue-env-note { margin: 8px 0 0; color: #98a2b3; font-size: 12px; white-space: pre-wrap; }
 .portal-vue-env-addr { overflow-wrap: anywhere; }
 
 /* 血缘查询：查询参数栏 */
