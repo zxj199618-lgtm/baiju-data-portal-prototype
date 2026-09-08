@@ -2990,7 +2990,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-input v-model="accounts" type="textarea" :rows="3" placeholder="多个账户用逗号分隔，例如：123456,789012"></el-input>
                   <div class="portal-vue-csv-row">
                     <el-upload action="#" :auto-upload="false" :show-file-list="false" accept=".csv" :on-change="handleCsvUpload">
-                      <template #trigger><el-button>⬆ Upload</el-button></template>
+                      <template #trigger><el-button>⬆ 上传</el-button></template>
                     </el-upload>
                     <span class="portal-vue-muted">上传账户 CSV（单列账户 ID，最多 1000 个）自动解析合并</span>
                     <el-button link type="primary" @click="downloadCsvTemplate">⬇ 下载模板</el-button>
@@ -3066,7 +3066,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-input v-model="cmpAccount" placeholder="多个账户用逗号分隔，如：12345,67890" style="max-width:480px"></el-input>
                 </el-form-item>
                 <el-form-item label="差异阈值（元）">
-                  <el-input-number v-model="cmpThreshold" :precision="2" :step="0.5" :min="0"></el-input-number>
+                  <el-input-number v-model="cmpThreshold" :precision="2" :step="0.5" :min="0" style="width:200px"></el-input-number>
                 </el-form-item>
               </el-form>
               <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">
@@ -3461,7 +3461,7 @@ function injectStyle(id, css) {
                   <el-skeleton :rows="6" animated />
                 </div>
                 <template v-else-if="queried">
-                  <el-tabs v-model="cat" class="ops-center-tabs">
+                  <el-tabs v-model="cat" class="portal-vue-inner-tabs">
                     <el-tab-pane :label="'QuickBI 报表（' + result.qb.length + '）'" name="qb">
                       <el-table :data="result.qb" class="portal-vue-table" border empty-text="该表无 QuickBI 报表下游">
                         <el-table-column label="sqltable" min-width="220"><template #default="scope"><code class="portal-vue-code">{{ scope.row.sqltable }}</code></template></el-table-column>
@@ -3642,7 +3642,7 @@ function injectStyle(id, css) {
         }, 900);
       }
     },
-    mounted() { injectStyle("ops-center-tabs-style", ".ops-center-tabs > .el-tabs__header { display:flex; justify-content:center; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap { width:auto; flex:none; } .ops-center-tabs > .el-tabs__header .el-tabs__nav { float:none; display:inline-flex; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap::after { left:0; right:0; } .op-full-line > .el-tabs__header { width:100%; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap { width:100% !important; flex:auto !important; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap::after { display:none; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll { width:100%; position:relative; text-align:center; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll::after { content:''; position:absolute; left:0; right:0; bottom:0; height:2px; background-color:var(--el-border-color-light); }"); this.pageHandler = event => { if (event.detail?.page === "表详情") this.loadDetail(); }; window.addEventListener("portal:page-change", this.pageHandler); },
+    mounted() { injectStyle("ops-center-tabs-style", ".ops-center-tabs > .el-tabs__header { display:flex; justify-content:center; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap { width:auto; flex:none; } .ops-center-tabs > .el-tabs__header .el-tabs__nav { float:none; display:inline-flex; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap::after { left:0; right:0; } .op-full-line > .el-tabs__header { width:100%; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap { width:100% !important; flex:auto !important; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap::after { display:none; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll { width:100%; position:relative; display:flex; justify-content:center; text-align:center; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll::after { content:''; position:absolute; left:0; right:0; bottom:0; height:2px; background-color:var(--el-border-color-light); }"); this.pageHandler = event => { if (event.detail?.page === "表详情") this.loadDetail(); }; window.addEventListener("portal:page-change", this.pageHandler); },
     beforeUnmount() { clearTimeout(this.lineageTimer); window.removeEventListener("portal:page-change", this.pageHandler); }
   };
 

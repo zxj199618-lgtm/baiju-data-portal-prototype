@@ -606,6 +606,7 @@
 .portal-vue-dialog-form .portal-vue-compare-dates { flex: 0 0 100%; }
 .portal-vue-dialog-form .portal-vue-span-text { flex: 0 0 100%; }
 .portal-vue-compare-dates .portal-vue-muted { white-space: nowrap; }
+.portal-vue-dialog-form .portal-vue-compare-dates .el-input-number { width: 140px; }
 .portal-vue-compare-form .el-form-item__content { flex-direction: column; align-items: flex-start; }
 
 /* 消耗对比：查询表单 */
@@ -625,6 +626,10 @@
 .portal-vue-env-group-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .portal-vue-env-group-head h3 { margin: 0; font-size: 15px; color: #1f2937; }
 .portal-vue-env-addr { overflow-wrap: anywhere; }
+
+/* 血缘查询：内层结果 tab 靠左（与顶层居中 tab 区分） */
+.portal-vue-inner-tabs > .el-tabs__header { margin: 0 0 14px; }
+.portal-vue-inner-tabs > .el-tabs__header .el-tabs__item { font-weight: 650; }
 
 /* 血缘查询：查询参数栏 */
 .portal-vue-lineage-bar { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; padding: 12px 14px; border: 1px solid #e9edf4; border-radius: 8px; background: #fbfcfe; }
