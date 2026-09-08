@@ -627,6 +627,9 @@
 .portal-vue-env-group-head h3 { margin: 0; font-size: 15px; color: #1f2937; }
 .portal-vue-env-addr { overflow-wrap: anywhere; }
 
+/* 表详情只读表单：label 加粗 */
+.portal-vue-readonly-form .el-form-item__label { font-weight: 700; color: #1f2937; }
+
 /* 血缘查询：内层结果 tab 靠左（与顶层居中 tab 区分） */
 .portal-vue-inner-tabs > .el-tabs__header { margin: 0 0 14px; }
 .portal-vue-inner-tabs > .el-tabs__header .el-tabs__item { font-weight: 650; }

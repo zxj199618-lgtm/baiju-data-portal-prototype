@@ -3425,7 +3425,7 @@ function injectStyle(id, css) {
                   <div class="portal-vue-section-line"><h3>维表设置</h3><el-checkbox v-model="detailDraft.dimension">设为维表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「维表管理」，可在线维护行数据。</p></div>
                   <div v-if="detailDraft.tagTable" class="portal-vue-section-line"><h3>人群包导出字段配置</h3><el-checkbox-group v-model="detailDraft.exportFields" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px"><el-checkbox v-for="field in detail.fields" :key="field.name" :value="field.name">{{ field.name }} / {{ field.comment || field.type }}</el-checkbox></el-checkbox-group></div>
                 </el-form>
-                <el-form v-else label-position="top" class="portal-vue-dialog-form" style="max-width:760px">
+                <el-form v-else label-position="top" class="portal-vue-dialog-form portal-vue-readonly-form" style="max-width:760px">
                   <el-form-item label="表负责人"><span>{{ detailDraft.owner || "—" }}</span></el-form-item>
                   <el-form-item label="表描述"><span style="white-space:pre-wrap">{{ detailDraft.desc || "—" }}</span></el-form-item>
                   <div class="portal-vue-section-line"><h3>标签表设置</h3><el-checkbox :model-value="detailDraft.tagTable" disabled>设为标签表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「标签管理」</p></div>
