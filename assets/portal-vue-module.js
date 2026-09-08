@@ -2976,9 +2976,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-tab-pane label="🔄 补数据" name="backfill">
               <div class="portal-vue-toolbar" style="margin-bottom:14px">
                 <div class="portal-vue-toolbar-left">
+                  <el-select v-model="bfEnv" style="width:110px"><el-option v-for="item in envOptions" :key="item" :label="item" :value="item"></el-option></el-select>
                   <el-select v-model="bfPlatform" style="width:190px"><el-option v-for="item in platforms" :key="item" :label="item" :value="item"></el-option></el-select>
                   <el-select v-model="bfApi" style="width:200px"><el-option v-for="item in apiOptions" :key="item" :label="item" :value="item"></el-option></el-select>
-                  <el-select v-model="bfEnv" style="width:110px"><el-option v-for="item in envOptions" :key="item" :label="item" :value="item"></el-option></el-select>
                 </div>
               </div>
               <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;margin-bottom:16px;background:#fafafa">
@@ -2990,12 +2990,22 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-input v-model="accounts" type="textarea" :rows="3" placeholder="多个账户用逗号分隔，例如：123456,789012"></el-input>
                 </el-form-item>
                 <el-form-item label="时间范围类型 *">
-                  <el-radio-group v-model="rangeType">
-                    <el-radio-button label="当天"></el-radio-button>
-                    <el-radio-button label="近 3 天"></el-radio-button>
-                    <el-radio-button label="近 7 天"></el-radio-button>
-                    <el-radio-button label="自定义日期"></el-radio-button>
-                  </el-radio-group>
+                  <el-select v-model="rangeType" style="width:300px" @change="onRangeTypeChange">
+                    <el-option label="昨天" value="昨天"></el-option>
+                    <el-option label="过去N小时" value="过去N小时"></el-option>
+                    <el-option label="过去N天" value="过去N天"></el-option>
+                    <el-option label="当月" value="当月"></el-option>
+                    <el-option label="上月" value="上月"></el-option>
+                    <el-option label="过去N月" value="过去N月"></el-option>
+                    <el-option label="过去N周" value="过去N周"></el-option>
+                    <el-option label="过去第N天" value="过去第N天"></el-option>
+                    <el-option label="自定义日期" value="自定义日期"></el-option>
+                  </el-select>
+                  <div v-if="rangeType === '过去N小时'" class="portal-vue-compare-dates"><span class="portal-vue-muted">过去</span><el-input-number v-model="rangeN" :min="1" :max="720" size="small"></el-input-number><span class="portal-vue-muted">小时</span></div>
+                  <div v-if="rangeType === '过去N天'" class="portal-vue-compare-dates"><span class="portal-vue-muted">过去</span><el-input-number v-model="rangeN" :min="1" :max="365" size="small"></el-input-number><span class="portal-vue-muted">天</span></div>
+                  <div v-if="rangeType === '过去N月'" class="portal-vue-compare-dates"><span class="portal-vue-muted">过去</span><el-input-number v-model="rangeN" :min="1" :max="12" size="small"></el-input-number><span class="portal-vue-muted">月</span></div>
+                  <div v-if="rangeType === '过去N周'" class="portal-vue-compare-dates"><span class="portal-vue-muted">过去</span><el-input-number v-model="rangeN" :min="1" :max="52" size="small"></el-input-number><span class="portal-vue-muted">周</span></div>
+                  <div v-if="rangeType === '过去第N天'" class="portal-vue-compare-dates"><span class="portal-vue-muted">过去第</span><el-input-number v-model="rangeN" :min="1" :max="365" size="small"></el-input-number><span class="portal-vue-muted">天</span></div>
                   <el-date-picker v-if="rangeType === '自定义日期'" v-model="customRange" type="daterange" value-format="YYYY-MM-DD" unlink-panels start-placeholder="开始日期" end-placeholder="结束日期" style="width:320px;margin-top:10px"></el-date-picker>
                   <p class="portal-vue-muted" style="margin-top:6px">补数窗口：{{ spanText }}</p>
                 </el-form-item>
@@ -3170,7 +3180,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         apiOptions: ["账户分时消耗", "二级计划分时消耗", "创意分时消耗"],
         apiPaths: { "账户分时消耗": "/bytedance/api/account-hour-cost/account", "二级计划分时消耗": "/bytedance/api/ad-hour-cost/ad", "创意分时消耗": "/bytedance/api/creative-hour-cost/creative" },
         accounts: "20894512, 20894513",
-        rangeType: "当天",
+        rangeType: "过去N小时",
+        rangeN: 24,
         customRange: null,
         adminId: "",
         appId: "",
@@ -3212,6 +3223,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       apiPath() { return this.apiPaths[this.bfApi] || ""; },
       spanText() {
         if (this.rangeType === "自定义日期") return this.customRange && this.customRange[0] ? `${this.customRange[0]} ~ ${this.customRange[1]}` : "自定义日期";
+        if (this.rangeType === "过去第N天") return `过去第${this.rangeN || 1}天`;
+        const unit = { "过去N小时": "小时", "过去N天": "天", "过去N月": "月", "过去N周": "周" }[this.rangeType];
+        if (unit) return `过去${this.rangeN || 1}${unit}`;
         return this.rangeType;
       },
       filteredLogs() {
@@ -3255,6 +3269,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     methods: {
       statusType(status) { if (status === "成功") return "success"; if (status === "失败") return "danger"; if (status === "执行中") return "warning"; return "info"; },
       pad(value) { return String(value).padStart(2, "0"); },
+      onRangeTypeChange(value) {
+        const defaults = { "过去N小时": 24, "过去N天": 7, "过去N月": 1, "过去N周": 1, "过去第N天": 1 };
+        if (value in defaults) this.rangeN = defaults[value];
+      },
       fmt2(value) { return Number(value || 0).toFixed(2); },
       fmtMoney(value) { return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
       copyDiffIds() {
@@ -3275,6 +3293,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const list = this.accounts.split(/[,，\s]+/).map(item => item.trim()).filter(Boolean);
         if (!list.length) return ep.ElMessage.warning("「广告主 ID（账户）」不能为空");
         if (this.rangeType === "自定义日期" && (!this.customRange || !this.customRange[0])) return ep.ElMessage.warning("请选择自定义日期范围");
+        if (["过去N小时", "过去N天", "过去N月", "过去N周", "过去第N天"].includes(this.rangeType) && !(this.rangeN >= 1)) return ep.ElMessage.warning("请填写 N 的取值");
         const now = new Date();
         const pad = value => String(value).padStart(2, "0");
         const day = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
