@@ -3299,7 +3299,7 @@ function injectStyle(id, css) {
               <div><span>字段数量</span><strong>{{ detail.fields.length }}</strong></div>
               <div><span>近30日调用</span><strong>{{ callCount.toLocaleString() }}</strong></div>
             </div>
-            <el-tabs v-model="tab" class="ops-center-tabs" style="margin-top:8px" @tab-change="onTabChange">
+            <el-tabs v-model="tab" class="ops-center-tabs op-full-line" style="margin-top:8px" @tab-change="onTabChange">
               <el-tab-pane label="基本配置" name="basic">
                 <div class="portal-vue-toolbar" style="padding:0 0 14px">
                   <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">{{ editingBasic ? "编辑中：调整后点击底部「保存配置」生效" : "当前为只读展示，点击右上角「编辑」后可修改" }}</span></div>
@@ -3318,47 +3318,29 @@ function injectStyle(id, css) {
                   <div class="portal-vue-section-line"><h3>维表设置</h3><el-checkbox v-model="detailDraft.dimension">设为维表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「维表管理」，可在线维护行数据。</p></div>
                   <div v-if="detailDraft.tagTable" class="portal-vue-section-line"><h3>人群包导出字段配置</h3><el-checkbox-group v-model="detailDraft.exportFields" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px"><el-checkbox v-for="field in detail.fields" :key="field.name" :value="field.name">{{ field.name }} / {{ field.comment || field.type }}</el-checkbox></el-checkbox-group></div>
                 </el-form>
-                <div v-else class="portal-vue-dim-meta" style="max-width:820px">
-                  <div><span>表负责人</span><strong>{{ detailDraft.owner || "—" }}</strong></div>
-                  <div><span>表描述</span><strong style="white-space:normal">{{ detailDraft.desc || "—" }}</strong></div>
-                  <div><span>标签表</span><strong>{{ detailDraft.tagTable ? "是" : "否" }}</strong></div>
-                  <div><span>维表</span><strong>{{ detailDraft.dimension ? "是" : "否" }}</strong></div>
-                  <div v-if="detailDraft.exportFields.length"><span>导出字段</span><strong style="white-space:normal">{{ detailDraft.exportFields.join("、") }}</strong></div>
-                </div>
+                <el-form v-else label-position="top" class="portal-vue-dialog-form" style="max-width:760px">
+                  <el-form-item label="表负责人"><span>{{ detailDraft.owner || "—" }}</span></el-form-item>
+                  <el-form-item label="表描述"><span style="white-space:pre-wrap">{{ detailDraft.desc || "—" }}</span></el-form-item>
+                  <div class="portal-vue-section-line"><h3>标签表设置</h3><el-checkbox :model-value="detailDraft.tagTable" disabled>设为标签表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「标签管理」</p></div>
+                  <div class="portal-vue-section-line"><h3>维表设置</h3><el-checkbox :model-value="detailDraft.dimension" disabled>设为维表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「维表管理」，可在线维护行数据。</p></div>
+                  <div v-if="detailDraft.exportFields.length" class="portal-vue-section-line"><h3>人群包导出字段配置</h3><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px"><el-checkbox v-for="field in detail.fields" :key="field.name" :model-value="detailDraft.exportFields.includes(field.name)" disabled>{{ field.name }} / {{ field.comment || field.type }}</el-checkbox></div></div>
+                </el-form>
               </el-tab-pane>
               <el-tab-pane label="字段配置" name="fields">
                 <div class="portal-vue-toolbar" style="padding:0 0 14px">
-                  <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">{{ editingFields ? "编辑中：调整后点击底部「保存配置」生效" : "字段来自 StarRocks 同步，点击右上角「编辑」后可配置关联字典与备注" }}</span></div>
-                  <div class="portal-vue-actions"><el-button v-if="!editingFields" type="primary" plain @click="editingFields=true">✎ 编辑</el-button><el-button v-else @click="cancelFields">取消编辑</el-button></div>
+                  <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">字段来自 StarRocks 同步，关联字典与备注可直接修改，改动后点击行内「保存」生效</span></div>
                 </div>
                 <el-table :data="detailDraft.fields" class="portal-vue-table" border empty-text="暂无字段">
                   <el-table-column prop="name" label="字段名称" width="180"></el-table-column>
                   <el-table-column prop="type" label="字段类型" width="120"></el-table-column>
                   <el-table-column prop="comment" label="字段中文名" width="150"></el-table-column>
-                  <el-table-column label="关联字典" min-width="260"><template #default="scope"><el-select v-if="editingFields" v-model="scope.row.dictId" clearable filterable placeholder="不关联"><el-option v-for="dict in enabledDicts" :key="dict.dictId" :label="dict.name" :value="dict.dictId">{{ dict.name }} / {{ dict.code }} · {{ dictItems(dict).length }} 个枚举值</el-option></el-select><span v-else>{{ dictName(scope.row.dictId) || "不关联" }}</span></template></el-table-column>
-                  <el-table-column label="字段备注" min-width="220"><template #default="scope"><el-input v-if="editingFields" v-model="scope.row.remark" placeholder="填写备注"></el-input><span v-else>{{ scope.row.remark || "—" }}</span></template></el-table-column>
+                  <el-table-column label="关联字典" min-width="260"><template #default="scope"><el-select v-model="scope.row.dictId" clearable filterable placeholder="不关联"><el-option v-for="dict in enabledDicts" :key="dict.dictId" :label="dict.name" :value="dict.dictId">{{ dict.name }} / {{ dict.code }} · {{ dictItems(dict).length }} 个枚举值</el-option></el-select></template></el-table-column>
+                  <el-table-column label="字段备注" min-width="220"><template #default="scope"><el-input v-model="scope.row.remark" placeholder="填写备注"></el-input></template></el-table-column>
+                  <el-table-column label="操作" width="110" align="center"><template #default="scope"><template v-if="fieldDirty(scope.row)"><el-button link @click="revertField(scope.row)">取消</el-button><el-button link type="primary" @click="confirmField(scope.row)">保存</el-button></template></template></el-table-column>
                 </el-table>
               </el-tab-pane>
               <el-tab-pane label="血缘查询" name="lineage">
-                <div class="portal-vue-toolbar" style="padding:0 0 12px">
-                  <div class="portal-vue-toolbar-left" style="flex-wrap:wrap;row-gap:10px">
-                    <span class="portal-vue-muted">起点表</span><code class="portal-vue-code">{{ lineageTable }}</code>
-                    <el-checkbox v-model="pro" style="margin-left:6px" @change="runQuery">增强模式（is_pro）</el-checkbox>
-                    <el-input-number v-model="depth" :min="1" :max="10" controls-position="right" style="width:130px" @change="runQuery"></el-input-number>
-                    <el-select v-model="orderBy" style="width:220px" @change="runQuery"><el-option label="first — 最早血缘层级优先" value="first"></el-option><el-option label="recent — 最近使用优先" value="recent"></el-option></el-select>
-                  </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;margin:0 0 14px">
-                  <span class="portal-vue-muted">可查示例：</span>
-                  <el-tag v-for="item in sampleTables" :key="item.name" style="cursor:pointer" effect="plain" @click="queryTable(item.name)">{{ item.cn }}</el-tag>
-                </div>
-                <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;margin-bottom:14px;background:#fafafa"><span class="portal-vue-muted">按表名检索下游使用情况，覆盖 QuickBI 报表 / API 外部数据配置 / DataX 同步任务三类下游（GET · 经分析网关转发 · 原型示意）</span></div>
                 <template v-if="queried">
-                  <div style="display:flex;gap:16px;align-items:center;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:14px;background:#fafafa">
-                    <span class="portal-vue-muted">起点表</span><code class="portal-vue-code">{{ result.key }}</code>
-                    <span class="portal-vue-muted">血缘层级</span><strong>{{ depth }}</strong>
-                    <span class="portal-vue-muted">下游合计</span><strong>{{ total }} 个</strong>
-                  </div>
                   <el-tabs v-model="cat" class="ops-center-tabs">
                     <el-tab-pane :label="'QuickBI 报表（' + result.qb.length + '）'" name="qb">
                       <el-table :data="result.qb" class="portal-vue-table" border empty-text="未发现 QuickBI 报表下游">
@@ -3393,12 +3375,9 @@ function injectStyle(id, css) {
                 <el-empty v-else description="查询当前表的下游使用情况，或切换示例表查看其他表的血缘" />
               </el-tab-pane>
             </el-tabs>
-            <div class="api-create-footer">
-              <el-button @click="back">返回表管理</el-button>
-              <template v-if="editingBasic || editingFields">
-                <el-button @click="cancelEdit">取消</el-button>
-                <el-button type="primary" @click="saveActive">保存配置</el-button>
-              </template>
+            <div v-if="editingBasic" class="api-create-footer">
+              <el-button @click="cancelBasic">取消</el-button>
+              <el-button type="primary" @click="saveBasic">保存配置</el-button>
             </div>
           </template>
         </div>
@@ -3407,21 +3386,12 @@ function injectStyle(id, css) {
     data: () => ({
       tab: "basic",
       editingBasic: false,
-      editingFields: false,
       detail: null,
       detailDraft: {},
       cat: "qb",
       lineageTable: "",
-      pro: false,
-      depth: 5,
-      orderBy: "first",
       queried: false,
       result: null,
-      sampleTables: [
-        { name: "dm_ad_plan_daily_media_account_product_performance_detail", cn: "广告计划日报表" },
-        { name: "dwd_user_profile_tag", cn: "用户画像标签明细表" },
-        { name: "ads_rta_request_hour", cn: "RTA 请求小时监控表" }
-      ],
       lineageMap: {
         "dm_ad_plan_daily_media_account_product_performance_detail": {
           qb: [
@@ -3478,16 +3448,11 @@ function injectStyle(id, css) {
         this.tab = "basic";
         this.cat = "qb";
         this.editingBasic = false;
-        this.editingFields = false;
         this.runQuery();
       },
       rebuildDraft() {
         const tag = state.tables.find(table => table.name === this.detail.table);
         this.detailDraft = { owner: this.detail.owner || "", desc: this.detail.desc || "", tagTable: !!tag, dimension: !!this.detail.dimension, exportFields: [...(tag?.exportFields || [])], fields: this.detail.fields.map(field => ({ ...field, dictId: field.dictId || "" })) };
-      },
-      saveActive() {
-        if (this.tab === "basic") this.saveBasic();
-        else if (this.tab === "fields") this.saveFields();
       },
       saveBasic() {
         if (!this.detailDraft.owner) return ep.ElMessage.warning("请选择表负责人");
@@ -3502,39 +3467,42 @@ function injectStyle(id, css) {
         this.editingBasic = false;
         notify("基本配置已保存");
       },
-      saveFields() {
-        this.detail.fields.splice(0, this.detail.fields.length, ...this.detailDraft.fields.map(field => ({ ...field, dictId: field.dictId || "" })));
-        this.editingFields = false;
-        notify("字段配置已保存");
+      fieldDirty(row) {
+        const origin = this.detail.fields.find(field => field.name === row.name);
+        if (!origin) return false;
+        return (origin.dictId || "") !== (row.dictId || "") || (origin.remark || "") !== (row.remark || "");
+      },
+      confirmField(row) {
+        const origin = this.detail.fields.find(field => field.name === row.name);
+        if (origin) Object.assign(origin, { dictId: row.dictId || "", remark: row.remark || "" });
+        notify(`字段「${row.name}」配置已保存`);
+      },
+      revertField(row) {
+        const origin = this.detail.fields.find(field => field.name === row.name);
+        if (origin) Object.assign(row, { dictId: origin.dictId || "", remark: origin.remark || "" });
       },
       cancelBasic() { this.rebuildDraft(); this.editingBasic = false; },
-      cancelFields() { this.rebuildDraft(); this.editingFields = false; },
-      cancelEdit() { if (this.tab === "basic") this.cancelBasic(); else if (this.tab === "fields") this.cancelFields(); },
+      cancelEdit() { if (this.tab === "basic") this.cancelBasic(); },
       onTabChange(name) {
         if (name === "lineage" && !this.result) this.runQuery();
-        const editing = (this.tab === "basic" && this.editingBasic) || (this.tab === "fields" && this.editingFields);
-        if (editing && name !== this.tab) ep.ElMessage.warning("当前有未保存的编辑，请先保存或取消");
+        if (this.editingBasic && name !== this.tab) ep.ElMessage.warning("当前有未保存的编辑，请先保存或取消");
       },
       dictName(dictId) { const dict = this.enabledDicts.find(item => item.dictId === dictId); return dict ? dict.name : ""; },
       semanticType(type) { const value = String(type || "").toUpperCase(); if (/DATE|TIME/.test(value)) return "日期"; if (/BOOL/.test(value)) return "布尔"; if (/ARRAY/.test(value)) return "数组"; if (/INT|DECIMAL|DOUBLE|FLOAT|BIGINT|NUMERIC/.test(value)) return "数值"; return "文本"; },
-      queryTable(name) { this.lineageTable = name; this.runQuery(); },
       runQuery() {
         const key = this.lineageTable.trim();
-        if (!key) return ep.ElMessage.warning("请输入表名");
         const base = this.lineageMap[key] || { qb: [], api: [], dx: [], proQb: [], proApi: [], proDx: [] };
         this.result = {
           key,
-          qb: this.pro ? [...base.qb, ...base.proQb] : [...base.qb],
-          api: this.pro ? [...base.api, ...base.proApi] : [...base.api],
-          dx: this.pro ? [...base.dx, ...base.proDx] : [...base.dx]
+          qb: [...base.qb],
+          api: [...base.api],
+          dx: [...base.dx]
         };
         this.queried = true;
         this.cat = "qb";
-        const found = this.sampleTables.some(item => item.name === key);
-        if (!found) ep.ElMessage.info(`「${key}」未登记下游血缘，可联系表负责人补充`);
       }
     },
-    mounted() { injectStyle("ops-center-tabs-style", ".ops-center-tabs > .el-tabs__header { display:flex; justify-content:center; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap { width:auto; flex:none; } .ops-center-tabs > .el-tabs__header .el-tabs__nav { float:none; display:inline-flex; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap::after { left:0; right:0; }"); this.pageHandler = event => { if (event.detail?.page === "表详情") this.loadDetail(); }; window.addEventListener("portal:page-change", this.pageHandler); },
+    mounted() { injectStyle("ops-center-tabs-style", ".ops-center-tabs > .el-tabs__header { display:flex; justify-content:center; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap { width:auto; flex:none; } .ops-center-tabs > .el-tabs__header .el-tabs__nav { float:none; display:inline-flex; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap::after { left:0; right:0; } .op-full-line > .el-tabs__header { width:100%; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap { width:100% !important; flex:auto !important; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap::after { display:none; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll { width:100%; position:relative; text-align:center; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll::after { content:''; position:absolute; left:0; right:0; bottom:0; height:2px; background-color:var(--el-border-color-light); }"); this.pageHandler = event => { if (event.detail?.page === "表详情") this.loadDetail(); }; window.addEventListener("portal:page-change", this.pageHandler); },
     beforeUnmount() { window.removeEventListener("portal:page-change", this.pageHandler); }
   };
 
