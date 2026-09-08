@@ -3340,7 +3340,14 @@ function injectStyle(id, css) {
                 </el-table>
               </el-tab-pane>
               <el-tab-pane label="血缘查询" name="lineage">
-                <template v-if="queried">
+                <div v-if="lineageLoading" class="portal-vue-lineage-loading">
+                  <div class="portal-vue-lineage-loading-head">
+                    <span class="portal-vue-lineage-spinner"><i></i><i></i><i></i></span>
+                    <div><div class="portal-vue-lineage-loading-text">正在查询血缘关系，请稍候…</div><div class="portal-vue-lineage-loading-sub">正在扫描 QuickBI 报表 · API 外部数据配置 · DataX 同步任务</div></div>
+                  </div>
+                  <el-skeleton :rows="6" animated />
+                </div>
+                <template v-else-if="queried">
                   <el-tabs v-model="cat" class="ops-center-tabs">
                     <el-tab-pane :label="'QuickBI 报表（' + result.qb.length + '）'" name="qb">
                       <el-table :data="result.qb" class="portal-vue-table" border empty-text="未发现 QuickBI 报表下游">
@@ -3391,6 +3398,8 @@ function injectStyle(id, css) {
       cat: "qb",
       lineageTable: "",
       queried: false,
+      lineageLoading: false,
+      lineageTimer: null,
       result: null,
       lineageMap: {
         "dm_ad_plan_daily_media_account_product_performance_detail": {
@@ -3443,12 +3452,13 @@ function injectStyle(id, css) {
         this.detail = asset;
         this.rebuildDraft();
         this.lineageTable = asset.table;
+        clearTimeout(this.lineageTimer);
+        this.lineageLoading = false;
         this.queried = false;
         this.result = null;
         this.tab = "basic";
         this.cat = "qb";
         this.editingBasic = false;
-        this.runQuery();
       },
       rebuildDraft() {
         const tag = state.tables.find(table => table.name === this.detail.table);
@@ -3484,26 +3494,33 @@ function injectStyle(id, css) {
       cancelBasic() { this.rebuildDraft(); this.editingBasic = false; },
       cancelEdit() { if (this.tab === "basic") this.cancelBasic(); },
       onTabChange(name) {
-        if (name === "lineage" && !this.result) this.runQuery();
+        if (name === "lineage" && !this.result && !this.lineageLoading) this.runQuery();
         if (this.editingBasic && name !== this.tab) ep.ElMessage.warning("当前有未保存的编辑，请先保存或取消");
       },
       dictName(dictId) { const dict = this.enabledDicts.find(item => item.dictId === dictId); return dict ? dict.name : ""; },
       semanticType(type) { const value = String(type || "").toUpperCase(); if (/DATE|TIME/.test(value)) return "日期"; if (/BOOL/.test(value)) return "布尔"; if (/ARRAY/.test(value)) return "数组"; if (/INT|DECIMAL|DOUBLE|FLOAT|BIGINT|NUMERIC/.test(value)) return "数值"; return "文本"; },
       runQuery() {
-        const key = this.lineageTable.trim();
-        const base = this.lineageMap[key] || { qb: [], api: [], dx: [], proQb: [], proApi: [], proDx: [] };
-        this.result = {
-          key,
-          qb: [...base.qb],
-          api: [...base.api],
-          dx: [...base.dx]
-        };
-        this.queried = true;
-        this.cat = "qb";
+        if (this.lineageLoading) return;
+        this.lineageLoading = true;
+        this.queried = false;
+        clearTimeout(this.lineageTimer);
+        this.lineageTimer = setTimeout(() => {
+          const key = this.lineageTable.trim();
+          const base = this.lineageMap[key] || { qb: [], api: [], dx: [], proQb: [], proApi: [], proDx: [] };
+          this.result = {
+            key,
+            qb: [...base.qb],
+            api: [...base.api],
+            dx: [...base.dx]
+          };
+          this.queried = true;
+          this.lineageLoading = false;
+          this.cat = "qb";
+        }, 900);
       }
     },
     mounted() { injectStyle("ops-center-tabs-style", ".ops-center-tabs > .el-tabs__header { display:flex; justify-content:center; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap { width:auto; flex:none; } .ops-center-tabs > .el-tabs__header .el-tabs__nav { float:none; display:inline-flex; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap::after { left:0; right:0; } .op-full-line > .el-tabs__header { width:100%; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap { width:100% !important; flex:auto !important; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap::after { display:none; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll { width:100%; position:relative; text-align:center; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll::after { content:''; position:absolute; left:0; right:0; bottom:0; height:2px; background-color:var(--el-border-color-light); }"); this.pageHandler = event => { if (event.detail?.page === "表详情") this.loadDetail(); }; window.addEventListener("portal:page-change", this.pageHandler); },
-    beforeUnmount() { window.removeEventListener("portal:page-change", this.pageHandler); }
+    beforeUnmount() { clearTimeout(this.lineageTimer); window.removeEventListener("portal:page-change", this.pageHandler); }
   };
 
     const OpsEnvApp = {
