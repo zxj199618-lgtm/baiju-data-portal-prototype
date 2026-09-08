@@ -3340,6 +3340,12 @@ function injectStyle(id, css) {
                 </el-table>
               </el-tab-pane>
               <el-tab-pane label="血缘查询" name="lineage">
+                <div class="portal-vue-lineage-bar">
+                  <el-checkbox v-model="isPro" @change="runQuery">增强模式 (is_pro)</el-checkbox>
+                  <div class="portal-vue-lineage-field"><span>血缘层级 (is_for)</span><el-input-number v-model="isFor" :min="1" :max="10" size="small" @change="runQuery"></el-input-number></div>
+                  <div class="portal-vue-lineage-field"><span>排序模式 (order_by)</span><el-select v-model="orderBy" size="small" style="width:220px" @change="runQuery"><el-option label="first — 最早血缘层级" value="first"></el-option><el-option label="last — 最晚血缘层级" value="last"></el-option></el-select></div>
+                  <el-button type="primary" :loading="lineageLoading" @click="runQuery">查询</el-button>
+                </div>
                 <div v-if="lineageLoading" class="portal-vue-lineage-loading">
                   <div class="portal-vue-lineage-loading-head">
                     <span class="portal-vue-lineage-spinner"><i></i><i></i><i></i></span>
@@ -3350,16 +3356,17 @@ function injectStyle(id, css) {
                 <template v-else-if="queried">
                   <el-tabs v-model="cat" class="ops-center-tabs">
                     <el-tab-pane :label="'QuickBI 报表（' + result.qb.length + '）'" name="qb">
-                      <el-table :data="result.qb" class="portal-vue-table" border empty-text="未发现 QuickBI 报表下游">
-                        <el-table-column label="看板名称" min-width="220"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
-                        <el-table-column prop="id" label="Quick BI ID" width="160"></el-table-column>
-                        <el-table-column prop="field" label="使用字段" width="200"></el-table-column>
-                        <el-table-column prop="freq" label="更新频率" width="140"></el-table-column>
-                        <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
+                      <el-table :data="result.qb" class="portal-vue-table" border empty-text="该表无 QuickBI 下游">
+                        <el-table-column label="sqltable" min-width="220"><template #default="scope"><code class="portal-vue-code">{{ scope.row.sqltable }}</code></template></el-table-column>
+                        <el-table-column label="数据集名称" min-width="200"><template #default="scope"><span class="portal-vue-name">{{ scope.row.datasetName }}</span></template></el-table-column>
+                        <el-table-column label="数据集id" width="300"><template #default="scope"><code class="portal-vue-code">{{ scope.row.datasetId }}</code></template></el-table-column>
+                        <el-table-column label="报表名称" min-width="200"><template #default="scope"><span class="portal-vue-name">{{ scope.row.reportName }}</span></template></el-table-column>
+                        <el-table-column label="报表id" width="300"><template #default="scope"><code class="portal-vue-code">{{ scope.row.reportId }}</code></template></el-table-column>
+                        <el-table-column label="最后修改人" width="120"><template #default="scope"><span>{{ scope.row.modifier }}</span></template></el-table-column>
                       </el-table>
                     </el-tab-pane>
                     <el-tab-pane :label="'API 外部数据配置（' + result.api.length + '）'" name="api">
-                      <el-table :data="result.api" class="portal-vue-table" border empty-text="未发现 API 外部数据配置下游">
+                      <el-table :data="result.api" class="portal-vue-table" border empty-text="该表无 API 配置下游">
                         <el-table-column label="接口 / 服务名称" min-width="220"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
                         <el-table-column prop="consumer" label="使用方" width="220"></el-table-column>
                         <el-table-column prop="field" label="授权字段" width="200"></el-table-column>
@@ -3368,7 +3375,7 @@ function injectStyle(id, css) {
                       </el-table>
                     </el-tab-pane>
                     <el-tab-pane :label="'DataX 同步任务（' + result.dx.length + '）'" name="dx">
-                      <el-table :data="result.dx" class="portal-vue-table" border empty-text="未发现 DataX 同步任务下游">
+                      <el-table :data="result.dx" class="portal-vue-table" border empty-text="该表无 DataX 同步下游">
                         <el-table-column label="任务名称" min-width="240"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
                         <el-table-column prop="target" label="同步目标" width="220"></el-table-column>
                         <el-table-column prop="freq" label="调度频率" width="130"></el-table-column>
@@ -3400,12 +3407,15 @@ function injectStyle(id, css) {
       queried: false,
       lineageLoading: false,
       lineageTimer: null,
+      isPro: false,
+      isFor: 5,
+      orderBy: "first",
       result: null,
       lineageMap: {
         "dm_ad_plan_daily_media_account_product_performance_detail": {
           qb: [
-            { name: "存量经营分析（江总）", id: "QB_001", field: "消耗、转化成本", freq: "每日 08:30", owner: "谭嘉颖" },
-            { name: "信息流广告账户流水（财务对账用）", id: "QB_006", field: "账户日消耗", freq: "每日 07:00", owner: "曾祥竞" }
+            { sqltable: "dm_ad_plan_daily_media_account_product_performance_detail", datasetName: "广告计划日报_媒体账户_产品绩效_明细", datasetId: "7a21f3c4-9b45-4d1e-8f02-3c9a5e6b7d81", reportName: "存量经营分析（江总）", reportId: "3f9b1c2d-4a5e-4f6b-9c7d-8e1a2b3c4d5e6", modifier: "谭嘉颖" },
+            { sqltable: "dm_ad_plan_daily_media_account_product_performance_detail", datasetName: "广告账户日消耗_财务对账_明细", datasetId: "b84d2e91-6c03-4a7f-9e15-2d8c6f4a1b93", reportName: "信息流广告账户流水（财务对账用）", reportId: "e5c7a1f2-8b34-4d9e-a6c2-5f1b7d9e3a48", modifier: "曾祥竞" }
           ],
           api: [
             { name: "广告计划日报查询服务", consumer: "观星台 · 数据开放平台", field: "计划维度消耗 / 转化成本", status: "启用", owner: "黄佩贤" },
@@ -3415,12 +3425,12 @@ function injectStyle(id, css) {
             { name: "dws 广告计划日汇总 → 门户资产库", target: "StarRocks · prod_callup", freq: "每日 02:30", last: "2026-09-07 02:32", status: "成功", owner: "黄佩贤" },
             { name: "广告计划 → QuickBI 数据源", target: "MySQL · quickbi_ds", freq: "每日 06:00", last: "2026-09-07 06:03", status: "成功", owner: "谭嘉颖" }
           ],
-          proQb: [{ name: "CPA 大盘消耗周看板", id: "QB_WEEK_CPA", field: "消耗 / 成本趋势", freq: "每周一 09:00", owner: "曾祥竞" }],
+          proQb: [{ sqltable: "dm_ad_plan_daily_media_account_product_performance_detail", datasetName: "CPA大盘消耗_周汇总", datasetId: "c19f4b27-3d68-4e5a-b812-9a0c3e7f6d25", reportName: "CPA 大盘消耗周看板", reportId: "91ad3e5c-7f20-4b48-9d61-2c8e5a0f4b73", modifier: "曾祥竞" }],
           proApi: [{ name: "信息流消耗对账接口", consumer: "财务对账单程", field: "账户日消耗汇总", status: "启用", owner: "谭嘉颖" }],
           proDx: [{ name: "日报热表同步 → 分析网关", target: "ClickHouse · gateway_hot", freq: "每 30 分钟", last: "2026-09-07 09:30", status: "成功", owner: "曾祥竞" }]
         },
         "dwd_user_profile_tag": {
-          qb: [{ name: "存量客户画像看板", id: "QB_012", field: "标签覆盖率", freq: "每日 09:00", owner: "黄佩贤" }],
+          qb: [{ sqltable: "dwd_user_profile_tag", datasetName: "用户画像标签_宽表明细", datasetId: "f42a8c1d-5e93-4b07-a3d6-8c1f9e2b5a74", reportName: "存量客户画像看板", reportId: "2b7d9e40-1c58-4f3a-b6e9-7d2a8c5f1036", modifier: "黄佩贤" }],
           api: [{ name: "用户画像标签查询服务", consumer: "灵犀智析 · 标签条件圈选", field: "tag_value 等标签字段", status: "启用", owner: "曾祥竞" }],
           dx: [{ name: "标签宽表每日同步", target: "StarRocks · prod_callup", freq: "每日 03:10", last: "2026-09-07 03:13", status: "成功", owner: "黄佩贤" }],
           proQb: [], proApi: [], proDx: []
@@ -3456,6 +3466,9 @@ function injectStyle(id, css) {
         this.lineageLoading = false;
         this.queried = false;
         this.result = null;
+        this.isPro = false;
+        this.isFor = 5;
+        this.orderBy = "first";
         this.tab = "basic";
         this.cat = "qb";
         this.editingBasic = false;
@@ -3507,11 +3520,15 @@ function injectStyle(id, css) {
         this.lineageTimer = setTimeout(() => {
           const key = this.lineageTable.trim();
           const base = this.lineageMap[key] || { qb: [], api: [], dx: [], proQb: [], proApi: [], proDx: [] };
+          const pick = (list, pro) => {
+            const rows = this.isPro ? [...(list || []), ...(pro || [])] : [...(list || [])];
+            return this.orderBy === "last" ? rows.reverse() : rows;
+          };
           this.result = {
             key,
-            qb: [...base.qb],
-            api: [...base.api],
-            dx: [...base.dx]
+            qb: pick(base.qb, base.proQb),
+            api: pick(base.api, base.proApi),
+            dx: pick(base.dx, base.proDx)
           };
           this.queried = true;
           this.lineageLoading = false;

@@ -600,6 +600,12 @@
 .portal-vue-mermaid-figure { margin: 10px 0; padding: 14px; border: 1px solid #dbe8fb; border-radius: 10px; background: #fbfdff; }
 .portal-vue-mermaid-title { font-size: 12px; color: #1677ff; margin-bottom: 8px; }
 
+/* 血缘查询：查询参数栏 */
+.portal-vue-lineage-bar { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; padding: 12px 14px; border: 1px solid #e9edf4; border-radius: 8px; background: #fbfcfe; }
+.portal-vue-lineage-field { display: flex; align-items: center; gap: 8px; color: #3f4857; font-size: 13px; }
+.portal-vue-lineage-field .el-input-number--small { width: 110px; }
+.portal-vue-lineage-bar .el-button { margin-left: auto; }
+
 /* 血缘查询：查询中加载动画 */
 .portal-vue-lineage-loading { padding: 28px 8px 12px; }
 .portal-vue-lineage-loading-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
