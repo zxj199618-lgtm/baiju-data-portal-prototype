@@ -3014,7 +3014,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <div v-if="rangeType === '过去N周'" class="portal-vue-compare-dates"><span class="portal-vue-muted">过去</span><el-input-number v-model="rangeN" :min="1" :max="52" size="small"></el-input-number><span class="portal-vue-muted">周</span></div>
                   <div v-if="rangeType === '过去第N天'" class="portal-vue-compare-dates"><span class="portal-vue-muted">过去第</span><el-input-number v-model="rangeN" :min="1" :max="365" size="small"></el-input-number><span class="portal-vue-muted">天</span></div>
                   <el-date-picker v-if="rangeType === '自定义日期'" v-model="customRange" type="daterange" value-format="YYYY-MM-DD" unlink-panels start-placeholder="开始日期" end-placeholder="结束日期" style="width:320px;margin-top:10px"></el-date-picker>
-                  <p class="portal-vue-muted" style="margin-top:6px">补数窗口：{{ spanText }}</p>
+                  <p class="portal-vue-muted portal-vue-span-text" style="margin-top:6px">补数窗口：{{ spanText }}</p>
                 </el-form-item>
                 <el-form-item label="管理员账户 ID">
                   <el-input v-model="adminId" placeholder="可选，逗号分隔"></el-input>
@@ -3024,9 +3024,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </el-form-item>
               </el-form>
               <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px">
-                <el-button type="primary" @click="submitBackfill">🚀 重跑</el-button>
-                <el-button plain @click="logDialogVisible=true">📋 执行日志</el-button>
+                <el-button type="primary" :loading="backfillSubmitting" @click="submitBackfill">🚀 重跑</el-button>
+                <el-button plain @click="logDialogVisible=true" :disabled="backfillSubmitting">📋 执行日志</el-button>
               </div>
+              <el-progress v-if="backfillSubmitting || backfillProgress > 0" :percentage="backfillProgress" :status="backfillProgress >= 100 ? 'success' : ''" style="max-width:480px;margin-bottom:6px" />
               <p class="portal-vue-muted" style="margin:0 0 6px">补数据任务将分配固定开发者执行，与生产环境隔离互不影响。</p>
               <template v-if="recent.length">
                 <div class="portal-vue-section-line" style="margin-top:22px"><h3>📊 本次执行结果</h3></div>
@@ -3070,7 +3071,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </el-form>
               <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">
                 <el-button type="primary" @click="runCompare">🔍 查询对比</el-button>
-                <el-button plain @click="cmpHistoryVisible=true">🕘 查询历史</el-button>
               </div>
               <template v-if="compareMeta">
                 <h3 class="portal-vue-compare-title">汇总</h3>
@@ -3122,17 +3122,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button link type="primary" @click="logDetail=scope.row; logDetailVisible=true">详情</el-button></template></el-table-column>
             </el-table>
             <div class="portal-vue-pagination"><span>共 {{ filteredLogs.length }} 条，当前 {{ logRangeText }}</span><el-pagination v-model:current-page="logPage" v-model:page-size="logPageSize" :page-sizes="[10,20,50]" :total="filteredLogs.length" layout="sizes, prev, pager, next"></el-pagination></div>
-          </el-dialog>
-          <el-dialog v-model="cmpHistoryVisible" title="消耗对比 · 查询历史" width="min(960px, 94vw)" :close-on-click-modal="true">
-            <el-table :data="compareHistory" class="portal-vue-table" border :max-height="480" empty-text="暂无查询历史，先执行一次「查询对比」">
-              <el-table-column prop="at" label="查询时间" width="160"></el-table-column>
-              <el-table-column prop="env" label="环境" width="80"></el-table-column>
-              <el-table-column prop="mode" label="对比模式" width="170"></el-table-column>
-              <el-table-column prop="span" label="时间范围" min-width="200"></el-table-column>
-              <el-table-column prop="accounts" label="账户数" width="80" align="center"></el-table-column>
-              <el-table-column label="阈值（元）" width="100" align="right"><template #default="scope">{{ fmt2(scope.row.threshold) }}</template></el-table-column>
-              <el-table-column prop="diff" label="差异账户" width="100" align="center"></el-table-column>
-            </el-table>
           </el-dialog>
           <el-drawer v-model="logDetailVisible" :title="logDetail ? '任务详情 · ' + logDetail.id : '任务详情'" size="520px" :close-on-click-modal="true">
             <template v-if="logDetail">
@@ -3195,6 +3184,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         appIdList: [],
         appOptions: ["伯都（1875017553198140）", "服微（75294102174026）", "小炭（1875282462158952）"],
         recent: [],
+        backfillSubmitting: false,
+        backfillProgress: 0,
+        backfillTimer: null,
         seq: 10079,
         logRange: [day(7), day(7)],
         logApi: "全部",
@@ -3207,8 +3199,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         logDetailVisible: false,
         logDetail: null,
         logDialogVisible: false,
-        cmpHistoryVisible: false,
-        compareHistory: [],
         logs: seedLogs,
         cmpMode: "二级计划分时",
         cmpEnv: "生产",
@@ -3329,6 +3319,13 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if (!this.appIdList.length) return ep.ElMessage.warning("请选择「应用 ID」（可多选，至少选择 1 个）");
         if (this.rangeType === "自定义日期" && (!this.customRange || !this.customRange[0])) return ep.ElMessage.warning("请选择自定义日期范围");
         if (["过去N小时", "过去N天", "过去N月", "过去N周", "过去第N天"].includes(this.rangeType) && !(this.rangeN >= 1)) return ep.ElMessage.warning("请填写 N 的取值");
+        if (this.backfillSubmitting) return;
+        this.backfillSubmitting = true;
+        this.backfillProgress = 0;
+        clearInterval(this.backfillTimer);
+        this.backfillTimer = setInterval(() => {
+          if (this.backfillProgress < 92) this.backfillProgress = Math.min(92, this.backfillProgress + Math.floor(6 + Math.random() * 10));
+        }, 220);
         const now = new Date();
         const pad = value => String(value).padStart(2, "0");
         const day = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -3340,10 +3337,13 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.logPage = 1;
         ep.ElMessage.success(`已提交 ${list.length} 个账户的补数任务（${this.bfApi}），实际入库在后台完成`);
         setTimeout(() => {
+          clearInterval(this.backfillTimer);
+          this.backfillProgress = 100;
           row.status = "成功";
           row.cost = "18.4s";
           if (this.recent[0] && this.recent[0].id === row.id) this.recent[0].status = "成功";
           ep.ElMessage.success(`任务 ${row.id} 执行成功`);
+          setTimeout(() => { this.backfillSubmitting = false; }, 600);
         }, 2600);
       },
       runCompare() {
@@ -3376,9 +3376,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.compareRows = shown;
         this.compareMeta = { mode: this.cmpMode, table: this.compareTable, env: this.cmpEnv, span: this.cmpSpanText, total: shown.length, diff: shown.filter(row => row.status === "差异").length, accounts: new Set(shown.map(row => row.accId)).size, threshold };
         this.cmpPage = 1;
-        const now = new Date();
-        const p2 = value => String(value).padStart(2, "0");
-        this.compareHistory.unshift({ at: `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())}`, env: this.cmpEnv, mode: this.cmpMode, span: this.cmpSpanText, accounts: this.compareMeta.accounts, threshold, diff: this.diffAccounts.length });
         ep.ElMessage.success(`已生成对比结果：${this.compareMeta.diff} 条差异记录（阈值 ≥ ${threshold} 元）`);
       }
     }

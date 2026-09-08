@@ -601,7 +601,12 @@
 .portal-vue-mermaid-title { font-size: 12px; color: #1677ff; margin-bottom: 8px; }
 
 /* 补数据：CSV 上传行 */
-.portal-vue-csv-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.portal-vue-csv-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; line-height: 32px; flex: 0 0 100%; }
+/* 表单内独占一行的块（Element 表单内容区默认横排，需强制换行） */
+.portal-vue-dialog-form .portal-vue-compare-dates { flex: 0 0 100%; }
+.portal-vue-dialog-form .portal-vue-span-text { flex: 0 0 100%; }
+.portal-vue-compare-dates .portal-vue-muted { white-space: nowrap; }
+.portal-vue-compare-form .el-form-item__content { flex-direction: column; align-items: flex-start; }
 
 /* 消耗对比：查询表单 */
 .portal-vue-compare-form { max-width: 720px; }
