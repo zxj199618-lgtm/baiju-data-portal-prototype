@@ -3008,7 +3008,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </el-form>
               <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px">
                 <el-button type="primary" @click="submitBackfill">🚀 重跑</el-button>
-                <el-button plain @click="tool='logs'">在「执行日志」中跟踪 →</el-button>
+                <el-button plain @click="logDialogVisible=true">📋 执行日志</el-button>
               </div>
               <template v-if="recent.length">
                 <div class="portal-vue-section-line" style="margin-top:22px"><h3>📊 本次执行结果</h3></div>
@@ -3022,37 +3022,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </el-table>
               </template>
             </el-tab-pane>
-            <el-tab-pane label="📋 执行日志" name="logs">
-              <p class="portal-vue-muted" style="margin-bottom:12px">数据来源：{{ bfEnv }} 环境 · api_task_execution_log 表 · 默认查当天，按开始时间倒序 · 最多返回 500 条</p>
-              <div class="portal-vue-toolbar">
-                <div class="portal-vue-toolbar-left">
-                  <el-date-picker v-model="logRange" type="daterange" value-format="YYYY-MM-DD" unlink-panels start-placeholder="开始日期" end-placeholder="结束日期" style="width:250px"></el-date-picker>
-                  <el-select v-model="logApi" style="width:160px"><el-option label="全部接口" value="全部"></el-option><el-option v-for="item in apiOptions" :key="item" :label="item" :value="item"></el-option></el-select>
-                  <el-select v-model="logStatus" style="width:120px"><el-option v-for="item in statusOptions" :key="item" :label="item" :value="item"></el-option></el-select>
-                  <el-input v-model="logKeyword" class="portal-vue-search" clearable placeholder="任务名称（模糊）"></el-input>
-                  <el-input v-model="logTrace" class="portal-vue-search" clearable placeholder="traceId 搜索" style="width:200px"></el-input>
-                </div>
-                <el-button type="primary" @click="logPage=1">🔍 查询</el-button>
-              </div>
-              <el-table :data="pagedLogs" class="portal-vue-table" border style="margin-top:14px" empty-text="暂无执行日志">
-                <el-table-column prop="id" label="任务ID" width="152" fixed="left"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
-                <el-table-column label="任务名称" min-width="230" show-overflow-tooltip><template #default="scope">{{ scope.row.name }}</template></el-table-column>
-                <el-table-column prop="platform" label="平台" width="120"></el-table-column>
-                <el-table-column prop="api" label="接口" width="150"></el-table-column>
-                <el-table-column prop="env" label="环境" width="88"></el-table-column>
-                <el-table-column prop="accounts" label="账户数" width="86" align="center"></el-table-column>
-                <el-table-column prop="submitAt" label="提交时间" width="150"></el-table-column>
-                <el-table-column prop="startedAt" label="开始时间" width="150"></el-table-column>
-                <el-table-column prop="cost" label="耗时" width="88" align="center"></el-table-column>
-                <el-table-column label="状态" width="96" align="center"><template #default="scope"><el-tag :type="statusType(scope.row.status)" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
-                <el-table-column prop="submitter" label="提交人" width="90"></el-table-column>
-                <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button link type="primary" @click="logDetail=scope.row; logDetailVisible=true">详情</el-button></template></el-table-column>
-              </el-table>
-              <div class="portal-vue-pagination"><span>共 {{ filteredLogs.length }} 条，当前 {{ logRangeText }}</span><el-pagination v-model:current-page="logPage" v-model:page-size="logPageSize" :page-sizes="[10,20,50]" :total="filteredLogs.length" layout="sizes, prev, pager, next"></el-pagination></div>
-            </el-tab-pane>
             <el-tab-pane label="📊 消耗对比" name="compare">
               <el-alert type="info" :closable="false" show-icon title="以账户分时表 (hour_data) 为基准，与二级计划分时表 (ad_hour_data) 或创意分时表 (new_creative_hour_data_v2) 进行两两对比" description="账户分时表每 5 / 20 / 30 分钟更新（分高、中、低三个频次间隔）；二级计划分时表每 10 / 60 / 120 分钟更新；创意分时表每小时更新一次。由于各表调度频率不同，短时间内单一两个小时数据对不齐属于正常现象。" style="margin-bottom:16px"/>
-              <el-form label-position="top" class="portal-vue-dialog-form">
+              <el-form label-position="top" class="portal-vue-dialog-form portal-vue-compare-form">
+                <el-form-item label="环境">
+                  <el-select v-model="cmpEnv" style="width:200px"><el-option v-for="item in envOptions" :key="item" :label="item" :value="item"></el-option></el-select>
+                </el-form-item>
                 <el-form-item label="对比模式">
                   <el-select v-model="cmpMode" style="width:340px"><el-option label="账户分时 vs 二级计划分时" value="二级计划分时"></el-option><el-option label="账户分时 vs 创意分时" value="创意分时"></el-option></el-select>
                 </el-form-item>
@@ -3062,14 +3037,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                     <el-radio-button label="指定小时"></el-radio-button>
                     <el-radio-button label="指定小时范围"></el-radio-button>
                   </el-radio-group>
-                  <div style="display:flex;gap:10px;margin-top:10px;align-items:center">
-                    <el-date-picker v-model="cmpDate" type="date" value-format="YYYY-MM-DD" style="width:170px"></el-date-picker>
-                    <template v-if="cmpDateType === '指定小时'"><span class="portal-vue-muted">小时</span><el-select v-model="cmpHour" style="width:100px"><el-option v-for="h in hours" :key="h" :label="pad(h)" :value="h"></el-option></el-select></template>
-                    <template v-if="cmpDateType === '指定小时范围'"><span class="portal-vue-muted">从</span><el-select v-model="cmpHourStart" style="width:90px"><el-option v-for="h in hours" :key="h" :label="pad(h)" :value="h"></el-option></el-select><span class="portal-vue-muted">到</span><el-select v-model="cmpHourEnd" style="width:90px"><el-option v-for="h in hours" :key="h" :label="pad(h)" :value="h"></el-option></el-select></template>
+                  <div class="portal-vue-compare-dates">
+                    <el-date-picker v-model="cmpDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:220px"></el-date-picker>
+                    <template v-if="cmpDateType === '指定小时'"><span class="portal-vue-muted">小时</span><el-select v-model="cmpHour" style="width:110px"><el-option v-for="h in hours" :key="h" :label="pad(h)" :value="h"></el-option></el-select></template>
+                    <template v-if="cmpDateType === '指定小时范围'"><span class="portal-vue-muted">从</span><el-select v-model="cmpHourStart" style="width:110px"><el-option v-for="h in hours" :key="h" :label="pad(h)" :value="h"></el-option></el-select><span class="portal-vue-muted">到</span><el-select v-model="cmpHourEnd" style="width:110px"><el-option v-for="h in hours" :key="h" :label="pad(h)" :value="h"></el-option></el-select></template>
                   </div>
                 </el-form-item>
                 <el-form-item label="广告账户 ID（可选）">
-                  <el-input v-model="cmpAccount" placeholder="多个账户用逗号分隔，如：12345,67890"></el-input>
+                  <el-input v-model="cmpAccount" placeholder="多个账户用逗号分隔，如：12345,67890" style="max-width:480px"></el-input>
                 </el-form-item>
                 <el-form-item label="差异阈值（元）">
                   <el-input-number v-model="cmpThreshold" :precision="2" :step="0.5" :min="0"></el-input-number>
@@ -3077,31 +3052,70 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </el-form>
               <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">
                 <el-button type="primary" @click="runCompare">🔍 查询对比</el-button>
-                <el-checkbox v-if="compareRows.length" v-model="onlyDiff">仅看差异记录</el-checkbox>
+                <el-button plain @click="cmpHistoryVisible=true">🕘 查询历史</el-button>
               </div>
               <template v-if="compareMeta">
-                <div style="display:flex;gap:20px;align-items:center;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:14px;background:#fafafa">
-                  <span class="portal-vue-muted">对比范围</span><strong>{{ compareMeta.span }}</strong>
-                  <span class="portal-vue-muted">账户</span><strong>{{ compareMeta.accounts }} 个</strong>
-                  <span class="portal-vue-muted">记录</span><strong>{{ compareMeta.total }} 条</strong>
-                  <span class="portal-vue-muted">阈值</span><strong>≥ {{ compareMeta.threshold }} 元</strong>
-                  <span class="portal-vue-muted">差异</span><strong style="color:#dc4c64">{{ compareMeta.diff }} 条</strong>
+                <h3 class="portal-vue-compare-title">汇总</h3>
+                <div class="portal-vue-kpis" style="margin-top:0">
+                  <div class="portal-vue-kpi"><span>账户总数</span><strong>{{ compareMeta.accounts.toLocaleString() }}</strong></div>
+                  <div class="portal-vue-kpi"><span>有差异账户</span><strong>{{ diffAccounts.length.toLocaleString() }}</strong></div>
+                  <div class="portal-vue-kpi"><span>账户分时总消耗</span><strong>{{ fmtMoney(totalA) }}</strong></div>
+                  <div class="portal-vue-kpi"><span>{{ cmpMode }}总消耗</span><strong>{{ fmtMoney(totalB) }}</strong></div>
                 </div>
-                <el-table :data="pagedCompare" class="portal-vue-table" border style="margin-top:14px" empty-text="无差异记录">
-                  <el-table-column prop="time" label="时间" width="150"></el-table-column>
-                  <el-table-column label="广告账户" min-width="200"><template #default="scope"><span class="portal-vue-name">{{ scope.row.acc }}</span><code class="portal-vue-code" style="margin-left:8px">{{ scope.row.accId }}</code></template></el-table-column>
-                  <el-table-column label="账户分时表（元）" width="140" align="right"><template #default="scope">{{ scope.row.a.toLocaleString() }}</template></el-table-column>
-                  <el-table-column :label="compareTable + '（元）'" width="170" align="right"><template #default="scope">{{ scope.row.b.toLocaleString() }}</template></el-table-column>
-                  <el-table-column label="差额（元）" width="120" align="right"><template #default="scope"><span :style="{color: scope.row.status==='差异' ? '#dc4c64' : '#98a2b3'}">{{ scope.row.diff.toLocaleString() }}</span></template></el-table-column>
-                  <el-table-column label="差额率" width="100" align="right"><template #default="scope">{{ scope.row.rate.toFixed(1) }}%</template></el-table-column>
-                  <el-table-column label="判定" width="96" align="center"><template #default="scope"><el-tag :type="scope.row.status==='差异' ? 'danger' : 'success'" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
+                <h3 class="portal-vue-compare-title" style="margin-top:20px">差异账户（{{ diffAccounts.length }}个）</h3>
+                <p class="portal-vue-compare-note">仅展示差异绝对值&gt;{{ compareMeta.threshold.toFixed(2) }}元的账户，按差异绝对值降序排列</p>
+                <el-table :data="diffAccounts" class="portal-vue-table" border empty-text="无差异账户">
+                  <el-table-column label="广告账户ID" min-width="200"><template #default="scope"><code class="portal-vue-code">{{ scope.row.accId }}</code></template></el-table-column>
+                  <el-table-column label="账户分时消耗" min-width="150" align="right"><template #default="scope">{{ fmt2(scope.row.a) }}</template></el-table-column>
+                  <el-table-column :label="cmpMode + '消耗'" min-width="150" align="right"><template #default="scope">{{ fmt2(scope.row.b) }}</template></el-table-column>
+                  <el-table-column :label="'差异(' + cmpMode + '-账户)'" min-width="170" align="right"><template #default="scope">{{ fmt2(scope.row.diff) }}</template></el-table-column>
+                  <el-table-column :label="'差异%(' + cmpMode + ')'" min-width="150" align="right"><template #default="scope">{{ fmt2(scope.row.rate) }}%</template></el-table-column>
                 </el-table>
-                <div class="portal-vue-pagination"><span>共 {{ filteredCompare.length }} 条，当前 {{ cmpRangeText }}</span><el-pagination v-model:current-page="cmpPage" v-model:page-size="cmpPageSize" :page-sizes="[10,20,50]" :total="filteredCompare.length" layout="sizes, prev, pager, next"></el-pagination></div>
+                <div class="portal-vue-compare-ids"><span class="portal-vue-muted">差异账户ID（可直接复制）：</span><code class="portal-vue-code">{{ diffIdsText }}</code><el-button link type="primary" @click="copyDiffIds">复制</el-button></div>
               </template>
               <p v-else class="portal-vue-muted">选择对比模式和时间范围后点击「查询对比」。</p>
             </el-tab-pane>
           </el-tabs>
 
+          <el-dialog v-model="logDialogVisible" title="补数据 · 执行日志" width="min(1200px, 94vw)" :close-on-click-modal="true">
+            <p class="portal-vue-muted" style="margin:0 0 12px">数据来源：{{ bfEnv }} 环境 · api_task_execution_log 表 · 默认查当天，按开始时间倒序 · 最多返回 500 条</p>
+            <div class="portal-vue-toolbar">
+              <div class="portal-vue-toolbar-left">
+                <el-date-picker v-model="logRange" type="daterange" value-format="YYYY-MM-DD" unlink-panels start-placeholder="开始日期" end-placeholder="结束日期" style="width:250px"></el-date-picker>
+                <el-select v-model="logApi" style="width:160px"><el-option label="全部接口" value="全部"></el-option><el-option v-for="item in apiOptions" :key="item" :label="item" :value="item"></el-option></el-select>
+                <el-select v-model="logStatus" style="width:120px"><el-option v-for="item in statusOptions" :key="item" :label="item" :value="item"></el-option></el-select>
+                <el-input v-model="logKeyword" class="portal-vue-search" clearable placeholder="任务名称（模糊）"></el-input>
+                <el-input v-model="logTrace" class="portal-vue-search" clearable placeholder="traceId 搜索" style="width:200px"></el-input>
+              </div>
+              <el-button type="primary" @click="logPage=1">🔍 查询</el-button>
+            </div>
+            <el-table :data="pagedLogs" class="portal-vue-table" border :max-height="480" style="margin-top:14px" empty-text="暂无执行日志">
+              <el-table-column prop="id" label="任务ID" width="152" fixed="left"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
+              <el-table-column label="任务名称" min-width="230" show-overflow-tooltip><template #default="scope">{{ scope.row.name }}</template></el-table-column>
+              <el-table-column prop="platform" label="平台" width="120"></el-table-column>
+              <el-table-column prop="api" label="接口" width="150"></el-table-column>
+              <el-table-column prop="env" label="环境" width="88"></el-table-column>
+              <el-table-column prop="accounts" label="账户数" width="86" align="center"></el-table-column>
+              <el-table-column prop="submitAt" label="提交时间" width="150"></el-table-column>
+              <el-table-column prop="startedAt" label="开始时间" width="150"></el-table-column>
+              <el-table-column prop="cost" label="耗时" width="88" align="center"></el-table-column>
+              <el-table-column label="状态" width="96" align="center"><template #default="scope"><el-tag :type="statusType(scope.row.status)" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
+              <el-table-column prop="submitter" label="提交人" width="90"></el-table-column>
+              <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button link type="primary" @click="logDetail=scope.row; logDetailVisible=true">详情</el-button></template></el-table-column>
+            </el-table>
+            <div class="portal-vue-pagination"><span>共 {{ filteredLogs.length }} 条，当前 {{ logRangeText }}</span><el-pagination v-model:current-page="logPage" v-model:page-size="logPageSize" :page-sizes="[10,20,50]" :total="filteredLogs.length" layout="sizes, prev, pager, next"></el-pagination></div>
+          </el-dialog>
+          <el-dialog v-model="cmpHistoryVisible" title="消耗对比 · 查询历史" width="min(960px, 94vw)" :close-on-click-modal="true">
+            <el-table :data="compareHistory" class="portal-vue-table" border :max-height="480" empty-text="暂无查询历史，先执行一次「查询对比」">
+              <el-table-column prop="at" label="查询时间" width="160"></el-table-column>
+              <el-table-column prop="env" label="环境" width="80"></el-table-column>
+              <el-table-column prop="mode" label="对比模式" width="170"></el-table-column>
+              <el-table-column prop="span" label="时间范围" min-width="200"></el-table-column>
+              <el-table-column prop="accounts" label="账户数" width="80" align="center"></el-table-column>
+              <el-table-column label="阈值（元）" width="100" align="right"><template #default="scope">{{ fmt2(scope.row.threshold) }}</template></el-table-column>
+              <el-table-column prop="diff" label="差异账户" width="100" align="center"></el-table-column>
+            </el-table>
+          </el-dialog>
           <el-drawer v-model="logDetailVisible" :title="logDetail ? '任务详情 · ' + logDetail.id : '任务详情'" size="520px" :close-on-click-modal="true">
             <template v-if="logDetail">
               <div class="portal-vue-detail-grid">
@@ -3173,8 +3187,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         logPageSize: 10,
         logDetailVisible: false,
         logDetail: null,
+        logDialogVisible: false,
+        cmpHistoryVisible: false,
+        compareHistory: [],
         logs: seedLogs,
         cmpMode: "二级计划分时",
+        cmpEnv: "生产",
         cmpDateType: "指定日期",
         cmpDate: day(6),
         cmpHour: 18,
@@ -3213,11 +3231,46 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       },
       filteredCompare() { return this.onlyDiff ? this.compareRows.filter(row => row.status === "差异") : this.compareRows; },
       pagedCompare() { const result = paginate(this.filteredCompare, this.cmpPage, this.cmpPageSize); if (result.safePage !== this.cmpPage) this.cmpPage = result.safePage; return result.rows; },
-      cmpRangeText() { if (!this.filteredCompare.length) return "0-0"; return `${(this.cmpPage - 1) * this.cmpPageSize + 1}-${Math.min(this.cmpPage * this.cmpPageSize, this.filteredCompare.length)}`; }
+      cmpRangeText() { if (!this.filteredCompare.length) return "0-0"; return `${(this.cmpPage - 1) * this.cmpPageSize + 1}-${Math.min(this.cmpPage * this.cmpPageSize, this.filteredCompare.length)}`; },
+      diffAccounts() {
+        const threshold = this.compareMeta ? Number(this.compareMeta.threshold || 0) : 0;
+        const grouped = new Map();
+        this.compareRows.forEach(row => {
+          const item = grouped.get(row.accId) || { accId: row.accId, a: 0, b: 0 };
+          item.a += Number(row.a || 0);
+          item.b += Number(row.b || 0);
+          grouped.set(row.accId, item);
+        });
+        return [...grouped.values()].map(item => {
+          const a = +item.a.toFixed(2);
+          const b = +item.b.toFixed(2);
+          const diff = +(b - a).toFixed(2);
+          return { accId: item.accId, a, b, diff, rate: a ? +((diff / a) * 100).toFixed(2) : 0 };
+        }).filter(item => Math.abs(item.diff) > threshold).sort((x, y) => Math.abs(y.diff) - Math.abs(x.diff));
+      },
+      totalA() { return +this.compareRows.reduce((sum, row) => sum + Number(row.a || 0), 0).toFixed(2); },
+      totalB() { return +this.compareRows.reduce((sum, row) => sum + Number(row.b || 0), 0).toFixed(2); },
+      diffIdsText() { return this.diffAccounts.map(item => item.accId).join(" "); }
     },
     methods: {
       statusType(status) { if (status === "成功") return "success"; if (status === "失败") return "danger"; if (status === "执行中") return "warning"; return "info"; },
       pad(value) { return String(value).padStart(2, "0"); },
+      fmt2(value) { return Number(value || 0).toFixed(2); },
+      fmtMoney(value) { return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
+      copyDiffIds() {
+        const text = this.diffIdsText;
+        if (!text) return ep.ElMessage.warning("暂无差异账户ID可复制");
+        const done = () => ep.ElMessage.success(`已复制 ${this.diffAccounts.length} 个差异账户ID`);
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => ep.ElMessage.warning("复制失败，请手动选择复制"));
+        else {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand("copy"); done(); } catch (e) { ep.ElMessage.warning("复制失败，请手动选择复制"); }
+          document.body.removeChild(ta);
+        }
+      },
       submitBackfill() {
         const list = this.accounts.split(/[,，\s]+/).map(item => item.trim()).filter(Boolean);
         if (!list.length) return ep.ElMessage.warning("「广告主 ID（账户）」不能为空");
@@ -3267,8 +3320,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         });
         const shown = this.cmpAccount ? rows.filter(row => row.matched) : rows;
         this.compareRows = shown;
-        this.compareMeta = { mode: this.cmpMode, table: this.compareTable, span: this.cmpSpanText, total: shown.length, diff: shown.filter(row => row.status === "差异").length, accounts: new Set(shown.map(row => row.accId)).size, threshold };
+        this.compareMeta = { mode: this.cmpMode, table: this.compareTable, env: this.cmpEnv, span: this.cmpSpanText, total: shown.length, diff: shown.filter(row => row.status === "差异").length, accounts: new Set(shown.map(row => row.accId)).size, threshold };
         this.cmpPage = 1;
+        const now = new Date();
+        const p2 = value => String(value).padStart(2, "0");
+        this.compareHistory.unshift({ at: `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())}`, env: this.cmpEnv, mode: this.cmpMode, span: this.cmpSpanText, accounts: this.compareMeta.accounts, threshold, diff: this.diffAccounts.length });
         ep.ElMessage.success(`已生成对比结果：${this.compareMeta.diff} 条差异记录（阈值 ≥ ${threshold} 元）`);
       }
     }
@@ -3539,76 +3595,173 @@ function injectStyle(id, css) {
     beforeUnmount() { clearTimeout(this.lineageTimer); window.removeEventListener("portal:page-change", this.pageHandler); }
   };
 
-    const OpsEnvApp = {
+    const ENV_DOMAIN_KEY = "gxt-env-domains-v1";
+  const ENV_DOMAIN_DEFAULTS = [
+    {
+      id: "g-specialist", title: "投放助手域名", cols: ["环境", "地址"], note: "",
+      rows: [
+        { a: "生产", b: "https://ad-api-specialist.kaboss.cn" },
+        { a: "SIT", b: "https://ad-api-specialist-sit.kaboss.cn" }
+      ]
+    },
+    {
+      id: "g-report", title: "媒体报表 API 域名", cols: ["环境", "地址"], note: "",
+      rows: [
+        { a: "生产", b: "https://ad-api-report.kaboss.cn" },
+        { a: "SIT", b: "https://ad-api-report-sit.kaboss.cn" }
+      ]
+    },
+    {
+      id: "g-openapi", title: "对外 API 服务域名（dataworks / CPA / 观星台 / 统一对外查询）", cols: ["环境", "地址"], note: "ELK 项目名：prod_apigatewayadmin",
+      rows: [
+        { a: "生产", b: "https://data-openapi-report.kaboss.cn" },
+        { a: "SIT", b: "https://data-openapi-report-sit.kaboss.cn" }
+      ]
+    },
+    {
+      id: "g-redis", title: "SIT + DEV Redis", cols: ["项目", "值"], note: "",
+      rows: [
+        { a: "内网地址", b: "r-wz96lmr3oj3dtdvtoh.redis.cn-shenzhen.rds.aliyuncs.com" },
+        { a: "公网地址", b: "r-wz96lmr3oj3dtdvtohpd-ali.redis.cn-shenzhen.rds.aliyuncs.com" }
+      ]
+    },
+    {
+      id: "g-elk", title: "日志查看（ELK）", cols: ["环境", "地址"], note: "可搜索项目：\nprod_ad_specialist_helper\nprod_ad-report-api\napigatewayadmin",
+      rows: [
+        { a: "生产", b: "http://elk.kaboss.cn/" },
+        { a: "测试", b: "https://elk-dev.kaboss.cn/" }
+      ]
+    }
+  ];
+  function loadEnvGroups() {
+    try {
+      const raw = localStorage.getItem(ENV_DOMAIN_KEY);
+      if (!raw) return JSON.parse(JSON.stringify(ENV_DOMAIN_DEFAULTS));
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return JSON.parse(JSON.stringify(ENV_DOMAIN_DEFAULTS));
+      return parsed.filter(group => group && typeof group.title === "string").map(group => ({
+        id: group.id || ("g-" + Math.random().toString(36).slice(2, 9)),
+        title: group.title,
+        cols: Array.isArray(group.cols) && group.cols.length >= 2 ? [String(group.cols[0]), String(group.cols[1])] : ["环境", "地址"],
+        note: typeof group.note === "string" ? group.note : "",
+        rows: Array.isArray(group.rows) ? group.rows.filter(row => row && (row.a || row.b)).map(row => ({ a: String(row.a || ""), b: String(row.b || "") })) : []
+      }));
+    } catch (e) { return JSON.parse(JSON.stringify(ENV_DOMAIN_DEFAULTS)); }
+  }
+
+  const OpsEnvApp = {
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel" style="padding:18px 22px 24px">
-          <el-alert type="warning" :closable="false" show-icon title="内部环境速查（演示数据已脱敏）" description="以下为生产环境常用入口与说明；敏感凭据仅内网可见、密文存储，不落入门户界面与日志。" style="margin-bottom:18px" />
-          <div class="portal-vue-section-line"><h3>🔗 平台入口（点击图标直达）</h3></div>
-          <div class="ops-launcher">
-            <template v-for="group in launcherGroups" :key="group.title">
-              <div class="ops-launcher-group-title">{{ group.title }}</div>
-              <div class="ops-launcher-grid">
-                <button v-for="item in group.items" :key="item.name" class="ops-launcher-item" type="button" :title="item.url" @click="openUrl(item.url)">
-                  <span class="ops-launcher-icon" :style="{ background: item.color }">{{ item.emoji }}</span>
-                  <span class="ops-launcher-name">{{ item.name }}</span>
-                  <span class="ops-launcher-url">{{ shortUrl(item.url) }}</span>
-                </button>
-              </div>
-            </template>
+          <div class="portal-vue-env-head">
+            <h3>🌐 服务域名</h3>
+            <el-button type="primary" plain @click="openGroupDialog(null)">＋ 新增分类</el-button>
           </div>
-          <div class="portal-vue-section-line"><h3>🌐 服务域名</h3></div>
-          <el-table :data="domainRows" class="portal-vue-table" border>
-            <el-table-column label="服务" width="180"><template #default="scope"><span class="portal-vue-name">{{ scope.row.service }}</span></template></el-table-column>
-            <el-table-column label="域名" min-width="300"><template #default="scope"><code class="portal-vue-code">{{ scope.row.domain }}</code></template></el-table-column>
-            <el-table-column prop="env" label="环境" width="90"></el-table-column>
-            <el-table-column prop="note" label="用途" min-width="280"></el-table-column>
-          </el-table>
-          <div class="portal-vue-section-line"><h3>🔑 日志与凭据（脱敏）</h3></div>
-          <el-table :data="credRows" class="portal-vue-table" border>
-            <el-table-column label="资源" width="230"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
-            <el-table-column prop="detail" label="说明" min-width="340"></el-table-column>
-            <el-table-column prop="account" label="账号 / 密码" width="220"></el-table-column>
-            <el-table-column prop="note" label="备注" min-width="200"></el-table-column>
-          </el-table>
+          <div v-for="(group, gi) in envGroups" :key="group.id" class="portal-vue-env-group">
+            <div class="portal-vue-env-group-head">
+              <h3>{{ (gi + 1) + ". " + group.title }}</h3>
+              <div class="portal-vue-actions">
+                <el-button link type="primary" @click="openEntryDialog(group, null)">＋ 新增条目</el-button>
+                <el-button link type="primary" @click="openGroupDialog(group)">编辑分类</el-button>
+                <el-popconfirm title="确定删除该分类及其下所有条目吗？" @confirm="removeGroup(group.id)">
+                  <template #reference><el-button link type="danger">删除</el-button></template>
+                </el-popconfirm>
+              </div>
+            </div>
+            <el-table :data="group.rows" class="portal-vue-table" border empty-text="暂无条目，点击右上角「新增条目」添加">
+              <el-table-column :label="group.cols[0]" width="220"><template #default="scope"><span>{{ scope.row.a }}</span></template></el-table-column>
+              <el-table-column :label="group.cols[1]" min-width="300"><template #default="scope"><code class="portal-vue-code portal-vue-env-addr">{{ scope.row.b }}</code></template></el-table-column>
+              <el-table-column label="操作" width="130" align="center"><template #default="scope"><el-button link type="primary" @click="openEntryDialog(group, scope.$index)">编辑</el-button><el-popconfirm title="确定删除该条目吗？" @confirm="removeEntry(group, scope.$index)"><template #reference><el-button link type="danger">删除</el-button></template></el-popconfirm></template></el-table-column>
+            </el-table>
+            <p v-if="group.note" class="portal-vue-env-note">{{ group.note }}</p>
+          </div>
+          <el-empty v-if="!envGroups.length" description="暂无分类，点击右上角「新增分类」开始维护" />
+          <el-dialog v-model="groupDialogVisible" :title="editingGroupId ? '编辑分类' : '新增分类'" width="520px" :close-on-click-modal="true">
+            <el-form label-position="top" class="portal-vue-dialog-form">
+              <el-form-item label="分类名称" required><el-input v-model="groupForm.title" placeholder="例如：投放助手域名"></el-input></el-form-item>
+              <el-form-item label="第一列列名"><el-input v-model="groupForm.colA" placeholder="例如：环境"></el-input></el-form-item>
+              <el-form-item label="第二列列名"><el-input v-model="groupForm.colB" placeholder="例如：地址"></el-input></el-form-item>
+              <el-form-item label="备注（可选，显示在表格下方）"><el-input v-model="groupForm.note" type="textarea" :rows="3" placeholder="例如：ELK 项目名：prod_apigatewayadmin"></el-input></el-form-item>
+            </el-form>
+            <template #footer><el-button @click="groupDialogVisible=false">取消</el-button><el-button type="primary" @click="saveGroup">保存</el-button></template>
+          </el-dialog>
+          <el-dialog v-model="entryDialogVisible" :title="(editingEntryIndex === null ? '新增条目' : '编辑条目') + ' · ' + (activeGroup ? activeGroup.title : '')" width="520px" :close-on-click-modal="true">
+            <el-form label-position="top" class="portal-vue-dialog-form">
+              <el-form-item :label="activeGroup ? activeGroup.cols[0] : '第一列'" required><el-input v-model="entryForm.a" placeholder="例如：生产"></el-input></el-form-item>
+              <el-form-item :label="activeGroup ? activeGroup.cols[1] : '第二列'" required><el-input v-model="entryForm.b" placeholder="例如：https://xxx.kaboss.cn"></el-input></el-form-item>
+            </el-form>
+            <template #footer><el-button @click="entryDialogVisible=false">取消</el-button><el-button type="primary" @click="saveEntry">保存</el-button></template>
+          </el-dialog>
         </section>
       </el-config-provider>
     `,
     data: () => ({
-      launcherGroups: [
-        {
-          title: "数据平台",
-          items: [
-            { name: "观星台门户", url: "https://gxt.lumofyi.com", emoji: "🔭", color: "#3b82f6" },
-            { name: "StarRocks 监控", url: "https://starrocks-web.kaboss.cn/", emoji: "🚀", color: "#7c3aed" },
-            { name: "大数据工具箱", url: "https://ad-report-tool.kaboss.cn/", emoji: "🧰", color: "#0ea5e9" }
-          ]
-        },
-        {
-          title: "监控与调度",
-          items: [
-            { name: "Grafana", url: "https://grafana.kaboss.cn/login", emoji: "📈", color: "#ea580c" },
-            { name: "海豚调度", url: "http://47.113.107.109:12345/dolphinscheduler/ui/", emoji: "🐬", color: "#059669" }
-          ]
-        }
-      ],
-      domainRows: [
-        { service: "观星台门户", domain: "https://gxt.lumofyi.com", env: "生产", note: "数据资产 / 灵犀智析 / 数据服务门户（本系统）" },
-        { service: "大数据工具箱", domain: "https://ad-report-tool.kaboss.cn", env: "生产", note: "补数据 / 消耗对比 / 数据血缘 / 域名速查工具集" },
-        { service: "媒体报表 API", domain: "https://ad-api-report.kaboss.cn", env: "生产", note: "头条广告报表分时数据接口，任务运维依赖（GET）" },
-        { service: "StarRocks 监控运维", domain: "https://starrocks-web.kaboss.cn", env: "生产", note: "集群监控、查询诊断" }
-      ],
-      credRows: [
-        { name: "Redis（SIT + DEV）", detail: "阿里云实例 · 定时任务与缓存", account: "密文存储，仅后端可见", note: "生产 / 预发与开发环境分开" },
-        { name: "日志检索（ELK）", detail: "可搜索项目：prod_ad_specialist_helper / prod_ad-report-api / apigatewayadmin", account: "密文存储，仅后端可见", note: "两个环境共用只读账号" },
-        { name: "服务负载监控（Grafana）", detail: "监控面板：jvm-prod(ad_specialist_helper)", account: "密文存储，仅后端可见", note: "登录 grafana.kaboss.cn/login" }
-      ]
+      envGroups: loadEnvGroups(),
+      groupDialogVisible: false,
+      entryDialogVisible: false,
+      editingGroupId: null,
+      activeGroupId: null,
+      editingEntryIndex: null,
+      groupForm: { title: "", colA: "环境", colB: "地址", note: "" },
+      entryForm: { a: "", b: "" }
     }),
-    methods: {
-      openUrl(url) { window.open(url, "_blank"); },
-      shortUrl(url) { return String(url).replace(/^https?:\/\//, "").replace(/\/+$/, ""); }
+    computed: {
+      activeGroup() { return this.envGroups.find(group => group.id === this.activeGroupId) || null; }
     },
-    mounted() { injectStyle("ops-env-launcher-style", ".ops-launcher { background:#10141b; border:1px solid #1e2530; border-radius:14px; padding:18px 16px 20px; margin:2px 8px 0 0; } .ops-launcher-group-title { color:#98a2b3; font-size:12px; letter-spacing:.06em; margin:0 0 10px; font-weight:600; } .ops-launcher-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; } .ops-launcher-grid + .ops-launcher-grid { margin-top:18px; } .ops-launcher-item { display:flex; flex-direction:column; align-items:center; gap:10px; padding:16px 10px 14px; background:#1a2029; border:1px solid #242c38; border-radius:12px; cursor:pointer; color:inherit; font:inherit; transition:border-color .15s, background .15s; } .ops-launcher-item:hover { border-color:#3b82f6; background:#202838; } .ops-launcher-icon { width:52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:26px; line-height:1; } .ops-launcher-name { color:#e8ecf2; font-size:13px; font-weight:600; text-align:center; } .ops-launcher-url { color:#8b93a3; font-size:11px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }"); }
+    methods: {
+      persist(silent) {
+        try { localStorage.setItem(ENV_DOMAIN_KEY, JSON.stringify(this.envGroups)); } catch (e) {}
+        if (!silent) notify("已保存");
+      },
+      openGroupDialog(group) {
+        this.editingGroupId = group ? group.id : null;
+        this.groupForm = group
+          ? { title: group.title, colA: group.cols[0], colB: group.cols[1], note: group.note || "" }
+          : { title: "", colA: "环境", colB: "地址", note: "" };
+        this.groupDialogVisible = true;
+      },
+      saveGroup() {
+        const title = this.groupForm.title.trim();
+        if (!title) return ep.ElMessage.warning("请填写分类名称");
+        const colA = this.groupForm.colA.trim() || "第一列";
+        const colB = this.groupForm.colB.trim() || "第二列";
+        const note = this.groupForm.note.trim();
+        if (this.editingGroupId) {
+          const group = this.envGroups.find(item => item.id === this.editingGroupId);
+          if (group) Object.assign(group, { title, cols: [colA, colB], note });
+        } else {
+          this.envGroups.push({ id: "g-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title, cols: [colA, colB], note, rows: [] });
+        }
+        this.groupDialogVisible = false;
+        this.persist();
+      },
+      removeGroup(id) {
+        this.envGroups = this.envGroups.filter(group => group.id !== id);
+        this.persist();
+      },
+      openEntryDialog(group, index) {
+        this.activeGroupId = group.id;
+        this.editingEntryIndex = index === null || index === undefined ? null : index;
+        const row = this.editingEntryIndex === null ? null : group.rows[this.editingEntryIndex];
+        this.entryForm = row ? { a: row.a, b: row.b } : { a: "", b: "" };
+        this.entryDialogVisible = true;
+      },
+      saveEntry() {
+        const group = this.activeGroup;
+        if (!group) return;
+        const a = this.entryForm.a.trim();
+        const b = this.entryForm.b.trim();
+        if (!a || !b) return ep.ElMessage.warning("请填写完整的两列内容");
+        if (this.editingEntryIndex === null) group.rows.push({ a, b });
+        else Object.assign(group.rows[this.editingEntryIndex], { a, b });
+        this.entryDialogVisible = false;
+        this.persist();
+      },
+      removeEntry(group, index) {
+        group.rows.splice(index, 1);
+        this.persist();
+      }
+    }
   };
 
   mount("#opsTaskView", OpsTaskApp, "ops-task");

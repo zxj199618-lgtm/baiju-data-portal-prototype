@@ -600,6 +600,25 @@
 .portal-vue-mermaid-figure { margin: 10px 0; padding: 14px; border: 1px solid #dbe8fb; border-radius: 10px; background: #fbfdff; }
 .portal-vue-mermaid-title { font-size: 12px; color: #1677ff; margin-bottom: 8px; }
 
+/* 消耗对比：查询表单 */
+.portal-vue-compare-form { max-width: 720px; }
+.portal-vue-compare-dates { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
+
+/* 消耗对比：汇总 + 差异账户结果区 */
+.portal-vue-compare-title { margin: 4px 0 12px; font-size: 15px; color: #1f2937; }
+.portal-vue-compare-note { margin: 0 0 12px; color: #98a2b3; font-size: 12px; }
+.portal-vue-compare-ids { margin-top: 12px; padding: 10px 12px; border: 1px dashed #e2e8f2; border-radius: 8px; background: #fbfcfe; font-size: 12px; line-height: 2; overflow-wrap: anywhere; }
+.portal-vue-compare-ids .el-button { margin-left: 8px; }
+
+/* 环境域名：分类维护 */
+.portal-vue-env-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.portal-vue-env-head h3 { margin: 0; font-size: 15px; color: #1f2937; }
+.portal-vue-env-group { margin-top: 20px; }
+.portal-vue-env-group-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.portal-vue-env-group-head h3 { margin: 0; font-size: 15px; color: #1f2937; }
+.portal-vue-env-note { margin: 8px 0 0; color: #98a2b3; font-size: 12px; white-space: pre-wrap; }
+.portal-vue-env-addr { overflow-wrap: anywhere; }
+
 /* 血缘查询：查询参数栏 */
 .portal-vue-lineage-bar { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; padding: 12px 14px; border: 1px solid #e9edf4; border-radius: 8px; background: #fbfcfe; }
 .portal-vue-lineage-field { display: flex; align-items: center; gap: 8px; color: #3f4857; font-size: 13px; }
