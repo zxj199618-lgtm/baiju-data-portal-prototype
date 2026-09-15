@@ -992,7 +992,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           <aside class="portal-vue-user-groups"><button v-for="item in groupOptions" :key="item.name" class="portal-vue-user-group" :class="{active:item.name===group}" type="button" @click="selectGroup(item.name)"><span>{{ item.name }}</span><span>{{ item.count }}</span></button></aside>
           <section class="portal-vue-user-main">
             <div class="portal-vue-toolbar"><div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索姓名、邮箱、部门" @input="page=1"></el-input><el-select v-model="status" class="portal-vue-filter" @change="page=1"><el-option label="全部状态" value="全部状态"></el-option><el-option label="启用中" value="启用中"></el-option><el-option label="已停用" value="已停用"></el-option></el-select></div><el-button v-if="canEdit('用户管理')" @click="syncUsers">同步飞书用户</el-button></div>
-            <div class="portal-vue-scope-hint"><span>管理范围：<strong>{{ scopeLabel }}</strong></span><span class="portal-vue-muted">当前可见 {{ visibleUsers.length }} / {{ state.users.length }} 人</span><el-button v-if="canEdit('用户管理')" link type="primary" @click="openMyPermission">调整我的管理范围</el-button></div>
             <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无用户">
               <el-table-column label="用户" width="140" fixed="left"><template #default="scope"><div class="portal-vue-user-cell"><el-avatar :size="30">{{ scope.row.name.slice(0,1) }}</el-avatar><span class="portal-vue-name">{{ scope.row.name }}</span></div></template></el-table-column>
               <el-table-column prop="dept" label="部门组织" min-width="220" show-overflow-tooltip></el-table-column>
@@ -1013,14 +1012,13 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     computed:{
       currentUser(){refreshTick.value;return loginUser();},
       visibleUsers(){refreshTick.value;return visibleUsersFor(this.currentUser);},
-      scopeLabel(){refreshTick.value;return manageScopeSummary(this.currentUser);},
       groupOptions(){refreshTick.value;const users=this.visibleUsers;return ["全部权限组","未分配",...state.groups.map(item=>item.name)].map(name=>({name,count:name==="全部权限组"?users.length:users.filter(user=>user.group===name).length}));},
       filteredRows(){refreshTick.value;const keyword=this.keyword.trim().toLowerCase();return this.visibleUsers.filter(user=>(this.group==="全部权限组"||user.group===this.group)&&(this.status==="全部状态"||(this.status==="已停用"?user.status==="已停用":user.status!=="已停用"))&&(!keyword||`${user.name} ${user.email} ${user.dept} ${user.role}`.toLowerCase().includes(keyword)));},
       pagedRows(){const result=paginate(this.filteredRows,this.page,this.pageSize);if(result.safePage!==this.page)this.page=result.safePage;return result.rows;},
       rangeText(){if(!this.filteredRows.length)return "0-0";return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`;}
     },
     methods:{
-      selectGroup(name){this.group=name;this.page=1;},syncUsers(){ep.ElMessage.success("已发起飞书用户同步");},openAssign(user){this.assignUser=user;this.assignGroup=user.group;this.assignVisible=true;},saveAssign(){this.assignUser.group=this.assignGroup;this.assignVisible=false;notify(`${this.assignUser.name} 已分配到「${this.assignGroup}」`);},openPermission(user){bridge.setActiveUserIndex(state.users.indexOf(user));bridge.setPage("配置权限");},openMyPermission(){const me=this.currentUser;if(!me)return;bridge.setActiveUserIndex(state.users.indexOf(me));bridge.setPage("配置权限");}
+      selectGroup(name){this.group=name;this.page=1;},syncUsers(){ep.ElMessage.success("已发起飞书用户同步");},openAssign(user){this.assignUser=user;this.assignGroup=user.group;this.assignVisible=true;},saveAssign(){this.assignUser.group=this.assignGroup;this.assignVisible=false;notify(`${this.assignUser.name} 已分配到「${this.assignGroup}」`);},openPermission(user){bridge.setActiveUserIndex(state.users.indexOf(user));bridge.setPage("配置权限");}
     }
   };
 
