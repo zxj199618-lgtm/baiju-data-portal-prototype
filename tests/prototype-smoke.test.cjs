@@ -194,6 +194,7 @@ assert(portalVue.includes("数据表权限") && portalVue.includes("toggleAllTab
 assert(portalBridge.includes('tables: ["全部数据表"]'), "权限组数据应包含数据表权限维度");
 assert(portalVue.includes("myTables"), "灵犀智析应按权限组展示可用数据表");
 assert(portalVue.includes("权限组权限不可关闭") && portalVue.includes("isMenuLocked(item)") && portalVue.includes("isBoardLocked(board)") && portalVue.includes("isTableLocked(table)"), "配置个人权限时权限组已授予的菜单/看板/表权限应锁定，不允许关闭");
+assert((portalVue.match(/class="portal-vue-lock-tag" :title="'来自权限组：' \+ user.group">\{\{ user.group \}\}<\/el-tag>/g) || []).length === 5, "锁定项标签应直接显示权限组名称（悬浮提示来源）");
 assert(portalVue.includes("menuGrants") && portalVue.includes("boardGrants") && portalVue.includes("个人追加"), "个人权限配置只记录权限组之外的追加项，权限组权限保持不变");
 assert(portalBridge.includes("groupLockNote") && portalBridge.includes("lockedBoardNames"), "JS 兜底渲染同样应锁定权限组授予的权限");
 assert(portalVue.includes("管理范围") && portalVue.includes("el-tree-select") && portalVue.includes("buildDepartmentTree") && portalVue.includes("deptTree"), "配置权限应提供按部门配置的管理范围 tab，候选范围来自系统用户的部门");
