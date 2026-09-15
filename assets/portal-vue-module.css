@@ -296,6 +296,7 @@
 .portal-vue-scope-hint strong { color: #1f2937; }
 .portal-vue-scope-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .portal-vue-scope-tree { width: 100%; margin-top: 12px; }
+.portal-vue-scope-member-node .el-tree-node__label::after { content: "成员"; margin-left: 6px; padding: 0 5px; border-radius: 4px; background: #eef4ff; color: #4b6b9a; font-size: 11px; line-height: 16px; vertical-align: 1px; }
 .portal-vue-scope-preview { display: flex; flex-wrap: wrap; gap: 8px; max-height: 220px; overflow: auto; }
 .portal-vue-group-tabs > .el-tabs__header { margin: 0 0 16px; }
 .portal-vue-group-tabs > .el-tabs__header .el-tabs__nav-wrap::after { height: 1px; background: #e9edf4; }

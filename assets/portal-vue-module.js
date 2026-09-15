@@ -69,6 +69,7 @@
 
   const LOGIN_USER_NAME = "曾祥竞";
   const DEPT_SEPARATOR = " / ";
+  const USER_SCOPE_PREFIX = "user:";
 
   function loginUser() {
     return state.users.find(user => user.name === LOGIN_USER_NAME) || state.users[0] || null;
@@ -76,7 +77,26 @@
 
   function departmentMatched(dept, scope) {
     if (!dept) return false;
-    return scope.some(item => item && (dept === item || dept.startsWith(item + DEPT_SEPARATOR)));
+    return scope.some(item => item && !isUserScopeItem(item) && (dept === item || dept.startsWith(item + DEPT_SEPARATOR)));
+  }
+
+  function isUserScopeItem(item) {
+    return typeof item === "string" && item.startsWith(USER_SCOPE_PREFIX);
+  }
+
+  function userScopeName(item) {
+    return isUserScopeItem(item) ? item.slice(USER_SCOPE_PREFIX.length) : "";
+  }
+
+  /* 管理范围命中：部门路径（含下级部门）或直接指定的成员 */
+  function scopeMatched(user, scope) {
+    if (!user) return false;
+    return scope.some(item => {
+      if (!item) return false;
+      if (isUserScopeItem(item)) return userScopeName(item) === user.name;
+      const dept = user.dept || "";
+      return dept === item || dept.startsWith(item + DEPT_SEPARATOR);
+    });
   }
 
   function manageScopeOf(user) {
@@ -89,7 +109,7 @@
     if (manager.manageScopeAll) return true;
     const scope = manageScopeOf(manager);
     if (!scope.length) return false;
-    return departmentMatched(user.dept || "", scope);
+    return scopeMatched(user, scope);
   }
 
   function visibleUsersFor(manager) {
@@ -100,8 +120,13 @@
     if (user?.manageScopeAll) return "全部用户";
     const scope = manageScopeOf(user);
     if (!scope.length) return "未配置（仅自己）";
-    if (scope.length === 1) return scope[0];
-    return `${scope.length} 个部门`;
+    if (scope.length === 1) return isUserScopeItem(scope[0]) ? userScopeName(scope[0]) : scope[0];
+    const depts = scope.filter(item => !isUserScopeItem(item));
+    const members = scope.filter(isUserScopeItem);
+    const parts = [];
+    if (depts.length) parts.push(`${depts.length} 个部门`);
+    if (members.length) parts.push(`${members.length} 名成员`);
+    return parts.join(" + ");
   }
 
   function buildDepartmentTree(users) {
@@ -121,6 +146,12 @@
         }
         nodes = node.children;
       });
+      const personKey = USER_SCOPE_PREFIX + user.name;
+      if (!seen.has(personKey)) {
+        const person = { value: personKey, label: user.name, member: true, children: [] };
+        seen.set(personKey, person);
+        nodes.push(person);
+      }
     });
     return tree;
   }
@@ -1121,8 +1152,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <div v-show="activeTab==='tables'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><el-checkbox :model-value="allTablesSelected" :indeterminate="tablesIndeterminate" :disabled="groupAllTables" @change="toggleAllTables"><span>全部数据表</span><el-tag v-if="groupAllTables" size="small" type="info" effect="plain" class="portal-vue-lock-tag">权限组</el-tag></el-checkbox><p class="portal-vue-muted" style="margin:6px 0 0">{{ inherited ? '带“权限组”标签的数据表来自「' + user.group + '」，不可取消；其余数据表可以按需追加。未勾选任何数据表时，该用户无法在灵犀智析发起分析。' : '未加入权限组，可自由配置个人数据表权限；未勾选任何数据表时，该用户无法在灵犀智析发起分析。' }}</p></div><div v-for="group in tableGroups" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><el-checkbox v-for="table in group.tables" :key="table.cnName" v-model="selectedTables" :value="table.cnName" :disabled="isTableLocked(table)" style="display:flex;margin:8px 0"><span>{{ table.cnName }}</span><el-tag v-if="isTableLocked(table)" size="small" type="info" effect="plain" class="portal-vue-lock-tag">权限组</el-tag></el-checkbox></div></div>
               <div v-show="activeTab==='scope'" class="portal-vue-permission-grid">
                 <div class="portal-vue-permission-block" style="grid-column:1/-1">
-                  <div class="portal-vue-scope-head"><el-checkbox v-model="scopeAll">全部用户（不受部门限制）</el-checkbox><span class="portal-vue-muted">候选范围来自系统用户所在的部门；选中部门后，部门下的用户自动纳入管理范围，人员变动时自动跟随</span></div>
-                  <el-tree-select v-model="selectedScope" class="portal-vue-scope-tree" :data="deptTree" multiple filterable show-checkbox check-strictly clearable collapse-tags collapse-tags-tooltip :max-collapse-tags="3" :disabled="scopeAll" placeholder="选择部门（可多选）"></el-tree-select>
+                  <div class="portal-vue-scope-head"><el-checkbox v-model="scopeAll">全部用户（不受部门限制）</el-checkbox><span class="portal-vue-muted">候选范围来自系统用户的部门与成员：选中部门=该部门及下级部门所有人自动纳入，也可以直接勾选具体成员</span></div>
+                  <el-tree-select v-model="selectedScope" class="portal-vue-scope-tree" :data="deptTree" :props="scopeTreeProps" multiple filterable show-checkbox check-strictly clearable collapse-tags collapse-tags-tooltip :max-collapse-tags="3" :disabled="scopeAll" placeholder="选择部门或成员（可多选）"></el-tree-select>
                   <p class="portal-vue-muted" style="margin:10px 0 0">{{ scopeSummary }}</p>
                 </div>
                 <div class="portal-vue-permission-block" style="grid-column:1/-1">
@@ -1150,9 +1181,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       lockedTotal(){return this.groupMenuNames.size+this.groupBoardNames.size+this.groupTableNames.size;},
       personalTotal(){return (this.user?.menuGrants||[]).length+(this.user?.boardGrants||[]).length+(this.user?.tableGrants||[]).filter(name=>name!=="全部数据表").length;},
       deptTree(){refreshTick.value;return buildDepartmentTree(state.users);},
-      scopePreview(){refreshTick.value;if(this.scopeAll)return state.users.map(user=>user.name);const scope=this.selectedScope.filter(Boolean);if(!scope.length)return this.user?[this.user.name]:[];return state.users.filter(user=>user.name===this.user?.name||departmentMatched(user.dept||"",scope)).map(user=>user.name);},
+      scopeTreeProps(){return { label: "label", children: "children", class: data => data?.member ? "portal-vue-scope-member-node" : "" };},
+      scopePreview(){refreshTick.value;if(this.scopeAll)return state.users.map(user=>user.name);const scope=this.selectedScope.filter(Boolean);if(!scope.length)return this.user?[this.user.name]:[];return state.users.filter(user=>user.name===this.user?.name||scopeMatched(user,scope)).map(user=>user.name);},
       scopeUserCount(){return this.scopePreview.length;},
-      scopeSummary(){if(this.scopeAll)return `已配置为「全部用户」：该用户在「用户管理」里可以看到全部 ${state.users.length} 名用户。`;const scope=this.selectedScope.filter(Boolean);if(!scope.length)return "未配置任何部门：该用户在「用户管理」里只能看到自己。";return `已选择 ${scope.length} 个部门：该用户在「用户管理」里可以看到范围内 ${this.scopeUserCount} 名用户（含自己）。`;},
+      scopeSummary(){if(this.scopeAll)return `已配置为「全部用户」：该用户在「用户管理」里可以看到全部 ${state.users.length} 名用户。`;const scope=this.selectedScope.filter(Boolean);if(!scope.length)return "未配置任何部门或成员：该用户在「用户管理」里只能看到自己。";return `已选择 ${manageScopeSummary({ manageScope: scope })}：该用户在「用户管理」里可以看到范围内 ${this.scopeUserCount} 名用户（含自己）。`;},
       boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
       tableGroups(){const groups=[];state.assets.forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
       allTableNames(){return state.assets.map(table=>table.cnName);},
