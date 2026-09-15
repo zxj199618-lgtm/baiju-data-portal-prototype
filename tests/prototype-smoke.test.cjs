@@ -201,6 +201,7 @@ assert(portalVue.includes("管理范围") && portalVue.includes("el-tree-select"
 assert(portalVue.includes("userInManageScope") && portalVue.includes("visibleUsersFor") && portalVue.includes("manageScopeAll"), "用户管理只展示当前登录人管理范围内的用户，可配置全部用户");
 assert(portalVue.includes("未配置（仅自己）") && portalVue.includes("只能看到自己"), "未配置管理范围时默认只看自己");
 assert(portalVue.includes("manageScope") && portalBridge.includes("manageScopeAll: true"), "管理范围按用户持久化，平台管理员默认全量可见");
+assert(!portalVue.includes('height="558px"') && portalVue.includes('class="portal-vue-split-body"><article v-for="(item,index) in state.groups"'), "权限组左侧列表应完整展示，不再用固定高度裁切");
 assert(portalVue.includes("USER_SCOPE_PREFIX") && portalVue.includes("scopeMatched") && portalVue.includes("member: true"), "管理范围下拉支持直接勾选具体成员（部门 + 成员两种粒度）");
 assert(portalBridge.includes("scopedUsers"), "JS 兜底的用户管理同样按管理范围过滤");
 assert(portalVue.includes("menuEdits") && portalVue.includes("menuEditGrants") && portalVue.includes("isMenuEditLocked"), "菜单权限应区分查看与编辑：权限组与个人配置都能单独授予编辑权限");
