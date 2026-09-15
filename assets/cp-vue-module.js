@@ -244,8 +244,8 @@
               </el-select>
             </div>
             <div class="cp-vue-toolbar-actions">
-              <el-button plain @click="categoryManagerVisible=true">管理需求分类</el-button>
-              <el-button type="primary" @click="createPackage">新建人群包</el-button>
+              <el-button v-if="canEdit('人群包管理')" plain @click="categoryManagerVisible=true">管理需求分类</el-button>
+              <el-button v-if="canEdit('人群包管理')" type="primary" @click="createPackage">新建人群包</el-button>
             </div>
           </div>
 
@@ -271,6 +271,7 @@
                 <template #default="scope">
                   <el-switch
                     v-model="scope.row.status"
+                    :disabled="!canEdit('人群包管理')"
                     active-value="启用"
                     inactive-value="停用"
                     :before-change="() => confirmStatusChange(scope.row)"
@@ -324,10 +325,10 @@
               <el-table-column label="操作" width="260" fixed="right">
                 <template #default="scope">
                   <div class="cp-vue-actions">
-                    <el-button link type="primary" @click="editPackage(scope.row)">编辑</el-button>
+                    <el-button v-if="canEdit('人群包管理')" link type="primary" @click="editPackage(scope.row)">编辑</el-button>
                     <el-button link type="primary" @click="openHistory(scope.row)">运行历史</el-button>
-                    <el-button link type="primary" :disabled="scope.row.status !== '启用'" @click="deliver(scope.row, 'run')">立即运行</el-button>
-                    <el-button link type="primary" :disabled="scope.row.status !== '启用'" @click="deliver(scope.row, 'export')">导出</el-button>
+                    <el-button v-if="canEdit('人群包管理')" link type="primary" :disabled="scope.row.status !== '启用'" @click="deliver(scope.row, 'run')">立即运行</el-button>
+                    <el-button v-if="canEdit('人群包管理')" link type="primary" :disabled="scope.row.status !== '启用'" @click="deliver(scope.row, 'export')">导出</el-button>
                   </div>
                 </template>
               </el-table-column>
@@ -373,7 +374,7 @@
           <div class="cp-vue-category-add-row">
             <el-input v-model="categoryDraft" maxlength="20" placeholder="输入新分类名称" @keyup.enter="addRequirementCategory"></el-input>
             <el-input v-model="categoryCodeDraft" maxlength="30" placeholder="对外英文名，如 EQUITY" @keyup.enter="addRequirementCategory"></el-input>
-            <el-button type="primary" @click="addRequirementCategory">新增</el-button>
+            <el-button v-if="canEdit('人群包管理')" type="primary" @click="addRequirementCategory">新增</el-button>
           </div>
           <el-scrollbar max-height="360px" class="cp-vue-category-list">
             <div v-for="category in managedRequirementCategories" :key="category.code" class="cp-vue-category-row">
@@ -383,7 +384,7 @@
                   <el-input v-model="editingCategoryCodeDraft" maxlength="30" placeholder="对外英文名" @keyup.enter="saveRequirementCategory(category)"></el-input>
                 </div>
                 <div class="cp-vue-category-row-actions">
-                  <el-button link type="primary" @click="saveRequirementCategory(category)">保存</el-button>
+                  <el-button v-if="canEdit('人群包管理')" link type="primary" @click="saveRequirementCategory(category)">保存</el-button>
                   <el-button link @click="cancelRequirementCategoryEdit">取消</el-button>
                 </div>
               </template>
@@ -393,11 +394,11 @@
                   <small>对外英文名：{{ category.code }} · {{ categoryUsageCount(category) ? categoryUsageCount(category) + ' 个人群包' : '未使用' }}</small>
                 </div>
                 <div class="cp-vue-category-row-actions">
-                  <el-button link type="primary" @click="editRequirementCategory(category)">编辑</el-button>
+                  <el-button v-if="canEdit('人群包管理')" link type="primary" @click="editRequirementCategory(category)">编辑</el-button>
                   <el-tooltip v-if="categoryUsageCount(category)" :content="'已有 ' + categoryUsageCount(category) + ' 个人群包使用，不能删除'" placement="top">
                     <span class="cp-vue-disabled-category-action"><el-button link type="danger" disabled>删除</el-button></span>
                   </el-tooltip>
-                  <el-button v-else link type="danger" @click="deleteRequirementCategory(category)">删除</el-button>
+                  <el-button v-else-if="canEdit('人群包管理')" link type="danger" @click="deleteRequirementCategory(category)">删除</el-button>
                 </div>
               </template>
             </div>
@@ -484,7 +485,7 @@
                         <el-button v-if="form.conditions.length > 1" class="cp-vue-remove-condition" link type="danger" title="删除条件" @click="removeCondition(index)">×</el-button>
                         <span v-else></span>
                       </div>
-                      <el-button class="cp-vue-add-condition" link type="primary" @click="addCondition">+ 添加条件</el-button>
+                      <el-button v-if="canEdit('人群包管理')" class="cp-vue-add-condition" link type="primary" @click="addCondition">+ 添加条件</el-button>
                     </div>
                   </div>
                 </el-form-item>
@@ -495,7 +496,7 @@
                   <div class="cp-vue-sql-stack">
                     <div class="cp-vue-sql-note">结果集必须返回一个标识列。支持多表 join / 聚合；分区、日期范围与加密方式由 SQL 自行处理，平台在校验时自动识别结果标识。</div>
                     <div class="cp-vue-sql-editor">
-                      <div class="cp-vue-sql-toolbar"><el-button text type="primary" @click="formatSql">格式化 SQL</el-button></div>
+                      <div class="cp-vue-sql-toolbar"><el-button v-if="canEdit('人群包管理')" text type="primary" @click="formatSql">格式化 SQL</el-button></div>
                       <pre ref="sqlHighlight" class="cp-vue-sql-highlight" aria-hidden="true"><code v-html="highlightedSql"></code></pre>
                       <textarea ref="sqlInput" v-model="form.sql" class="cp-vue-sql-input" spellcheck="false" placeholder="SELECT DISTINCT phone_hash&#10;FROM dwd_equity_shop_order_f_d&#10;WHERE dt = :max_pt AND pay_status = 'SUCCESS'" @input="syncSqlScroll" @scroll="syncSqlScroll" @blur="formatSql" @paste="formatSqlAfterPaste" @keydown.tab.prevent="insertSqlTab"></textarea>
                     </div>
@@ -553,7 +554,7 @@
 
             <div class="cp-vue-footer">
               <el-button @click="cancelForm">取消</el-button>
-              <el-button type="primary" :loading="saving" @click="saveForm">校验并保存</el-button>
+              <el-button v-if="canEdit('人群包管理')" type="primary" :loading="saving" @click="saveForm">校验并保存</el-button>
             </div>
           </el-form>
         </div>
@@ -572,7 +573,7 @@
         <el-alert v-else-if="validationComplete" class="cp-vue-validation-success" type="success" :closable="false" show-icon title="全部校验通过。确认保存后，人群包才会创建。"></el-alert>
         <template #footer>
           <el-button :disabled="validating" @click="returnToForm">{{ validationError ? '返回修改' : '取消' }}</el-button>
-          <el-button v-if="validationComplete" type="primary" @click="confirmSave">确认保存</el-button>
+          <el-button v-if="(validationComplete) && canEdit('人群包管理')" type="primary" @click="confirmSave">确认保存</el-button>
         </template>
       </el-dialog>
     </el-config-provider>
@@ -1085,6 +1086,8 @@
   });
 
   app.use(window.ElementPlus);
+  // 人群包管理的写操作统一按门户「菜单编辑权限」判断（未配置编辑权限时隐藏按钮）
+  app.mixin({ methods: { canEdit: menu => (typeof window.portalVueModuleApi?.canEdit === "function" ? window.portalVueModuleApi.canEdit(menu) : true) } });
   const vm = app.mount("#cpVueModule");
   document.getElementById("cpVueModule").dataset.vuePowered = "true";
   window.cpVueModuleApi = {

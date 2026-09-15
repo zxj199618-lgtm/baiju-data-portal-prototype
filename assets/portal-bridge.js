@@ -1173,7 +1173,7 @@
         user.dept = getPrototypeUserDepartment(user.name, user.dept);
       });
       const existingUserNames = new Set(simpleUsers.map(user => user.name));
-      const prototypeAdminAssignments = { "曾祥竞": { group: "门户管理员", role: "平台管理员", status: "启用", login: "2026-08-31 09:00" } };
+      const prototypeAdminAssignments = { "曾祥竞": { group: "门户管理员", role: "平台管理员", status: "启用", login: "2026-08-31 09:00", manageScopeAll: true } };
       importedUserNames.forEach((name, index) => {
         if (existingUserNames.has(name)) return;
         simpleUsers.push({
@@ -1186,18 +1186,20 @@
           peopleStatus: "在职",
           status: prototypeAdminAssignments[name]?.status || "未分配权限组",
           login: prototypeAdminAssignments[name]?.login || "-",
-          feishu: `ou_imported_${String(index + 1).padStart(3, "0")}`
+          feishu: `ou_imported_${String(index + 1).padStart(3, "0")}`,
+          manageScope: prototypeAdminAssignments[name]?.manageScope || [],
+          manageScopeAll: prototypeAdminAssignments[name]?.manageScopeAll || false
         });
         existingUserNames.add(name);
       });
       window.simpleUsers = simpleUsers;
 
       const permissionGroups = [
-        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "系统管理", "菜单管理", "Skill 配置", "任务运维", "环境域名", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据预警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
-        { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["灵犀智析", "数据看板"], boards: ["CPA事业部", "大盘数据"], tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"], status: "启用" },
-        { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["灵犀智析", "数据看板"], boards: ["CPA事业部", "新媒体"], tables: ["广告计划日报表", "广告账户日报"], status: "启用" },
-        { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["灵犀智析", "数据看板"], boards: ["大盘数据", "产品运营部"], tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"], status: "启用" },
-        { name: "只读访客", desc: "只查看被分发的聚合看板，不能下钻明细。", menus: ["数据看板"], boards: ["指定看板"], tables: [], status: "启用" }
+        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "系统管理", "菜单管理", "Skill 配置", "任务运维", "环境域名", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据预警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], menuEdits: ["灵犀智析", "系统管理", "菜单管理", "Skill 配置", "任务运维", "环境域名", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据预警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
+        { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["CPA事业部", "大盘数据"], tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"], status: "启用" },
+        { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["CPA事业部", "新媒体"], tables: ["广告计划日报表", "广告账户日报"], status: "启用" },
+        { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["大盘数据", "产品运营部"], tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"], status: "启用" },
+        { name: "只读访客", desc: "只查看被分发的聚合看板，不能下钻明细。", menus: ["数据看板"], menuEdits: [], boards: ["指定看板"], tables: [], status: "启用" }
       ];
 
       const dataAssets = [
@@ -2707,9 +2709,17 @@
       function renderSimpleUsers(keyword = "") {
         const normalized = keyword.trim().toLowerCase();
         const statusValue = document.getElementById("userStatusFilter")?.value || "全部状态";
+        const scopeManager = simpleUsers.find(user => user.name === "曾祥竞") || simpleUsers[0];
+        const scopedUsers = simpleUsers.filter(user => {
+          if (user.name === scopeManager.name) return true;
+          if (scopeManager.manageScopeAll) return true;
+          const scope = Array.isArray(scopeManager.manageScope) ? scopeManager.manageScope.filter(Boolean) : [];
+          if (!scope.length) return false;
+          return scope.some(item => (user.dept || "") === item || (user.dept || "").startsWith(item + " / "));
+        });
         const groupOptions = ["全部权限组", "未分配", ...permissionGroups.map(group => group.name)];
         document.getElementById("userGroupList").innerHTML = groupOptions.map(group => {
-          const count = group === "全部权限组" ? simpleUsers.length : simpleUsers.filter(user => user.group === group).length;
+          const count = group === "全部权限组" ? scopedUsers.length : scopedUsers.filter(user => user.group === group).length;
           return `
             <button class="category-item ${group === activeUserGroup ? "active" : ""}" data-user-group-filter="${safeText(group)}">
               <span>${safeText(group)}</span>
@@ -2717,7 +2727,7 @@
             </button>
           `;
         }).join("");
-        const rows = simpleUsers.filter(user => {
+        const rows = scopedUsers.filter(user => {
           const accountStatus = user.status === "已停用" ? "已停用" : "启用中";
           const matchKeyword = !normalized || [user.name, user.dept, user.role, user.email, user.group].some(value => value.toLowerCase().includes(normalized));
           const matchGroup = activeUserGroup === "全部权限组" || user.group === activeUserGroup;
@@ -2929,6 +2939,16 @@
         const user = simpleUsers[activeUserIndex] || simpleUsers[0];
         const menuTree = getMenuPermissionTree();
         const allowedMenus = getGroupMenus(user.group);
+        const inGroup = Boolean(user.group) && user.group !== "未分配" && permissionGroups.some(group => group.name === user.group);
+        const groupBoards = (permissionGroups.find(group => group.name === user.group) || {}).boards || [];
+        const lockedBoardNames = new Set(
+          groupBoards.includes("全部看板")
+            ? migratedBoards.filter(board => board.status === "已上线").map(board => board.name)
+            : migratedBoards.filter(board => board.status === "已上线" && (groupBoards.includes(board.category) || groupBoards.includes(board.name))).map(board => board.name)
+        );
+        const groupLockNote = inGroup
+          ? `<p style="margin:0 0 12px;color:#5b6b83;font-size:13px;line-height:1.6">该用户属于权限组「${safeText(user.group)}」，带「权限组」标签的权限由权限组授予，个人配置中不可取消；如需收回请调整权限组或将该用户移出权限组。</p>`
+          : "";
         document.getElementById("permissionUserCard").innerHTML = `
           <div style="display:flex;align-items:center;gap:12px">
             <div class="user-avatar">${safeText(user.name.slice(0, 1))}</div>
@@ -2940,17 +2960,17 @@
           <button class="btn ghost" id="backToUsersBtn" style="justify-content:center">返回用户管理</button>
         `;
 
-        document.getElementById("menuPermissionList").innerHTML = menuTree.map(item => `
+        document.getElementById("menuPermissionList").innerHTML = groupLockNote + menuTree.map(item => `
           <div class="permission-board-group">
             <label class="check-row">
-              <input type="checkbox" ${allowedMenus.includes(item.name) ? "checked" : ""} />
-              <span>${safeText(item.name)}</span>
+              <input type="checkbox" ${allowedMenus.includes(item.name) ? "checked" : ""} ${inGroup && allowedMenus.includes(item.name) ? "disabled" : ""} />
+              <span>${safeText(item.name)}</span>${inGroup && allowedMenus.includes(item.name) ? '<em style="margin-left:6px;padding:0 6px;border:1px solid #d7e2f5;border-radius:4px;background:#f2f6fd;color:#4b5b73;font-size:12px;font-style:normal">权限组</em>' : ""}
             </label>
             <div style="display:grid;gap:8px;margin-left:26px">
               ${item.children.map(child => `
                 <label class="check-row" style="min-height:30px">
-                  <input type="checkbox" ${allowedMenus.includes(child) ? "checked" : ""} />
-                  <span>${safeText(child)}</span>
+                  <input type="checkbox" ${allowedMenus.includes(child) ? "checked" : ""} ${inGroup && allowedMenus.includes(child) ? "disabled" : ""} />
+                  <span>${safeText(child)}</span>${inGroup && allowedMenus.includes(child) ? '<em style="margin-left:6px;padding:0 6px;border:1px solid #d7e2f5;border-radius:4px;background:#f2f6fd;color:#4b5b73;font-size:12px;font-style:normal">权限组</em>' : ""}
                 </label>
               `).join("")}
             </div>
@@ -2965,10 +2985,10 @@
         document.getElementById("boardPermissionList").innerHTML = grouped.map(group => `
           <div class="permission-board-group">
             <strong>${safeText(group.category)}</strong>
-            ${group.boards.map((board, index) => `
+            ${group.boards.map(board => `
               <label class="check-row">
-                <input type="checkbox" ${user.group !== "未分配" && (index < 3 || user.group === "门户管理员") ? "checked" : ""} />
-                <span>${safeText(board.name)}</span>
+                <input type="checkbox" ${lockedBoardNames.has(board.name) ? "checked" : ""} ${lockedBoardNames.has(board.name) ? "disabled" : ""} />
+                <span>${safeText(board.name)}</span>${lockedBoardNames.has(board.name) ? '<em style="margin-left:6px;padding:0 6px;border:1px solid #d7e2f5;border-radius:4px;background:#f2f6fd;color:#4b5b73;font-size:12px;font-style:normal">权限组</em>' : ""}
               </label>
             `).join("")}
           </div>
@@ -3586,6 +3606,12 @@
         renderSearchResults("");
       });
       primaryAction.addEventListener("click", () => {
+        // 菜单未配置「编辑」权限时，页面主操作（新增/保存/同步等）一律拦截
+        if (window.portalVueModuleApi?.canEditPage && !window.portalVueModuleApi.canEditPage(activePage)) {
+          if (window.portalVueModuleApi.denyEdit) window.portalVueModuleApi.denyEdit();
+          else showToast("当前菜单未配置「编辑」权限，该操作已被拦截");
+          return;
+        }
         if (activePage === "配置权限") showToast("权限配置已保存");
         else if (activePage === "权限组") document.getElementById("createGroupBtn").click();
         else if (activePage === "看板管理") openBoardAssetModal();

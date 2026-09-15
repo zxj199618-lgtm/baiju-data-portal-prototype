@@ -31,7 +31,7 @@
     const root = document.querySelector(selector);
     if (!root) return null;
     const app = createApp(component);
-    app.mixin({ data: () => ({ locale }) });
+    app.mixin({ data: () => ({ locale }), methods: { canEdit: canEditMenu, canView: canViewMenu } });
     app.use(ep);
     const vm = app.mount(root);
     root.dataset.elementComponent = name;
@@ -65,6 +65,168 @@
     return { totalPages, safePage, rows: rows.slice((safePage - 1) * size, safePage * size) };
   }
 
+  /* ===== 管理范围：按部门配置，部门下用户自动纳入；未配置时默认只看自己 ===== */
+
+  const LOGIN_USER_NAME = "曾祥竞";
+  const DEPT_SEPARATOR = " / ";
+
+  function loginUser() {
+    return state.users.find(user => user.name === LOGIN_USER_NAME) || state.users[0] || null;
+  }
+
+  function departmentMatched(dept, scope) {
+    if (!dept) return false;
+    return scope.some(item => item && (dept === item || dept.startsWith(item + DEPT_SEPARATOR)));
+  }
+
+  function manageScopeOf(user) {
+    return Array.isArray(user?.manageScope) ? user.manageScope.filter(Boolean) : [];
+  }
+
+  function userInManageScope(manager, user) {
+    if (!manager || !user) return true;
+    if (user.name === manager.name) return true;
+    if (manager.manageScopeAll) return true;
+    const scope = manageScopeOf(manager);
+    if (!scope.length) return false;
+    return departmentMatched(user.dept || "", scope);
+  }
+
+  function visibleUsersFor(manager) {
+    return state.users.filter(user => userInManageScope(manager, user));
+  }
+
+  function manageScopeSummary(user) {
+    if (user?.manageScopeAll) return "全部用户";
+    const scope = manageScopeOf(user);
+    if (!scope.length) return "未配置（仅自己）";
+    if (scope.length === 1) return scope[0];
+    return `${scope.length} 个部门`;
+  }
+
+  function buildDepartmentTree(users) {
+    const tree = [];
+    const seen = new Map();
+    users.forEach(user => {
+      const path = String(user.dept || "未挂部门");
+      let nodes = tree;
+      let prefix = "";
+      path.split(DEPT_SEPARATOR).forEach(part => {
+        prefix = prefix ? prefix + DEPT_SEPARATOR + part : part;
+        let node = seen.get(prefix);
+        if (!node) {
+          node = { value: prefix, label: part, children: [] };
+          seen.set(prefix, node);
+          nodes.push(node);
+        }
+        nodes = node.children;
+      });
+    });
+    return tree;
+  }
+
+  /* ===== 菜单查看/编辑权限：未配置「编辑」权限时，该菜单下的写操作一律不允许 ===== */
+
+  const MENU_OF_PAGE = {
+    "新增API": "数据开放平台",
+    "新建人群包": "人群包管理",
+    "配置权限": "用户管理",
+    "维表数据维护": "维表管理",
+    "表详情": "表管理",
+    "Quick BI 展示": "数据看板"
+  };
+
+  function menuOfPage(page) {
+    return MENU_OF_PAGE[page] || page;
+  }
+
+  function expandMenuNames(names) {
+    const granted = new Set(names || []);
+    const expanded = new Set();
+    state.nav.forEach(section => {
+      const sectionGranted = section.items.length > 1 && granted.has(section.group);
+      section.items.forEach(item => {
+        if (sectionGranted || granted.has(item.name)) expanded.add(item.name);
+      });
+    });
+    return expanded;
+  }
+
+  function groupOfUser(user) {
+    return state.groups.find(group => group.name === user?.group) || null;
+  }
+
+  function effectiveEditMenus(user) {
+    const group = groupOfUser(user);
+    const personal = Array.isArray(user?.menuEditGrants) ? user.menuEditGrants : [];
+    return expandMenuNames([...(group?.menuEdits || []), ...personal]);
+  }
+
+  function effectiveViewMenus(user) {
+    const group = groupOfUser(user);
+    const personal = Array.isArray(user?.menuGrants) ? user.menuGrants : [];
+    return expandMenuNames([...(group?.menus || []), ...personal]);
+  }
+
+  function canViewMenu(menu) {
+    refreshTick.value;
+    const me = loginUser();
+    if (!me) return true;
+    return effectiveViewMenus(me).has(menu);
+  }
+
+  function effectiveBoardNames(user) {
+    const group = groupOfUser(user);
+    const grants = [...(group?.boards || []), ...(Array.isArray(user?.boardGrants) ? user.boardGrants : [])];
+    if (grants.includes("全部看板")) return new Set(state.boards.map(board => board.name));
+    const names = new Set();
+    state.boards.forEach(board => {
+      if (grants.includes(board.name) || grants.includes(board.category)) names.add(board.name);
+    });
+    return names;
+  }
+
+  function effectiveTableNames(user) {
+    const group = groupOfUser(user);
+    const grants = [...(group?.tables || []), ...(Array.isArray(user?.tableGrants) ? user.tableGrants : [])];
+    if (grants.includes("全部数据表")) return new Set(state.assets.map(table => table.cnName));
+    return new Set(state.assets.filter(table => grants.includes(table.cnName)).map(table => table.cnName));
+  }
+
+  function boardScopeLabel(user, total) {
+    if (effectiveBoardNames(user).size >= state.boards.length) return "全部看板";
+    return `${effectiveBoardNames(user).size} / ${total} 个看板`;
+  }
+
+  function tableScopeLabel(user, total) {
+    if (effectiveTableNames(user).size >= state.assets.length) return "全部数据表";
+    return `${effectiveTableNames(user).size} / ${total} 张数据表`;
+  }
+
+  function canEditMenu(menu) {
+    refreshTick.value;
+    const me = loginUser();
+    if (!me) return false;
+    return effectiveEditMenus(me).has(menu);
+  }
+
+  function canEditPage(page) {
+    return canEditMenu(menuOfPage(page));
+  }
+
+  function denyEdit() {
+    ep.ElMessage.warning("当前菜单未配置「编辑」权限，该操作已被拦截");
+    return false;
+  }
+
+  function syncPrimaryAction() {
+    const button = document.getElementById("primaryAction");
+    if (!button) return;
+    const page = bridge.getPage();
+    const label = (bridge.pageMeta?.[page] || [])[2];
+    button.classList.toggle("hidden", !label || !canEditPage(page));
+  }
+
   function enabledDictItems(dict) {
     /* 枚举值无启停概念：维护界面里停用即删除，这里返回全部 */
     return (dict?.items || []).filter(item => item.code && item.name);
@@ -91,7 +253,7 @@
     currentPage.value = event.detail?.page || bridge.getPage();
     refreshTick.value += 1;
   });
-  window.addEventListener("portal:data-change", () => { refreshTick.value += 1; });
+  window.addEventListener("portal:data-change", () => { refreshTick.value += 1; syncPrimaryAction(); });
 
   const SidebarApp = {
     template: `
@@ -102,7 +264,7 @@
           <el-scrollbar class="portal-vue-nav-scroll">
             <el-menu class="portal-vue-menu" :collapse="collapsed" :default-active="menuActive" :default-openeds="openGroups" @select="selectPage">
               <template v-for="section in sections" :key="section.group">
-                <el-menu-item v-if="section.items.length === 1" :index="section.items[0].name">
+                <el-menu-item v-if="section.items.length === 1 && section.items[0].name === section.group" :index="section.items[0].name">
                   <img class="portal-nav-icon" :class="section.icon" :src="iconPath(section)" alt="" />
                   <template #title><span>{{ section.group }}</span><span v-if="navBadges(section).length" class="portal-nav-badges"><el-tag v-for="badge in navBadges(section)" :key="badge" class="portal-nav-new" :class="badgeClass(badge)" size="small">{{ badge }}</el-tag></span></template>
                 </el-menu-item>
@@ -123,7 +285,7 @@
     `,
     data: () => ({ collapsed: false }),
     computed: {
-      sections() { refreshTick.value; return state.nav; },
+      sections() { refreshTick.value; return state.nav.map(section => ({ ...section, items: section.items.filter(item => canViewMenu(item.name)) })).filter(section => section.items.length); },
       page() { return currentPage.value; },
       menuActive() {
         if (this.page === "新增API") return "数据开放平台";
@@ -134,7 +296,7 @@
         if (this.page === "表详情") return "表管理";
         return this.page;
       },
-      openGroups() { return state.nav.filter(section => section.items.length > 1).map(section => section.group); }
+      openGroups() { return this.sections.filter(section => section.items.length > 1).map(section => section.group); }
     },
     methods: {
       isActive(section) { return section.items.some(item => item.name === this.menuActive); },
@@ -288,14 +450,16 @@
     `,
     data: () => ({ keyword: "", activeIndex: 0, directoryCollapsed: false }),
     computed: {
-      onlineBoards() { refreshTick.value; return state.boards.filter(board => board.status === "已上线"); },
+      scopeBoardNames() { refreshTick.value; return effectiveBoardNames(loginUser()); },
+      onlineBoards() { refreshTick.value; const allowed = effectiveBoardNames(loginUser()); return state.boards.filter(board => board.status === "已上线" && allowed.has(board.name)); },
       indexedBoards() {
         const keyword = this.keyword.trim().toLowerCase();
-        return state.boards.map((board, index) => ({ board, index })).filter(item => item.board.status === "已上线" && (!keyword || `${item.board.category} ${item.board.name} ${item.board.quickBiId}`.toLowerCase().includes(keyword)));
+        const allowed = this.scopeBoardNames;
+        return state.boards.map((board, index) => ({ board, index })).filter(item => item.board.status === "已上线" && allowed.has(item.board.name) && (!keyword || `${item.board.category} ${item.board.name} ${item.board.quickBiId}`.toLowerCase().includes(keyword)));
       },
       groupedBoards() { return state.categories.filter(category => category !== "全部").map(category => ({ category, items: this.indexedBoards.filter(item => item.board.category === category) })).filter(group => group.items.length); },
       favorites() { return this.indexedBoards.filter(item => state.favorites.has(item.board.quickBiId)); },
-      activeBoard() { return state.boards[this.activeIndex] || this.indexedBoards[0]?.board || null; },
+      activeBoard() { const current = state.boards[this.activeIndex]; return (current && this.scopeBoardNames.has(current.name)) ? current : (this.indexedBoards[0]?.board || null); },
       seed() { return boardSeed(this.activeBoard?.name || "观星台"); },
       kpis() { return [{ label: "消耗", value: `¥${((this.seed % 800000 + 180000) / 10000).toFixed(1)}万` }, { label: "转化数", value: humanCount(this.seed % 26000 + 9000) }, { label: "ROI", value: ((this.seed % 260) / 100 + .9).toFixed(2) }, { label: "触达用户", value: `${((this.seed % 620000 + 260000) / 10000).toFixed(1)}万` }]; },
       bars() { const names = ["巨量", "广点通", "快手", "OPPO", "VIVO"]; return names.map((name, index) => ({ name, height: 50 + ((this.seed >> index) % 120) })); },
@@ -317,11 +481,12 @@
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left">
               <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索看板名称、Quick BI ID" @input="resetPage"></el-input>
-              <el-select v-model="category" class="portal-vue-filter" placeholder="全部分类" @change="resetPage"><el-option label="全部分类" value="全部分类"></el-option><el-option v-for="item in categories" :key="item" :label="item" :value="item"></el-option></el-select>
+              <el-select v-model="category" class="portal-vue-filter" placeholder="全部分类" @change="resetPage"><el-option label="全部分类" value="全部分类"></el-option><el-option v-for="item in visibleCategories" :key="item" :label="item" :value="item"></el-option></el-select>
               <el-select v-model="owner" class="portal-vue-filter" placeholder="全部负责人" @change="resetPage"><el-option label="全部负责人" value="全部负责人"></el-option><el-option v-for="item in owners" :key="item" :label="item" :value="item"></el-option></el-select>
             </div>
-            <div><el-button @click="categoryDialog=true">管理分类</el-button><el-button type="primary" @click="openForm()">新增看板</el-button></div>
+            <div><el-button v-if="canEdit('看板管理')" @click="categoryDialog=true">管理分类</el-button><el-button v-if="canEdit('看板管理')" type="primary" @click="openForm()">新增看板</el-button></div>
           </div>
+          <div class="portal-vue-scope-hint"><span>可见范围：<strong>{{ scopeLabel }}</strong></span><span class="portal-vue-muted">{{ canEdit('看板管理') ? '可在范围内新增/编辑看板' : '当前菜单未配置「编辑」权限，仅可查看' }}</span></div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无看板">
             <el-table-column label="看板名称" width="200" fixed="left" show-overflow-tooltip><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
             <el-table-column prop="category" label="所属分类" width="120"></el-table-column>
@@ -350,9 +515,9 @@
               </template>
             </el-table-column>
             <el-table-column prop="owner" label="负责人" width="100"></el-table-column>
-            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :model-value="scope.row.status==='已上线'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
+            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :disabled="!canEdit('看板管理')" :model-value="scope.row.status==='已上线'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
             <el-table-column prop="updatedAt" label="更新时间" width="170"></el-table-column>
-            <el-table-column label="操作" width="96" fixed="right"><template #default="scope"><el-button link type="primary" @click="openForm(scope.row)">编辑</el-button></template></el-table-column>
+            <el-table-column label="操作" width="96" fixed="right"><template #default="scope"><el-button v-if="canEdit('看板管理')" link type="primary" @click="openForm(scope.row)">编辑</el-button></template></el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
@@ -366,22 +531,25 @@
             <el-form-item label="看板说明"><el-input v-model="form.desc" type="textarea" :rows="3" placeholder="说明看板用途和数据口径"></el-input></el-form-item>
             <el-form-item label="可查看权限组" required><el-select v-model="form.groups" multiple><el-option v-for="item in groupNames" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
           </el-form>
-          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button type="primary" @click="saveBoard">保存</el-button></template>
+          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button v-if="canEdit('看板管理')" type="primary" @click="saveBoard">保存</el-button></template>
         </el-dialog>
 
         <el-dialog v-model="categoryDialog" title="管理看板分类" width="520px">
-          <div style="display:flex;gap:10px;margin-bottom:16px"><el-input v-model="newCategory" placeholder="输入新分类名称" @keyup.enter="addCategory"></el-input><el-button type="primary" @click="addCategory">新增</el-button></div>
-          <div v-for="item in categories" :key="item" style="display:flex;align-items:center;justify-content:space-between;min-height:44px;border-top:1px solid #eef1f5"><span>{{ item }}</span><el-button link type="danger" @click="deleteCategory(item)">删除</el-button></div>
+          <div style="display:flex;gap:10px;margin-bottom:16px"><el-input v-model="newCategory" placeholder="输入新分类名称" @keyup.enter="addCategory"></el-input><el-button v-if="canEdit('看板管理')" type="primary" @click="addCategory">新增</el-button></div>
+          <div v-for="item in categories" :key="item" style="display:flex;align-items:center;justify-content:space-between;min-height:44px;border-top:1px solid #eef1f5"><span>{{ item }}</span><el-button v-if="canEdit('看板管理')" link type="danger" @click="deleteCategory(item)">删除</el-button></div>
         </el-dialog>
       </el-config-provider>
     `,
     data: () => ({ status: "已上线", keyword: "", category: "全部分类", owner: "全部负责人", page: 1, pageSize: 10, formVisible: false, editingIndex: -1, categoryDialog: false, newCategory: "", form: {} }),
     computed: {
       categories() { refreshTick.value; return state.categories.filter(item => item !== "全部"); },
-      owners() { return [...new Set(state.boards.map(board => board.owner))]; },
+      scopeBoardNames() { refreshTick.value; return effectiveBoardNames(loginUser()); },
+      scopeLabel() { refreshTick.value; return boardScopeLabel(loginUser(), state.boards.length); },
+      visibleCategories() { const allowed = this.scopeBoardNames; return state.categories.filter(item => item !== "全部" && state.boards.some(board => board.category === item && allowed.has(board.name))); },
+      owners() { const allowed = this.scopeBoardNames; return [...new Set(state.boards.filter(board => allowed.has(board.name)).map(board => board.owner))]; },
       userNames() { return state.users.map(user => user.name); },
       groupNames() { return state.groups.map(group => group.name); },
-      filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.boards.filter(board => board.status === this.status && (this.category === "全部分类" || board.category === this.category) && (this.owner === "全部负责人" || board.owner === this.owner) && (!keyword || `${board.name} ${board.quickBiId}`.toLowerCase().includes(keyword))); },
+      filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.boards.filter(board => this.scopeBoardNames.has(board.name) && board.status === this.status && (this.category === "全部分类" || board.category === this.category) && (this.owner === "全部负责人" || board.owner === this.owner) && (!keyword || `${board.name} ${board.quickBiId}`.toLowerCase().includes(keyword))); },
       pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
       rangeText() { if (!this.filteredRows.length) return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; }
     },
@@ -425,8 +593,9 @@
               <el-select v-model="owner" class="portal-vue-filter" placeholder="全部表负责人" @change="resetPage"><el-option label="全部表负责人" value=""></el-option><el-option v-for="item in owners" :key="item" :label="item" :value="item"></el-option></el-select>
               <el-select v-model="bizLine" class="portal-vue-filter" placeholder="全部业务线" @change="resetPage"><el-option label="全部业务线" value=""></el-option><el-option v-for="item in bizLines" :key="item" :label="item" :value="item"></el-option></el-select>
             </div>
-            <el-button type="primary" @click="openCreate">新增表</el-button>
+            <el-button v-if="canEdit('表管理')" type="primary" @click="openCreate">新增表</el-button>
           </div>
+          <div class="portal-vue-scope-hint"><span>可见范围：<strong>{{ scopeLabel }}</strong></span><span class="portal-vue-muted">{{ canEdit('表管理') ? '可在范围内新增/编辑数据表' : '当前菜单未配置「编辑」权限，仅可查看' }}</span></div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无数据表">
             <el-table-column prop="assetId" label="表编号" width="92" fixed="left"></el-table-column>
             <el-table-column label="对外表名" width="210" fixed="left" show-overflow-tooltip><template #default="scope"><span class="portal-vue-name">{{ scope.row.externalName }}</span></template></el-table-column>
@@ -439,7 +608,7 @@
             <el-table-column prop="desc" label="表描述" min-width="260" show-overflow-tooltip></el-table-column>
             <el-table-column prop="owner" label="表负责人" width="120" show-overflow-tooltip></el-table-column>
             <el-table-column label="字段数" width="86" align="center"><template #default="scope">{{ scope.row.fields.length }}</template></el-table-column>
-            <el-table-column label="服务状态" width="92" align="center"><template #default="scope"><el-switch :model-value="scope.row.serviceStatus==='启用'" @change="value=>toggleService(scope.row,value)"></el-switch></template></el-table-column>
+            <el-table-column label="服务状态" width="92" align="center"><template #default="scope"><el-switch :disabled="!canEdit('表管理')" :model-value="scope.row.serviceStatus==='启用'" @change="value=>toggleService(scope.row,value)"></el-switch></template></el-table-column>
             <el-table-column prop="lastSync" label="最近同步时间" width="170"></el-table-column>
             <el-table-column label="最近30日调用次数" width="150" align="right"><template #default="scope">{{ callCount(scope.row).toLocaleString() }}</template></el-table-column>
             <el-table-column label="操作" width="88" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button></div></template></el-table-column>
@@ -463,7 +632,7 @@
               </div>
             </el-form-item>
           </el-form>
-          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button type="primary" @click="saveCreate">保存</el-button></template>
+          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('表管理')" type="primary" @click="saveCreate">保存</el-button></template>
         </el-dialog>
 
           <el-drawer v-model="detailVisible" :title="detail ? (detail.cnName || detail.table) + ' · 表详情' : '表详情'" size="860px" destroy-on-close :close-on-click-modal="true">
@@ -489,17 +658,20 @@
             <div v-if="detailDraft.tagTable" class="portal-vue-section-line"><h3>人群包导出字段配置</h3><el-checkbox-group v-model="detailDraft.exportFields" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px"><el-checkbox v-for="field in detail.fields" :key="field.name" :value="field.name">{{ field.name }} / {{ field.comment || field.type }}</el-checkbox></el-checkbox-group></div>
             <div class="portal-vue-section-line"><h3>字段列表</h3><el-table :data="detailDraft.fields" class="portal-vue-table" border><el-table-column prop="name" label="字段名称" width="170"></el-table-column><el-table-column prop="type" label="字段类型" width="110"></el-table-column><el-table-column prop="comment" label="字段中文名" width="130"></el-table-column><el-table-column label="关联字典" width="220"><template #default="scope"><el-select v-model="scope.row.dictId" clearable filterable placeholder="不关联" popper-class="portal-vue-dict-select"><el-option v-for="dict in enabledDicts" :key="dict.dictId" :label="dict.name" :value="dict.dictId"><el-tooltip placement="right" :show-after="180" :hide-after="80" popper-class="portal-vue-dict-popper"><template #content><div class="portal-vue-dict-preview"><strong>{{ dict.name }}</strong><span>{{ dict.code }} · {{ enabledDictItems(dict).length }} 个枚举值</span><p v-for="item in enabledDictItems(dict)" :key="item.code">{{ item.code }} → {{ item.name }}</p></div></template><span class="portal-vue-dict-option">{{ dict.name }}<small>{{ dictHint(dict) }}</small></span></el-tooltip></el-option></el-select></template></el-table-column><el-table-column label="字段备注" min-width="180"><template #default="scope"><el-input v-model="scope.row.remark"></el-input></template></el-table-column></el-table></div>
           </template>
-          <template #footer><el-button @click="detailVisible=false">关闭</el-button><el-button type="primary" @click="saveDetail">保存配置</el-button></template>
+          <template #footer><el-button @click="detailVisible=false">关闭</el-button><el-button v-if="canEdit('表管理')" type="primary" @click="saveDetail">保存配置</el-button></template>
         </el-drawer>
       </el-config-provider>
     `,
     data: () => ({ status: "启用", keyword: "", source: "", database: "", owner: "", bizLine: "", page: 1, pageSize: 10, createVisible: false, createForm: {}, detailVisible: false, detail: null, detailDraft: {} }),
     computed: {
-      sources() { refreshTick.value; return [...new Set(state.assets.map(item => item.source))]; },
-      databases() { return [...new Set(state.assets.filter(item => !this.source || item.source === this.source).map(item => item.database))]; },
-      owners() { return [...new Set(state.assets.map(item => item.owner).filter(Boolean))].sort((left, right) => left.localeCompare(right, "zh-CN")); },
-      bizLines() { refreshTick.value; return [...new Set(state.assets.map(item => item.bizLine).filter(Boolean))]; },
-      filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.assets.filter(item => (item.serviceStatus || "启用") === this.status && (!this.source || item.source === this.source) && (!this.database || item.database === this.database) && (!this.owner || item.owner === this.owner) && (!this.bizLine || item.bizLine === this.bizLine) && (!keyword || `${item.table} ${item.externalName} ${item.cnName}`.toLowerCase().includes(keyword))); },
+      scopeTableNames() { refreshTick.value; return effectiveTableNames(loginUser()); },
+      scopeLabel() { refreshTick.value; return tableScopeLabel(loginUser(), state.assets.length); },
+      scopeAssets() { refreshTick.value; const allowed = this.scopeTableNames; return state.assets.filter(item => allowed.has(item.cnName)); },
+      sources() { return [...new Set(this.scopeAssets.map(item => item.source))]; },
+      databases() { return [...new Set(this.scopeAssets.filter(item => !this.source || item.source === this.source).map(item => item.database))]; },
+      owners() { return [...new Set(this.scopeAssets.map(item => item.owner).filter(Boolean))].sort((left, right) => left.localeCompare(right, "zh-CN")); },
+      bizLines() { return [...new Set(this.scopeAssets.map(item => item.bizLine).filter(Boolean))]; },
+      filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.assets.filter(item => this.scopeTableNames.has(item.cnName) && (item.serviceStatus || "启用") === this.status && (!this.source || item.source === this.source) && (!this.database || item.database === this.database) && (!this.owner || item.owner === this.owner) && (!this.bizLine || item.bizLine === this.bizLine) && (!keyword || `${item.table} ${item.externalName} ${item.cnName}`.toLowerCase().includes(keyword))); },
       pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
       rangeText() { if (!this.filteredRows.length) return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; },
       enabledDicts() { refreshTick.value; return state.dictionaries.filter(item => item.status === "启用"); },
@@ -552,17 +724,17 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
           <el-tabs v-model="status" class="portal-vue-status-tabs" @tab-change="page=1"><el-tab-pane label="启用中" name="启用"></el-tab-pane><el-tab-pane label="已停用" name="停用"></el-tab-pane></el-tabs>
-          <div class="portal-vue-toolbar"><div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索接口名称、表名" @input="page=1"></el-input></div><el-button type="primary" @click="openEditor(-1)">新增 API</el-button></div>
+          <div class="portal-vue-toolbar"><div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索接口名称、表名" @input="page=1"></el-input></div><el-button v-if="canEdit('数据开放平台')" type="primary" @click="openEditor(-1)">新增 API</el-button></div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无 API">
             <el-table-column label="接口名称" width="190" fixed="left" show-overflow-tooltip><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
             <el-table-column label="关联表" width="130"><template #default="scope"><el-tooltip placement="top" :content="assetTooltip(scope.row)"><span>共 {{ apiAssets(scope.row).length }} 张表</span></el-tooltip></template></el-table-column>
             <el-table-column label="授权字段" width="100" align="center"><template #default="scope">{{ fieldCount(scope.row) }} 个</template></el-table-column>
             <el-table-column prop="usage" label="使用场景" min-width="230" show-overflow-tooltip></el-table-column>
             <el-table-column label="最近30日调用次数" width="150" align="right"><template #default="scope">{{ Number(scope.row.callCount30d || scope.row.callCount || 0).toLocaleString() }}</template></el-table-column>
-            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :model-value="scope.row.tokenStatus==='启用'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
+            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :disabled="!canEdit('数据开放平台')" :model-value="scope.row.tokenStatus==='启用'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
             <el-table-column prop="creator" label="创建人" width="100"></el-table-column>
             <el-table-column prop="lastCall" label="最近调用" width="170"></el-table-column>
-            <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openEditor(state.apis.indexOf(scope.row))">编辑</el-button><el-button link type="primary" @click="copyToken(scope.row)">复制 Token</el-button></div></template></el-table-column>
+            <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('数据开放平台')" link type="primary" @click="openEditor(state.apis.indexOf(scope.row))">编辑</el-button><el-button link type="primary" @click="copyToken(scope.row)">复制 Token</el-button></div></template></el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
@@ -611,7 +783,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </div>
             </section>
           </div>
-          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button type="primary" :loading="saving" @click="save">{{ editingIndex<0?'生成 Token':'保存修改' }}</el-button></div>
+          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button v-if="canEdit('数据开放平台')" type="primary" :loading="saving" @click="save">{{ editingIndex<0?'生成 Token':'保存修改' }}</el-button></div>
         </div>
         <el-dialog v-model="tokenVisible" title="Token 生成成功" width="560px" :close-on-click-modal="false"><el-alert title="请妥善保存 Token，调用数据服务时需作为身份凭证。" type="success" :closable="false"></el-alert><div class="portal-vue-detail-grid" style="margin-top:16px"><div class="portal-vue-detail-item"><span>API 名称</span><strong>{{ savedApi?.name }}</strong></div><div class="portal-vue-detail-item"><span>授权范围</span><strong>{{ selected.length }} 张表 / {{ selectedFieldCount }} 个字段</strong></div></div><el-input :model-value="savedApi?.token" readonly><template #append><el-button @click="copySavedToken">复制</el-button></template></el-input><template #footer><el-button type="primary" @click="finish">完成</el-button></template></el-dialog>
       </el-config-provider>
@@ -665,7 +837,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-table-column prop="calc" label="计算口径" min-width="240" show-overflow-tooltip><template #default="scope">{{ scope.row.calc || '—' }}</template></el-table-column>
             <el-table-column prop="freq" label="更新频率" width="100"><template #default="scope">{{ scope.row.freq || '—' }}</template></el-table-column>
             <el-table-column label="覆盖率" width="100" align="right"><template #default="scope">{{ scope.row.cov ?? '—' }}<span v-if="scope.row.cov!==undefined">%</span></template></el-table-column>
-            <el-table-column label="操作" width="88" fixed="right"><template #default="scope"><el-button link type="primary" @click="openEdit(scope.row)">编辑</el-button></template></el-table-column>
+            <el-table-column label="操作" width="88" fixed="right"><template #default="scope"><el-button v-if="canEdit('标签管理')" link type="primary" @click="openEdit(scope.row)">编辑</el-button></template></el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
@@ -694,7 +866,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </section>
             <el-form-item label="更新频率" class="tag-enum-section"><el-select v-model="editForm.freq"><el-option label="实时" value="实时"></el-option><el-option label="小时" value="小时"></el-option><el-option label="离线" value="离线"></el-option></el-select></el-form-item>
           </el-form>
-          <template #footer><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveEdit">保存</el-button></template>
+          <template #footer><el-button @click="editVisible=false">取消</el-button><el-button v-if="canEdit('标签管理')" type="primary" @click="saveEdit">保存</el-button></template>
         </el-drawer>
       </el-config-provider>
     `,
@@ -725,7 +897,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
           <el-tabs v-model="status" class="portal-vue-status-tabs" @tab-change="page=1"><el-tab-pane label="启用中" name="启用"></el-tab-pane><el-tab-pane label="已停用" name="停用"></el-tab-pane></el-tabs>
-          <div class="portal-vue-toolbar"><div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索目标名称、存储桶" @input="page=1"></el-input></div><el-button type="primary" @click="openCreate">新增推送目标</el-button></div>
+          <div class="portal-vue-toolbar"><div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索目标名称、存储桶" @input="page=1"></el-input></div><el-button v-if="canEdit('人群包推送渠道')" type="primary" @click="openCreate">新增推送目标</el-button></div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无推送目标">
             <el-table-column label="目标名称" width="190" fixed="left"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
             <el-table-column label="类型" width="90"><template #default><el-tag effect="plain">OSS</el-tag></template></el-table-column>
@@ -734,7 +906,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-table-column prop="endpoint" label="访问域名" min-width="260" show-overflow-tooltip></el-table-column>
             <el-table-column prop="refs" label="被引用" width="100" align="right"><template #default="scope">{{ scope.row.refs || 0 }} 个人群包</template></el-table-column>
             <el-table-column prop="last" label="最近使用" width="170"></el-table-column>
-            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :model-value="(scope.row.status||'启用')==='启用'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
+            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :disabled="!canEdit('人群包推送渠道')" :model-value="(scope.row.status||'启用')==='启用'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
@@ -747,7 +919,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-form-item label="访问密钥 ID（access_key_id）" prop="ak"><el-input v-model="form.ak"></el-input></el-form-item>
             <el-form-item label="访问密钥 Secret（access_key_secret）" prop="sk"><el-input v-model="form.sk" type="password" show-password></el-input></el-form-item>
           </el-form>
-          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button type="primary" @click="saveCreate">保存目标</el-button></template>
+          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('人群包推送渠道')" type="primary" @click="saveCreate">保存目标</el-button></template>
         </el-dialog>
       </el-config-provider>
     `,
@@ -788,7 +960,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         <div class="portal-vue-user-layout">
           <aside class="portal-vue-user-groups"><button v-for="item in groupOptions" :key="item.name" class="portal-vue-user-group" :class="{active:item.name===group}" type="button" @click="selectGroup(item.name)"><span>{{ item.name }}</span><span>{{ item.count }}</span></button></aside>
           <section class="portal-vue-user-main">
-            <div class="portal-vue-toolbar"><div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索姓名、邮箱、部门" @input="page=1"></el-input><el-select v-model="status" class="portal-vue-filter" @change="page=1"><el-option label="全部状态" value="全部状态"></el-option><el-option label="启用中" value="启用中"></el-option><el-option label="已停用" value="已停用"></el-option></el-select></div><el-button @click="syncUsers">同步飞书用户</el-button></div>
+            <div class="portal-vue-toolbar"><div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索姓名、邮箱、部门" @input="page=1"></el-input><el-select v-model="status" class="portal-vue-filter" @change="page=1"><el-option label="全部状态" value="全部状态"></el-option><el-option label="启用中" value="启用中"></el-option><el-option label="已停用" value="已停用"></el-option></el-select></div><el-button v-if="canEdit('用户管理')" @click="syncUsers">同步飞书用户</el-button></div>
+            <div class="portal-vue-scope-hint"><span>管理范围：<strong>{{ scopeLabel }}</strong></span><span class="portal-vue-muted">当前可见 {{ visibleUsers.length }} / {{ state.users.length }} 人</span><el-button v-if="canEdit('用户管理')" link type="primary" @click="openMyPermission">调整我的管理范围</el-button></div>
             <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无用户">
               <el-table-column label="用户" width="140" fixed="left"><template #default="scope"><div class="portal-vue-user-cell"><el-avatar :size="30">{{ scope.row.name.slice(0,1) }}</el-avatar><span class="portal-vue-name">{{ scope.row.name }}</span></div></template></el-table-column>
               <el-table-column prop="dept" label="部门组织" min-width="220" show-overflow-tooltip></el-table-column>
@@ -797,23 +970,26 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-table-column label="所属权限组" width="130"><template #default="scope"><el-tag :type="scope.row.group==='未分配'?'warning':'primary'" effect="light">{{ scope.row.group }}</el-tag></template></el-table-column>
               <el-table-column label="账号状态" width="100"><template #default="scope"><el-tag :type="scope.row.status==='已停用'?'info':'success'" effect="plain">{{ scope.row.status==='已停用'?'已停用':'启用中' }}</el-tag></template></el-table-column>
               <el-table-column prop="login" label="最近登录" width="170"></el-table-column>
-              <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openAssign(scope.row)">设置权限组</el-button><el-button link type="primary" @click="openPermission(scope.row)">配置权限</el-button></div></template></el-table-column>
+              <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('用户管理')" link type="primary" @click="openAssign(scope.row)">设置权限组</el-button><el-button v-if="canEdit('用户管理')" link type="primary" @click="openPermission(scope.row)">配置权限</el-button></div></template></el-table-column>
             </el-table>
             <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
           </section>
         </div>
-        <el-dialog v-model="assignVisible" :title="assignUser ? assignUser.name + ' · 设置权限组' : '设置权限组'" width="520px"><div v-if="assignUser" class="portal-vue-detail-grid"><div class="portal-vue-detail-item"><span>部门组织</span><strong>{{ assignUser.dept }}</strong></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ assignUser.role }}</strong></div></div><el-form label-position="top" class="portal-vue-dialog-form"><el-form-item label="选择权限组"><el-select v-model="assignGroup"><el-option label="未分配" value="未分配"></el-option><el-option v-for="item in state.groups" :key="item.name" :label="item.name" :value="item.name"></el-option></el-select></el-form-item></el-form><template #footer><el-button @click="assignVisible=false">取消</el-button><el-button type="primary" @click="saveAssign">保存权限组</el-button></template></el-dialog>
+        <el-dialog v-model="assignVisible" :title="assignUser ? assignUser.name + ' · 设置权限组' : '设置权限组'" width="520px"><div v-if="assignUser" class="portal-vue-detail-grid"><div class="portal-vue-detail-item"><span>部门组织</span><strong>{{ assignUser.dept }}</strong></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ assignUser.role }}</strong></div></div><el-form label-position="top" class="portal-vue-dialog-form"><el-form-item label="选择权限组"><el-select v-model="assignGroup"><el-option label="未分配" value="未分配"></el-option><el-option v-for="item in state.groups" :key="item.name" :label="item.name" :value="item.name"></el-option></el-select></el-form-item></el-form><template #footer><el-button @click="assignVisible=false">取消</el-button><el-button v-if="canEdit('用户管理')" type="primary" @click="saveAssign">保存权限组</el-button></template></el-dialog>
       </el-config-provider>
     `,
     data:()=>({keyword:"",status:"全部状态",group:"全部权限组",page:1,pageSize:10,assignVisible:false,assignUser:null,assignGroup:"",state}),
     computed:{
-      groupOptions(){refreshTick.value;return ["全部权限组","未分配",...state.groups.map(item=>item.name)].map(name=>({name,count:name==="全部权限组"?state.users.length:state.users.filter(user=>user.group===name).length}));},
-      filteredRows(){refreshTick.value;const keyword=this.keyword.trim().toLowerCase();return state.users.filter(user=>(this.group==="全部权限组"||user.group===this.group)&&(this.status==="全部状态"||(this.status==="已停用"?user.status==="已停用":user.status!=="已停用"))&&(!keyword||`${user.name} ${user.email} ${user.dept} ${user.role}`.toLowerCase().includes(keyword)));},
+      currentUser(){refreshTick.value;return loginUser();},
+      visibleUsers(){refreshTick.value;return visibleUsersFor(this.currentUser);},
+      scopeLabel(){refreshTick.value;return manageScopeSummary(this.currentUser);},
+      groupOptions(){refreshTick.value;const users=this.visibleUsers;return ["全部权限组","未分配",...state.groups.map(item=>item.name)].map(name=>({name,count:name==="全部权限组"?users.length:users.filter(user=>user.group===name).length}));},
+      filteredRows(){refreshTick.value;const keyword=this.keyword.trim().toLowerCase();return this.visibleUsers.filter(user=>(this.group==="全部权限组"||user.group===this.group)&&(this.status==="全部状态"||(this.status==="已停用"?user.status==="已停用":user.status!=="已停用"))&&(!keyword||`${user.name} ${user.email} ${user.dept} ${user.role}`.toLowerCase().includes(keyword)));},
       pagedRows(){const result=paginate(this.filteredRows,this.page,this.pageSize);if(result.safePage!==this.page)this.page=result.safePage;return result.rows;},
       rangeText(){if(!this.filteredRows.length)return "0-0";return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`;}
     },
     methods:{
-      selectGroup(name){this.group=name;this.page=1;},syncUsers(){ep.ElMessage.success("已发起飞书用户同步");},openAssign(user){this.assignUser=user;this.assignGroup=user.group;this.assignVisible=true;},saveAssign(){this.assignUser.group=this.assignGroup;this.assignVisible=false;notify(`${this.assignUser.name} 已分配到「${this.assignGroup}」`);},openPermission(user){bridge.setActiveUserIndex(state.users.indexOf(user));bridge.setPage("配置权限");}
+      selectGroup(name){this.group=name;this.page=1;},syncUsers(){ep.ElMessage.success("已发起飞书用户同步");},openAssign(user){this.assignUser=user;this.assignGroup=user.group;this.assignVisible=true;},saveAssign(){this.assignUser.group=this.assignGroup;this.assignVisible=false;notify(`${this.assignUser.name} 已分配到「${this.assignGroup}」`);},openPermission(user){bridge.setActiveUserIndex(state.users.indexOf(user));bridge.setPage("配置权限");},openMyPermission(){const me=this.currentUser;if(!me)return;bridge.setActiveUserIndex(state.users.indexOf(me));bridge.setPage("配置权限");}
     }
   };
 
@@ -822,18 +998,27 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       <el-config-provider :locale="locale">
         <div class="portal-vue-split">
           <aside class="portal-vue-split-left">
-            <div class="portal-vue-split-head"><strong>权限组</strong><el-button link type="primary" @click="openCreate">新增</el-button></div>
-            <el-scrollbar height="558px"><div class="portal-vue-split-body"><article v-for="(item,index) in state.groups" :key="item.name" class="portal-vue-group-card" :class="{active:index===selectedIndex}" @click="selectGroup(index)"><div class="portal-vue-group-meta"><div><h3>{{ item.name }}</h3><span class="portal-vue-muted">{{ userCount(item.name) }} 人</span></div><el-dropdown trigger="click" @command="command=>groupCommand(command,index)" @click.stop><el-button text circle title="更多操作">⋮</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="edit">编辑</el-dropdown-item><el-dropdown-item command="delete" divided>删除</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><p>{{ item.desc }}</p><div class="portal-vue-muted" style="margin-top:8px">{{ item.boards.includes('全部看板')?'全部看板':item.boards.length+' 个看板' }} · {{ item.tables?.includes('全部数据表')?'全部数据表':(item.tables?.length||0)+' 张数据表' }}</div></article></div></el-scrollbar>
+            <div class="portal-vue-split-head"><strong>权限组</strong><el-button v-if="canEdit('权限组')" link type="primary" @click="openCreate">新增</el-button></div>
+            <el-scrollbar height="558px"><div class="portal-vue-split-body"><article v-for="(item,index) in state.groups" :key="item.name" class="portal-vue-group-card" :class="{active:index===selectedIndex}" @click="selectGroup(index)"><div class="portal-vue-group-meta"><div><h3>{{ item.name }}</h3><span class="portal-vue-muted">{{ userCount(item.name) }} 人</span></div><el-dropdown trigger="click" @command="command=>groupCommand(command,index)" @click.stop><el-button text circle title="更多操作">⋮</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item v-if="canEdit('权限组')" command="edit">编辑</el-dropdown-item><el-dropdown-item v-if="canEdit('权限组')" command="delete" divided>删除</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><p>{{ item.desc }}</p><div class="portal-vue-muted" style="margin-top:8px">{{ item.boards.includes('全部看板')?'全部看板':item.boards.length+' 个看板' }} · {{ item.tables?.includes('全部数据表')?'全部数据表':(item.tables?.length||0)+' 张数据表' }}</div></article></div></el-scrollbar>
           </aside>
           <section class="portal-vue-split-right">
-            <div class="portal-vue-split-head"><strong>{{ activeGroup?.name || '权限组详情' }}</strong><div class="portal-vue-group-detail-actions"><el-button class="portal-vue-member-entry" @click="memberDrawer=true">成员 <el-tag size="small" round>{{ activeGroupUsers.length }}</el-tag></el-button><el-button type="primary" :disabled="!dirty" @click="saveGroup">保存</el-button></div></div>
+            <div class="portal-vue-split-head"><strong>{{ activeGroup?.name || '权限组详情' }}</strong><div class="portal-vue-group-detail-actions"><el-button class="portal-vue-member-entry" @click="memberDrawer=true">成员 <el-tag size="small" round>{{ activeGroupUsers.length }}</el-tag></el-button><el-button v-if="canEdit('权限组')" type="primary" :disabled="!dirty" @click="saveGroup">保存</el-button></div></div>
             <div class="portal-vue-permission-body">
               <el-tabs v-model="activeTab" class="portal-vue-group-tabs"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane name="boards"><template #label>看板查看范围 <el-tag size="small" round>{{ boardBadge }}</el-tag></template></el-tab-pane><el-tab-pane name="tables"><template #label>数据表权限 <el-tag size="small" round>{{ tableBadge }}</el-tag></template></el-tab-pane></el-tabs>
               <section v-show="activeTab==='menus'" class="portal-vue-group-permission-panel">
+                <p class="portal-vue-muted" style="margin:0 0 12px">每个菜单区分「查看」与「编辑」：只勾查看=只读，勾上编辑才能在该菜单内新增/修改/删除；勾选编辑会自动带上查看。</p>
                 <div class="portal-vue-permission-card-grid portal-vue-menu-card-grid">
                   <article v-for="section in state.nav" :key="section.group" class="portal-vue-group-permission-card">
-                    <el-checkbox class="portal-vue-parent-check" :model-value="sectionChecked(section)" :indeterminate="sectionIndeterminate(section)" @change="value=>toggleSection(section,value)">{{ section.group }}</el-checkbox>
-                    <div v-if="section.items.length>1" class="portal-vue-child-checks"><el-checkbox v-for="item in section.items" :key="item.name" :model-value="selectedMenus.includes(item.name)" @change="value=>toggleMenu(item.name,value)">{{ item.name }}</el-checkbox></div>
+                    <div class="portal-vue-menu-row portal-vue-menu-row-head">
+                      <el-checkbox class="portal-vue-parent-check" :model-value="sectionChecked(section)" :indeterminate="sectionIndeterminate(section)" @change="value=>toggleSection(section,value)">{{ section.group }}</el-checkbox>
+                      <el-checkbox class="portal-vue-edit-check" :model-value="editSectionChecked(section)" :indeterminate="editSectionIndeterminate(section)" @change="value=>toggleEditSection(section,value)">编辑</el-checkbox>
+                    </div>
+                    <div v-if="section.items.length>1" class="portal-vue-child-checks">
+                      <div v-for="item in section.items" :key="item.name" class="portal-vue-menu-row">
+                        <el-checkbox :model-value="selectedMenus.includes(item.name)" @change="value=>toggleMenu(item.name,value)">{{ item.name }}</el-checkbox>
+                        <el-checkbox class="portal-vue-edit-check" :model-value="menuEditChecked(section,item)" @change="value=>toggleEdit(item.name,value,section)">编辑</el-checkbox>
+                      </div>
+                    </div>
                   </article>
                 </div>
               </section>
@@ -860,22 +1045,22 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           </section>
         </div>
         <el-drawer v-model="memberDrawer" :title="(activeGroup?.name || '权限组') + ' · 成员'" size="760px" class="portal-vue-member-drawer" :close-on-click-modal="true">
-          <div class="portal-vue-member-toolbar"><div><strong>拥有此权限组的人</strong><span>共 {{ activeGroupUsers.length }} 人</span></div><el-button type="primary" @click="openMemberDialog">添加成员</el-button></div>
+          <div class="portal-vue-member-toolbar"><div><strong>拥有此权限组的人</strong><span>共 {{ activeGroupUsers.length }} 人</span></div><el-button v-if="canEdit('权限组')" type="primary" @click="openMemberDialog">添加成员</el-button></div>
           <el-table :data="activeGroupUsers" class="portal-vue-table portal-vue-member-table" border max-height="calc(100vh - 190px)" empty-text="该权限组暂无成员">
             <el-table-column label="用户" min-width="180"><template #default="scope"><div class="portal-vue-member-user"><el-avatar :size="30" :style="avatarStyle(scope.row.name)">{{ avatarText(scope.row.name) }}</el-avatar><div><strong>{{ scope.row.name }}</strong><span>{{ scope.row.email || '—' }}</span></div></div></template></el-table-column>
             <el-table-column prop="dept" label="组织" min-width="220" show-overflow-tooltip></el-table-column>
             <el-table-column prop="role" label="角色" width="120"></el-table-column>
-            <el-table-column label="操作" width="90" align="center"><template #default="scope"><el-button link type="danger" @click="removeMember(scope.row)">移除</el-button></template></el-table-column>
+            <el-table-column label="操作" width="90" align="center"><template #default="scope"><el-button v-if="canEdit('权限组')" link type="danger" @click="removeMember(scope.row)">移除</el-button></template></el-table-column>
           </el-table>
         </el-drawer>
-        <el-dialog v-model="formVisible" :title="editingIndex<0?'新增权限组':'编辑权限组'" width="560px"><el-form class="portal-vue-dialog-form" label-position="top"><el-form-item label="权限组名称" required><el-input v-model="groupForm.name"></el-input></el-form-item><el-form-item label="描述"><el-input v-model="groupForm.desc" type="textarea" :rows="3"></el-input></el-form-item></el-form><template #footer><el-button @click="formVisible=false">取消</el-button><el-button type="primary" @click="saveGroupForm">保存</el-button></template></el-dialog>
+        <el-dialog v-model="formVisible" :title="editingIndex<0?'新增权限组':'编辑权限组'" width="560px"><el-form class="portal-vue-dialog-form" label-position="top"><el-form-item label="权限组名称" required><el-input v-model="groupForm.name"></el-input></el-form-item><el-form-item label="描述"><el-input v-model="groupForm.desc" type="textarea" :rows="3"></el-input></el-form-item></el-form><template #footer><el-button @click="formVisible=false">取消</el-button><el-button v-if="canEdit('权限组')" type="primary" @click="saveGroupForm">保存</el-button></template></el-dialog>
         <el-dialog v-model="memberVisible" title="添加权限组成员" width="620px">
           <el-form class="portal-vue-dialog-form" label-position="top"><el-form-item label="选择用户"><el-select v-model="memberSelection" multiple filterable collapse-tags collapse-tags-tooltip :max-collapse-tags="3" placeholder="搜索姓名或组织"><el-option v-for="user in availableUsers" :key="user.feishu || user.name" :label="user.name + ' · ' + (user.dept || '未挂部门')" :value="user.feishu || user.name"><div class="portal-vue-member-option"><span>{{ user.name }}</span><small>{{ user.dept || '未挂部门' }} · 当前 {{ user.group || '未分配' }}</small></div></el-option></el-select></el-form-item></el-form>
-          <template #footer><el-button @click="memberVisible=false">取消</el-button><el-button type="primary" :disabled="!memberSelection.length" @click="addMembers">添加成员</el-button></template>
+          <template #footer><el-button @click="memberVisible=false">取消</el-button><el-button v-if="canEdit('权限组')" type="primary" :disabled="!memberSelection.length" @click="addMembers">添加成员</el-button></template>
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({state,selectedIndex:0,activeTab:"menus",selectedMenus:[],selectedBoards:[],allBoards:false,selectedTables:[],dirty:false,formVisible:false,editingIndex:-1,groupForm:{},memberDrawer:false,memberVisible:false,memberSelection:[]}),
+    data:()=>({state,selectedIndex:0,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],allBoards:false,selectedTables:[],dirty:false,formVisible:false,editingIndex:-1,groupForm:{},memberDrawer:false,memberVisible:false,memberSelection:[]}),
     computed:{
       activeGroup(){refreshTick.value;return state.groups[this.selectedIndex]||state.groups[0];},
       boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
@@ -895,24 +1080,29 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       avatarText(name){return String(name||"用").slice(0,1);},
       avatarStyle(name){const colors=["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"];const seed=[...String(name||"")].reduce((total,char)=>total+char.charCodeAt(0),0);return{background:colors[seed%colors.length],color:"#fff"};},
       selectGroup(index){this.selectedIndex=index;this.activeTab="menus";this.memberDrawer=false;this.loadGroup();},
-      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);const tablesGrant=group.tables||[];this.selectedTables=tablesGrant.includes("全部数据表")?[...this.allTableNames]:state.assets.filter(table=>tablesGrant.includes(table.cnName)).map(table=>table.cnName);this.dirty=false;},
+      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.selectedMenuEdits=[...(group.menuEdits||[])];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);const tablesGrant=group.tables||[];this.selectedTables=tablesGrant.includes("全部数据表")?[...this.allTableNames]:state.assets.filter(table=>tablesGrant.includes(table.cnName)).map(table=>table.cnName);this.dirty=false;},
       sectionNames(section){return section.items.length===1?[section.items[0].name]:[section.group,...section.items.map(item=>item.name)];},
       sectionChecked(section){const names=this.sectionNames(section);return names.every(name=>this.selectedMenus.includes(name));},
       sectionIndeterminate(section){const names=this.sectionNames(section);const count=names.filter(name=>this.selectedMenus.includes(name)).length;return count>0&&count<names.length;},
       toggleSection(section,checked){this.sectionNames(section).forEach(name=>this.toggleMenu(name,checked,false));this.dirty=true;},
-      toggleMenu(name,checked,mark=true){const index=this.selectedMenus.indexOf(name);if(checked&&index<0)this.selectedMenus.push(name);else if(!checked&&index>=0)this.selectedMenus.splice(index,1);if(mark)this.dirty=true;},
+      toggleMenu(name,checked,mark=true){const index=this.selectedMenus.indexOf(name);if(checked&&index<0)this.selectedMenus.push(name);else if(!checked&&index>=0){this.selectedMenus.splice(index,1);const editIndex=this.selectedMenuEdits.indexOf(name);if(editIndex>=0)this.selectedMenuEdits.splice(editIndex,1);}if(mark)this.dirty=true;},
+      menuEditChecked(section,item){return this.selectedMenuEdits.includes(item.name)||(section.items.length>1&&this.selectedMenuEdits.includes(section.group));},
+      editSectionChecked(section){const names=this.sectionNames(section);return names.every(name=>this.selectedMenuEdits.includes(name));},
+      editSectionIndeterminate(section){const names=this.sectionNames(section);const count=names.filter(name=>this.selectedMenuEdits.includes(name)).length;return count>0&&count<names.length;},
+      toggleEditSection(section,checked){this.sectionNames(section).forEach(name=>this.toggleEdit(name,checked,section,false));this.dirty=true;},
+      toggleEdit(name,checked,section,mark=true){const index=this.selectedMenuEdits.indexOf(name);if(checked){if(index<0)this.selectedMenuEdits.push(name);if(!this.selectedMenus.includes(name))this.selectedMenus.push(name);}else if(index>=0)this.selectedMenuEdits.splice(index,1);if(mark)this.dirty=true;},
       toggleAllBoards(value){this.allBoards=value;if(value)this.selectedBoards=[];this.dirty=true;},
       toggleBoard(name,checked){const index=this.selectedBoards.indexOf(name);if(checked&&index<0)this.selectedBoards.push(name);else if(!checked&&index>=0)this.selectedBoards.splice(index,1);this.dirty=true;},
       toggleAllTables(value){this.selectedTables=value?[...this.allTableNames]:[];this.dirty=true;},
       toggleTable(name,checked){const index=this.selectedTables.indexOf(name);if(checked&&index<0)this.selectedTables.push(name);else if(!checked&&index>=0)this.selectedTables.splice(index,1);this.dirty=true;},
-      saveGroup(){this.activeGroup.menus=[...this.selectedMenus];this.activeGroup.boards=this.allBoards?["全部看板"]:[...this.selectedBoards];this.activeGroup.tables=this.selectedTables.length>=this.allTableNames.length?["全部数据表"]:[...this.selectedTables];this.dirty=false;notify("权限组配置已保存");},
+      saveGroup(){this.activeGroup.menus=[...this.selectedMenus];this.activeGroup.menuEdits=[...this.selectedMenuEdits];this.activeGroup.boards=this.allBoards?["全部看板"]:[...this.selectedBoards];this.activeGroup.tables=this.selectedTables.length>=this.allTableNames.length?["全部数据表"]:[...this.selectedTables];this.dirty=false;notify("权限组配置已保存");},
       openMemberDialog(){this.memberSelection=[];this.memberVisible=true;},
       addMembers(){if(!this.memberSelection.length)return;const groupName=this.activeGroup?.name;if(!groupName)return;const selected=new Set(this.memberSelection);let count=0;state.users.forEach(user=>{if(selected.has(user.feishu||user.name)){user.group=groupName;if(user.status!=="已停用")user.status="启用";count+=1;}});this.memberVisible=false;this.memberSelection=[];notify(`已添加 ${count} 名成员到「${groupName}」`);},
       async removeMember(user){const groupName=this.activeGroup?.name;if(!groupName||!await confirmAction("移除权限组成员",`确认将「${user.name}」从「${groupName}」移除？`))return;user.group="未分配";if(user.status!=="已停用")user.status="未分配权限组";notify(`已从「${groupName}」移除 ${user.name}`);},
       openCreate(){this.editingIndex=-1;this.groupForm={name:"",desc:""};this.formVisible=true;},
       openEdit(index){this.editingIndex=index;this.groupForm={name:state.groups[index].name,desc:state.groups[index].desc};this.formVisible=true;},
       async groupCommand(command,index){if(command==="edit")return this.openEdit(index);const group=state.groups[index];if(this.userCount(group.name)>0)return ep.ElMessage.warning("该权限组下仍有用户，不能删除");if(!await confirmAction("删除权限组",`确认删除「${group.name}」？`))return;state.groups.splice(index,1);this.selectedIndex=Math.max(0,Math.min(this.selectedIndex,state.groups.length-1));this.loadGroup();notify("权限组已删除");},
-      saveGroupForm(){const name=this.groupForm.name.trim();if(!name)return ep.ElMessage.warning("请输入权限组名称");if(state.groups.some((group,index)=>index!==this.editingIndex&&group.name===name))return ep.ElMessage.warning("权限组名称已存在");if(this.editingIndex<0){state.groups.push({name,desc:this.groupForm.desc.trim()||"自定义权限组。",menus:["灵犀智析","数据看板"],boards:[],tables:[],status:"启用"});this.selectedIndex=state.groups.length-1;}else{const group=state.groups[this.editingIndex];const oldName=group.name;group.name=name;group.desc=this.groupForm.desc.trim()||"自定义权限组。";state.users.forEach(user=>{if(user.group===oldName)user.group=name;});}this.formVisible=false;this.loadGroup();notify("权限组已保存");}
+      saveGroupForm(){const name=this.groupForm.name.trim();if(!name)return ep.ElMessage.warning("请输入权限组名称");if(state.groups.some((group,index)=>index!==this.editingIndex&&group.name===name))return ep.ElMessage.warning("权限组名称已存在");if(this.editingIndex<0){state.groups.push({name,desc:this.groupForm.desc.trim()||"自定义权限组。",menus:["灵犀智析","数据看板"],menuEdits:[],boards:[],tables:[],status:"启用"});this.selectedIndex=state.groups.length-1;}else{const group=state.groups[this.editingIndex];const oldName=group.name;group.name=name;group.desc=this.groupForm.desc.trim()||"自定义权限组。";state.users.forEach(user=>{if(user.group===oldName)user.group=name;});}this.formVisible=false;this.loadGroup();notify("权限组已保存");}
     }
   };
 
@@ -922,17 +1112,47 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         <div class="portal-vue-form-page">
           <el-page-header class="portal-vue-form-header" title="返回用户管理" content="配置用户权限" @back="back"></el-page-header>
           <div class="portal-vue-split" style="grid-template-columns:280px minmax(0,1fr)">
-            <aside class="portal-vue-split-left"><div class="portal-vue-split-body" v-if="user"><div style="display:flex;align-items:center;gap:12px;margin-bottom:18px"><el-avatar :size="42">{{ user.name.slice(0,1) }}</el-avatar><div><span class="portal-vue-name">{{ user.name }}</span><div class="portal-vue-muted" style="margin-top:4px">{{ user.dept }}</div></div></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ user.role }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>当前权限组</span><strong>{{ user.group }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>账号状态</span><strong>{{ user.status }}</strong></div></div></aside>
-            <section class="portal-vue-split-right"><div class="portal-vue-permission-body"><el-tabs v-model="activeTab"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane label="看板权限" name="boards"></el-tab-pane><el-tab-pane label="表权限" name="tables"></el-tab-pane></el-tabs><div v-show="activeTab==='menus'" class="portal-vue-permission-grid"><div v-for="section in state.nav" :key="section.group" class="portal-vue-permission-block"><strong>{{ section.group }}</strong><el-checkbox v-for="item in section.items" :key="item.name" v-model="selectedMenus" :value="item.name" style="display:flex;margin:8px 0">{{ item.name }}</el-checkbox></div></div><div v-show="activeTab==='boards'" class="portal-vue-permission-grid"><div v-for="group in boardGroups" :key="group.category" class="portal-vue-permission-block"><strong>{{ group.category }}</strong><el-checkbox v-for="board in group.boards" :key="board.name" v-model="selectedBoards" :value="board.name" style="display:flex;margin:8px 0">{{ board.name }}</el-checkbox></div></div><div v-show="activeTab==='tables'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><el-checkbox :model-value="allTablesSelected" :indeterminate="tablesIndeterminate" @change="toggleAllTables">全部数据表</el-checkbox><p class="portal-vue-muted" style="margin:6px 0 0">默认跟随「{{ user.group }}」权限组的表权限；未勾选任何数据表时，该用户无法在灵犀智析发起分析。</p></div><div v-for="group in tableGroups" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><el-checkbox v-for="table in group.tables" :key="table.cnName" v-model="selectedTables" :value="table.cnName" style="display:flex;margin:8px 0">{{ table.cnName }}</el-checkbox></div></div></div></section>
+            <aside class="portal-vue-split-left"><div class="portal-vue-split-body" v-if="user"><div style="display:flex;align-items:center;gap:12px;margin-bottom:18px"><el-avatar :size="42">{{ user.name.slice(0,1) }}</el-avatar><div><span class="portal-vue-name">{{ user.name }}</span><div class="portal-vue-muted" style="margin-top:4px">{{ user.dept }}</div></div></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ user.role }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>当前权限组</span><strong>{{ user.group }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>组内权限</span><strong>{{ inherited ? lockedTotal + ' 项 · 不可关闭' : '未加入权限组' }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>个人追加</span><strong>{{ personalTotal }} 项</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>账号状态</span><strong>{{ user.status }}</strong></div></div></aside>
+            <section class="portal-vue-split-right"><div class="portal-vue-permission-body">
+              <el-alert v-if="inherited" class="portal-vue-inherit-alert" type="info" show-icon :closable="false" title="权限组权限不可关闭" :description="'该用户属于权限组「' + user.group + '」，组内已授予的权限已锁定勾选（带“权限组”标签），个人配置只能在此基础上追加，不能取消；如需收回请调整权限组或将该用户移出权限组。'"></el-alert>
+              <el-tabs v-model="activeTab"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane label="看板权限" name="boards"></el-tab-pane><el-tab-pane label="表权限" name="tables"></el-tab-pane><el-tab-pane label="管理范围" name="scope"></el-tab-pane></el-tabs>
+              <div v-show="activeTab==='menus'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><strong>菜单权限（查看 / 编辑）</strong><p class="portal-vue-muted" style="margin:0">「查看」决定菜单是否可见，「编辑」决定该菜单内能否新增/修改/删除；勾选编辑会自动带上查看。</p></div><div v-for="section in state.nav" :key="section.group" class="portal-vue-permission-block"><strong>{{ section.group }}</strong><div v-for="item in section.items" :key="item.name" class="portal-vue-menu-row"><el-checkbox :model-value="selectedMenus.includes(item.name)" :disabled="isMenuLocked(item)" @change="value=>togglePersonalView(item.name,value)"><span>{{ item.name }}</span><el-tag v-if="isMenuLocked(item)" size="small" type="info" effect="plain" class="portal-vue-lock-tag">权限组</el-tag></el-checkbox><el-checkbox class="portal-vue-edit-check" :model-value="selectedMenuEdits.includes(item.name)" :disabled="isMenuEditLocked(item)" @change="value=>togglePersonalEdit(item.name,value)"><span>编辑</span><el-tag v-if="isMenuEditLocked(item)" size="small" type="info" effect="plain" class="portal-vue-lock-tag">权限组</el-tag></el-checkbox></div></div></div>
+              <div v-show="activeTab==='boards'" class="portal-vue-permission-grid"><div v-for="group in boardGroups" :key="group.category" class="portal-vue-permission-block"><strong>{{ group.category }}</strong><el-checkbox v-for="board in group.boards" :key="board.name" v-model="selectedBoards" :value="board.name" :disabled="isBoardLocked(board)" style="display:flex;margin:8px 0"><span>{{ board.name }}</span><el-tag v-if="isBoardLocked(board)" size="small" type="info" effect="plain" class="portal-vue-lock-tag">权限组</el-tag></el-checkbox></div></div>
+              <div v-show="activeTab==='tables'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><el-checkbox :model-value="allTablesSelected" :indeterminate="tablesIndeterminate" :disabled="groupAllTables" @change="toggleAllTables"><span>全部数据表</span><el-tag v-if="groupAllTables" size="small" type="info" effect="plain" class="portal-vue-lock-tag">权限组</el-tag></el-checkbox><p class="portal-vue-muted" style="margin:6px 0 0">{{ inherited ? '带“权限组”标签的数据表来自「' + user.group + '」，不可取消；其余数据表可以按需追加。未勾选任何数据表时，该用户无法在灵犀智析发起分析。' : '未加入权限组，可自由配置个人数据表权限；未勾选任何数据表时，该用户无法在灵犀智析发起分析。' }}</p></div><div v-for="group in tableGroups" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><el-checkbox v-for="table in group.tables" :key="table.cnName" v-model="selectedTables" :value="table.cnName" :disabled="isTableLocked(table)" style="display:flex;margin:8px 0"><span>{{ table.cnName }}</span><el-tag v-if="isTableLocked(table)" size="small" type="info" effect="plain" class="portal-vue-lock-tag">权限组</el-tag></el-checkbox></div></div>
+              <div v-show="activeTab==='scope'" class="portal-vue-permission-grid">
+                <div class="portal-vue-permission-block" style="grid-column:1/-1">
+                  <div class="portal-vue-scope-head"><el-checkbox v-model="scopeAll">全部用户（不受部门限制）</el-checkbox><span class="portal-vue-muted">候选范围来自系统用户所在的部门；选中部门后，部门下的用户自动纳入管理范围，人员变动时自动跟随</span></div>
+                  <el-tree-select v-model="selectedScope" class="portal-vue-scope-tree" :data="deptTree" multiple filterable show-checkbox check-strictly clearable collapse-tags collapse-tags-tooltip :max-collapse-tags="3" :disabled="scopeAll" placeholder="选择部门（可多选）"></el-tree-select>
+                  <p class="portal-vue-muted" style="margin:10px 0 0">{{ scopeSummary }}</p>
+                </div>
+                <div class="portal-vue-permission-block" style="grid-column:1/-1">
+                  <strong>管理范围内的用户（{{ scopeUserCount }} 人）</strong>
+                  <div class="portal-vue-scope-preview"><el-tag v-for="name in scopePreview" :key="name" size="small" effect="plain">{{ name }}</el-tag><span v-if="!scopePreview.length" class="portal-vue-muted">未配置管理范围的用户，在「用户管理」里只能看到自己</span></div>
+                </div>
+              </div>
+            </div></section>
           </div>
-          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button type="primary" @click="save">保存权限</el-button></div>
+          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button v-if="canEdit('用户管理')" type="primary" @click="save">保存权限</el-button></div>
         </div>
       </el-config-provider>
     `,
-    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedBoards:[],selectedTables:[]}),
+    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],selectedTables:[],selectedScope:[],scopeAll:false}),
     computed:{
       user(){refreshTick.value;return state.users[bridge.getActiveUserIndex()]||state.users[0];},
-      group(){return state.groups.find(group=>group.name===this.user?.group);},
+      group(){refreshTick.value;return state.groups.find(group=>group.name===this.user?.group);},
+      inherited(){return Boolean(this.group)&&this.user?.group!=="未分配";},
+      onlineBoardNames(){refreshTick.value;return state.boards.filter(board=>board.status==="已上线").map(board=>board.name);},
+      groupMenuNames(){return expandMenuNames(this.group?.menus||[]);},
+      groupMenuEditNames(){return expandMenuNames(this.group?.menuEdits||[]);},
+      groupBoardNames(){const grants=this.group?.boards||[];if(grants.includes("全部看板"))return new Set(this.onlineBoardNames);const names=new Set();state.boards.filter(board=>board.status==="已上线"&&(grants.includes(board.name)||grants.includes(board.category))).forEach(board=>names.add(board.name));return names;},
+      groupTableNames(){const grants=this.group?.tables||[];if(grants.includes("全部数据表"))return new Set(this.allTableNames);return new Set(state.assets.filter(table=>grants.includes(table.cnName)).map(table=>table.cnName));},
+      groupAllTables(){return (this.group?.tables||[]).includes("全部数据表");},
+      lockedTotal(){return this.groupMenuNames.size+this.groupBoardNames.size+this.groupTableNames.size;},
+      personalTotal(){return (this.user?.menuGrants||[]).length+(this.user?.boardGrants||[]).length+(this.user?.tableGrants||[]).filter(name=>name!=="全部数据表").length;},
+      deptTree(){refreshTick.value;return buildDepartmentTree(state.users);},
+      scopePreview(){refreshTick.value;if(this.scopeAll)return state.users.map(user=>user.name);const scope=this.selectedScope.filter(Boolean);if(!scope.length)return this.user?[this.user.name]:[];return state.users.filter(user=>user.name===this.user?.name||departmentMatched(user.dept||"",scope)).map(user=>user.name);},
+      scopeUserCount(){return this.scopePreview.length;},
+      scopeSummary(){if(this.scopeAll)return `已配置为「全部用户」：该用户在「用户管理」里可以看到全部 ${state.users.length} 名用户。`;const scope=this.selectedScope.filter(Boolean);if(!scope.length)return "未配置任何部门：该用户在「用户管理」里只能看到自己。";return `已选择 ${scope.length} 个部门：该用户在「用户管理」里可以看到范围内 ${this.scopeUserCount} 名用户（含自己）。`;},
       boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
       tableGroups(){const groups=[];state.assets.forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
       allTableNames(){return state.assets.map(table=>table.cnName);},
@@ -941,7 +1161,61 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     mounted(){this.pageHandler=event=>{if(event.detail?.page==="配置权限")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
-    methods:{load(){this.selectedMenus=[...(this.group?.menus||[])];this.selectedBoards=this.group?.boards?.includes("全部看板")?state.boards.filter(board=>board.status==="已上线").map(board=>board.name):[...(this.group?.boards||[])];const grants=this.user?.tableGrants;const source=Array.isArray(grants)?grants:(this.group?.tables||[]);this.selectedTables=source.includes("全部数据表")?[...this.allTableNames]:[...state.assets.filter(table=>source.includes(table.cnName)).map(table=>table.cnName)];},back(){bridge.setPage("用户管理");},toggleAllTables(value){this.selectedTables=value?[...this.allTableNames]:[];},async save(){const tables=this.selectedTables.length>=this.allTableNames.length?["全部数据表"]:[...this.selectedTables];this.user.tableGrants=[...tables];let persisted=false;try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}notify(`${this.user.name} 的权限配置已保存（${tables.includes("全部数据表")?"全部数据表":tables.length+" 张数据表"}）${persisted?"，已同步到分析网关":"（本地演示，网关未连接）"}`);this.back();}}
+    methods:{
+      isMenuLocked(item){return this.inherited&&this.groupMenuNames.has(item.name);},
+      isMenuEditLocked(item){return this.inherited&&this.groupMenuEditNames.has(item.name);},
+      isBoardLocked(board){return this.inherited&&this.groupBoardNames.has(board.name);},
+      isTableLocked(table){return this.inherited&&this.groupTableNames.has(table.cnName);},
+      togglePersonalView(name,checked){
+        if(this.isMenuLocked({name}))return;
+        const index=this.selectedMenus.indexOf(name);
+        if(checked&&index<0)this.selectedMenus.push(name);
+        else if(!checked&&index>=0){this.selectedMenus.splice(index,1);const editIndex=this.selectedMenuEdits.indexOf(name);if(editIndex>=0)this.selectedMenuEdits.splice(editIndex,1);}
+      },
+      togglePersonalEdit(name,checked){
+        if(this.isMenuEditLocked({name}))return;
+        const index=this.selectedMenuEdits.indexOf(name);
+        if(checked){if(index<0)this.selectedMenuEdits.push(name);if(!this.selectedMenus.includes(name))this.selectedMenus.push(name);}
+        else if(index>=0)this.selectedMenuEdits.splice(index,1);
+      },
+      load(){
+        const personalMenus=Array.isArray(this.user?.menuGrants)?this.user.menuGrants:[];
+        this.selectedMenus=[...new Set([...this.groupMenuNames,...personalMenus])];
+        const personalMenuEdits=Array.isArray(this.user?.menuEditGrants)?this.user.menuEditGrants:[];
+        this.selectedMenuEdits=[...new Set([...this.groupMenuEditNames,...personalMenuEdits])].filter(name=>this.selectedMenus.includes(name));
+        const personalBoards=(Array.isArray(this.user?.boardGrants)?this.user.boardGrants:[]).filter(name=>this.onlineBoardNames.includes(name));
+        this.selectedBoards=[...new Set([...this.groupBoardNames,...personalBoards])];
+        const personalTables=(Array.isArray(this.user?.tableGrants)?this.user.tableGrants:[]).filter(name=>name!=="全部数据表");
+        this.selectedTables=[...new Set([...this.groupTableNames,...personalTables])];
+        this.selectedScope=manageScopeOf(this.user);
+        this.scopeAll=Boolean(this.user?.manageScopeAll);
+      },
+      back(){bridge.setPage("用户管理");},
+      toggleAllTables(value){
+        if(this.groupAllTables)return;
+        this.selectedTables=value?[...new Set([...this.groupTableNames,...this.allTableNames])]:[...this.groupTableNames];
+      },
+      async save(){
+        if(!this.user)return;
+        const groupMenus=this.groupMenuNames,groupMenuEdits=this.groupMenuEditNames,groupBoards=this.groupBoardNames,groupTables=this.groupTableNames;
+        const personalMenus=this.selectedMenus.filter(name=>!groupMenus.has(name));
+        const personalMenuEdits=this.selectedMenuEdits.filter(name=>!groupMenuEdits.has(name)&&this.selectedMenus.includes(name));
+        const personalBoards=this.selectedBoards.filter(name=>!groupBoards.has(name));
+        const personalTables=this.selectedTables.filter(name=>!groupTables.has(name));
+        this.user.menuGrants=personalMenus;
+        this.user.menuEditGrants=personalMenuEdits;
+        this.user.boardGrants=personalBoards;
+        this.user.tableGrants=personalTables;
+        this.user.manageScope=[...this.selectedScope.filter(Boolean)];
+        this.user.manageScopeAll=Boolean(this.scopeAll);
+        const effectiveTables=[...new Set([...groupTables,...personalTables])];
+        const payload=personalTables.length?(effectiveTables.length>=this.allTableNames.length?["全部数据表"]:effectiveTables):[];
+        let persisted=false;
+        try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables:payload})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}
+        notify(`${this.user.name} 的权限配置已保存（管理范围：${manageScopeSummary(this.user)}；个人追加：菜单查看 ${personalMenus.length} / 菜单编辑 ${personalMenuEdits.length} / 看板 ${personalBoards.length} / 表 ${personalTables.length} 项；权限组权限保持不变）${persisted?"，已同步到分析网关":"（本地演示，网关未连接）"}`);
+        this.back();
+      }
+    }
   };
 
   const QuickBiApp = {
@@ -965,7 +1239,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索表名、中文名" @input="page=1"></el-input>
               <el-select v-model="origin" class="portal-vue-filter" placeholder="全部来源" @change="page=1"><el-option label="全部来源" value=""></el-option><el-option label="表管理标记" value="sync"></el-option><el-option label="门户新建" value="portal"></el-option></el-select>
             </div>
-            <el-button type="primary" @click="openCreate">新增维表</el-button>
+            <el-button v-if="canEdit('维表管理')" type="primary" @click="openCreate">新增维表</el-button>
           </div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无维表">
             <el-table-column prop="assetId" label="表编号" width="92" fixed="left"></el-table-column>
@@ -976,7 +1250,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-table-column prop="owner" label="负责人" width="110"></el-table-column>
             <el-table-column label="行数" width="90" align="right"><template #default="scope">{{ rowCount(scope.row) }}</template></el-table-column>
             <el-table-column prop="lastMaintained" label="最近维护时间" width="170"><template #default="scope">{{ scope.row.lastMaintained || "—" }}</template></el-table-column>
-            <el-table-column label="操作" width="168" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openMaintain(scope.row)">维护数据</el-button><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button></div></template></el-table-column>
+            <el-table-column label="操作" width="168" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('维表管理')" link type="primary" @click="openMaintain(scope.row)">维护数据</el-button><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button></div></template></el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
@@ -997,12 +1271,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <el-table-column label="类型" width="130"><template #default="scope"><el-select v-model="scope.row.type"><el-option label="VARCHAR" value="VARCHAR"></el-option><el-option label="BIGINT" value="BIGINT"></el-option><el-option label="DATE" value="DATE"></el-option></el-select></template></el-table-column>
                 <el-table-column label="中文名" min-width="120"><template #default="scope"><el-input v-model="scope.row.comment"></el-input></template></el-table-column>
                 <el-table-column label="关联字典" width="200"><template #default="scope"><el-select v-model="scope.row.dictId" clearable placeholder="不关联" popper-class="portal-vue-dict-select"><el-option v-for="dict in enabledDicts" :key="dict.dictId" :label="dict.name" :value="dict.dictId"><el-tooltip placement="right" :show-after="180" :hide-after="80" popper-class="portal-vue-dict-popper"><template #content><div class="portal-vue-dict-preview"><strong>{{ dict.name }}</strong><span>{{ dict.code }} · {{ enabledDictItems(dict).length }} 个枚举值</span><p v-for="item in enabledDictItems(dict)" :key="item.code">{{ item.code }} → {{ item.name }}</p></div></template><span class="portal-vue-dict-option">{{ dict.name }}<small>{{ dictHint(dict) }}</small></span></el-tooltip></el-option></el-select></template></el-table-column>
-                <el-table-column width="70" align="center"><template #default="scope"><el-button link type="danger" :disabled="createForm.fields.length===1" @click="createForm.fields.splice(scope.$index,1)">删除</el-button></template></el-table-column>
+                <el-table-column width="70" align="center"><template #default="scope"><el-button v-if="canEdit('维表管理')" link type="danger" :disabled="createForm.fields.length===1" @click="createForm.fields.splice(scope.$index,1)">删除</el-button></template></el-table-column>
               </el-table>
-              <el-button class="portal-vue-add-field" @click="createForm.fields.push({name:'',type:'VARCHAR',comment:'',remark:'',dictId:''})">添加字段</el-button>
+              <el-button v-if="canEdit('维表管理')" class="portal-vue-add-field" @click="createForm.fields.push({name:'',type:'VARCHAR',comment:'',remark:'',dictId:''})">添加字段</el-button>
             </el-form-item>
           </el-form>
-          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button type="primary" @click="saveCreate">保存并维护数据</el-button></template>
+          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('维表管理')" type="primary" @click="saveCreate">保存并维护数据</el-button></template>
         </el-dialog>
         <el-drawer v-model="detailVisible" :title="detail ? (detail.cnName || detail.table) + ' · 维表详情' : '维表详情'" size="760px" destroy-on-close :close-on-click-modal="true">
           <template v-if="detail">
@@ -1021,7 +1295,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-table-column label="关联字典" min-width="200"><template #default="scope"><el-select v-model="scope.row.dictId" clearable placeholder="不关联" popper-class="portal-vue-dict-select"><el-option v-for="dict in enabledDicts" :key="dict.dictId" :label="dict.name" :value="dict.dictId"><el-tooltip placement="right" :show-after="180" :hide-after="80" popper-class="portal-vue-dict-popper"><template #content><div class="portal-vue-dict-preview"><strong>{{ dict.name }}</strong><span>{{ dict.code }} · {{ enabledDictItems(dict).length }} 个枚举值</span><p v-for="item in enabledDictItems(dict)" :key="item.code">{{ item.code }} → {{ item.name }}</p></div></template><span class="portal-vue-dict-option">{{ dict.name }}<small>{{ dictHint(dict) }}</small></span></el-tooltip></el-option></el-select></template></el-table-column>
             </el-table>
           </template>
-          <template #footer><el-button @click="detailVisible=false">关闭</el-button><el-button type="primary" @click="saveDetail">保存配置</el-button><el-button type="primary" @click="openMaintain(detail)">维护数据</el-button></template>
+          <template #footer><el-button @click="detailVisible=false">关闭</el-button><el-button v-if="canEdit('维表管理')" type="primary" @click="saveDetail">保存配置</el-button><el-button v-if="canEdit('维表管理')" type="primary" @click="openMaintain(detail)">维护数据</el-button></template>
         </el-drawer>
       </el-config-provider>
     `,
@@ -1111,7 +1385,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <el-radio-button value="row">行编辑</el-radio-button>
                 <el-radio-button value="modal">弹窗编辑</el-radio-button>
               </el-radio-group>
-              <el-button type="primary" @click="addRow">＋ 新增行</el-button>
+              <el-button v-if="canEdit('维表管理')" type="primary" @click="addRow">＋ 新增行</el-button>
             </div>
           </div>
           <el-table v-if="viewMode === 'row' || viewMode === 'modal'" :data="draftRows" class="portal-vue-table" border empty-text="暂无数据，请新增行">
@@ -1132,19 +1406,19 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </el-table-column>
             <el-table-column label="操作" width="150" fixed="right"><template #default="scope">
               <template v-if="viewMode === 'row' && scope.$index === editingKey">
-                <el-button link type="primary" @click="saveRow">保存</el-button>
+                <el-button v-if="canEdit('维表管理')" link type="primary" @click="saveRow">保存</el-button>
                 <el-button link @click="cancelRow(scope.$index)">取消</el-button>
               </template>
               <template v-else>
                 <el-button v-if="viewMode === 'row'" link type="primary" @click="editRow(scope.$index)">编辑</el-button>
                 <el-button v-else link type="primary" @click="openRowDrawer(scope.$index)">编辑</el-button>
-                <el-button link type="danger" @click="removeRow(scope.$index)">删除</el-button>
+                <el-button v-if="canEdit('维表管理')" link type="danger" @click="removeRow(scope.$index)">删除</el-button>
               </template>
             </template></el-table-column>
           </el-table>
           <div class="portal-vue-dim-actions-bar">
             <span class="portal-vue-muted" style="font-size:12px">共 {{ draftRows.length }} 行{{ editingKey !== null ? ' · 正在编辑第 ' + (editingKey + 1) + ' 行' : '' }}</span>
-            <div style="display:flex;gap:10px"><el-button @click="back">取消</el-button><el-button type="primary" @click="save">保存数据</el-button></div>
+            <div style="display:flex;gap:10px"><el-button @click="back">取消</el-button><el-button v-if="canEdit('维表管理')" type="primary" @click="save">保存数据</el-button></div>
           </div>
         </div>
         <el-empty v-if="!asset" description="未找到要维护的维表"></el-empty>
@@ -1158,7 +1432,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-input v-else v-model="rowDraft[field.name]" :placeholder="'请输入' + (field.comment || field.name)"></el-input>
             </div>
           </div>
-          <template #footer><el-button @click="rowDrawerVisible=false">取消</el-button><el-button type="primary" @click="saveRowDrawer">保存</el-button></template>
+          <template #footer><el-button @click="rowDrawerVisible=false">取消</el-button><el-button v-if="canEdit('维表管理')" type="primary" @click="saveRowDrawer">保存</el-button></template>
         </el-drawer>
       </el-config-provider>
     `,
@@ -2124,7 +2398,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           <el-tabs v-model="status" class="portal-vue-status-tabs" @tab-change="page=1"><el-tab-pane label="启用中" name="启用"></el-tab-pane><el-tab-pane label="已停用" name="停用"></el-tab-pane></el-tabs>
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索字典名称、编码" @input="page=1"></el-input></div>
-            <el-button type="primary" @click="openForm(null)">新增字典</el-button>
+            <el-button v-if="canEdit('字典管理')" type="primary" @click="openForm(null)">新增字典</el-button>
           </div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无字典">
             <el-table-column prop="dictId" label="字典编号" width="110" fixed="left"></el-table-column>
@@ -2135,8 +2409,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-table-column label="被引用" width="128"><template #default="scope"><el-tooltip v-if="refList(scope.row).length" placement="left" :show-after="200" :hide-after="80" popper-class="portal-vue-ref-tooltip"><template #content><p v-for="item in refList(scope.row)" :key="item.key">{{ item.line }}</p></template><span class="portal-vue-ref-trigger">被 {{ refList(scope.row).length }} 处引用</span></el-tooltip><span v-else class="portal-vue-muted">—</span></template></el-table-column>
             <el-table-column prop="owner" label="负责人" width="110"></el-table-column>
             <el-table-column prop="updatedAt" label="更新时间" width="170"></el-table-column>
-            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :model-value="scope.row.status==='启用'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
-            <el-table-column label="操作" width="180" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openItems(scope.row)">维护枚举值</el-button><el-button link type="primary" @click="openForm(scope.row)">编辑</el-button></div></template></el-table-column>
+            <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :disabled="!canEdit('字典管理')" :model-value="scope.row.status==='启用'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
+            <el-table-column label="操作" width="180" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('字典管理')" link type="primary" @click="openItems(scope.row)">维护枚举值</el-button><el-button v-if="canEdit('字典管理')" link type="primary" @click="openForm(scope.row)">编辑</el-button></div></template></el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
@@ -2147,7 +2421,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-form-item label="负责人" required><el-select v-model="form.owner" filterable><el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option></el-select></el-form-item>
             <el-form-item label="说明"><el-input v-model="form.desc" type="textarea" :rows="3"></el-input></el-form-item>
           </el-form>
-          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button type="primary" @click="saveForm">保存</el-button></template>
+          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button v-if="canEdit('字典管理')" type="primary" @click="saveForm">保存</el-button></template>
         </el-dialog>
         <el-drawer v-model="itemVisible" :title="current ? current.name + ' · 维护枚举值' : '维护枚举值'" size="680px" class="tag-enum-drawer" :close-on-click-modal="true">
           <div v-if="current" class="tag-enum-drawer-form">
@@ -2162,7 +2436,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </div>
             <el-button class="tag-enum-add" @click="draftItems.push({code:'',name:'',sort:draftItems.length+1})">添加枚举值</el-button>
           </div>
-          <template #footer><el-button @click="itemVisible=false">取消</el-button><el-button type="primary" @click="saveItems">保存枚举值</el-button></template>
+          <template #footer><el-button @click="itemVisible=false">取消</el-button><el-button v-if="canEdit('字典管理')" type="primary" @click="saveItems">保存枚举值</el-button></template>
         </el-drawer>
       </el-config-provider>
     `,
@@ -2276,7 +2550,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-table-column prop="id" label="模型" min-width="220"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
             <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="scope.row.enabled ? 'success' : 'info'" effect="light">{{ scope.row.enabled ? "可用" : "已禁用" }}</el-tag></template></el-table-column>
             <el-table-column label="禁用时间" width="180"><template #default="scope">{{ scope.row.disabledAt ? scope.row.disabledAt.slice(0, 16).replace("T", " ") : "—" }}</template></el-table-column>
-            <el-table-column label="操作" width="130" fixed="right"><template #default="scope"><el-switch :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch></template></el-table-column>
+            <el-table-column label="操作" width="130" fixed="right"><template #default="scope"><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch></template></el-table-column>
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">禁用后模型立即从灵犀智析的下拉框隐藏，进行中的分析不受影响；配置保存在网关数据卷，重启不丢失。</div>
         </section>
@@ -2317,16 +2591,16 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
-            <div class="portal-vue-toolbar-left"><el-button type="primary" @click="openForm(null, null)">＋ 添加</el-button></div>
+            <div class="portal-vue-toolbar-left"><el-button v-if="canEdit('菜单管理')" type="primary" @click="openForm(null, null)">＋ 添加</el-button></div>
           </div>
           <el-table :data="treeRows" row-key="id" :tree-props="{ children: 'children' }" default-expand-all class="portal-vue-table" border empty-text="暂无菜单">
             <el-table-column label="菜单显示名称" min-width="220"><template #default="scope"><span :class="{ 'portal-vue-name': !scope.row.parentId }">{{ scope.row.name }}</span></template></el-table-column>
             <el-table-column label="图标" width="80" align="center"><template #default="scope"><el-icon v-if="scope.row.icon !== '--'" :size="16"><span>{{ iconGlyph(scope.row.icon) }}</span></el-icon><span v-else class="portal-vue-muted">--</span></template></el-table-column>
             <el-table-column prop="sort" label="排序" width="90" align="center"></el-table-column>
             <el-table-column prop="path" label="组件路径" min-width="240"><template #default="scope"><code class="portal-vue-code">{{ scope.row.path }}</code></template></el-table-column>
-            <el-table-column label="缓冲" width="90" align="center"><template #default="scope"><el-switch :model-value="scope.row.cache" @change="value=>toggleCache(scope.row,value)"></el-switch></template></el-table-column>
+            <el-table-column label="缓冲" width="90" align="center"><template #default="scope"><el-switch :disabled="!canEdit('菜单管理')" :model-value="scope.row.cache" @change="value=>toggleCache(scope.row,value)"></el-switch></template></el-table-column>
             <el-table-column prop="permission" label="权限标识" min-width="200"><template #default="scope"><code class="portal-vue-code">{{ scope.row.permission }}</code></template></el-table-column>
-            <el-table-column label="操作" width="240" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openForm(null, scope.row)" :disabled="scope.row.children.length>=3">＋ 添加</el-button><el-button link type="primary" @click="openForm(scope.row, null)">✎ 编辑</el-button><el-button link type="danger" @click="removeMenu(scope.row)">🗑 删除</el-button></div></template></el-table-column>
+            <el-table-column label="操作" width="240" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('菜单管理')" link type="primary" @click="openForm(null, scope.row)" :disabled="scope.row.children.length>=3">＋ 添加</el-button><el-button v-if="canEdit('菜单管理')" link type="primary" @click="openForm(scope.row, null)">✎ 编辑</el-button><el-button v-if="canEdit('菜单管理')" link type="danger" @click="removeMenu(scope.row)">🗑 删除</el-button></div></template></el-table-column>
           </el-table>
         </section>
         <el-dialog v-model="formVisible" :title="editingId ? '编辑菜单' : (parentMenu ? '添加子菜单' : '添加菜单')" width="640px">
@@ -2339,9 +2613,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-form-item label="组件路径" required><el-input v-model="form.path" placeholder="/system/menu-management/index"></el-input></el-form-item>
               <el-form-item label="权限标识" required><el-input v-model="form.permission" placeholder="system_menu_management"></el-input></el-form-item>
             </div>
-            <el-form-item label="缓冲（页面缓存）"><el-switch v-model="form.cache"></el-switch></el-form-item>
+            <el-form-item label="缓冲（页面缓存）"><el-switch :disabled="!canEdit('菜单管理')" v-model="form.cache"></el-switch></el-form-item>
           </el-form>
-          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
+          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button v-if="canEdit('菜单管理')" type="primary" @click="save">保存</el-button></template>
         </el-dialog>
       </el-config-provider>
     `,
@@ -2447,7 +2721,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索 Skill 名称、来源"></el-input></div>
-            <el-button type="primary" :loading="uploading" @click="uploadInput?.click()">上传 Skill</el-button>
+            <el-button v-if="canEdit('Skill 配置')" type="primary" :loading="uploading" @click="uploadInput?.click()">上传 Skill</el-button>
             <input ref="uploadInput" type="file" accept=".zip" style="display:none" @change="onUploadFile"></input>
           </div>
           <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无 Skill">
@@ -2455,10 +2729,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-table-column prop="source" label="来源包" width="230"><template #default="scope"><code class="portal-vue-code">{{ scope.row.source }}</code></template></el-table-column>
             <el-table-column label="工作台展示" min-width="200"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:6px"><img v-if="isImageIcon(scope.row.icon)" :src="scope.row.icon" alt="" style="width:17px;height:17px;object-fit:contain" /><span v-else>{{ scope.row.icon }}</span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">已下线</span></template></el-table-column>
             <el-table-column prop="version" label="当前版本" width="120"></el-table-column>
-            <el-table-column label="状态" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:6px"><el-switch v-model="scope.row.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch><el-tag v-if="scope.row.enabled!==false && skillStatus(scope.row)!=='已发布'" size="small" :type="skillStatus(scope.row)==='未发布' ? 'info' : 'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></div></template></el-table-column>
+            <el-table-column label="状态" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:6px"><el-switch :disabled="!canEdit('Skill 配置')" v-model="scope.row.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch><el-tag v-if="scope.row.enabled!==false && skillStatus(scope.row)!=='已发布'" size="small" :type="skillStatus(scope.row)==='未发布' ? 'info' : 'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></div></template></el-table-column>
             <el-table-column label="灰度用户" min-width="170"><template #default="scope"><div v-if="scope.row.grayUsers.length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.grayUsers.slice(0,3)" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="scope.row.grayUsers.length>3" class="portal-vue-muted">+{{ scope.row.grayUsers.length-3 }}</span></div><span v-else class="portal-vue-muted">全量发布</span></template></el-table-column>
             <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
-            <el-table-column label="操作" width="100" fixed="right"><template #default="scope"><el-button link type="primary" @click="openVersionManage(scope.row)">版本管理</el-button></template></el-table-column>
+            <el-table-column label="操作" width="100" fixed="right"><template #default="scope"><el-button v-if="canEdit('Skill 配置')" link type="primary" @click="openVersionManage(scope.row)">版本管理</el-button></template></el-table-column>
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">Skill 以 ZIP 包（SKILL.md + 脚本 + 依赖清单）上传到网关统一执行；提示词与版本更新即时生效，无需发版。</div>
         </section>
@@ -2475,21 +2749,21 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <div class="portal-vue-skill-section"><el-form-item label="描述"><el-input v-model="editForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item></div>
             <div class="portal-vue-skill-section"><el-form-item label="排序（越小越靠前）"><el-input-number v-model="editForm.sort" :min="1" :max="999"></el-input-number></el-form-item></div>
             <div class="portal-vue-skill-section"><el-form-item label="提示词"><el-input v-model="editForm.prompt" type="textarea" :rows="9" resize="none"></el-input></el-form-item></div>
-            <div class="portal-vue-skill-section"><el-form-item label="上线状态"><el-switch v-model="editForm.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">下线后该 Skill 立即从灵犀智析隐藏</span></el-form-item></div>
+            <div class="portal-vue-skill-section"><el-form-item label="上线状态"><el-switch :disabled="!canEdit('Skill 配置')" v-model="editForm.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">下线后该 Skill 立即从灵犀智析隐藏</span></el-form-item></div>
             <div class="portal-vue-skill-section">
               <el-form-item label="版本号" required><el-input v-model="editForm.version" placeholder="如：v1.4" :disabled="!addMode"></el-input><span v-if="!addMode" class="portal-vue-muted" style="margin-left:8px;font-size:12px">编辑未发布版本不可改版本号</span></el-form-item>
               <el-form-item label="版本内容说明"><el-input v-model="editForm.versionNote" type="textarea" :rows="2" resize="none" placeholder="如：新增自动澄清、修复口径问题"></el-input></el-form-item>
             </div>
           </div>
           <template #footer>
-            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveAll">{{ addMode ? "保存为新版本" : "保存修改" }}</el-button></div>
+            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="editVisible=false">取消</el-button><el-button v-if="canEdit('Skill 配置')" type="primary" @click="saveAll">{{ addMode ? "保存为新版本" : "保存修改" }}</el-button></div>
           </template>
         </el-drawer>
         <el-drawer v-model="publishVisible" size="640px" :close-on-click-modal="true">
           <template #header>
             <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
               <span style="font-size:16px;font-weight:600">{{ publishSkill?.name || "" }} · 版本管理</span>
-              <el-button type="primary" size="small" @click="openNewVersion">＋ 新增版本</el-button>
+              <el-button v-if="canEdit('Skill 配置')" type="primary" size="small" @click="openNewVersion">＋ 新增版本</el-button>
             </div>
           </template>
           <div class="portal-vue-skill-drawer">
@@ -2503,14 +2777,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <div class="portal-vue-muted">操作人：{{ item.operator }}</div>
               <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
                 <template v-if="versionStatusName(item) !== '已发布'">
-                  <el-button size="small" @click="openEditVersion(item)">编辑</el-button>
-                  <el-button v-if="versionStatusName(item) === '未发布'" size="small" @click="openGrayDraft(item)">灰度</el-button>
-                  <el-button v-if="versionStatusName(item) === '灰度中'" size="small" @click="openGrayDraft(item)">调整灰度</el-button>
-                  <el-button v-if="versionStatusName(item) === '灰度中'" size="small" type="primary" @click="publishVersion(item)">发版</el-button>
+                  <el-button v-if="canEdit('Skill 配置')" size="small" @click="openEditVersion(item)">编辑</el-button>
+                  <el-button v-if="(versionStatusName(item) === '未发布') && canEdit('Skill 配置')" size="small" @click="openGrayDraft(item)">灰度</el-button>
+                  <el-button v-if="(versionStatusName(item) === '灰度中') && canEdit('Skill 配置')" size="small" @click="openGrayDraft(item)">调整灰度</el-button>
+                  <el-button v-if="(versionStatusName(item) === '灰度中') && canEdit('Skill 配置')" size="small" type="primary" @click="publishVersion(item)">发版</el-button>
                 </template>
                 <template v-else>
                   <el-button size="small" @click="openViewVersion(item)">查看</el-button>
-                  <el-button v-if="!item.current" size="small" @click="rollback(item)">回滚到此版本</el-button>
+                  <el-button v-if="(!item.current) && canEdit('Skill 配置')" size="small" @click="rollback(item)">回滚到此版本</el-button>
                 </template>
               </div>
             </div>
@@ -2539,7 +2813,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"><span>{{ user.name }}</span><span class="portal-vue-muted" style="float:right;font-size:12px">{{ user.dept }}</span></el-option>
             </el-select>
           </div>
-          <template #footer><el-button @click="grayDialogVisible=false">取消</el-button><el-button type="primary" @click="saveGrayDraft">确定灰度</el-button></template>
+          <template #footer><el-button @click="grayDialogVisible=false">取消</el-button><el-button v-if="canEdit('Skill 配置')" type="primary" @click="saveGrayDraft">确定灰度</el-button></template>
         </el-dialog>
       </el-config-provider>
     `,
@@ -2734,7 +3008,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </el-radio-group>
               <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索预警名称、监控表或指标"></el-input>
             </div>
-            <el-button type="primary" @click="openCreate">＋ 新建预警</el-button>
+            <el-button v-if="canEdit('数据预警')" type="primary" @click="openCreate">＋ 新建预警</el-button>
           </div>
           <el-table :data="filteredRows" class="portal-vue-table" border :empty-text="view === 'mine' ? '你还没有创建预警，点右上角「新建预警」用一句话创建' : '暂无预警数据，点右上角「新建预警」用一句话创建'">
             <el-table-column label="预警名称" min-width="230"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px;max-width:340px">{{ scope.row.text }}</div></div></template></el-table-column>
@@ -2742,8 +3016,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-table-column label="触发条件" min-width="200"><template #default="scope"><div><span style="font-size:13px">{{ scope.row.rule }}</span><div class="portal-vue-muted" style="font-size:12px;margin-top:2px">{{ scope.row.frequency }}{{ scope.row.frequency==='每天' ? ' ' + scope.row.time : '' }} · {{ scope.row.filters.length ? '筛选：' + scope.row.filters.join('，') : '无筛选' }}</div></div></template></el-table-column>
             <el-table-column label="推送对象" min-width="180"><template #default="scope"><div style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.users" :key="user" size="small" effect="plain">{{ user }}</el-tag><el-tag v-for="group in scope.row.groups" :key="group" size="small" type="success" effect="plain">{{ group }}</el-tag><span v-if="!scope.row.users.length && !scope.row.groups.length" class="portal-vue-muted">未配置</span></div></template></el-table-column>
             <el-table-column label="最近触发" width="150"><template #default="scope"><div><span style="font-size:13px">{{ scope.row.lastTriggered === '—' ? '—' : scope.row.lastTriggered }}</span><div v-if="scope.row.triggerCount" class="portal-vue-muted" style="font-size:12px;margin-top:2px">累计触发 {{ scope.row.triggerCount }} 次</div></div></template></el-table-column>
-            <el-table-column label="状态" width="90"><template #default="scope"><el-switch v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch></template></el-table-column>
-            <el-table-column label="操作" width="150" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openEdit(scope.row)">编辑</el-button><el-button link type="primary" @click="openHistory(scope.row)">记录</el-button><el-button link type="danger" @click="removeAlert(scope.row)">删除</el-button></div></template></el-table-column>
+            <el-table-column label="状态" width="90"><template #default="scope"><el-switch :disabled="!canEdit('数据预警')" v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch></template></el-table-column>
+            <el-table-column label="操作" width="150" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('数据预警')" link type="primary" @click="openEdit(scope.row)">编辑</el-button><el-button link type="primary" @click="openHistory(scope.row)">记录</el-button><el-button v-if="canEdit('数据预警')" link type="danger" @click="removeAlert(scope.row)">删除</el-button></div></template></el-table-column>
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">预警规则完全来自自然语言描述，AI 解析出的配置与 SQL 需业务核对确认；推送走内置「观星台预警助手」飞书机器人。</div>
         </section>
@@ -2753,7 +3027,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-input v-model="text" type="textarea" :rows="3" resize="none" placeholder="例：近 7 天广告计划日报表中，巨量渠道消耗环比下降超过 20% 时每天提醒"></el-input>
             <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="portal-vue-muted" style="font-size:12px;line-height:24px">试试：</span><el-button v-for="sample in alertExampleTexts" :key="sample" size="small" round plain @click="text = sample">{{ sample }}</el-button></div>
             <div style="display:flex;align-items:center;gap:12px">
-              <el-button type="primary" :loading="parsing" @click="runParse">🤖 AI 解析为配置清单</el-button>
+              <el-button v-if="canEdit('数据预警')" type="primary" :loading="parsing" @click="runParse">🤖 AI 解析为配置清单</el-button>
               <span v-if="parsing" class="portal-vue-muted">正在把需求解析为指标配置与 SQL 规则…</span>
               <span v-else-if="parsed" class="portal-vue-alert-ok">✓ AI 解析完成，请业务核对下方配置</span>
             </div>
@@ -2786,7 +3060,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </div>
             </template>
           </div>
-          <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" :disabled="!parsed || (!users.length && !groups.length)" @click="saveAlert">保存预警</el-button></template>
+          <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button v-if="canEdit('数据预警')" type="primary" :disabled="!parsed || (!users.length && !groups.length)" @click="saveAlert">保存预警</el-button></template>
         </el-dialog>
         <el-dialog v-model="historyVisible" :title="historyTitle + ' · 触发记录'" width="560px">
           <div class="portal-vue-skill-drawer">
@@ -2990,7 +3264,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-input v-model="accounts" type="textarea" :rows="3" placeholder="多个账户用逗号分隔，例如：123456,789012"></el-input>
                   <div class="portal-vue-csv-row">
                     <el-upload action="#" :auto-upload="false" :show-file-list="false" accept=".csv" :on-change="handleCsvUpload">
-                      <template #trigger><el-button>⬆ 上传</el-button></template>
+                      <template #trigger><el-button v-if="canEdit('任务运维')">⬆ 上传</el-button></template>
                     </el-upload>
                     <span class="portal-vue-muted">上传账户 CSV（单列账户 ID，最多 1000 个）自动解析合并</span>
                     <el-button link type="primary" @click="downloadCsvTemplate">⬇ 下载模板</el-button>
@@ -3024,7 +3298,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </el-form-item>
               </el-form>
               <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px">
-                <el-button type="primary" :loading="backfillSubmitting" @click="submitBackfill">🚀 重跑</el-button>
+                <el-button v-if="canEdit('任务运维')" type="primary" :loading="backfillSubmitting" @click="submitBackfill">🚀 重跑</el-button>
                 <el-button plain @click="logDialogVisible=true" :disabled="backfillSubmitting">📋 执行日志</el-button>
               </div>
               <el-progress v-if="backfillSubmitting || backfillProgress > 0" :percentage="backfillProgress" :status="backfillProgress >= 100 ? 'success' : ''" style="max-width:480px;margin-bottom:6px" />
@@ -3410,7 +3684,7 @@ function injectStyle(id, css) {
               <el-tab-pane label="基本配置" name="basic">
                 <div class="portal-vue-toolbar" style="padding:0 0 14px">
                   <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">{{ editingBasic ? "编辑中：调整后点击底部「保存配置」生效" : "当前为只读展示，点击右上角「编辑」后可修改" }}</span></div>
-                  <div class="portal-vue-actions"><el-button v-if="!editingBasic" type="primary" plain @click="editingBasic=true">✎ 编辑</el-button><el-button v-else @click="cancelBasic">取消编辑</el-button></div>
+                  <div class="portal-vue-actions"><el-button v-if="(!editingBasic) && canEdit('表管理')" type="primary" plain @click="editingBasic=true">✎ 编辑</el-button><el-button v-if="editingBasic && canEdit('表管理')" @click="cancelBasic">取消编辑</el-button></div>
                 </div>
                 <el-form v-if="editingBasic" label-position="top" class="portal-vue-dialog-form" style="max-width:760px">
                   <el-form-item label="表负责人" required>
@@ -3443,7 +3717,7 @@ function injectStyle(id, css) {
                   <el-table-column prop="comment" label="字段中文名" width="150"></el-table-column>
                   <el-table-column label="关联字典" min-width="260"><template #default="scope"><el-select v-model="scope.row.dictId" clearable filterable placeholder="不关联"><el-option v-for="dict in enabledDicts" :key="dict.dictId" :label="dict.name" :value="dict.dictId">{{ dict.name }} / {{ dict.code }} · {{ dictItems(dict).length }} 个枚举值</el-option></el-select></template></el-table-column>
                   <el-table-column label="字段备注" min-width="220"><template #default="scope"><el-input v-model="scope.row.remark" placeholder="填写备注"></el-input></template></el-table-column>
-                  <el-table-column label="操作" width="110" align="center"><template #default="scope"><template v-if="fieldDirty(scope.row)"><el-button link @click="revertField(scope.row)">取消</el-button><el-button link type="primary" @click="confirmField(scope.row)">保存</el-button></template></template></el-table-column>
+                  <el-table-column label="操作" width="110" align="center"><template #default="scope"><template v-if="fieldDirty(scope.row)"><el-button v-if="canEdit('表管理')" link @click="revertField(scope.row)">取消</el-button><el-button v-if="canEdit('表管理')" link type="primary" @click="confirmField(scope.row)">保存</el-button></template></template></el-table-column>
                 </el-table>
               </el-tab-pane>
               <el-tab-pane label="血缘查询" name="lineage">
@@ -3496,8 +3770,8 @@ function injectStyle(id, css) {
               </el-tab-pane>
             </el-tabs>
             <div v-if="editingBasic" class="api-create-footer">
-              <el-button @click="cancelBasic">取消</el-button>
-              <el-button type="primary" @click="saveBasic">保存配置</el-button>
+              <el-button v-if="canEdit('表管理')" @click="cancelBasic">取消</el-button>
+              <el-button v-if="canEdit('表管理')" type="primary" @click="saveBasic">保存配置</el-button>
             </div>
           </template>
         </div>
@@ -3707,10 +3981,10 @@ function injectStyle(id, css) {
           <div class="portal-vue-env-head">
             <h3>🌐 服务域名</h3>
             <div class="portal-vue-actions">
-              <el-button v-if="!envEditing" plain @click="envEditing=true">✎ 编辑</el-button>
+              <el-button v-if="(!envEditing) && canEdit('环境域名')" plain @click="envEditing=true">✎ 编辑</el-button>
               <template v-else>
-                <el-button type="primary" plain @click="openGroupDialog(null)">＋ 新增分类</el-button>
-                <el-button type="primary" @click="envEditing=false">完成</el-button>
+                <el-button v-if="canEdit('环境域名')" type="primary" plain @click="openGroupDialog(null)">＋ 新增分类</el-button>
+                <el-button v-if="canEdit('环境域名')" type="primary" @click="envEditing=false">完成</el-button>
               </template>
             </div>
           </div>
@@ -3718,8 +3992,8 @@ function injectStyle(id, css) {
             <div class="portal-vue-env-group-head">
               <h3>{{ (gi + 1) + ". " + group.title }}</h3>
               <div v-if="envEditing" class="portal-vue-actions">
-                <el-button link type="primary" @click="openEntryDialog(group, null)">＋ 新增条目</el-button>
-                <el-button link type="primary" @click="openGroupDialog(group)">编辑分类</el-button>
+                <el-button v-if="canEdit('环境域名')" link type="primary" @click="openEntryDialog(group, null)">＋ 新增条目</el-button>
+                <el-button v-if="canEdit('环境域名')" link type="primary" @click="openGroupDialog(group)">编辑分类</el-button>
                 <el-popconfirm title="确定删除该分类及其下所有条目吗？" @confirm="removeGroup(group.id)">
                   <template #reference><el-button link type="danger">删除</el-button></template>
                 </el-popconfirm>
@@ -3728,7 +4002,7 @@ function injectStyle(id, css) {
             <el-table :data="group.rows" class="portal-vue-table" border empty-text="暂无条目，点击右上角「新增条目」添加">
               <el-table-column :label="group.cols[0]" width="220"><template #default="scope"><span>{{ scope.row.a }}</span></template></el-table-column>
               <el-table-column :label="group.cols[1]" min-width="300"><template #default="scope"><code class="portal-vue-code portal-vue-env-addr">{{ scope.row.b }}</code></template></el-table-column>
-              <el-table-column label="操作" v-if="envEditing" width="130" align="center"><template #default="scope"><el-button link type="primary" @click="openEntryDialog(group, scope.$index)">编辑</el-button><el-popconfirm title="确定删除该条目吗？" @confirm="removeEntry(group, scope.$index)"><template #reference><el-button link type="danger">删除</el-button></template></el-popconfirm></template></el-table-column>
+              <el-table-column label="操作" v-if="envEditing" width="130" align="center"><template #default="scope"><el-button v-if="canEdit('环境域名')" link type="primary" @click="openEntryDialog(group, scope.$index)">编辑</el-button><el-popconfirm title="确定删除该条目吗？" @confirm="removeEntry(group, scope.$index)"><template #reference><el-button link type="danger">删除</el-button></template></el-popconfirm></template></el-table-column>
             </el-table>
           </div>
           <el-empty v-if="!envGroups.length" description="暂无分类，点击右上角「新增分类」开始维护" />
@@ -3738,14 +4012,14 @@ function injectStyle(id, css) {
               <el-form-item label="第一列列名"><el-input v-model="groupForm.colA" placeholder="例如：环境"></el-input></el-form-item>
               <el-form-item label="第二列列名"><el-input v-model="groupForm.colB" placeholder="例如：地址"></el-input></el-form-item>
             </el-form>
-            <template #footer><el-button @click="groupDialogVisible=false">取消</el-button><el-button type="primary" @click="saveGroup">保存</el-button></template>
+            <template #footer><el-button @click="groupDialogVisible=false">取消</el-button><el-button v-if="canEdit('环境域名')" type="primary" @click="saveGroup">保存</el-button></template>
           </el-dialog>
           <el-dialog v-model="entryDialogVisible" :title="(editingEntryIndex === null ? '新增条目' : '编辑条目') + ' · ' + (activeGroup ? activeGroup.title : '')" width="520px" :close-on-click-modal="true">
             <el-form label-position="top" class="portal-vue-dialog-form">
               <el-form-item :label="activeGroup ? activeGroup.cols[0] : '第一列'" required><el-input v-model="entryForm.a" placeholder="例如：生产"></el-input></el-form-item>
               <el-form-item :label="activeGroup ? activeGroup.cols[1] : '第二列'" required><el-input v-model="entryForm.b" placeholder="例如：https://xxx.kaboss.cn"></el-input></el-form-item>
             </el-form>
-            <template #footer><el-button @click="entryDialogVisible=false">取消</el-button><el-button type="primary" @click="saveEntry">保存</el-button></template>
+            <template #footer><el-button @click="entryDialogVisible=false">取消</el-button><el-button v-if="canEdit('环境域名')" type="primary" @click="saveEntry">保存</el-button></template>
           </el-dialog>
         </section>
       </el-config-provider>
@@ -3827,8 +4101,13 @@ function injectStyle(id, css) {
   document.getElementById("portalApp").dataset.elementMigrated = "true";
   document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", ["新增API","新建人群包","Quick BI 展示","配置权限","无权限","维表数据维护"].includes(currentPage.value));
   window.portalVueModuleApi = {
-    refresh(page = bridge.getPage()) { currentPage.value = page; refreshTick.value += 1; },
+    refresh(page = bridge.getPage()) { currentPage.value = page; refreshTick.value += 1; syncPrimaryAction(); },
+    canEdit: canEditMenu,
+    canView: canViewMenu,
+    canEditPage,
+    denyEdit,
     state
   };
+  syncPrimaryAction();
   window.dispatchEvent(new CustomEvent("portal:page-change", { detail: { page: bridge.getPage() } }));
 })();

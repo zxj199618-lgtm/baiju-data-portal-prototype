@@ -40,15 +40,19 @@ let html = fs.readFileSync(sourcePath, "utf8");
 
 for (const { assetPath, kind } of textAssets) {
   const absolutePath = path.join(root, assetPath);
-  const tag = kind === "style"
-    ? `<link rel="stylesheet" href="${assetPath}" />`
-    : `<script src="${assetPath}"></script>`;
+  // index.html 给静态资源加了 ?v= 版本号（强制刷新缓存），这里必须容忍版本查询串，
+  // 否则单文件版会漏掉页面 JS/CSS，只剩相对路径引用。
+  const escaped = assetPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const tagPattern = kind === "style"
+    ? new RegExp(`<link rel="stylesheet" href="${escaped}(\\?v=[^"]*)?"\\s*/?>`)
+    : new RegExp(`<script src="${escaped}(\\?v=[^"]*)?"><\\/script>`);
   if (!fs.existsSync(absolutePath)) throw new Error(`Missing standalone asset: ${assetPath}`);
   const source = fs.readFileSync(absolutePath, "utf8");
   const inlineTag = kind === "style"
     ? `<style data-inline-source="${assetPath}">${source.replace(/<\/style/gi, "<\\/style")}</style>`
     : `<script data-inline-source="${assetPath}">${source.replace(/<\/script/gi, "<\\/script")}</script>`;
-  html = html.replace(tag, () => inlineTag);
+  if (!tagPattern.test(html)) throw new Error(`Standalone asset tag not found in index.html: ${assetPath}`);
+  html = html.replace(tagPattern, () => inlineTag);
 }
 
 for (const imagePath of imagePaths) {

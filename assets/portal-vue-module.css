@@ -149,8 +149,9 @@
   box-shadow: 0 -6px 18px rgba(31, 41, 55, .06);
 }
 
-.portal-vue-topbar { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.portal-vue-tabs { min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.portal-vue-topbar { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: nowrap; }
+/* tab 很多时让 tab 条滚动收缩，头像/姓名区域固定不压缩，避免名字被挤成竖排换行 */
+.portal-vue-tabs { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .portal-vue-tabs::-webkit-scrollbar { display: none; }
 .portal-vue-home { color: #98a2b3; white-space: nowrap; }
 .portal-vue-tab {
@@ -172,7 +173,10 @@
 .portal-vue-tab span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-tab-close { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; }
 .portal-vue-tab-close:hover { background: #dceaff; }
-.portal-vue-user { display: inline-flex; align-items: center; gap: 9px; color: #1677ff; font-weight: 650; cursor: pointer; }
+.portal-vue-user { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 9px; color: #1677ff; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.portal-vue-user > span { white-space: nowrap; word-break: keep-all; }
+.portal-vue-user .el-avatar { flex: 0 0 auto; }
+.portal-vue-topbar > .el-dropdown { flex: 0 0 auto; }
 
 .portal-vue-page-head { width: 100%; display: block; }
 .portal-vue-page-head h1 { margin: 0; color: #1f2937; font-size: 24px; line-height: 34px; letter-spacing: 0; }
@@ -284,6 +288,15 @@
 .portal-vue-permission-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
 .portal-vue-permission-block { padding: 14px; border: 1px solid #e4e9f2; border-radius: 8px; }
 .portal-vue-permission-block > strong { display: block; margin-bottom: 10px; }
+.portal-vue-inherit-alert { margin: 0 0 14px; }
+.portal-vue-lock-tag { height: 18px; margin-left: 8px; padding: 0 6px; border-color: #d7e2f5; background: #f2f6fd; color: #4b5b73; }
+.portal-vue-permission-block .el-checkbox.is-disabled { cursor: default; opacity: .95; }
+.portal-vue-permission-block .el-checkbox.is-disabled .el-checkbox__label { color: #3c4a5f; }
+.portal-vue-scope-hint { display: flex; align-items: center; gap: 14px; margin: 0 0 12px; padding: 8px 14px; border: 1px solid #e4e9f2; border-radius: 8px; background: #f8fafd; font-size: 13px; color: #4b5b73; }
+.portal-vue-scope-hint strong { color: #1f2937; }
+.portal-vue-scope-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.portal-vue-scope-tree { width: 100%; margin-top: 12px; }
+.portal-vue-scope-preview { display: flex; flex-wrap: wrap; gap: 8px; max-height: 220px; overflow: auto; }
 .portal-vue-group-tabs > .el-tabs__header { margin: 0 0 16px; }
 .portal-vue-group-tabs > .el-tabs__header .el-tabs__nav-wrap::after { height: 1px; background: #e9edf4; }
 .portal-vue-group-tabs > .el-tabs__header .el-tabs__item { height: 46px; padding: 0 22px; font-size: 14px; font-weight: 650; }
@@ -300,6 +313,13 @@
 .portal-vue-child-checks .el-checkbox { min-width: 0; height: auto; margin-right: 0; align-items: flex-start; }
 .portal-vue-child-checks .el-checkbox__label { overflow-wrap: anywhere; color: #3f4857; line-height: 20px; }
 .portal-vue-child-checks .el-checkbox.is-checked .el-checkbox__label { color: #1677ff; }
+.portal-vue-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; margin: 8px 0; }
+.portal-vue-menu-row .el-checkbox { min-width: 0; height: auto; margin-right: 0; align-items: flex-start; }
+.portal-vue-menu-row .el-checkbox__label { overflow-wrap: anywhere; color: #3f4857; line-height: 20px; }
+.portal-vue-menu-row-head { margin: 0 0 4px; }
+.portal-vue-menu-row-head .el-checkbox:first-child { flex: 1; }
+.portal-vue-edit-check .el-checkbox__label { color: #6b7686; font-size: 13px; }
+.portal-vue-edit-check.is-checked .el-checkbox__label { color: #1677ff; font-weight: 600; }
 .portal-vue-board-range-toolbar { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 12px; color: #98a2b3; font-size: 12px; }
 .portal-vue-permission-card-title { display: block; color: #293241; font-size: 15px; line-height: 20px; }
 .portal-vue-board-checks { margin-left: 0; }
