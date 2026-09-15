@@ -205,6 +205,7 @@ assert(portalVue.includes("USER_SCOPE_PREFIX") && portalVue.includes("scopeMatch
 assert(portalBridge.includes("scopedUsers"), "JS 兜底的用户管理同样按管理范围过滤");
 assert(portalVue.includes("menuEdits") && portalVue.includes("menuEditGrants") && portalVue.includes("isMenuEditLocked"), "菜单权限应区分查看与编辑：权限组与个人配置都能单独授予编辑权限");
 assert(portalVue.includes("editSectionChecked") && portalVue.includes("togglePersonalEdit") && portalVue.includes("toggleEdit(name,checked"), "勾选编辑自动带上查看，取消查看自动取消编辑");
+assert(portalVue.includes('class="portal-vue-view-check"') && portalVue.includes('class="portal-vue-menu-checks"') && (portalVue.match(/>查看<\/el-checkbox>/g) || []).length >= 2 && portalVue.includes("<span>查看</span>"), "菜单权限配置应显式给出「查看」「编辑」两个勾选框（权限组页 + 个人配置页）");
 assert(portalVue.includes("canEditMenu") && portalVue.includes("effectiveEditMenus") && portalVue.includes("menuOfPage"), "菜单编辑权限按当前登录人的权限组 + 个人追加计算，子页面跟随父菜单");
 assert((portalVue.match(/canEdit\(/g) || []).length >= 60 && portalVue.includes("denyEdit"), "各菜单的新增/编辑/删除/保存/启停等写操作应按编辑权限隐藏");
 assert(audienceVue.includes("canEdit('人群包管理')"), "人群包管理的写操作同样按菜单编辑权限隐藏");

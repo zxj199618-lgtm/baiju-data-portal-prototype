@@ -314,11 +314,16 @@
 .portal-vue-child-checks .el-checkbox { min-width: 0; height: auto; margin-right: 0; align-items: flex-start; }
 .portal-vue-child-checks .el-checkbox__label { overflow-wrap: anywhere; color: #3f4857; line-height: 20px; }
 .portal-vue-child-checks .el-checkbox.is-checked .el-checkbox__label { color: #1677ff; }
+/* 菜单权限行：左侧菜单名，右侧「查看 / 编辑」两个勾选框 */
 .portal-vue-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; margin: 8px 0; }
-.portal-vue-menu-row .el-checkbox { min-width: 0; height: auto; margin-right: 0; align-items: flex-start; }
-.portal-vue-menu-row .el-checkbox__label { overflow-wrap: anywhere; color: #3f4857; line-height: 20px; }
+.portal-vue-menu-name { flex: 1 1 auto; min-width: 0; color: #3f4857; font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+.portal-vue-menu-name-parent { color: #293241; font-size: 15px; font-weight: 700; }
+.portal-vue-menu-checks { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 2px; }
+.portal-vue-menu-checks .el-checkbox { height: auto; margin-right: 0; }
+.portal-vue-menu-checks .el-checkbox__label { font-size: 13px; line-height: 20px; }
 .portal-vue-menu-row-head { margin: 0 0 4px; }
-.portal-vue-menu-row-head .el-checkbox:first-child { flex: 1; }
+.portal-vue-view-check .el-checkbox__label { color: #6b7686; }
+.portal-vue-view-check.is-checked .el-checkbox__label { color: #1677ff; font-weight: 600; }
 .portal-vue-edit-check .el-checkbox__label { color: #6b7686; font-size: 13px; }
 .portal-vue-edit-check.is-checked .el-checkbox__label { color: #1677ff; font-weight: 600; }
 .portal-vue-board-range-toolbar { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 12px; color: #98a2b3; font-size: 12px; }
