@@ -3342,7 +3342,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left">
-              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索告警名称、监控表或分类"></el-input>
+              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索告警名称"></el-input>
               <el-select v-model="categoryFilter" clearable placeholder="全部分类" style="width:150px">
                 <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
               </el-select>
@@ -3738,8 +3738,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           if (this.groupFilter && !(item.channel?.groups || []).includes(this.groupFilter)) return false;
           if (this.pushUserFilter && !(item.channel?.users || []).includes(this.pushUserFilter)) return false;
           if (!keyword) return true;
-          const reach = [...(item.channel?.groups || []), ...(item.channel?.users || [])].join(" ");
-          return `${item.name} ${item.table} ${item.tableCn || ""} ${item.category || ""} ${item.requester || ""} ${item.owner || ""} ${reach} ${item.desc || ""}`.toLowerCase().includes(keyword);
+          return String(item.name || "").toLowerCase().includes(keyword);
         });
       },
       activeUsers() { refreshTick.value; return state.users.filter(user => user.status !== "已停用"); },
