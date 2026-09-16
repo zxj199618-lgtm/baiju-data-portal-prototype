@@ -3295,9 +3295,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div class="portal-vue-alert-cell-name">{{ scope.row.name }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="分类" width="104">
+            <el-table-column label="分类" min-width="112">
               <template #default="scope">
-                <el-tag v-if="scope.row.category" size="small" effect="plain">{{ scope.row.category }}</el-tag>
+                <el-tag v-if="scope.row.category" size="small" effect="plain" class="portal-vue-alert-cell-tag">{{ scope.row.category }}</el-tag>
                 <span v-else class="portal-vue-muted">—</span>
               </template>
             </el-table-column>
