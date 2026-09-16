@@ -3644,11 +3644,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-radio v-for="item in dedupChoices" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
                 </el-radio-group>
               </el-form-item>
-              <el-form-item v-if="form.dedup.mode !== 'always'" label="主体字段" prop="keyField">
+              <el-form-item v-if="form.dedup.mode !== 'always'" label="重复判定字段" prop="keyField">
                 <el-select v-model="form.keyField" filterable placeholder="选择用于判断是否重复的字段">
                   <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
                 </el-select>
-                <div class="portal-vue-alert-hint">用来判断"是不是同一个问题"：同一<b>{{ keyFieldLabel }}</b>触发本告警只算同一条，再按上面的重复规则决定要不要再次通知。例如主体字段选「用户名」，则同一用户的多次触发会按规则合并，不同用户各算一条。</div>
+                <div class="portal-vue-alert-hint">用来判断"是不是同一个问题"：同一<b>{{ keyFieldLabel }}</b>触发本告警只算同一条，再按上面的重复规则决定要不要再次通知。例如重复判定字段选「用户名」，则同一用户的多次触发会按规则合并，不同用户各算一条。</div>
               </el-form-item>
               <el-form-item v-if="form.dedup.mode === 'interval'" label="重复间隔">
                 <div class="portal-vue-alert-inline">
@@ -3714,7 +3714,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           owner: [required("请选择负责人")],
           requester: [required("请选择需求人")],
           table: [required("请选择监控表")],
-          keyField: [required("请选择主体字段（用于重复通知去重）")],
+          keyField: [required("请选择重复判定字段（用于重复通知去重）")],
           conditions: [{ required: true, validator: this.validateConditions, trigger: "change" }],
           "template.title": [{ required: true, message: "请填写通知标题", trigger: "blur" }],
           "template.lines": [{ required: true, validator: this.validateTemplateLines, trigger: "change" }],

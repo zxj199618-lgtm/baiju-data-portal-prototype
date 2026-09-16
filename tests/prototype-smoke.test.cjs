@@ -266,14 +266,14 @@ assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验�
 });
 assert(portalVue.includes('label="状态" width="88"'), "状态列宽需容纳开关，避免单元格溢出被省略号截断");
 assert(portalVue.includes("portal-vue-alert-cell-name"), "数据告警列表名称列应有独立样式");
-assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("是不是同一个问题"), "主体字段应提供说明文案，帮助理解重复判断口径");
+assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("是不是同一个问题"), "重复判定字段应提供说明文案，帮助理解重复判断口径");
 assert(portalVue.includes('class="portal-vue-alert-preview-avatar" src="assets/momentx-observatory-icon.png"'), "推送效果预览的头像应使用观星台品牌图标");
 assert(portalVue.includes("portal-vue-alert-dialog-head") && portalVue.includes("portal-vue-alert-back"), "数据告警编辑弹窗左上角应提供返回按钮");
 assert(portalVue.includes('label="负责人" prop="owner"') && portalVue.includes('label="告警方式" prop="mode"') && portalVue.includes('prop="dedup.mode"'), "负责人/告警方式/重复告警均应绑定 prop 以渲染必填星标");
 assert(portalVue.includes('label="需求人" prop="requester"'), "数据告警表单应包含需求人必填字段");
 assert(portalVue.includes('<el-table-column label="需求人"') && portalVue.includes('<el-table-column label="负责人"') && portalVue.includes("requesterFilter") && portalVue.includes("ownerFilter"), "列表应展示需求人与负责人，并支持按两者筛选");
 assert(portalVue.includes("groupFilter") && portalVue.includes("pushUserFilter") && portalVue.includes("全部推送群") && portalVue.includes("全部推送人"), "列表应支持按推送群与推送人筛选");
-assert(portalCss.includes(".portal-vue-alert-form .portal-vue-alert-hint"), "主体字段说明文案应独占一行显示在控件下方");
+assert(portalCss.includes(".portal-vue-alert-form .portal-vue-alert-hint"), "重复判定字段说明文案应独占一行显示在控件下方");
 assert(portalCss.includes(".portal-vue-alert-table .el-table__cell { vertical-align: middle; }"), "数据告警列表单元格内容应上下居中，行高随内容自适应");
 assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据告警列表不应再提供「我的 / 全部」切换");
 assert(portalVue.includes("portal-vue-ai-chip-table-cascader") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "表选择按钮应直接展开级联菜单，不应先打开中间弹层");
