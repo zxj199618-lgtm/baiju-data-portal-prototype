@@ -3536,9 +3536,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </el-radio-group>
               </el-form-item>
               <el-form-item v-if="form.dedup.mode !== 'always'" label="主体字段" prop="keyField">
-                <el-select v-model="form.keyField" filterable placeholder="按该字段判断是否为同一个问题，可选本预警内的任意字段">
+                <el-select v-model="form.keyField" filterable placeholder="选择用于判断是否重复的字段">
                   <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
                 </el-select>
+                <div class="portal-vue-alert-hint">用来判断"是不是同一个问题"：同一<b>{{ keyFieldLabel }}</b>触发本预警只算同一条，再按上面的重复规则决定要不要再次通知。例如主体字段选「用户名」，则同一用户的多次触发会按规则合并，不同用户各算一条。</div>
               </el-form-item>
               <el-form-item v-if="form.dedup.mode === 'interval'" label="重复间隔">
                 <div class="portal-vue-alert-inline">

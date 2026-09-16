@@ -262,6 +262,8 @@ assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验�
 });
 assert(portalVue.includes('label="状态" width="88"'), "状态列宽需容纳开关，避免单元格溢出被省略号截断");
 assert(portalVue.includes("portal-vue-alert-cell-name"), "数据预警列表名称列应有独立样式");
+assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("是不是同一个问题"), "主体字段应提供说明文案，帮助理解重复判断口径");
+assert(portalCss.includes(".portal-vue-alert-form .portal-vue-alert-hint"), "主体字段说明文案应独占一行显示在控件下方");
 assert(portalCss.includes(".portal-vue-alert-table .el-table__cell { vertical-align: middle; }"), "数据预警列表单元格内容应上下居中，行高随内容自适应");
 assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据预警列表不应再提供「我的 / 全部」切换");
 assert(portalVue.includes("portal-vue-ai-chip-table-cascader") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "表选择按钮应直接展开级联菜单，不应先打开中间弹层");
