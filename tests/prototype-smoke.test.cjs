@@ -234,9 +234,23 @@ assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCa
 assert(!portalVue.includes("portal-vue-ai-cascade-grid") && !portalVue.includes("activeBizLine") && !portalVue.includes("filteredTableOptions") && !portalVue.includes("changeBizLine"), "数据表选择不应保留拆分的业务线/数据表下拉");
 assert(portalBridge.includes('name: "数据预警"') && portalBridge.includes('icon: "alert"'), "侧边栏应在数据资产上方提供数据预警菜单");
 assert(html.includes('id="alertManagementView"') && portalVue.includes('mount("#alertManagementView"'), "数据预警应挂载独立视图");
-assert(portalVue.includes("AlertManagementApp") && portalVue.includes("runParse") && portalVue.includes("parseAlertBrain"), "数据预警应支持自然语言描述并由 AI 解析为配置清单");
-assert(portalVue.includes("portal-vue-alert-sql") && portalVue.includes("alertSql") && portalVue.includes("保存预警"), "数据预警应生成背后 SQL 规则，业务核对后保存");
-assert(portalVue.includes("观星台预警助手") && portalVue.includes("通知群") && portalVue.includes("通知人"), "数据预警应内置飞书机器人推送通道（通知人/通知群）");
+assert(portalVue.includes("AlertManagementApp") && portalVue.includes("alertMonitorTables") && portalVue.includes("选择监控表与字段"), "数据预警应按「选择监控表 → 配置规则」的配置式流程创建");
+assert(portalVue.includes("alertOps") && portalVue.includes("toggleRelation") && portalVue.includes("addCondition") && portalVue.includes("portal-vue-alert-rule"), "数据预警应提供且/或条件构建器");
+assert(portalVue.includes("portal-vue-alert-sql") && portalVue.includes("alertSql") && portalVue.includes("ruleText"), "数据预警应生成触发逻辑与背后表达式，供业务与技术核对");
+assert(portalVue.includes("portal-vue-alert-preview") && portalVue.includes("alertTemplateStyles") && portalVue.includes("insertVariable") && portalVue.includes("insertTitleVariable"), "数据预警应提供模版样式配置、变量插入与推送效果预览");
+assert(portalVue.includes("观星台飞书机器人") && portalVue.includes("预警群") && portalVue.includes("alertGroupChoices"), "数据预警应通过观星台飞书机器人选择群");
+assert(portalVue.includes("sendTestAlert") && portalVue.includes("testChannel") && portalVue.includes("测试通道"), "数据预警应支持配置测试通道并测试发送预警");
+assert(portalVue.includes("预警方式") && portalVue.includes("realtime") && portalVue.includes("scheduled") && portalVue.includes("modeSummary"), "数据预警应支持实时与定时两种预警方式");
+assert(portalVue.includes("alertCategoryDefaults") && portalVue.includes("categoryManagerVisible") && portalVue.includes("addCategory"), "数据预警应支持预警分类配置与分类管理");
+assert(portalVue.includes("alertDedupChoices") && portalVue.includes("intervalMinutes") && portalVue.includes("dedupSummary"), "重复预警是否再次通知、按什么间隔通知应可配置");
+assert(portalVue.includes("runValidation") && portalVue.includes("validateTestChannel") && portalVue.includes("确认保存"), "数据预警保存前应校验监控表/规则/模版/通道/测试通道");
+[
+  "用户工作时间非公司环境登陆",
+  "用户工作时间异地登陆",
+  "用户新设备登陆",
+  "用户微信环境登陆",
+  "用户今日多设备登陆"
+].forEach(name => assert(portalVue.includes(name), `应内置登录与设备类预警规则：${name}`));
 assert(portalVue.includes('view: "mine"') && portalVue.includes("canViewAll") && portalVue.includes("门户管理员"), "数据预警列表应默认展示「我的」预警，管理员可切换查看全部");
 assert(portalVue.includes("portal-vue-ai-chip-table-cascader") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "表选择按钮应直接展开级联菜单，不应先打开中间弹层");
 assert(portalVue.includes("portal-vue-ai-chip-model-select") && !portalVue.includes("portal-vue-ai-model-panel-popper"), "模型选择按钮应直接展开模型列表，不应先打开中间弹层");

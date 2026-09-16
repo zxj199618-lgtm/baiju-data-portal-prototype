@@ -2984,54 +2984,299 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     }
   };
 
-  const alertMetricChoices = [
-    { label: "消耗金额", field: "consume_amount" },
-    { label: "CPA（获客成本）", field: "cpa" },
-    { label: "点击量", field: "click_cnt" },
-    { label: "订单数", field: "order_cnt" },
-    { label: "新增用户数", field: "new_user_cnt" }
-  ];
-  const alertFrequencyChoices = ["每小时", "每天", "每周"];
-  const alertTimeChoices = ["08:00", "09:00", "10:00", "18:00"];
-  const alertGroupChoices = ["投放运营群", "数据分析师群", "权益业务群", "高管数据群"];
-  const alertExampleTexts = [
-    "近 7 天广告计划日报表中，巨量渠道消耗环比下降超过 20% 时每天提醒",
-    "广告计划日报表里 CPA 连续 3 天超过 80 元的时候提醒我",
-    "用户订单明细表每日订单数环比波动超过 30% 时发预警",
-    "渠道归因明细表中，新增用户数每周减少超过 15% 时提醒"
-  ];
-  const alertSeeds = [
+  /* ===== 数据预警：选监控表 → 配预警规则 → 配预警模版 → 配预警通道 → 设预警方式 ===== */
+
+  /* 监控埋点表：预警按事件流计算，字段同时作为规则条件与模版变量来源 */
+  const alertMonitorTables = [
     {
-      id: "AL20260901001", name: "巨量渠道消耗突降预警", text: "近 7 天广告计划日报表中，巨量渠道消耗环比下降超过 20% 时每天提醒", creator: "曾祥竞",
-      table: "广告计划日报表", metric: "消耗金额", agg: "SUM", filters: ["渠道=巨量"], rule: "环比下降超过 20%", frequency: "每天", time: "09:00",
-      sql: "SELECT ds, SUM(consume_amount) AS 消耗金额\nFROM 广告计划日报表\nWHERE 渠道 = '巨量' AND ds >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)\nGROUP BY ds\nHAVING (SUM(consume_amount) - LAG(SUM(consume_amount)) OVER (ORDER BY ds)) / LAG(SUM(consume_amount)) OVER (ORDER BY ds) <= -0.2",
-      enabled: true, users: ["曾祥竞"], groups: ["投放运营群"], lastTriggered: "2026-09-03 09:01", triggerCount: 3,
-      history: [
-        { time: "2026-09-03 09:01", summary: "巨量渠道昨日消耗 12.4 万，环比下降 23.6%，触发预警并推送飞书", status: "已推送" },
-        { time: "2026-09-02 09:00", summary: "巨量渠道昨日消耗 16.2 万，环比下降 21.1%，触发预警并推送飞书", status: "已推送" },
-        { time: "2026-08-31 09:00", summary: "巨量渠道昨日消耗 15.1 万，环比下降 20.4%，触发预警并推送飞书", status: "已推送" }
+      name: "dwd_user_login_log", cn: "用户登录埋点", bizLine: "安全合规",
+      desc: "登录事件流，含设备指纹、IP 属地与网络环境判定字段",
+      keyField: "user_name", timeField: "event_time",
+      fields: [
+        { name: "user_name", cn: "用户名", type: "VARCHAR" },
+        { name: "event_time", cn: "登陆时间", type: "DATETIME" },
+        { name: "user_agent", cn: "UA", type: "VARCHAR" },
+        { name: "ip", cn: "IP", type: "VARCHAR" },
+        { name: "province", cn: "登陆省份", type: "VARCHAR" },
+        { name: "city", cn: "登陆城市", type: "VARCHAR" },
+        { name: "device_id", cn: "设备ID", type: "VARCHAR" },
+        { name: "is_workday", cn: "是否工作日", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "is_office_network", cn: "是否工作环境登陆", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "is_new_device", cn: "是否新设备ID", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "is_new_ip", cn: "是否新IP地址", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "is_wechat_env", cn: "是否微信环境", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "is_domestic", cn: "是否国内", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "is_login", cn: "是否登陆", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "today_device_cnt", cn: "用户今日登陆设备数", type: "BIGINT" }
       ]
     },
     {
-      id: "AL20260901002", name: "CPA 连续超目标预警", text: "广告计划日报表里 CPA 连续 3 天超过 80 元的时候提醒我", creator: "李雨航",
-      table: "广告计划日报表", metric: "CPA（获客成本）", agg: "AVG", filters: [], rule: "CPA 连续 3 天超过 80 元", frequency: "每天", time: "10:00",
-      sql: "SELECT ds, AVG(cpa) AS CPA\nFROM 广告计划日报表\nWHERE ds >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)\nGROUP BY ds\nHAVING AVG(cpa) > 80",
-      enabled: true, users: ["李雨航"], groups: ["数据分析师群"], lastTriggered: "2026-09-02 18:30", triggerCount: 2,
-      history: [
-        { time: "2026-09-02 18:30", summary: "CPA 已连续 3 天高于 80 元（82.4 / 81.7 / 84.2），触发预警并推送飞书", status: "已推送" },
-        { time: "2026-08-28 18:05", summary: "CPA 已连续 3 天高于 80 元（81.2 / 80.9 / 83.5），触发预警并推送飞书", status: "已推送" }
+      name: "dwd_board_share_log", cn: "看板分享埋点", bizLine: "安全合规",
+      desc: "看板/报告分享与访问事件流，用于外发风险预警",
+      keyField: "user_name", timeField: "event_time",
+      fields: [
+        { name: "user_name", cn: "用户名", type: "VARCHAR" },
+        { name: "event_time", cn: "事件发生时间", type: "DATETIME" },
+        { name: "board_name", cn: "看板名称", type: "VARCHAR" },
+        { name: "share_id", cn: "分享ID", type: "VARCHAR" },
+        { name: "viewer_name", cn: "访问者", type: "VARCHAR" },
+        { name: "is_logged_in", cn: "是否登录", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "is_authorized", cn: "是否在权限范围内", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "is_public_link", cn: "是否公开链接", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "viewer_cnt", cn: "访问人数", type: "BIGINT" },
+        { name: "province", cn: "登陆省份", type: "VARCHAR" },
+        { name: "city", cn: "登陆城市", type: "VARCHAR" }
       ]
     },
     {
-      id: "AL20260901003", name: "订单量波动预警", text: "用户订单明细表每日订单数环比波动超过 30% 时发预警", creator: "王鑫宇",
-      table: "用户订单明细", metric: "订单数", agg: "COUNT", filters: [], rule: "订单数环比波动超过 30%", frequency: "每天", time: "08:30",
-      sql: "SELECT ds, COUNT(order_id) AS 订单数\nFROM 用户订单明细\nWHERE ds >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)\nGROUP BY ds\nHAVING ABS(COUNT(order_id) - LAG(COUNT(order_id)) OVER (ORDER BY ds)) / LAG(COUNT(order_id)) OVER (ORDER BY ds) > 0.3",
-      enabled: false, users: ["王鑫宇"], groups: [], lastTriggered: "2026-08-28 08:31", triggerCount: 1,
-      history: [{ time: "2026-08-28 08:31", summary: "昨日订单数 3,214，环比下降 34.2%，触发预警并推送飞书", status: "已推送" }]
+      name: "dwd_data_export_log", cn: "数据导出埋点", bizLine: "安全合规",
+      desc: "数据导出/下载事件流，用于导出量与敏感字段预警",
+      keyField: "user_name", timeField: "event_time",
+      fields: [
+        { name: "user_name", cn: "用户名", type: "VARCHAR" },
+        { name: "event_time", cn: "事件发生时间", type: "DATETIME" },
+        { name: "table_name", cn: "数据表", type: "VARCHAR" },
+        { name: "export_format", cn: "导出格式", type: "VARCHAR" },
+        { name: "row_count", cn: "导出行数", type: "BIGINT" },
+        { name: "has_sensitive_field", cn: "是否含敏感字段", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "is_working_hours", cn: "是否工作时间", type: "BOOLEAN", values: ["是", "否"] },
+        { name: "province", cn: "登陆省份", type: "VARCHAR" },
+        { name: "city", cn: "登陆城市", type: "VARCHAR" }
+      ]
     }
   ];
 
-  /* 数据预警：自然语言描述 → AI 解析为指标配置/SQL 规则 → 业务核对保存 → 飞书机器人推送 */
+  /* 条件算子：按字段类型收敛可用算子 */
+  const alertOps = [
+    { value: "eq", label: "等于" },
+    { value: "ne", label: "不等于" },
+    { value: "gt", label: "大于" },
+    { value: "gte", label: "大于等于" },
+    { value: "lt", label: "小于" },
+    { value: "lte", label: "小于等于" },
+    { value: "between", label: "在…之间" },
+    { value: "timeBetween", label: "时间范围" },
+    { value: "in", label: "属于" },
+    { value: "contains", label: "包含" },
+    { value: "notEmpty", label: "不为空" },
+    { value: "isEmpty", label: "为空" }
+  ];
+  const alertNoValueOps = ["notEmpty", "isEmpty"];
+  const alertRangeOps = ["between", "timeBetween"];
+  const alertNumericTypes = ["BIGINT", "INT", "INTEGER", "DECIMAL", "DOUBLE", "FLOAT", "NUMBER"];
+
+  /* 预警分类：可在「分类管理」中维护（参照人群包需求分类的做法） */
+  const alertCategoryDefaults = ["账号安全", "数据外发", "数据质量", "业务波动"];
+  const alertTemplateStyles = [
+    { value: "card", label: "飞书卡片", hint: "标题 + 逐行字段，适合安全类预警" },
+    { value: "compact", label: "紧凑摘要", hint: "标题 + 字段拼接单行，适合高频预警" }
+  ];
+  const alertBotName = "观星台飞书机器人";
+  const alertGroupChoices = ["数据安全预警群", "投放运营群", "数据分析师群", "权益业务群", "高管数据群"];
+  const alertTestGroupChoices = ["预警测试群（仅自己）"];
+  const alertFreqChoices = ["每小时", "每天", "每周"];
+  const alertTimeChoices = ["00:00", "08:00", "09:00", "10:00", "12:00", "18:00", "20:00"];
+  const alertDedupChoices = [
+    { value: "interval", label: "按间隔重复通知" },
+    { value: "once", label: "只通知一次" },
+    { value: "always", label: "每次触发都通知" }
+  ];
+  const alertSampleValues = {
+    "用户名": "曾祥竞", "登陆时间": "2026-09-15 10:24:31", "事件发生时间": "2026-09-15 10:24:31",
+    "UA": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/128.0.0.0",
+    "IP": "113.87.42.18", "登陆省份": "广东省", "登陆城市": "深圳市",
+    "设备ID": "DEV-8f3c21a9", "用户今日登陆设备数": "2",
+    "看板名称": "权益核心大盘", "分享ID": "9f3c21a9b7e4d201", "访问者": "谭嘉颖", "访问人数": "6",
+    "数据表": "dwd_user_order_detail", "导出格式": "xlsx", "导出行数": "128,430"
+  };
+
+  /* 新建预警的初始表单：默认落在登录埋点表，实时计算 */
+  function createAlertForm() {
+    const table = alertMonitorTables[0];
+    return {
+      name: "", category: alertCategoryDefaults[0], desc: "", owner: LOGIN_USER_NAME,
+      table: table.name, keyField: table.keyField, timeField: table.timeField,
+      relation: "AND",
+      conditions: [{ field: table.fields[0].name, op: "eq", value: "", value2: "" }],
+      mode: "realtime",
+      schedule: { freq: "每天", time: "09:00", minute: 0 },
+      dedup: { mode: "interval", intervalMinutes: 10 },
+      channel: { groups: [], users: [] },
+      testChannel: { groups: [], users: [] },
+      template: { style: "card", title: "", lines: [{ label: "用户名", value: "{用户名}" }] }
+    };
+  }
+
+  /* 条件 → 人类可读规则描述（纯函数，列表页与表单页共用） */
+  function alertRuleText(conditions, relation, fields) {
+    const fieldOf = fieldName => fields.find(field => field.name === fieldName);
+    const labelOf = fieldName => fieldOf(fieldName)?.cn || fieldName || "";
+    const opOf = opValue => alertOps.find(op => op.value === opValue)?.label || opValue;
+    const rows = (conditions || []).filter(condition => condition.field);
+    if (!rows.length) return "尚未配置触发条件";
+    const joiner = relation === "AND" ? " 且 " : " 或 ";
+    return rows.map(row => {
+      const field = labelOf(row.field);
+      const boolField = (fieldOf(row.field)?.values || []).length > 0;
+      const op = boolField && row.op === "eq" ? "为" : boolField && row.op === "ne" ? "不为" : opOf(row.op);
+      if (alertNoValueOps.includes(row.op)) return field + " " + opOf(row.op);
+      if (alertRangeOps.includes(row.op)) return field + " 在 " + (row.value || "?") + " ~ " + (row.value2 || "?") + " 之间";
+      const value = Array.isArray(row.value) ? row.value.join("、") : row.value;
+      return field + " " + op + " " + (value === "" || value === undefined || value === null ? "?" : value);
+    }).join(joiner);
+  }
+
+  const alertSeeds = [
+    {
+      id: "AL20260901001", name: "用户工作时间非公司环境登陆", category: "账号安全",
+      desc: "工作日 9:00–19:00 从非公司网络环境登录时实时提醒", owner: "曾祥竞", creator: "曾祥竞",
+      table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
+      relation: "AND",
+      conditions: [
+        { field: "is_workday", op: "eq", value: "是", value2: "" },
+        { field: "event_time", op: "timeBetween", value: "09:00", value2: "19:00" },
+        { field: "is_office_network", op: "eq", value: "否", value2: "" }
+      ],
+      mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
+      dedup: { mode: "interval", intervalMinutes: 10 },
+      channel: { groups: ["数据安全预警群"], users: ["曾祥竞"] },
+      testChannel: { groups: ["预警测试群（仅自己）"], users: ["曾祥竞"] },
+      template: {
+        style: "card", title: "用户工作时间非公司环境登陆",
+        lines: [
+          { label: "用户名", value: "{用户名}" },
+          { label: "登陆时间", value: "{登陆时间}" },
+          { label: "UA", value: "{UA}" },
+          { label: "登陆省份", value: "{登陆省份}" },
+          { label: "登陆城市", value: "{登陆城市}" }
+        ]
+      },
+      enabled: true, lastTriggered: "2026-09-15 10:24", triggerCount: 12,
+      history: [
+        { time: "2026-09-15 10:24", summary: "曾祥竞 工作时间从非公司环境登陆（广东省深圳市），已推送「数据安全预警群」", status: "已推送" },
+        { time: "2026-09-12 14:08", summary: "谭嘉颖 工作时间从非公司环境登陆（广东省广州市），已推送「数据安全预警群」", status: "已推送" },
+        { time: "2026-09-11 09:31", summary: "林金维 工作时间从非公司环境登陆（海南省海口市），已推送「数据安全预警群」", status: "已推送" }
+      ]
+    },
+    {
+      id: "AL20260901002", name: "用户工作时间异地登陆", category: "账号安全",
+      desc: "工作日 9:00–19:00 国内且登录城市不在广州时实时提醒", owner: "曾祥竞", creator: "曾祥竞",
+      table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
+      relation: "AND",
+      conditions: [
+        { field: "is_workday", op: "eq", value: "是", value2: "" },
+        { field: "event_time", op: "timeBetween", value: "09:00", value2: "19:00" },
+        { field: "city", op: "ne", value: "广州", value2: "" },
+        { field: "is_domestic", op: "eq", value: "是", value2: "" },
+        { field: "is_login", op: "eq", value: "是", value2: "" }
+      ],
+      mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
+      dedup: { mode: "interval", intervalMinutes: 10 },
+      channel: { groups: ["数据安全预警群"], users: ["曾祥竞"] },
+      testChannel: { groups: ["预警测试群（仅自己）"], users: ["曾祥竞"] },
+      template: {
+        style: "card", title: "用户工作时间异地登陆",
+        lines: [
+          { label: "用户名", value: "{用户名}" },
+          { label: "登陆时间", value: "{登陆时间}" },
+          { label: "登陆省份", value: "{登陆省份}" },
+          { label: "登陆城市", value: "{登陆城市}" }
+        ]
+      },
+      enabled: true, lastTriggered: "2026-09-15 09:12", triggerCount: 7,
+      history: [
+        { time: "2026-09-15 09:12", summary: "黄佩贤 工作时间异地登陆（广东省深圳市），已推送「数据安全预警群」", status: "已推送" },
+        { time: "2026-09-10 16:47", summary: "李雨航 工作时间异地登陆（北京市），已推送「数据安全预警群」", status: "已推送" }
+      ]
+    },
+    {
+      id: "AL20260901003", name: "用户新设备登陆", category: "账号安全",
+      desc: "新设备 ID 且新 IP 地址登录时实时提醒", owner: "黄佩贤", creator: "黄佩贤",
+      table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
+      relation: "AND",
+      conditions: [
+        { field: "is_new_device", op: "eq", value: "是", value2: "" },
+        { field: "is_new_ip", op: "eq", value: "是", value2: "" },
+        { field: "is_login", op: "eq", value: "是", value2: "" }
+      ],
+      mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
+      dedup: { mode: "interval", intervalMinutes: 10 },
+      channel: { groups: ["数据安全预警群", "投放运营群"], users: ["黄佩贤"] },
+      testChannel: { groups: ["预警测试群（仅自己）"], users: ["黄佩贤"] },
+      template: {
+        style: "card", title: "用户新设备登陆",
+        lines: [
+          { label: "用户名", value: "{用户名}" },
+          { label: "登陆时间", value: "{登陆时间}" },
+          { label: "UA", value: "{UA}" },
+          { label: "登陆省份", value: "{登陆省份}" },
+          { label: "登陆城市", value: "{登陆城市}" }
+        ]
+      },
+      enabled: true, lastTriggered: "2026-09-14 20:31", triggerCount: 4,
+      history: [
+        { time: "2026-09-14 20:31", summary: "林金维 在新设备 DEV-8f3c21a9 登陆（广东省广州市），已推送「数据安全预警群」", status: "已推送" },
+        { time: "2026-09-08 11:02", summary: "谭嘉颖 在新设备 DEV-2b71e0c4 登陆（广东省佛山市），已推送「投放运营群」", status: "已推送" }
+      ]
+    },
+    {
+      id: "AL20260901004", name: "用户微信环境登陆", category: "账号安全",
+      desc: "从微信内置浏览器打开观星台时实时提醒", owner: "李雨航", creator: "李雨航",
+      table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
+      relation: "AND",
+      conditions: [
+        { field: "is_wechat_env", op: "eq", value: "是", value2: "" },
+        { field: "is_login", op: "eq", value: "是", value2: "" }
+      ],
+      mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
+      dedup: { mode: "interval", intervalMinutes: 10 },
+      channel: { groups: ["数据安全预警群"], users: ["李雨航"] },
+      testChannel: { groups: ["预警测试群（仅自己）"], users: ["李雨航"] },
+      template: {
+        style: "compact", title: "用户微信环境登陆",
+        lines: [
+          { label: "用户名", value: "{用户名}" },
+          { label: "登陆时间", value: "{登陆时间}" },
+          { label: "UA", value: "{UA}" },
+          { label: "登陆省份", value: "{登陆省份}" },
+          { label: "登陆城市", value: "{登陆城市}" }
+        ]
+      },
+      enabled: true, lastTriggered: "2026-09-13 18:55", triggerCount: 3,
+      history: [
+        { time: "2026-09-13 18:55", summary: "王鑫宇 从微信内置浏览器登陆（广东省广州市），已推送「数据安全预警群」", status: "已推送" }
+      ]
+    },
+    {
+      id: "AL20260901005", name: "用户今日多设备登陆", category: "账号安全",
+      desc: "同一用户当日登录设备数 ≥ 2 时实时提醒，疑似账号共享", owner: "曾祥竞", creator: "曾祥竞",
+      table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
+      relation: "AND",
+      conditions: [
+        { field: "today_device_cnt", op: "gte", value: "2", value2: "" },
+        { field: "is_login", op: "eq", value: "是", value2: "" }
+      ],
+      mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
+      dedup: { mode: "interval", intervalMinutes: 10 },
+      channel: { groups: ["数据安全预警群"], users: ["曾祥竞"] },
+      testChannel: { groups: ["预警测试群（仅自己）"], users: ["曾祥竞"] },
+      template: {
+        style: "card", title: "用户今日多设备登陆",
+        lines: [
+          { label: "用户名", value: "{用户名}" },
+          { label: "用户今日登陆设备数", value: "{用户今日登陆设备数}" },
+          { label: "最近登陆时间", value: "{登陆时间}" }
+        ]
+      },
+      enabled: true, lastTriggered: "2026-09-15 11:40", triggerCount: 9,
+      history: [
+        { time: "2026-09-15 11:40", summary: "谭嘉颖 今日已在 2 台设备登陆（最近登陆 11:40），已推送「数据安全预警群」", status: "已推送" },
+        { time: "2026-09-15 10:18", summary: "林金维 今日已在 3 台设备登陆（最近登陆 10:18），已推送「数据安全预警群」", status: "已推送" }
+      ]
+    }
+  ];
+
+  /* 数据预警：配置式规则（选表 → 规则 → 模版 → 通道 → 方式），推送走观星台飞书机器人 */
   const AlertManagementApp = {
     template: `
       <el-config-provider :locale="locale">
@@ -3042,62 +3287,324 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <el-radio-button value="mine">我的<template v-if="myCount !== allCount">&nbsp;（{{ myCount }}）</template></el-radio-button>
                 <el-radio-button v-if="canViewAll" value="all">全部（{{ allCount }}）</el-radio-button>
               </el-radio-group>
-              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索预警名称、监控表或指标"></el-input>
+              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索预警名称、监控表或分类"></el-input>
+              <el-select v-model="categoryFilter" clearable placeholder="全部分类" style="width:150px">
+                <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
+              </el-select>
             </div>
-            <el-button v-if="canEdit('数据预警')" type="primary" @click="openCreate">＋ 新建预警</el-button>
+            <div class="portal-vue-actions">
+              <el-button @click="categoryManagerVisible = true">分类管理</el-button>
+              <el-button v-if="canEdit('数据预警')" type="primary" @click="openCreate">＋ 新建预警</el-button>
+            </div>
           </div>
-          <el-table :data="filteredRows" class="portal-vue-table" border :empty-text="view === 'mine' ? '你还没有创建预警，点右上角「新建预警」用一句话创建' : '暂无预警数据，点右上角「新建预警」用一句话创建'">
-            <el-table-column label="预警名称" min-width="230"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px;max-width:340px">{{ scope.row.text }}</div></div></template></el-table-column>
-            <el-table-column label="监控指标" min-width="180"><template #default="scope"><div style="display:flex;flex-direction:column;gap:3px"><el-tag size="small" effect="plain" style="width:fit-content">{{ scope.row.table }}</el-tag><span style="font-size:13px">{{ scope.row.agg }}（{{ scope.row.metric }}）</span></div></template></el-table-column>
-            <el-table-column label="触发条件" min-width="200"><template #default="scope"><div><span style="font-size:13px">{{ scope.row.rule }}</span><div class="portal-vue-muted" style="font-size:12px;margin-top:2px">{{ scope.row.frequency }}{{ scope.row.frequency==='每天' ? ' ' + scope.row.time : '' }} · {{ scope.row.filters.length ? '筛选：' + scope.row.filters.join('，') : '无筛选' }}</div></div></template></el-table-column>
-            <el-table-column label="推送对象" min-width="180"><template #default="scope"><div style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.users" :key="user" size="small" effect="plain">{{ user }}</el-tag><el-tag v-for="group in scope.row.groups" :key="group" size="small" type="success" effect="plain">{{ group }}</el-tag><span v-if="!scope.row.users.length && !scope.row.groups.length" class="portal-vue-muted">未配置</span></div></template></el-table-column>
-            <el-table-column label="最近触发" width="150"><template #default="scope"><div><span style="font-size:13px">{{ scope.row.lastTriggered === '—' ? '—' : scope.row.lastTriggered }}</span><div v-if="scope.row.triggerCount" class="portal-vue-muted" style="font-size:12px;margin-top:2px">累计触发 {{ scope.row.triggerCount }} 次</div></div></template></el-table-column>
-            <el-table-column label="状态" width="90"><template #default="scope"><el-switch :disabled="!canEdit('数据预警')" v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch></template></el-table-column>
-            <el-table-column label="操作" width="150" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('数据预警')" link type="primary" @click="openEdit(scope.row)">编辑</el-button><el-button link type="primary" @click="openHistory(scope.row)">记录</el-button><el-button v-if="canEdit('数据预警')" link type="danger" @click="removeAlert(scope.row)">删除</el-button></div></template></el-table-column>
+          <el-table :data="filteredRows" class="portal-vue-table" border :empty-text="view === 'mine' ? '你还没有创建预警，点右上角「新建预警」配置规则' : '暂无预警数据，点右上角「新建预警」配置规则'">
+            <el-table-column label="预警名称" min-width="230">
+              <template #default="scope">
+                <div>
+                  <span class="portal-vue-name">{{ scope.row.name }}</span>
+                  <el-tag v-if="scope.row.category" size="small" effect="plain" style="margin-left:6px">{{ scope.row.category }}</el-tag>
+                  <div class="portal-vue-muted" style="margin-top:2px;max-width:340px">{{ scope.row.desc }}</div>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="监控表" min-width="160">
+              <template #default="scope">
+                <div style="display:flex;flex-direction:column;gap:3px">
+                  <el-tag size="small" effect="plain" style="width:fit-content">{{ scope.row.tableCn || scope.row.table }}</el-tag>
+                  <span class="portal-vue-muted" style="font-size:12px">{{ scope.row.table }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="触发条件" min-width="240">
+              <template #default="scope">
+                <div>
+                  <span style="font-size:13px">{{ ruleSummary(scope.row) }}</span>
+                  <div class="portal-vue-muted" style="font-size:12px;margin-top:2px">{{ modeSummary(scope.row) }} · {{ dedupSummary(scope.row) }}</div>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="推送通道" min-width="180">
+              <template #default="scope">
+                <div style="display:flex;flex-wrap:wrap;gap:4px">
+                  <el-tag v-for="group in scope.row.channel.groups" :key="group" size="small" type="success" effect="plain">{{ group }}</el-tag>
+                  <el-tag v-for="user in scope.row.channel.users" :key="user" size="small" effect="plain">{{ user }}</el-tag>
+                  <span v-if="!scope.row.channel.groups.length && !scope.row.channel.users.length" class="portal-vue-muted">未配置</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="最近触发" width="150">
+              <template #default="scope">
+                <div>
+                  <span style="font-size:13px">{{ scope.row.lastTriggered === '—' ? '—' : scope.row.lastTriggered }}</span>
+                  <div v-if="scope.row.triggerCount" class="portal-vue-muted" style="font-size:12px;margin-top:2px">累计触发 {{ scope.row.triggerCount }} 次</div>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="90">
+              <template #default="scope">
+                <el-switch :disabled="!canEdit('数据预警')" v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="150" fixed="right">
+              <template #default="scope">
+                <div class="portal-vue-actions">
+                  <el-button v-if="canEdit('数据预警')" link type="primary" @click="openEdit(scope.row)">编辑</el-button>
+                  <el-button link type="primary" @click="openHistory(scope.row)">记录</el-button>
+                  <el-button v-if="canEdit('数据预警')" link type="danger" @click="removeAlert(scope.row)">删除</el-button>
+                </div>
+              </template>
+            </el-table-column>
           </el-table>
-          <div class="portal-vue-muted" style="margin-top:12px">预警规则完全来自自然语言描述，AI 解析出的配置与 SQL 需业务核对确认；推送走内置「观星台预警助手」飞书机器人。</div>
+          <div class="portal-vue-muted" style="margin-top:12px">预警基于埋点事件流计算，实时方式在事件到达时判定并推送；推送统一走内置「{{ botName }}」。</div>
         </section>
+
         <el-dialog v-model="dialogVisible" :title="(editingId ? '编辑' : '新建') + '数据预警'" fullscreen class="portal-vue-fullscreen-dialog" :close-on-click-modal="false">
-          <div class="portal-vue-skill-drawer" style="gap:14px">
-            <div class="portal-vue-alert-step"><b>1</b><div><strong>描述预警需求</strong><span class="portal-vue-muted">用一句话说明监控什么、变化多大时提醒</span></div></div>
-            <el-input v-model="text" type="textarea" :rows="3" resize="none" placeholder="例：近 7 天广告计划日报表中，巨量渠道消耗环比下降超过 20% 时每天提醒"></el-input>
-            <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="portal-vue-muted" style="font-size:12px;line-height:24px">试试：</span><el-button v-for="sample in alertExampleTexts" :key="sample" size="small" round plain @click="text = sample">{{ sample }}</el-button></div>
-            <div style="display:flex;align-items:center;gap:12px">
-              <el-button v-if="canEdit('数据预警')" type="primary" :loading="parsing" @click="runParse">🤖 AI 解析为配置清单</el-button>
-              <span v-if="parsing" class="portal-vue-muted">正在把需求解析为指标配置与 SQL 规则…</span>
-              <span v-else-if="parsed" class="portal-vue-alert-ok">✓ AI 解析完成，请业务核对下方配置</span>
-            </div>
-            <template v-if="parsed">
-              <div class="portal-vue-alert-step"><b>2</b><div><strong>核对配置清单</strong><span class="portal-vue-muted">可修改任意字段，SQL 会随之更新</span></div></div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 14px">
-                <div class="portal-vue-alert-field"><label>监控表</label><el-select v-model="parsed.table" filterable><el-option v-for="table in alertTables" :key="table" :label="table" :value="table"></el-option></el-select></div>
-                <div class="portal-vue-alert-field"><label>监控指标</label><el-select v-model="parsed.metric"><el-option v-for="item in alertMetricChoices" :key="item.label" :label="item.label" :value="item.label"></el-option></el-select></div>
-                <div class="portal-vue-alert-field"><label>聚合方式</label><el-select v-model="parsed.agg"><el-option v-for="item in ['SUM','AVG','COUNT','MAX','MIN']" :key="item" :label="item" :value="item"></el-option></el-select></div>
-                <div class="portal-vue-alert-field"><label>检查频率</label><el-select v-model="parsed.frequency"><el-option v-for="item in alertFrequencyChoices" :key="item" :label="item" :value="item"></el-option></el-select></div>
-                <div class="portal-vue-alert-field"><label>执行时间</label><el-select v-model="parsed.time"><el-option v-for="item in alertTimeChoices" :key="item" :label="item" :value="item"></el-option></el-select></div>
-                <div class="portal-vue-alert-field"><label>预警名称</label><el-input v-model="parsed.name" placeholder="自动生成，可修改"></el-input></div>
+          <div class="portal-vue-alert-form">
+            <section class="portal-vue-alert-section">
+              <div class="portal-vue-alert-section-title">1 · 基本信息</div>
+              <div class="portal-vue-alert-grid">
+                <div class="portal-vue-alert-field"><label>预警名称</label><el-input v-model="form.name" maxlength="50" show-word-limit placeholder="例如：用户工作时间非公司环境登陆"></el-input></div>
+                <div class="portal-vue-alert-field">
+                  <label>预警分类</label>
+                  <div class="portal-vue-alert-inline">
+                    <el-select v-model="form.category" filterable allow-create default-first-option placeholder="选择或输入分类">
+                      <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
+                    </el-select>
+                    <el-button @click="categoryManagerVisible = true">管理</el-button>
+                  </div>
+                </div>
+                <div class="portal-vue-alert-field"><label>负责人</label><el-select v-model="form.owner" filterable><el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option></el-select></div>
               </div>
-              <div class="portal-vue-alert-field"><label>筛选条件</label>
-                <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-                  <el-tag v-for="(filter, index) in parsed.filters" :key="filter" closable @close="parsed.filters.splice(index, 1)">{{ filter }}</el-tag>
-                  <el-input v-model="filterDraft" size="small" style="width:180px" placeholder="如：渠道=巨量" @keyup.enter="parsed.filters.push(filterDraft);filterDraft=''"></el-input>
-                  <el-button size="small" @click="parsed.filters.push(filterDraft);filterDraft=''">添加</el-button>
+              <div class="portal-vue-alert-field"><label>预警说明</label><el-input v-model="form.desc" type="textarea" :rows="2" maxlength="200" show-word-limit placeholder="说明这条预警监控什么、触发后会通知谁"></el-input></div>
+            </section>
+
+            <section class="portal-vue-alert-section">
+              <div class="portal-vue-alert-section-title">2 · 选择监控表与字段</div>
+              <div class="portal-vue-alert-grid">
+                <div class="portal-vue-alert-field">
+                  <label>监控表</label>
+                  <el-select v-model="form.table" filterable @change="changeTable">
+                    <el-option v-for="table in monitorTables" :key="table.name" :label="table.cn + '（' + table.name + '）'" :value="table.name"></el-option>
+                  </el-select>
+                </div>
+                <div class="portal-vue-alert-field">
+                  <label>主体字段（按该字段去重通知）</label>
+                  <el-select v-model="form.keyField" filterable placeholder="选择用户/主体标识字段">
+                    <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
+                  </el-select>
+                </div>
+                <div class="portal-vue-alert-field">
+                  <label>时间字段</label>
+                  <el-select v-model="form.timeField" filterable>
+                    <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
+                  </el-select>
                 </div>
               </div>
-              <div class="portal-vue-alert-field"><label>触发规则</label><el-input v-model="parsed.rule" placeholder="如：环比下降超过 20%"></el-input></div>
-              <div class="portal-vue-alert-field"><label>背后 SQL（随配置自动生成）</label><pre class="portal-vue-alert-sql">{{ alertSql }}</pre></div>
-            </template>
-            <template v-if="parsed">
-              <div class="portal-vue-alert-step"><b>3</b><div><strong>设置推送通道</strong><span class="portal-vue-muted">通过内置飞书机器人通知对应人与对应群</span></div></div>
-              <div class="portal-vue-alert-bot"><span class="portal-vue-ai-bot-icon">🤖</span><div><strong>观星台预警助手</strong><span class="portal-vue-muted">已接入飞书，触发时按下方对象推送卡片消息（人 + 群可多选）</span></div><el-tag size="small" type="success" effect="light">已接入</el-tag></div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
-                <div class="portal-vue-alert-field"><label>通知人</label><el-select v-model="users" multiple filterable placeholder="选择要通知的用户"><el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"><span>{{ user.name }}</span><span class="portal-vue-muted" style="float:right;font-size:12px">{{ user.dept }}</span></el-option></el-select></div>
-                <div class="portal-vue-alert-field"><label>通知群</label><el-select v-model="groups" multiple filterable placeholder="选择要通知的飞书群"><el-option v-for="group in alertGroupChoices" :key="group" :label="group" :value="group"></el-option></el-select></div>
+              <div class="portal-vue-alert-fields">
+                <span class="portal-vue-muted">表字段（点击可插入模版变量）：</span>
+                <el-tag v-for="field in currentFields" :key="field.name" size="small" effect="plain" class="portal-vue-alert-var-chip" @click="insertVariable(-1, field.cn)">{{ field.cn }}</el-tag>
               </div>
-            </template>
+            </section>
+
+            <section class="portal-vue-alert-section">
+              <div class="portal-vue-alert-section-title">3 · 配置预警规则</div>
+              <div class="portal-vue-alert-rule">
+                <button type="button" class="portal-vue-alert-relation" aria-label="切换条件关系" @click="toggleRelation"><span>{{ form.relation === 'AND' ? '且' : '或' }}</span></button>
+                <div class="portal-vue-alert-condition-list">
+                  <div v-for="(condition, index) in form.conditions" :key="index" class="portal-vue-alert-condition-row">
+                    <el-select v-model="condition.field" filterable @change="changeConditionField(condition)">
+                      <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.type + '）'" :value="field.name"></el-option>
+                    </el-select>
+                    <el-select v-model="condition.op">
+                      <el-option v-for="op in conditionOps(condition)" :key="op.value" :label="op.label" :value="op.value"></el-option>
+                    </el-select>
+                    <span v-if="alertNoValueOps.includes(condition.op)" class="portal-vue-alert-novalue">无需填写值</span>
+                    <div v-else-if="condition.op === 'timeBetween'" class="portal-vue-alert-range">
+                      <el-time-picker v-model="condition.value" format="HH:mm" value-format="HH:mm" placeholder="开始"></el-time-picker>
+                      <span>~</span>
+                      <el-time-picker v-model="condition.value2" format="HH:mm" value-format="HH:mm" placeholder="结束"></el-time-picker>
+                    </div>
+                    <div v-else-if="condition.op === 'between'" class="portal-vue-alert-range">
+                      <el-input v-model="condition.value" placeholder="最小值"></el-input>
+                      <span>~</span>
+                      <el-input v-model="condition.value2" placeholder="最大值"></el-input>
+                    </div>
+                    <el-select v-else-if="conditionField(condition).values" v-model="condition.value" :multiple="condition.op === 'in'" filterable placeholder="选择条件值">
+                      <el-option v-for="value in conditionField(condition).values" :key="value" :label="value" :value="value"></el-option>
+                    </el-select>
+                    <el-input v-else v-model="condition.value" placeholder="请输入条件值"></el-input>
+                    <el-button v-if="form.conditions.length > 1" link type="danger" title="删除条件" @click="removeCondition(index)">×</el-button>
+                    <span v-else></span>
+                  </div>
+                  <el-button v-if="canEdit('数据预警')" link type="primary" @click="addCondition">+ 添加条件</el-button>
+                </div>
+              </div>
+              <div class="portal-vue-alert-field" style="margin-top:14px"><label>触发逻辑（按条件自动生成）</label><div class="portal-vue-alert-logic">{{ ruleText }}</div></div>
+              <div class="portal-vue-alert-field"><label>背后表达式</label><pre class="portal-vue-alert-sql">{{ alertSql }}</pre></div>
+            </section>
+
+            <section class="portal-vue-alert-section">
+              <div class="portal-vue-alert-section-title">4 · 配置预警模版<span class="portal-vue-alert-section-hint">新的模版样式：标题 + 字段行，支持插入变量并实时预览</span></div>
+              <div class="portal-vue-alert-grid">
+                <div class="portal-vue-alert-field">
+                  <label>模版样式</label>
+                  <el-radio-group v-model="form.template.style">
+                    <el-radio v-for="style in templateStyles" :key="style.value" :value="style.value">{{ style.label }}</el-radio>
+                  </el-radio-group>
+                </div>
+              </div>
+              <div class="portal-vue-alert-field">
+                <label>通知标题</label>
+                <div class="portal-vue-alert-inline">
+                  <el-input v-model="form.template.title" maxlength="60" placeholder="例如：用户工作时间非公司环境登陆"></el-input>
+                  <el-button @click="insertTitleVariable">插入变量</el-button>
+                </div>
+              </div>
+              <div class="portal-vue-alert-field">
+                <label>通知内容</label>
+                <div class="portal-vue-alert-tpl">
+                  <div v-for="(line, index) in form.template.lines" :key="index" class="portal-vue-alert-tpl-row">
+                    <el-input v-model="line.label" placeholder="字段名，例如：登陆时间"></el-input>
+                    <el-input v-model="line.value" placeholder="值或变量，例如：{登陆时间}"></el-input>
+                    <el-select v-model="line.value" filterable placeholder="插入变量" class="portal-vue-alert-tpl-var" @change="value => { line.value = '{' + value + '}'; }">
+                      <el-option v-for="name in templateVariables" :key="name" :label="name" :value="name"></el-option>
+                    </el-select>
+                    <el-button v-if="form.template.lines.length > 1" link type="danger" title="删除该行" @click="removeTemplateLine(index)">×</el-button>
+                    <span v-else></span>
+                  </div>
+                  <el-button v-if="canEdit('数据预警')" link type="primary" @click="addTemplateLine">+ 添加内容行</el-button>
+                </div>
+              </div>
+              <div class="portal-vue-alert-field">
+                <label>推送效果预览</label>
+                <div class="portal-vue-alert-preview">
+                  <div class="portal-vue-alert-preview-head"><span class="portal-vue-alert-preview-avatar">观</span><div><strong>{{ botName }}</strong><span>机器人 · 刚刚</span></div></div>
+                  <div class="portal-vue-alert-preview-card" :class="'style-' + form.template.style">
+                    <div class="portal-vue-alert-preview-title">{{ previewTitle }}</div>
+                    <div v-if="form.template.style === 'card'" class="portal-vue-alert-preview-body">
+                      <div v-for="(line, index) in previewLines" :key="index" class="portal-vue-alert-preview-line"><span>{{ line.label }}</span><b>{{ line.text }}</b></div>
+                    </div>
+                    <div v-else class="portal-vue-alert-preview-compact">{{ previewSummary }}</div>
+                    <div class="portal-vue-alert-preview-foot">观星台 · 数据预警 · {{ modeSummary(form) }}</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="portal-vue-alert-section">
+              <div class="portal-vue-alert-section-title">5 · 配置预警通道</div>
+              <div class="portal-vue-alert-bot"><span class="portal-vue-ai-bot-icon">🤖</span><div><strong>{{ botName }}</strong><span>已接入飞书，触发时按下方群与人员推送卡片消息</span></div><el-tag size="small" type="success" effect="light">已接入</el-tag></div>
+              <div class="portal-vue-alert-grid">
+                <div class="portal-vue-alert-field">
+                  <label>预警群</label>
+                  <el-select v-model="form.channel.groups" multiple filterable placeholder="选择要通知的飞书群">
+                    <el-option v-for="group in groupChoices" :key="group" :label="group" :value="group"></el-option>
+                  </el-select>
+                </div>
+                <div class="portal-vue-alert-field">
+                  <label>通知人</label>
+                  <el-select v-model="form.channel.users" multiple filterable placeholder="选择要通知的用户">
+                    <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
+                  </el-select>
+                </div>
+              </div>
+              <div class="portal-vue-alert-test">
+                <div class="portal-vue-alert-test-head"><strong>测试通道</strong><span class="portal-vue-muted">测试预警只发往测试通道，不会打扰正式预警群</span></div>
+                <div class="portal-vue-alert-grid">
+                  <div class="portal-vue-alert-field">
+                    <label>测试群</label>
+                    <el-select v-model="form.testChannel.groups" multiple filterable placeholder="选择测试群">
+                      <el-option v-for="group in testGroupChoices" :key="group" :label="group" :value="group"></el-option>
+                    </el-select>
+                  </div>
+                  <div class="portal-vue-alert-field">
+                    <label>测试接收人</label>
+                    <el-select v-model="form.testChannel.users" multiple filterable placeholder="选择测试接收人">
+                      <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
+                    </el-select>
+                  </div>
+                </div>
+                <div class="portal-vue-alert-inline">
+                  <el-button :loading="testing" @click="sendTestAlert">发送测试预警</el-button>
+                  <span v-if="testResult" class="portal-vue-alert-ok">✓ {{ testResult }}</span>
+                  <span v-else class="portal-vue-muted">测试通道未配置时无法测试发送</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="portal-vue-alert-section">
+              <div class="portal-vue-alert-section-title">6 · 设置预警方式</div>
+              <div class="portal-vue-alert-grid">
+                <div class="portal-vue-alert-field">
+                  <label>预警方式</label>
+                  <el-radio-group v-model="form.mode">
+                    <el-radio value="realtime">实时（事件到达即计算并通知）</el-radio>
+                    <el-radio value="scheduled">定时（按调度周期扫描）</el-radio>
+                  </el-radio-group>
+                </div>
+                <div v-if="form.mode === 'scheduled'" class="portal-vue-alert-field">
+                  <label>检查频率</label>
+                  <el-select v-model="form.schedule.freq"><el-option v-for="item in freqChoices" :key="item" :label="item" :value="item"></el-option></el-select>
+                </div>
+                <div v-if="form.mode === 'scheduled'" class="portal-vue-alert-field">
+                  <label>执行时间</label>
+                  <div v-if="form.schedule.freq === '每小时'" class="portal-vue-alert-inline"><span>每小时第</span><el-input-number v-model="form.schedule.minute" :min="0" :max="59" controls-position="right"></el-input-number><span>分钟执行</span></div>
+                  <el-time-picker v-else v-model="form.schedule.time" format="HH:mm" value-format="HH:mm" placeholder="选择时间"></el-time-picker>
+                </div>
+              </div>
+              <div class="portal-vue-alert-field">
+                <label>重复预警</label>
+                <div class="portal-vue-alert-inline">
+                  <el-radio-group v-model="form.dedup.mode">
+                    <el-radio v-for="item in dedupChoices" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
+                  </el-radio-group>
+                </div>
+                <div v-if="form.dedup.mode === 'interval'" class="portal-vue-alert-inline" style="margin-top:8px">
+                  <span>同一{{ keyFieldLabel }}相同问题每</span>
+                  <el-input-number v-model="form.dedup.intervalMinutes" :min="1" :max="1440" controls-position="right"></el-input-number>
+                  <span>分钟通知一次</span>
+                </div>
+              </div>
+            </section>
           </div>
-          <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button v-if="canEdit('数据预警')" type="primary" :disabled="!parsed || (!users.length && !groups.length)" @click="saveAlert">保存预警</el-button></template>
+          <template #footer>
+            <el-button @click="dialogVisible = false">取消</el-button>
+            <el-button v-if="canEdit('数据预警')" type="primary" :loading="validating" @click="runValidation">校验并保存</el-button>
+          </template>
         </el-dialog>
+
+        <el-dialog v-model="validationVisible" class="cp-vue-validation-dialog" :title="validationTitle" width="560px" :close-on-click-modal="!validating" :close-on-press-escape="!validating" :show-close="!validating">
+          <p class="cp-vue-validation-intro">保存前将依次校验监控表、规则条件、通知模版、推送通道与测试通道。校验通过后才会创建预警。</p>
+          <div class="cp-vue-validation-list">
+            <div v-for="item in validationSteps" :key="item.key" class="cp-vue-validation-step" :class="item.state">
+              <span class="cp-vue-validation-icon">{{ validationIcon(item.state) }}</span>
+              <div class="cp-vue-validation-copy"><strong>{{ item.label }}</strong><span>{{ item.detail }}</span></div>
+              <span class="cp-vue-validation-state">{{ validationStateText(item.state) }}</span>
+            </div>
+          </div>
+          <el-alert v-if="validationError" class="cp-vue-validation-error" type="error" :closable="false" show-icon :title="validationError"></el-alert>
+          <el-alert v-else-if="validationComplete" class="cp-vue-validation-success" type="success" :closable="false" show-icon title="全部校验通过。确认保存后，预警才会创建并按配置推送。"></el-alert>
+          <template #footer>
+            <el-button :disabled="validating" @click="returnToForm">{{ validationError ? '返回修改' : '取消' }}</el-button>
+            <el-button v-if="validationComplete && canEdit('数据预警')" type="primary" @click="confirmSave">确认保存</el-button>
+          </template>
+        </el-dialog>
+
+        <el-dialog v-model="categoryManagerVisible" title="管理预警分类" width="520px">
+          <div class="portal-vue-alert-inline">
+            <el-input v-model="categoryDraft" maxlength="20" placeholder="输入新的分类名称"></el-input>
+            <el-button type="primary" @click="addCategory">添加</el-button>
+          </div>
+          <div class="portal-vue-alert-cats">
+            <div v-for="item in managedCategories" :key="item" class="portal-vue-alert-cat">
+              <span>{{ item }}</span>
+              <span class="portal-vue-muted">{{ countByCategory(item) }} 条预警</span>
+              <el-button v-if="canEdit('数据预警')" link type="danger" @click="removeCategory(item)">删除</el-button>
+            </div>
+          </div>
+          <template #footer><el-button @click="categoryManagerVisible = false">关闭</el-button></template>
+        </el-dialog>
+
         <el-dialog v-model="historyVisible" :title="historyTitle + ' · 触发记录'" width="560px">
           <div class="portal-vue-skill-drawer">
             <div v-for="item in historyRows" :key="item.time" class="portal-vue-skill-version">
@@ -3109,34 +3616,75 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         </el-dialog>
       </el-config-provider>
     `,
-    data: () => ({ view: "mine", keyword: "", dialogVisible: false, historyVisible: false, historyTitle: "", historyRows: [], editingId: "", text: "", parsing: false, parsed: null, filterDraft: "", users: [], groups: [], alertExampleTexts, alertGroupChoices, alertFrequencyChoices, alertTimeChoices, alertMetricChoices, alerts: [] }),
+    data: () => ({
+      view: "mine", keyword: "", categoryFilter: "",
+      dialogVisible: false, editingId: "", form: createAlertForm(),
+      validationVisible: false, validationTitle: "", validationSteps: [], validating: false, validationComplete: false, validationError: "",
+      categoryManagerVisible: false, categoryDraft: "", savedCategories: [],
+      testing: false, testResult: "",
+      historyVisible: false, historyTitle: "", historyRows: [],
+      alerts: [],
+      botName: alertBotName, alertOps, alertNoValueOps, alertRangeOps,
+      groupChoices: alertGroupChoices, testGroupChoices: alertTestGroupChoices,
+      freqChoices: alertFreqChoices, timeChoices: alertTimeChoices,
+      dedupChoices: alertDedupChoices, templateStyles: alertTemplateStyles
+    }),
     computed: {
-      currentUser() { refreshTick.value; return state.users.find(user => user.name === "曾祥竞") || state.users[0]; },
+      currentUser() { refreshTick.value; return state.users.find(user => user.name === LOGIN_USER_NAME) || state.users[0]; },
       canViewAll() { return this.currentUser?.group === "门户管理员"; },
-      myCount() { return this.alerts.filter(item => (item.creator || "曾祥竞") === this.currentUser?.name).length; },
+      myCount() { return this.alerts.filter(item => (item.creator || LOGIN_USER_NAME) === this.currentUser?.name).length; },
       allCount() { return this.alerts.length; },
       filteredRows() {
         const keyword = this.keyword.trim().toLowerCase();
-        const base = this.view === "all" ? this.alerts : this.alerts.filter(item => (item.creator || "曾祥竞") === this.currentUser?.name);
-        if (!keyword) return base;
-        return base.filter(item => `${item.name} ${item.table} ${item.metric} ${item.rule}`.toLowerCase().includes(keyword));
+        const base = this.view === "all" ? this.alerts : this.alerts.filter(item => (item.creator || LOGIN_USER_NAME) === this.currentUser?.name);
+        return base.filter(item => {
+          if (this.categoryFilter && item.category !== this.categoryFilter) return false;
+          if (!keyword) return true;
+          return `${item.name} ${item.table} ${item.tableCn || ""} ${item.category || ""} ${item.desc || ""}`.toLowerCase().includes(keyword);
+        });
       },
-      alertTables() { return state.assets.map(table => table.cnName); },
       activeUsers() { refreshTick.value; return state.users.filter(user => user.status !== "已停用"); },
+      managedCategories() {
+        const used = this.alerts.map(item => item.category).filter(Boolean);
+        return [...new Set([...alertCategoryDefaults, ...this.savedCategories, ...used])];
+      },
+      monitorTables() {
+        const seeded = alertMonitorTables.map(table => ({ ...table }));
+        const assets = (state.assets || []).map(asset => ({
+          name: asset.table, cn: asset.cnName, bizLine: asset.bizLine, desc: asset.desc,
+          keyField: "", timeField: "",
+          fields: (asset.fields || []).map(field => ({ name: field.name, cn: field.comment || field.name, type: field.type }))
+        }));
+        return [...seeded, ...assets];
+      },
+      currentTable() { return this.monitorTables.find(table => table.name === this.form.table) || null; },
+      currentFields() { return this.currentTable?.fields || []; },
+      keyFieldLabel() { return this.fieldLabel(this.form.keyField) || "用户"; },
+      templateVariables() { return this.currentFields.map(field => field.cn); },
+      ruleText() { return alertRuleText(this.form.conditions, this.form.relation, this.currentFields); },
       alertSql() {
-        const parsed = this.parsed;
-        if (!parsed) return "";
-        const metric = alertMetricChoices.find(item => item.label === parsed.metric)?.field || "value";
-        const filters = [...parsed.filters];
-        const dateFilter = parsed.frequency === "每周" ? "ds >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)" : "ds = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
-        return `SELECT ds, ${parsed.agg}(${metric}) AS ${parsed.metric}\nFROM ${parsed.table}\n${filters.length ? "WHERE " + filters.map(item => item.includes("=") ? item.split("=")[0] + " = '" + item.split("=").slice(1).join("=") + "'" : item).join(" AND ") + " AND " : "WHERE "}${dateFilter}\nGROUP BY ds\nHAVING ${parsed.rule}`;
+        const rows = this.form.conditions.filter(condition => condition.field);
+        const joiner = this.form.relation === "AND" ? "\n  AND " : "\n  OR ";
+        const where = rows.length ? rows.map(row => "  " + this.conditionExpression(row)).join(joiner) : "  1 = 1";
+        const comment = this.form.mode === "realtime" ? "实时：事件到达即判定" : "定时：" + this.modeSummary(this.form);
+        return "SELECT *\nFROM " + (this.form.table || "监控表") + "\nWHERE " + where + "\n-- " + comment;
+      },
+      previewTitle() { return this.renderTemplateText(this.form.template.title) || this.form.name || "（未填写通知标题）"; },
+      previewLines() {
+        return this.form.template.lines
+          .filter(line => line.label || line.value)
+          .map(line => ({ label: line.label || "字段", text: this.renderTemplateText(line.value) }));
+      },
+      previewSummary() {
+        const text = this.previewLines.map(line => line.label + "：" + line.text).join(" · ");
+        return text || "（尚未配置通知内容）";
       }
     },
     methods: {
       loadAlerts() {
         let saved = [];
         try { saved = JSON.parse(localStorage.getItem("portal-alert-rules") || "[]"); } catch (error) { saved = []; }
-        this.alerts = [...saved, ...alertSeeds];
+        this.alerts = [...saved, ...alertSeeds.map(seed => JSON.parse(JSON.stringify(seed)))];
       },
       persistAlerts() {
         try {
@@ -3144,112 +3692,273 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           localStorage.setItem("portal-alert-rules", JSON.stringify(saved));
         } catch (error) { /* 隐私模式下仅本次会话生效 */ }
       },
+      fieldLabel(fieldName) {
+        const field = this.currentFields.find(item => item.name === fieldName);
+        return field?.cn || fieldName || "";
+      },
+      conditionField(condition) {
+        return this.currentFields.find(field => field.name === condition.field) || {};
+      },
+      opLabel(opValue, fieldName) {
+        return alertOps.find(op => op.value === opValue)?.label || opValue;
+      },
+      conditionOps(condition) {
+        const field = this.conditionField(condition);
+        if (!field.name) return alertOps;
+        if (field.type === "DATETIME") return alertOps.filter(op => ["timeBetween", "gte", "lte", "notEmpty", "isEmpty"].includes(op.value));
+        if (field.values) return alertOps.filter(op => ["eq", "ne", "in"].includes(op.value));
+        if (alertNumericTypes.some(type => String(field.type || "").toUpperCase().startsWith(type))) {
+          return alertOps.filter(op => ["eq", "ne", "gt", "gte", "lt", "lte", "between", "notEmpty", "isEmpty"].includes(op.value));
+        }
+        return alertOps.filter(op => ["eq", "ne", "contains", "in", "notEmpty", "isEmpty"].includes(op.value));
+      },
+      conditionExpression(condition) {
+        const sqlOp = { eq: "=", ne: "<>", gt: ">", gte: ">=", lt: "<", lte: "<=" }[condition.op];
+        const column = condition.field || "field";
+        if (condition.op === "notEmpty") return column + " IS NOT NULL";
+        if (condition.op === "isEmpty") return column + " IS NULL";
+        if (condition.op === "between") return column + " BETWEEN " + (condition.value || "?") + " AND " + (condition.value2 || "?");
+        if (condition.op === "timeBetween") return "TIME(" + column + ") BETWEEN '" + (condition.value || "?") + "' AND '" + (condition.value2 || "?") + "'";
+        if (condition.op === "in") {
+          const values = Array.isArray(condition.value) ? condition.value : String(condition.value || "").split(",");
+          return column + " IN (" + values.filter(Boolean).map(value => "'" + value + "'").join(", ") + ")";
+        }
+        if (condition.op === "contains") return column + " LIKE '%" + (condition.value || "") + "%'";
+        const value = Array.isArray(condition.value) ? condition.value.join("','") : condition.value;
+        return column + " " + (sqlOp || "=") + " '" + (value === "" || value === undefined ? "?" : value) + "'";
+      },
+      fieldsOfTable(tableName) { return this.monitorTables.find(table => table.name === tableName)?.fields || []; },
+      ruleSummary(row) { return alertRuleText(row.conditions, row.relation, this.fieldsOfTable(row.table)); },
+      modeSummary(row) {
+        if (row.mode === "scheduled") {
+          const schedule = row.schedule || {};
+          if (schedule.freq === "每小时") return "定时 · 每小时第 " + (schedule.minute ?? 0) + " 分钟";
+          return "定时 · " + (schedule.freq || "每天") + " " + (schedule.time || "09:00");
+        }
+        return "实时计算";
+      },
+      dedupSummary(row) {
+        const dedup = row.dedup || {};
+        if (dedup.mode === "once") return "仅通知一次";
+        if (dedup.mode === "always") return "每次触发都通知";
+        return "每 " + (dedup.intervalMinutes || 10) + " 分钟通知一次";
+      },
+      renderTemplateText(text) {
+        return String(text || "").replace(/\{([^}]+)\}/g, (match, key) => {
+          const name = String(key).trim();
+          if (alertSampleValues[name] !== undefined) return alertSampleValues[name];
+          return "（" + name + "）";
+        });
+      },
+      countByCategory(category) { return this.alerts.filter(item => item.category === category).length; },
+      addCategory() {
+        const name = this.categoryDraft.trim();
+        if (!name) return ep.ElMessage.warning("先输入分类名称");
+        if (this.managedCategories.includes(name)) return ep.ElMessage.warning("该分类已存在");
+        this.savedCategories.push(name);
+        this.categoryDraft = "";
+        notify("已添加预警分类「" + name + "」");
+      },
+      async removeCategory(category) {
+        const used = this.countByCategory(category);
+        const note = used ? "，当前有 " + used + " 条预警正在使用" : "";
+        if (!await confirmAction("删除预警分类", "确认删除分类「" + category + "」" + note + "？", "删除")) return;
+        this.savedCategories = this.savedCategories.filter(item => item !== category);
+        this.alerts.forEach(item => { if (item.category === category) item.category = ""; });
+        if (this.form.category === category) this.form.category = "";
+        this.persistAlerts();
+        notify("预警分类已删除");
+      },
       openCreate() {
         this.editingId = "";
-        this.text = "";
-        this.parsed = null;
-        this.users = [];
-        this.groups = [];
+        this.form = createAlertForm();
+        this.form.owner = this.currentUser?.name || LOGIN_USER_NAME;
+        this.testResult = "";
         this.dialogVisible = true;
       },
       openEdit(row) {
         this.editingId = row.id;
-        this.text = row.text;
-        this.parsed = { name: row.name, table: row.table, metric: row.metric, agg: row.agg, filters: [...row.filters], rule: row.rule, frequency: row.frequency, time: row.time };
-        this.users = [...row.users];
-        this.groups = [...row.groups];
+        this.form = JSON.parse(JSON.stringify({
+          name: row.name, category: row.category, desc: row.desc, owner: row.owner,
+          table: row.table, keyField: row.keyField, timeField: row.timeField,
+          relation: row.relation, conditions: row.conditions, mode: row.mode,
+          schedule: row.schedule, dedup: row.dedup, channel: row.channel,
+          testChannel: row.testChannel || { groups: [], users: [] }, template: row.template
+        }));
+        this.testResult = "";
         this.dialogVisible = true;
       },
-      runParse() {
-        if (!String(this.text || "").trim()) return ep.ElMessage.warning("先描述预警需求，再点解析");
-        this.parsing = true;
-        this.parsed = null;
+      changeTable(tableName) {
+        const table = this.monitorTables.find(item => item.name === tableName);
+        if (!table) return;
+        this.form.keyField = table.keyField || table.fields[0]?.name || "";
+        this.form.timeField = table.timeField || table.fields[0]?.name || "";
+        this.form.conditions = [{ field: table.fields[0]?.name || "", op: "eq", value: "", value2: "" }];
+      },
+      changeConditionField(condition) {
+        const field = this.conditionField(condition);
+        const allowed = this.conditionOps(condition).map(op => op.value);
+        if (!allowed.includes(condition.op)) condition.op = allowed[0] || "eq";
+        condition.value = field.values ? "" : "";
+        condition.value2 = "";
+      },
+      toggleRelation() { this.form.relation = this.form.relation === "AND" ? "OR" : "AND"; },
+      addCondition() {
+        const last = this.form.conditions[this.form.conditions.length - 1];
+        this.form.conditions.push({ field: last?.field || this.currentFields[0]?.name || "", op: "eq", value: "", value2: "" });
+      },
+      removeCondition(index) { this.form.conditions.splice(index, 1); },
+      addTemplateLine() { this.form.template.lines.push({ label: "", value: "" }); },
+      removeTemplateLine(index) { this.form.template.lines.splice(index, 1); },
+      insertVariable(lineIndex, fieldCn) {
+        const token = "{" + (fieldCn || this.currentFields[0]?.cn || "字段") + "}";
+        const target = lineIndex >= 0 ? this.form.template.lines[lineIndex] : this.form.template.lines[this.form.template.lines.length - 1];
+        if (!target) return;
+        target.value = (target.value || "") + token;
+      },
+      insertTitleVariable() {
+        this.form.template.title = (this.form.template.title || "") + "{" + (this.currentFields[0]?.cn || "字段") + "}";
+      },
+      sendTestAlert() {
+        const channel = this.form.testChannel || {};
+        if (!channel.groups?.length && !channel.users?.length) return ep.ElMessage.warning("请先配置测试通道（测试群或测试接收人）");
+        this.testing = true;
+        this.testResult = "";
         setTimeout(() => {
-          this.parsed = this.parseAlertBrain(this.text.trim());
-          this.parsing = false;
-        }, 900);
+          this.testing = false;
+          const target = [...(channel.groups || []), ...(channel.users || [])].join("、");
+          this.testResult = "测试预警已发送至 " + target + "，请确认收到后再保存";
+          ep.ElMessage.success("测试预警已发送");
+        }, 800);
       },
-      /* AI 解析器（原型内置规则版，后续可切换为网关模型解析） */
-      parseAlertBrain(text) {
-        const lower = text.toLowerCase();
-        let table = "广告计划日报表";
-        if (lower.includes("订单") || lower.includes("成交")) table = "用户订单明细";
-        else if (lower.includes("画像") || lower.includes("标签")) table = "用户画像标签明细表";
-        else if (lower.includes("归因")) table = "渠道归因明细";
-        else if (lower.includes("媒体消耗") || lower.includes("消耗汇总")) table = "媒体消耗汇总";
-        let metric = "消耗金额", agg = "SUM";
-        if (lower.includes("cpa") || lower.includes("获客成本")) { metric = "CPA（获客成本）"; agg = "AVG"; }
-        else if (lower.includes("点击")) { metric = "点击量"; agg = "SUM"; }
-        else if (lower.includes("订单") || lower.includes("成交")) { metric = "订单数"; agg = "COUNT"; }
-        else if (lower.includes("新增用户") || lower.includes("用户数")) { metric = "新增用户数"; agg = "COUNT"; }
-        const filters = [];
-        ["巨量", "抖音", "腾讯", "快手"].forEach(channel => { if (text.includes(channel)) filters.push(`渠道=${channel}`); });
-        ["存量", "权益", "保险", "短剧"].forEach(line => { if (text.includes(line)) filters.push(`业务线=${line}`); });
-        if (text.includes("计划")) filters.push("计划层级=全部");
-        let rule = "环比变化超过 20%";
-        const match = text.match(/(\d+(?:\.\d+)?)\s*%/);
-        const pct = match ? match[1] : "20";
-        if (text.includes("环比")) {
-          if (text.includes("下降") || text.includes("跌")) rule = `环比下降超过 ${pct}%`;
-          else if (text.includes("上升") || text.includes("涨")) rule = `环比上升超过 ${pct}%`;
-          else if (text.includes("波动") || text.includes("变化")) rule = `环比${text.includes("波动") ? "波动" : "变化"}超过 ${pct}%`;
-          else rule = `环比变化超过 ${pct}%`;
-        } else if (text.includes("连续") && text.includes("天")) {
-          const days = text.match(/连续\s*(\d+)\s*天/);
-          rule = `${metric} 连续 ${days ? days[1] : "3"} 天超过阈值`;
-        } else if (text.includes("减少") || text.includes("下降") || text.includes("跌")) {
-          rule = `环比下降超过 ${pct}%`;
-        } else if (text.includes("增长") || text.includes("上升") || text.includes("涨")) {
-          rule = `环比上升超过 ${pct}%`;
-        } else if (text.includes("超过") || text.includes("大于") || text.includes("高于")) {
-          const value = text.match(/(\d+(?:\.\d+)?)/);
-          rule = `${metric} 超过 ${value ? value[1] : "80"}`;
-        }
-        let frequency = "每天", time = "09:00";
-        if (text.includes("每小") || text.includes("每小时")) frequency = "每小时";
-        else if (text.includes("每周")) frequency = "每周";
-        const timeMatch = text.match(/(\d{1,2})[:：](\d{2})/);
-        if (timeMatch) time = `${String(Number(timeMatch[1])).padStart(2, "0")}:${timeMatch[2]}`;
-        return { name: `${metric}${rule.includes("连续") ? "连续异常" : rule.replace(metric, "").replace(/超过/g, "超").replace(/大于/g, ">")}预警`, table, metric, agg, filters: filters.slice(0, 6), rule, frequency, time };
+      runValidation() {
+        const steps = [
+          { key: "table", label: "监控表与字段校验", detail: "" },
+          { key: "condition", label: "规则条件校验", detail: "" },
+          { key: "template", label: "通知模版校验", detail: "" },
+          { key: "channel", label: "推送通道校验", detail: "" },
+          { key: "test", label: "测试通道校验", detail: "" }
+        ].map(step => ({ ...step, state: "waiting" }));
+        this.validationSteps = steps;
+        this.validationTitle = (this.editingId ? "编辑" : "新建") + "预警 · " + (this.form.name || "未命名");
+        this.validationComplete = false;
+        this.validationError = "";
+        this.validationVisible = true;
+        this.validating = true;
+        const results = {
+          table: this.validateTable(),
+          condition: this.validateCondition(),
+          template: this.validateTemplate(),
+          channel: this.validateChannel(),
+          test: this.validateTestChannel()
+        };
+        let cursor = 0;
+        const advance = () => {
+          if (cursor >= steps.length) {
+            this.validating = false;
+            const failed = steps.find(step => step.state === "error");
+            if (failed) this.validationError = failed.detail;
+            else this.validationComplete = true;
+            return;
+          }
+          const step = steps[cursor];
+          step.state = "checking";
+          step.detail = "正在校验，请稍候…";
+          setTimeout(() => {
+            const result = results[step.key];
+            step.state = result.ok ? "success" : "error";
+            step.detail = result.detail;
+            cursor += 1;
+            advance();
+          }, 320);
+        };
+        advance();
       },
-      saveAlert() {
-        if (!this.parsed) return;
-        if (!this.users.length && !this.groups.length) return ep.ElMessage.warning("至少配置一个通知人或通知群");
+      validateTable() {
+        if (!this.form.table) return { ok: false, detail: "未选择监控表，请返回「2 · 选择监控表与字段」配置" };
+        if (!this.currentFields.length) return { ok: false, detail: "监控表「" + this.form.table + "」无可用字段" };
+        if (!this.form.keyField) return { ok: false, detail: "未选择主体字段，重复通知无法按主体去重" };
+        return { ok: true, detail: "监控表 " + (this.currentTable?.cn || this.form.table) + " · " + this.currentFields.length + " 个可用字段" };
+      },
+      validateCondition() {
+        if (!this.form.conditions.length) return { ok: false, detail: "至少需要配置一个触发条件" };
+        const empty = this.form.conditions.find(condition => {
+          if (!condition.field) return true;
+          if (alertNoValueOps.includes(condition.op)) return false;
+          if (alertRangeOps.includes(condition.op)) return !condition.value || !condition.value2;
+          return condition.value === "" || condition.value === undefined || condition.value === null;
+        });
+        if (empty) return { ok: false, detail: "存在未填写完整的条件：" + (this.fieldLabel(empty.field) || "未选择字段") };
+        return { ok: true, detail: "共 " + this.form.conditions.length + " 个条件，关系：" + (this.form.relation === "AND" ? "且" : "或") };
+      },
+      validateTemplate() {
+        if (!this.form.template.title.trim()) return { ok: false, detail: "通知标题不能为空" };
+        const lines = this.form.template.lines.filter(line => line.label || line.value);
+        if (!lines.length) return { ok: false, detail: "通知内容至少需要配置一行" };
+        const names = this.templateVariables;
+        const unknown = [];
+        const scan = text => [...String(text || "").matchAll(/\{([^}]+)\}/g)].forEach(match => {
+          const name = String(match[1]).trim();
+          if (!names.includes(name)) unknown.push(name);
+        });
+        scan(this.form.template.title);
+        lines.forEach(line => scan(line.value));
+        if (unknown.length) return { ok: false, detail: "模版变量不存在于当前监控表：" + [...new Set(unknown)].join("、") };
+        return { ok: true, detail: "标题 + " + lines.length + " 行内容，变量校验通过" };
+      },
+      validateChannel() {
+        const channel = this.form.channel || {};
+        if (!channel.groups?.length && !channel.users?.length) return { ok: false, detail: "至少选择一个预警群或通知人" };
+        return { ok: true, detail: (channel.groups?.length || 0) + " 个群 · " + (channel.users?.length || 0) + " 个通知人" };
+      },
+      validateTestChannel() {
+        const channel = this.form.testChannel || {};
+        if (!channel.groups?.length && !channel.users?.length) return { ok: false, detail: "未配置测试通道，无法测试发送预警" };
+        if (!this.testResult) return { ok: false, detail: "测试通道已配置，但尚未「发送测试预警」验证" };
+        return { ok: true, detail: this.testResult };
+      },
+      validationIcon(state) { return { waiting: "·", checking: "", success: "✓", error: "!" }[state] || "·"; },
+      validationStateText(state) { return { waiting: "待校验", checking: "校验中", success: "通过", error: "未通过" }[state] || "待校验"; },
+      returnToForm() { this.validationVisible = false; },
+      confirmSave() {
+        const table = this.currentTable;
         const payload = {
-          name: this.parsed.name || `${this.parsed.metric}预警`,
-          text: this.text.trim(),
-          table: this.parsed.table, metric: this.parsed.metric, agg: this.parsed.agg,
-          filters: [...this.parsed.filters], rule: this.parsed.rule, frequency: this.parsed.frequency, time: this.parsed.time,
-          sql: this.alertSql, enabled: true, users: [...this.users], groups: [...this.groups],
-          creator: this.currentUser?.name || "曾祥竞",
-          lastTriggered: "—", triggerCount: 0, history: []
+          name: this.form.name.trim() || "未命名预警",
+          category: this.form.category, desc: this.form.desc.trim(), owner: this.form.owner,
+          table: this.form.table, tableCn: table?.cn || this.form.table,
+          keyField: this.form.keyField, timeField: this.form.timeField,
+          relation: this.form.relation, conditions: JSON.parse(JSON.stringify(this.form.conditions)),
+          mode: this.form.mode, schedule: { ...this.form.schedule },
+          dedup: { ...this.form.dedup },
+          channel: { groups: [...(this.form.channel.groups || [])], users: [...(this.form.channel.users || [])] },
+          testChannel: { groups: [...(this.form.testChannel.groups || [])], users: [...(this.form.testChannel.users || [])] },
+          template: JSON.parse(JSON.stringify(this.form.template))
         };
         if (this.editingId) {
           const target = this.alerts.find(item => item.id === this.editingId);
-          if (target) Object.assign(target, payload, { enabled: target.enabled, lastTriggered: target.lastTriggered, triggerCount: target.triggerCount, history: target.history, creator: target.creator });
+          if (target) Object.assign(target, payload);
         } else {
-          this.alerts.unshift({ id: "AL" + Date.now(), ...payload });
+          this.alerts.unshift({
+            id: "AL" + Date.now(), ...payload, enabled: true,
+            creator: this.currentUser?.name || LOGIN_USER_NAME,
+            lastTriggered: "—", triggerCount: 0, history: []
+          });
         }
         this.persistAlerts();
+        this.validationVisible = false;
         this.dialogVisible = false;
-        notify(`预警「${payload.name}」已保存${this.editingId ? "并更新" : "，飞书机器人将按配置推送"}`);
+        notify("预警「" + payload.name + "」已保存" + (this.editingId ? "并更新" : "，飞书机器人将按配置推送"));
       },
-      toggleEnabled(row) {
-        notify(`预警「${row.name}」已${row.enabled ? "启用，触发时将推送飞书" : "停用，不再推送"}`);
-      },
+      toggleEnabled(row) { notify("预警「" + row.name + "」已" + (row.enabled ? "启用，触发时将推送飞书" : "停用，不再推送")); },
       async removeAlert(row) {
         try {
-          await ep.ElMessageBox.confirm(`删除后该预警将停止推送，确认删除「${row.name}」？`, "删除预警", { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" });
+          await ep.ElMessageBox.confirm("删除后该预警将停止推送，确认删除「" + row.name + "」？", "删除预警", { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" });
         } catch (error) { return; }
         this.alerts = this.alerts.filter(item => item.id !== row.id);
         this.persistAlerts();
-        notify(`预警「${row.name}」已删除`);
+        notify("预警「" + row.name + "」已删除");
       },
-      openHistory(row) {
-        this.historyTitle = row.name;
-        this.historyRows = row.history || [];
-        this.historyVisible = true;
-      }
+      openHistory(row) { this.historyTitle = row.name; this.historyRows = row.history || []; this.historyVisible = true; }
     },
     mounted() { this.loadAlerts(); }
   };
