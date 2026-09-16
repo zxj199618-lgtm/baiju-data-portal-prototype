@@ -3340,26 +3340,26 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
-          <el-tabs v-model="status" class="portal-vue-status-tabs">
+          <el-tabs v-model="status" class="portal-vue-status-tabs" @tab-change="resetPage">
             <el-tab-pane :label="'启用中（' + enabledCount + '）'" name="启用"></el-tab-pane>
             <el-tab-pane :label="'已停用（' + disabledCount + '）'" name="停用"></el-tab-pane>
           </el-tabs>
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left">
-              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索告警名称"></el-input>
-              <el-select v-model="categoryFilter" clearable placeholder="全部分类" style="width:150px">
+              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索告警名称" @input="resetPage"></el-input>
+              <el-select v-model="categoryFilter" clearable placeholder="全部分类" style="width:150px" @change="resetPage">
                 <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
               </el-select>
-              <el-select v-model="requesterFilter" clearable filterable placeholder="全部需求人" style="width:150px">
+              <el-select v-model="requesterFilter" clearable filterable placeholder="全部需求人" style="width:150px" @change="resetPage">
                 <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
               </el-select>
-              <el-select v-model="ownerFilter" clearable filterable placeholder="全部负责人" style="width:150px">
+              <el-select v-model="ownerFilter" clearable filterable placeholder="全部负责人" style="width:150px" @change="resetPage">
                 <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
               </el-select>
-              <el-select v-model="groupFilter" clearable filterable placeholder="全部推送群" style="width:150px">
+              <el-select v-model="groupFilter" clearable filterable placeholder="全部推送群" style="width:150px" @change="resetPage">
                 <el-option v-for="group in groupChoices" :key="group" :label="group" :value="group"></el-option>
               </el-select>
-              <el-select v-model="pushUserFilter" clearable filterable placeholder="全部推送人" style="width:150px">
+              <el-select v-model="pushUserFilter" clearable filterable placeholder="全部推送人" style="width:150px" @change="resetPage">
                 <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
               </el-select>
             </div>
@@ -3368,7 +3368,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-button v-if="canEdit('数据告警')" type="primary" @click="openCreate">＋ 新建告警</el-button>
             </div>
           </div>
-          <el-table :data="filteredRows" class="portal-vue-table portal-vue-alert-table" border empty-text="暂无告警数据，点右上角「新建告警」配置规则">
+          <el-table :data="pagedRows" class="portal-vue-table portal-vue-alert-table" border empty-text="暂无告警数据，点右上角「新建告警」配置规则">
             <el-table-column label="告警名称" min-width="180" fixed="left">
               <template #default="scope">
                 <div class="portal-vue-alert-cell-name">{{ scope.row.name }}</div>
@@ -3445,6 +3445,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </template>
             </el-table-column>
           </el-table>
+          <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
           <div class="portal-vue-muted" style="margin-top:12px">告警基于埋点事件流计算，实时方式在事件到达时判定并推送；推送统一走内置「{{ botName }}」。</div>
         </section>
 
@@ -3696,7 +3697,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       </el-config-provider>
     `,
     data: () => ({
-      status: "启用", keyword: "", categoryFilter: "", requesterFilter: "", ownerFilter: "", groupFilter: "", pushUserFilter: "",
+      status: "启用", page: 1, pageSize: 10, keyword: "", categoryFilter: "", requesterFilter: "", ownerFilter: "", groupFilter: "", pushUserFilter: "",
       dialogVisible: false, editingId: "", form: createAlertForm(),
       saving: false,
       categoryManagerVisible: false, categoryDraft: "", savedCategories: [],
@@ -3733,6 +3734,15 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         };
       },
       currentUser() { refreshTick.value; return state.users.find(user => user.name === LOGIN_USER_NAME) || state.users[0]; },
+      pagedRows() {
+        const result = paginate(this.filteredRows, this.page, this.pageSize);
+        if (result.safePage !== this.page) this.page = result.safePage;
+        return result.rows;
+      },
+      rangeText() {
+        if (!this.filteredRows.length) return "0-0";
+        return `${(this.page - 1) * this.pageSize + 1}-${Math.min(this.page * this.pageSize, this.filteredRows.length)}`;
+      },
       enabledCount() { return this.alerts.filter(item => item.enabled).length; },
       disabledCount() { return this.alerts.filter(item => !item.enabled).length; },
       filteredRows() {
@@ -3933,6 +3943,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           formRef.validateField("channel.users").catch(() => {});
         });
       },
+      resetPage() { this.page = 1; },
       revalidate(prop) {
         const formRef = this.$refs.formRef;
         if (!formRef) return;

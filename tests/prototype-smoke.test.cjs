@@ -275,6 +275,7 @@ assert(portalVue.includes('<el-table-column label="需求人"') && portalVue.inc
 assert(portalVue.includes("groupFilter") && portalVue.includes("pushUserFilter") && portalVue.includes("全部推送群") && portalVue.includes("全部推送人"), "列表应支持按推送群与推送人筛选");
 assert(portalVue.includes('placeholder="搜索告警名称"') && portalVue.includes('String(item.name || "").toLowerCase().includes(keyword)'), "搜索框应只按告警名称匹配");
 assert(portalVue.includes("portal-vue-status-tabs") && portalVue.includes("enabledCount") && portalVue.includes("disabledCount") && portalVue.includes('status: "启用"'), "告警列表应提供启用中/已停用状态页签");
+assert(portalVue.includes("portal-vue-pagination") && portalVue.includes("pagedRows") && portalVue.includes("rangeText") && portalVue.includes(":data=\"pagedRows\""), "告警列表应支持分页");
 assert(portalCss.includes(".portal-vue-alert-form .portal-vue-alert-hint"), "重复判定字段说明文案应独占一行显示在控件下方");
 assert(portalCss.includes(".portal-vue-alert-table .el-table__cell { vertical-align: middle; }"), "数据告警列表单元格内容应上下居中，行高随内容自适应");
 assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据告警列表不应再提供「我的 / 全部」切换");
