@@ -3071,6 +3071,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   const alertGroupChoices = ["数据安全预警群", "投放运营群", "数据分析师群", "权益业务群", "高管数据群"];
   const alertTestGroupChoices = ["预警测试群（仅自己）"];
   const alertFreqChoices = ["每小时", "每天", "每周"];
+  const alertWeekdayChoices = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   const alertTimeChoices = ["00:00", "08:00", "09:00", "10:00", "12:00", "18:00", "20:00"];
   const alertDedupChoices = [
     { value: "interval", label: "按间隔重复通知" },
@@ -3095,7 +3096,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       relation: "AND",
       conditions: [{ field: table.fields[0].name, op: "eq", value: "", value2: "" }],
       mode: "realtime",
-      schedule: { freq: "每天", time: "09:00", minute: 0 },
+      schedule: { freq: "每天", weekday: "周一", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
       channel: { groups: [], users: [] },
       testChannel: { groups: [], users: [] },
@@ -3522,6 +3523,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-option v-for="item in freqChoices" :key="item" :label="item" :value="item"></el-option>
                 </el-select>
               </el-form-item>
+              <el-form-item v-if="form.mode === 'scheduled' && form.schedule.freq === '每周'" label="执行日" prop="schedule.weekday">
+                <el-select v-model="form.schedule.weekday" placeholder="选择周几">
+                  <el-option v-for="item in weekdayChoices" :key="item" :label="item" :value="item"></el-option>
+                </el-select>
+              </el-form-item>
               <el-form-item v-if="form.mode === 'scheduled'" label="执行时间" prop="schedule.time">
                 <div v-if="form.schedule.freq === '每小时'" class="portal-vue-alert-inline">
                   <span>每小时第</span>
@@ -3592,7 +3598,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       alerts: [],
       botName: alertBotName, alertOps, alertNoValueOps, alertRangeOps,
       groupChoices: alertGroupChoices, testGroupChoices: alertTestGroupChoices,
-      freqChoices: alertFreqChoices, timeChoices: alertTimeChoices,
+      freqChoices: alertFreqChoices, timeChoices: alertTimeChoices, weekdayChoices: alertWeekdayChoices,
       dedupChoices: alertDedupChoices
     }),
     computed: {
@@ -3610,6 +3616,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           "template.lines": [{ required: true, validator: this.validateTemplateLines, trigger: "change" }],
           "channel.groups": [{ required: true, type: "array", message: "请至少选择一个预警群", trigger: "change" }],
           "schedule.freq": [required("请选择检查频率")],
+          "schedule.weekday": [required("请选择执行日")],
           "schedule.time": [required("请选择执行时间")]
         };
       },
@@ -3686,12 +3693,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if (row.mode !== "scheduled") return "事件到达即计算";
         const schedule = row.schedule || {};
         if (schedule.freq === "每小时") return "每小时第 " + (schedule.minute ?? 0) + " 分钟";
+        if (schedule.freq === "每周") return "每" + (schedule.weekday || "周一") + " " + (schedule.time || "09:00");
         return (schedule.freq || "每天") + " " + (schedule.time || "09:00");
       },
       modeSummary(row) {
         if (row.mode === "scheduled") {
           const schedule = row.schedule || {};
           if (schedule.freq === "每小时") return "定时 · 每小时第 " + (schedule.minute ?? 0) + " 分钟";
+          if (schedule.freq === "每周") return "定时 · 每" + (schedule.weekday || "周一") + " " + (schedule.time || "09:00");
           return "定时 · " + (schedule.freq || "每天") + " " + (schedule.time || "09:00");
         }
         return "实时计算";
@@ -3742,7 +3751,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           name: row.name, category: row.category, desc: row.desc, owner: row.owner,
           table: row.table, keyField: row.keyField, timeField: row.timeField,
           relation: row.relation, conditions: row.conditions, mode: row.mode,
-          schedule: row.schedule, dedup: row.dedup, channel: row.channel,
+          schedule: { weekday: "周一", ...(row.schedule || {}) }, dedup: row.dedup, channel: row.channel,
           testChannel: row.testChannel || { groups: [], users: [] }, template: row.template
         }));
         this.testResult = "";
