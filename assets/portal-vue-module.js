@@ -3283,10 +3283,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left">
-              <el-radio-group v-model="view" size="default">
-                <el-radio-button value="mine">我的<template v-if="myCount !== allCount">&nbsp;（{{ myCount }}）</template></el-radio-button>
-                <el-radio-button v-if="canViewAll" value="all">全部（{{ allCount }}）</el-radio-button>
-              </el-radio-group>
               <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索预警名称、监控表或分类"></el-input>
               <el-select v-model="categoryFilter" clearable placeholder="全部分类" style="width:150px">
                 <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
@@ -3297,55 +3293,38 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-button v-if="canEdit('数据预警')" type="primary" @click="openCreate">＋ 新建预警</el-button>
             </div>
           </div>
-          <el-table :data="filteredRows" class="portal-vue-table portal-vue-alert-table" border :empty-text="view === 'mine' ? '你还没有创建预警，点右上角「新建预警」配置规则' : '暂无预警数据，点右上角「新建预警」配置规则'">
-            <el-table-column label="预警名称" min-width="170">
+          <el-table :data="filteredRows" class="portal-vue-table portal-vue-alert-table" border empty-text="暂无预警数据，点右上角「新建预警」配置规则">
+            <el-table-column label="预警名称" min-width="220">
               <template #default="scope">
-                <div>
-                  <span class="portal-vue-name">{{ scope.row.name }}</span>
-                  <el-tag v-if="scope.row.category" size="small" effect="plain" style="margin-left:6px">{{ scope.row.category }}</el-tag>
-                  <div class="portal-vue-muted portal-vue-alert-cell-desc">{{ scope.row.desc }}</div>
-                  <div class="portal-vue-alert-cell-meta">
-                    <el-tag size="small" effect="plain">{{ scope.row.tableCn || scope.row.table }}</el-tag>
-                    <el-button link type="primary" class="portal-vue-alert-cell-link" @click="openHistory(scope.row)">{{ scope.row.lastTriggered === '—' ? '尚未触发' : '最近 ' + scope.row.lastTriggered }}</el-button>
-                  </div>
+                <div class="portal-vue-alert-cell-name">{{ scope.row.name }}</div>
+                <div class="portal-vue-alert-cell-meta">
+                  <el-tag v-if="scope.row.category" size="small" effect="plain">{{ scope.row.category }}</el-tag>
+                  <span class="portal-vue-muted">{{ scope.row.tableCn || scope.row.table }}</span>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="触发条件" min-width="152">
+            <el-table-column label="触发条件" min-width="210">
               <template #default="scope">
                 <div class="portal-vue-alert-cell-rule">{{ ruleSummary(scope.row) }}</div>
-                <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ conditionCount(scope.row) }} 个条件 · {{ scope.row.relation === 'AND' ? '且' : '或' }}</div>
+                <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ modeLine(scope.row) }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="通知模版" min-width="146">
+            <el-table-column label="推送通道" min-width="160">
               <template #default="scope">
-                <div class="portal-vue-alert-cell-tpl">
-                  <el-tag size="small" effect="plain" :type="scope.row.template.style === 'compact' ? 'success' : 'primary'">{{ templateStyleLabel(scope.row) }}</el-tag>
-                  <span class="portal-vue-alert-cell-tpl-title">{{ scope.row.template.title }}</span>
-                </div>
-                <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ templateFieldSummary(scope.row) }}</div>
-              </template>
-            </el-table-column>
-            <el-table-column label="推送通道" min-width="132">
-              <template #default="scope">
-                <div class="portal-vue-alert-cell-bot">🤖 飞书机器人</div>
-                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
+                <div style="display:flex;flex-wrap:wrap;gap:4px">
                   <el-tag v-for="group in scope.row.channel.groups" :key="group" size="small" type="success" effect="plain">{{ group }}</el-tag>
                   <el-tag v-for="user in scope.row.channel.users" :key="user" size="small" effect="plain">{{ user }}</el-tag>
                   <span v-if="!scope.row.channel.groups.length && !scope.row.channel.users.length" class="portal-vue-muted">未配置</span>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="预警方式" min-width="112">
+            <el-table-column label="最近触发" min-width="140">
               <template #default="scope">
-                <div style="display:flex;align-items:center;gap:6px">
-                  <el-tag size="small" :type="scope.row.mode === 'realtime' ? 'primary' : 'warning'" effect="plain">{{ modeLabel(scope.row) }}</el-tag>
-                  <span class="portal-vue-muted portal-vue-alert-cell-sub">{{ scheduleSummary(scope.row) }}</span>
-                </div>
-                <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ dedupSummary(scope.row) }}</div>
+                <el-button link type="primary" class="portal-vue-alert-cell-link" @click="openHistory(scope.row)">{{ scope.row.lastTriggered === '—' ? '尚未触发' : scope.row.lastTriggered }}</el-button>
+                <div v-if="scope.row.triggerCount" class="portal-vue-muted portal-vue-alert-cell-sub">累计 {{ scope.row.triggerCount }} 次</div>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="76">
+            <el-table-column label="状态" width="66">
               <template #default="scope">
                 <el-switch :disabled="!canEdit('数据预警')" v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch>
               </template>
@@ -3608,7 +3587,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       </el-config-provider>
     `,
     data: () => ({
-      view: "mine", keyword: "", categoryFilter: "",
+      keyword: "", categoryFilter: "",
       dialogVisible: false, editingId: "", form: createAlertForm(),
       saving: false,
       categoryManagerVisible: false, categoryDraft: "", savedCategories: [],
@@ -3640,13 +3619,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         };
       },
       currentUser() { refreshTick.value; return state.users.find(user => user.name === LOGIN_USER_NAME) || state.users[0]; },
-      canViewAll() { return this.currentUser?.group === "门户管理员"; },
-      myCount() { return this.alerts.filter(item => (item.creator || LOGIN_USER_NAME) === this.currentUser?.name).length; },
-      allCount() { return this.alerts.length; },
       filteredRows() {
         const keyword = this.keyword.trim().toLowerCase();
-        const base = this.view === "all" ? this.alerts : this.alerts.filter(item => (item.creator || LOGIN_USER_NAME) === this.currentUser?.name);
-        return base.filter(item => {
+        return this.alerts.filter(item => {
           if (this.categoryFilter && item.category !== this.categoryFilter) return false;
           if (!keyword) return true;
           return `${item.name} ${item.table} ${item.tableCn || ""} ${item.category || ""} ${item.desc || ""}`.toLowerCase().includes(keyword);
@@ -3745,11 +3720,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if (schedule.freq === "每小时") return "每小时第 " + (schedule.minute ?? 0) + " 分钟";
         return (schedule.freq || "每天") + " " + (schedule.time || "09:00");
       },
-      conditionCount(row) { return (row.conditions || []).length; },
-      templateStyleLabel(row) { return alertTemplateStyles.find(style => style.value === row.template?.style)?.label || "飞书卡片"; },
-      templateFieldSummary(row) {
-        const labels = (row.template?.lines || []).map(line => line.label).filter(Boolean);
-        return labels.length ? labels.length + " 行 · " + labels.join("、") : "未配置内容行";
+      modeLine(row) {
+        const mode = row.mode === "scheduled" ? this.modeLabel(row) + " " + this.scheduleSummary(row) : this.modeLabel(row);
+        return mode + " · " + this.dedupSummary(row);
       },
       modeSummary(row) {
         if (row.mode === "scheduled") {

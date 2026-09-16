@@ -255,7 +255,8 @@ assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验�
   "用户微信环境登陆",
   "用户今日多设备登陆"
 ].forEach(name => assert(portalVue.includes(name), `应内置登录与设备类预警规则：${name}`));
-assert(portalVue.includes('view: "mine"') && portalVue.includes("canViewAll") && portalVue.includes("门户管理员"), "数据预警列表应默认展示「我的」预警，管理员可切换查看全部");
+assert(portalVue.includes("modeLine") && portalVue.includes("portal-vue-alert-cell-name"), "数据预警列表应精简为每格两行以内，并把预警方式合并进触发条件");
+assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据预警列表不应再提供「我的 / 全部」切换");
 assert(portalVue.includes("portal-vue-ai-chip-table-cascader") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "表选择按钮应直接展开级联菜单，不应先打开中间弹层");
 assert(portalVue.includes("portal-vue-ai-chip-model-select") && !portalVue.includes("portal-vue-ai-model-panel-popper"), "模型选择按钮应直接展开模型列表，不应先打开中间弹层");
 assert(portalCss.includes(".portal-vue-ai-chip-table-cascader { width: 200px; }") && portalCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }"), "表与模型下拉应统一为紧凑的 200px 宽度");

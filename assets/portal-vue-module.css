@@ -630,15 +630,12 @@
 .portal-vue-alert-cat { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #e9edf4; border-radius: 8px; }
 .portal-vue-alert-cat > span:first-child { color: #1f2733; font-size: 13px; font-weight: 650; }
 
-/* 数据预警列表：触发条件 / 通知模版 / 推送通道 / 预警方式 分列展示 */
-.portal-vue-alert-table .portal-vue-alert-cell-desc { overflow: hidden; margin-top: 3px; max-width: 260px; text-overflow: ellipsis; white-space: nowrap; }
-.portal-vue-alert-table .portal-vue-alert-cell-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-top: 7px; font-size: 12px; }
-.portal-vue-alert-table .portal-vue-alert-cell-sub { font-size: 12px; margin-top: 2px; }
+/* 数据预警列表：每格最多两行，只保留必要信息 */
+.portal-vue-alert-table .portal-vue-alert-cell-name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.portal-vue-alert-table .portal-vue-alert-cell-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 4px; font-size: 12px; }
+.portal-vue-alert-table .portal-vue-alert-cell-sub { font-size: 12px; margin-top: 3px; }
 .portal-vue-alert-table .portal-vue-alert-cell-rule { font-size: 13px; line-height: 1.6; color: #2a3446; }
-.portal-vue-alert-table .portal-vue-alert-cell-tpl { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.portal-vue-alert-table .portal-vue-alert-cell-tpl-title { overflow: hidden; font-size: 13px; color: #2a3446; text-overflow: ellipsis; white-space: nowrap; }
-.portal-vue-alert-table .portal-vue-alert-cell-bot { font-size: 12px; color: #1677ff; }
-.portal-vue-alert-table .portal-vue-alert-cell-link { height: auto; padding: 0; font-size: 12px; font-weight: 400; }
+.portal-vue-alert-table .portal-vue-alert-cell-link { height: auto; padding: 0; font-size: 13px; font-weight: 400; }
 .portal-vue-alert-table .el-table__cell { vertical-align: top; }
 
 /* 系统管理：菜单管理 / Skill 配置 */
