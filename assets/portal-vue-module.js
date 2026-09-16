@@ -3383,7 +3383,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <div class="portal-vue-alert-condition-list">
                     <div v-for="(condition, index) in form.conditions" :key="index" class="portal-vue-alert-condition-row">
                       <el-select v-model="condition.field" filterable @change="changeConditionField(condition)">
-                        <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.type + '）'" :value="field.name"></el-option>
+                        <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
                       </el-select>
                       <el-select v-model="condition.op">
                         <el-option v-for="op in conditionOps(condition)" :key="op.value" :label="op.label" :value="op.value"></el-option>
