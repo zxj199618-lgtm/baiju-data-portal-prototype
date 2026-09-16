@@ -3360,7 +3360,13 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           <div class="portal-vue-muted" style="margin-top:12px">预警基于埋点事件流计算，实时方式在事件到达时判定并推送；推送统一走内置「{{ botName }}」。</div>
         </section>
 
-        <el-dialog v-model="dialogVisible" :title="(editingId ? '编辑' : '新建') + '数据预警'" fullscreen class="portal-vue-fullscreen-dialog" :close-on-click-modal="false">
+        <el-dialog v-model="dialogVisible" fullscreen class="portal-vue-fullscreen-dialog" :close-on-click-modal="false">
+          <template #header>
+            <div class="portal-vue-alert-dialog-head">
+              <el-button link class="portal-vue-alert-back" @click="dialogVisible = false"><span class="portal-vue-alert-back-arrow">←</span> 返回</el-button>
+              <span class="portal-vue-alert-dialog-title">{{ (editingId ? '编辑' : '新建') + '数据预警' }}</span>
+            </div>
+          </template>
           <el-form ref="formRef" :model="form" :rules="formRules" label-position="left" label-width="170px" class="portal-vue-alert-form">
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">1 · 基本信息</div>

@@ -557,6 +557,11 @@
 .portal-vue-alert-bot .el-tag { margin-left: auto; }
 
 /* 数据预警：单列表单（一个字段一行，左标签 + 右输入框，对齐人群包表单） */
+.portal-vue-alert-dialog-head { display: flex; align-items: center; gap: 14px; }
+.portal-vue-alert-back { height: auto; padding: 0; color: #566174; font-size: 14px; font-weight: 500; }
+.portal-vue-alert-back:hover { color: #1677ff; }
+.portal-vue-alert-back-arrow { margin-right: 2px; font-size: 15px; }
+.portal-vue-alert-dialog-title { color: #1f2733; font-size: 16px; font-weight: 700; }
 .portal-vue-alert-form { padding: 4px 24px 20px; }
 .portal-vue-alert-section { padding: 18px 0; border-bottom: 1px solid #e9edf4; }
 .portal-vue-alert-section:last-child { border-bottom: 0; padding-bottom: 4px; }
