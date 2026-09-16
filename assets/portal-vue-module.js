@@ -3294,6 +3294,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-select v-model="ownerFilter" clearable filterable placeholder="全部负责人" style="width:150px">
                 <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
               </el-select>
+              <el-select v-model="groupFilter" clearable filterable placeholder="全部推送群" style="width:150px">
+                <el-option v-for="group in groupChoices" :key="group" :label="group" :value="group"></el-option>
+              </el-select>
+              <el-select v-model="pushUserFilter" clearable filterable placeholder="全部推送人" style="width:150px">
+                <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
+              </el-select>
             </div>
             <div class="portal-vue-actions">
               <el-button @click="categoryManagerVisible = true">分类管理</el-button>
@@ -3620,7 +3626,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       </el-config-provider>
     `,
     data: () => ({
-      keyword: "", categoryFilter: "", requesterFilter: "", ownerFilter: "",
+      keyword: "", categoryFilter: "", requesterFilter: "", ownerFilter: "", groupFilter: "", pushUserFilter: "",
       dialogVisible: false, editingId: "", form: createAlertForm(),
       saving: false,
       categoryManagerVisible: false, categoryDraft: "", savedCategories: [],
@@ -3659,8 +3665,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           if (this.categoryFilter && item.category !== this.categoryFilter) return false;
           if (this.requesterFilter && item.requester !== this.requesterFilter) return false;
           if (this.ownerFilter && item.owner !== this.ownerFilter) return false;
+          if (this.groupFilter && !(item.channel?.groups || []).includes(this.groupFilter)) return false;
+          if (this.pushUserFilter && !(item.channel?.users || []).includes(this.pushUserFilter)) return false;
           if (!keyword) return true;
-          return `${item.name} ${item.table} ${item.tableCn || ""} ${item.category || ""} ${item.requester || ""} ${item.owner || ""} ${item.desc || ""}`.toLowerCase().includes(keyword);
+          const reach = [...(item.channel?.groups || []), ...(item.channel?.users || [])].join(" ");
+          return `${item.name} ${item.table} ${item.tableCn || ""} ${item.category || ""} ${item.requester || ""} ${item.owner || ""} ${reach} ${item.desc || ""}`.toLowerCase().includes(keyword);
         });
       },
       activeUsers() { refreshTick.value; return state.users.filter(user => user.status !== "已停用"); },

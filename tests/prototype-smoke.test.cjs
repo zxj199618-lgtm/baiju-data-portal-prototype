@@ -267,6 +267,7 @@ assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("是不
 assert(portalVue.includes("portal-vue-alert-dialog-head") && portalVue.includes("portal-vue-alert-back"), "数据预警编辑弹窗左上角应提供返回按钮");
 assert(portalVue.includes('label="需求人" prop="requester"'), "数据预警表单应包含需求人必填字段");
 assert(portalVue.includes('<el-table-column label="需求人"') && portalVue.includes('<el-table-column label="负责人"') && portalVue.includes("requesterFilter") && portalVue.includes("ownerFilter"), "列表应展示需求人与负责人，并支持按两者筛选");
+assert(portalVue.includes("groupFilter") && portalVue.includes("pushUserFilter") && portalVue.includes("全部推送群") && portalVue.includes("全部推送人"), "列表应支持按推送群与推送人筛选");
 assert(portalCss.includes(".portal-vue-alert-form .portal-vue-alert-hint"), "主体字段说明文案应独占一行显示在控件下方");
 assert(portalCss.includes(".portal-vue-alert-table .el-table__cell { vertical-align: middle; }"), "数据预警列表单元格内容应上下居中，行高随内容自适应");
 assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据预警列表不应再提供「我的 / 全部」切换");
