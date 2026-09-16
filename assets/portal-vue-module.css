@@ -556,20 +556,31 @@
 .portal-vue-alert-bot span { display: block; font-size: 12px; }
 .portal-vue-alert-bot .el-tag { margin-left: auto; }
 
-/* 数据预警：配置式表单（选表 → 规则 → 模版 → 通道 → 方式） */
-.portal-vue-alert-form { display: grid; padding: 4px 24px 20px; }
+/* 数据预警：单列表单（一个字段一行，左标签 + 右输入框，对齐人群包表单） */
+.portal-vue-alert-form { padding: 4px 24px 20px; }
 .portal-vue-alert-section { padding: 18px 0; border-bottom: 1px solid #e9edf4; }
 .portal-vue-alert-section:last-child { border-bottom: 0; padding-bottom: 4px; }
 .portal-vue-alert-section-title { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; color: #2f3b4d; font-size: 14px; font-weight: 720; }
 .portal-vue-alert-section-hint { color: #98a2b3; font-size: 12px; font-weight: 400; }
-.portal-vue-alert-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0 20px; }
+.portal-vue-alert-form .el-form-item { width: 760px; max-width: 100%; margin-bottom: 16px; }
+.portal-vue-alert-form .el-form-item.is-error { margin-bottom: 32px; }
+.portal-vue-alert-form .el-form-item__label { height: auto; justify-content: flex-end; padding: 0 22px 0 0; color: #566174; font-size: 14px; font-weight: 650; line-height: 34px; text-align: right; white-space: nowrap; }
+.portal-vue-alert-form .el-form-item__content { min-width: 0; }
+.portal-vue-alert-form .el-form-item__error { top: calc(100% + 4px); line-height: 18px; }
+.portal-vue-alert-form .el-textarea__inner { min-height: 66px; resize: vertical; }
+.portal-vue-alert-form .el-form-item.portal-vue-alert-wide { width: min(100%, 1180px); }
 .portal-vue-alert-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .portal-vue-alert-inline > .el-select,
 .portal-vue-alert-inline > .el-input { flex: 1 1 auto; min-width: 0; }
 .portal-vue-alert-inline > span { color: #566174; font-size: 13px; }
+/* 表单内联行（如预警分类 + 管理分类）：下拉不撑满，按钮保持同行 */
+.portal-vue-alert-form .portal-vue-alert-inline > .el-select { flex: 0 0 300px; }
+.portal-vue-alert-form .portal-vue-alert-inline > .el-input { flex: 0 1 300px; }
 .portal-vue-alert-fields { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 10px 12px; border: 1px dashed #dbe3ef; border-radius: 8px; background: #fafbfd; }
 .portal-vue-alert-var-chip { cursor: pointer; }
 .portal-vue-alert-var-chip:hover { border-color: #1677ff; color: #1677ff; }
+/* 表单内需要纵向排列的复合控件（如重复预警的单选组 + 间隔配置） */
+.portal-vue-alert-stack { display: grid; gap: 10px; justify-items: start; }
 
 /* 条件构建器：且/或 + 条件行 */
 .portal-vue-alert-rule { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: stretch; }
@@ -588,9 +599,11 @@
 
 /* 模版编辑器 */
 .portal-vue-alert-tpl { display: grid; gap: 8px; }
-.portal-vue-alert-tpl-row { display: grid; grid-template-columns: 200px minmax(0, 1fr) 170px 32px; gap: 10px; align-items: center; }
+.portal-vue-alert-tpl-row { display: grid; grid-template-columns: 220px minmax(0, 1fr) 118px 32px; gap: 10px; align-items: center; }
 .portal-vue-alert-tpl-row .el-select,
 .portal-vue-alert-tpl-row .el-input { width: 100%; }
+.portal-vue-alert-tpl-row .el-dropdown { width: 100%; }
+.portal-vue-alert-tpl-row .el-dropdown .el-button { width: 100%; }
 
 /* 飞书卡片预览（新的模版样式） */
 .portal-vue-alert-preview { max-width: 520px; padding: 14px 16px; border: 1px solid #e4e9f2; border-radius: 12px; background: #f2f4f8; }
@@ -612,9 +625,21 @@
 .portal-vue-alert-test { margin-top: 6px; padding: 14px; border: 1px dashed #dbe3ef; border-radius: 10px; background: #fafbfd; }
 .portal-vue-alert-test-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
 .portal-vue-alert-test-head strong { color: #1f2733; font-size: 13px; font-weight: 700; }
+.portal-vue-alert-test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 20px; }
 .portal-vue-alert-cats { display: grid; gap: 8px; margin-top: 14px; }
 .portal-vue-alert-cat { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #e9edf4; border-radius: 8px; }
 .portal-vue-alert-cat > span:first-child { color: #1f2733; font-size: 13px; font-weight: 650; }
+
+/* 数据预警列表：触发条件 / 通知模版 / 推送通道 / 预警方式 分列展示 */
+.portal-vue-alert-table .portal-vue-alert-cell-desc { overflow: hidden; margin-top: 3px; max-width: 260px; text-overflow: ellipsis; white-space: nowrap; }
+.portal-vue-alert-table .portal-vue-alert-cell-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-top: 7px; font-size: 12px; }
+.portal-vue-alert-table .portal-vue-alert-cell-sub { font-size: 12px; margin-top: 2px; }
+.portal-vue-alert-table .portal-vue-alert-cell-rule { font-size: 13px; line-height: 1.6; color: #2a3446; }
+.portal-vue-alert-table .portal-vue-alert-cell-tpl { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.portal-vue-alert-table .portal-vue-alert-cell-tpl-title { overflow: hidden; font-size: 13px; color: #2a3446; text-overflow: ellipsis; white-space: nowrap; }
+.portal-vue-alert-table .portal-vue-alert-cell-bot { font-size: 12px; color: #1677ff; }
+.portal-vue-alert-table .portal-vue-alert-cell-link { height: auto; padding: 0; font-size: 12px; font-weight: 400; }
+.portal-vue-alert-table .el-table__cell { vertical-align: top; }
 
 /* 系统管理：菜单管理 / Skill 配置 */
 .portal-vue-skill-drawer { display: grid; gap: 12px; }

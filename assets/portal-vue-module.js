@@ -3297,59 +3297,63 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-button v-if="canEdit('数据预警')" type="primary" @click="openCreate">＋ 新建预警</el-button>
             </div>
           </div>
-          <el-table :data="filteredRows" class="portal-vue-table" border :empty-text="view === 'mine' ? '你还没有创建预警，点右上角「新建预警」配置规则' : '暂无预警数据，点右上角「新建预警」配置规则'">
-            <el-table-column label="预警名称" min-width="230">
+          <el-table :data="filteredRows" class="portal-vue-table portal-vue-alert-table" border :empty-text="view === 'mine' ? '你还没有创建预警，点右上角「新建预警」配置规则' : '暂无预警数据，点右上角「新建预警」配置规则'">
+            <el-table-column label="预警名称" min-width="170">
               <template #default="scope">
                 <div>
                   <span class="portal-vue-name">{{ scope.row.name }}</span>
                   <el-tag v-if="scope.row.category" size="small" effect="plain" style="margin-left:6px">{{ scope.row.category }}</el-tag>
-                  <div class="portal-vue-muted" style="margin-top:2px;max-width:340px">{{ scope.row.desc }}</div>
+                  <div class="portal-vue-muted portal-vue-alert-cell-desc">{{ scope.row.desc }}</div>
+                  <div class="portal-vue-alert-cell-meta">
+                    <el-tag size="small" effect="plain">{{ scope.row.tableCn || scope.row.table }}</el-tag>
+                    <el-button link type="primary" class="portal-vue-alert-cell-link" @click="openHistory(scope.row)">{{ scope.row.lastTriggered === '—' ? '尚未触发' : '最近 ' + scope.row.lastTriggered }}</el-button>
+                  </div>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="监控表" min-width="160">
+            <el-table-column label="触发条件" min-width="152">
               <template #default="scope">
-                <div style="display:flex;flex-direction:column;gap:3px">
-                  <el-tag size="small" effect="plain" style="width:fit-content">{{ scope.row.tableCn || scope.row.table }}</el-tag>
-                  <span class="portal-vue-muted" style="font-size:12px">{{ scope.row.table }}</span>
-                </div>
+                <div class="portal-vue-alert-cell-rule">{{ ruleSummary(scope.row) }}</div>
+                <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ conditionCount(scope.row) }} 个条件 · {{ scope.row.relation === 'AND' ? '且' : '或' }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="触发条件" min-width="240">
+            <el-table-column label="通知模版" min-width="146">
               <template #default="scope">
-                <div>
-                  <span style="font-size:13px">{{ ruleSummary(scope.row) }}</span>
-                  <div class="portal-vue-muted" style="font-size:12px;margin-top:2px">{{ modeSummary(scope.row) }} · {{ dedupSummary(scope.row) }}</div>
+                <div class="portal-vue-alert-cell-tpl">
+                  <el-tag size="small" effect="plain" :type="scope.row.template.style === 'compact' ? 'success' : 'primary'">{{ templateStyleLabel(scope.row) }}</el-tag>
+                  <span class="portal-vue-alert-cell-tpl-title">{{ scope.row.template.title }}</span>
                 </div>
+                <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ templateFieldSummary(scope.row) }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="推送通道" min-width="180">
+            <el-table-column label="推送通道" min-width="132">
               <template #default="scope">
-                <div style="display:flex;flex-wrap:wrap;gap:4px">
+                <div class="portal-vue-alert-cell-bot">🤖 飞书机器人</div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
                   <el-tag v-for="group in scope.row.channel.groups" :key="group" size="small" type="success" effect="plain">{{ group }}</el-tag>
                   <el-tag v-for="user in scope.row.channel.users" :key="user" size="small" effect="plain">{{ user }}</el-tag>
                   <span v-if="!scope.row.channel.groups.length && !scope.row.channel.users.length" class="portal-vue-muted">未配置</span>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="最近触发" width="150">
+            <el-table-column label="预警方式" min-width="112">
               <template #default="scope">
-                <div>
-                  <span style="font-size:13px">{{ scope.row.lastTriggered === '—' ? '—' : scope.row.lastTriggered }}</span>
-                  <div v-if="scope.row.triggerCount" class="portal-vue-muted" style="font-size:12px;margin-top:2px">累计触发 {{ scope.row.triggerCount }} 次</div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <el-tag size="small" :type="scope.row.mode === 'realtime' ? 'primary' : 'warning'" effect="plain">{{ modeLabel(scope.row) }}</el-tag>
+                  <span class="portal-vue-muted portal-vue-alert-cell-sub">{{ scheduleSummary(scope.row) }}</span>
                 </div>
+                <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ dedupSummary(scope.row) }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="90">
+            <el-table-column label="状态" width="76">
               <template #default="scope">
                 <el-switch :disabled="!canEdit('数据预警')" v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column label="操作" width="100" fixed="right">
               <template #default="scope">
                 <div class="portal-vue-actions">
                   <el-button v-if="canEdit('数据预警')" link type="primary" @click="openEdit(scope.row)">编辑</el-button>
-                  <el-button link type="primary" @click="openHistory(scope.row)">记录</el-button>
                   <el-button v-if="canEdit('数据预警')" link type="danger" @click="removeAlert(scope.row)">删除</el-button>
                 </div>
               </template>
@@ -3359,124 +3363,128 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         </section>
 
         <el-dialog v-model="dialogVisible" :title="(editingId ? '编辑' : '新建') + '数据预警'" fullscreen class="portal-vue-fullscreen-dialog" :close-on-click-modal="false">
-          <div class="portal-vue-alert-form">
+          <el-form label-position="left" label-width="170px" class="portal-vue-alert-form">
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">1 · 基本信息</div>
-              <div class="portal-vue-alert-grid">
-                <div class="portal-vue-alert-field"><label>预警名称</label><el-input v-model="form.name" maxlength="50" show-word-limit placeholder="例如：用户工作时间非公司环境登陆"></el-input></div>
-                <div class="portal-vue-alert-field">
-                  <label>预警分类</label>
-                  <div class="portal-vue-alert-inline">
-                    <el-select v-model="form.category" filterable allow-create default-first-option placeholder="选择或输入分类">
-                      <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
-                    </el-select>
-                    <el-button @click="categoryManagerVisible = true">管理</el-button>
-                  </div>
+              <el-form-item label="预警名称">
+                <el-input v-model="form.name" maxlength="50" show-word-limit placeholder="例如：用户工作时间非公司环境登陆"></el-input>
+              </el-form-item>
+              <el-form-item label="预警分类">
+                <div class="portal-vue-alert-inline">
+                  <el-select v-model="form.category" filterable allow-create default-first-option placeholder="选择或输入分类">
+                    <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
+                  </el-select>
+                  <el-button @click="categoryManagerVisible = true">管理分类</el-button>
                 </div>
-                <div class="portal-vue-alert-field"><label>负责人</label><el-select v-model="form.owner" filterable><el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option></el-select></div>
-              </div>
-              <div class="portal-vue-alert-field"><label>预警说明</label><el-input v-model="form.desc" type="textarea" :rows="2" maxlength="200" show-word-limit placeholder="说明这条预警监控什么、触发后会通知谁"></el-input></div>
+              </el-form-item>
+              <el-form-item label="负责人">
+                <el-select v-model="form.owner" filterable>
+                  <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="预警说明">
+                <el-input v-model="form.desc" type="textarea" :rows="2" maxlength="200" show-word-limit placeholder="说明这条预警监控什么、触发后会通知谁"></el-input>
+              </el-form-item>
             </section>
 
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">2 · 选择监控表与字段</div>
-              <div class="portal-vue-alert-grid">
-                <div class="portal-vue-alert-field">
-                  <label>监控表</label>
-                  <el-select v-model="form.table" filterable @change="changeTable">
-                    <el-option v-for="table in monitorTables" :key="table.name" :label="table.cn + '（' + table.name + '）'" :value="table.name"></el-option>
-                  </el-select>
+              <el-form-item label="监控表">
+                <el-select v-model="form.table" filterable @change="changeTable">
+                  <el-option v-for="table in monitorTables" :key="table.name" :label="table.cn + '（' + table.name + '）'" :value="table.name"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="主体字段">
+                <el-select v-model="form.keyField" filterable placeholder="选择用户/主体标识字段，用于重复通知去重">
+                  <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="时间字段">
+                <el-select v-model="form.timeField" filterable>
+                  <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="表字段" class="portal-vue-alert-wide">
+                <div class="portal-vue-alert-fields">
+                  <span class="portal-vue-muted">点击字段即插入到通知内容末行：</span>
+                  <el-tag v-for="field in currentFields" :key="field.name" size="small" effect="plain" class="portal-vue-alert-var-chip" @click="insertVariable(-1, field.cn)">{{ field.cn }}</el-tag>
                 </div>
-                <div class="portal-vue-alert-field">
-                  <label>主体字段（按该字段去重通知）</label>
-                  <el-select v-model="form.keyField" filterable placeholder="选择用户/主体标识字段">
-                    <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
-                  </el-select>
-                </div>
-                <div class="portal-vue-alert-field">
-                  <label>时间字段</label>
-                  <el-select v-model="form.timeField" filterable>
-                    <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
-                  </el-select>
-                </div>
-              </div>
-              <div class="portal-vue-alert-fields">
-                <span class="portal-vue-muted">表字段（点击可插入模版变量）：</span>
-                <el-tag v-for="field in currentFields" :key="field.name" size="small" effect="plain" class="portal-vue-alert-var-chip" @click="insertVariable(-1, field.cn)">{{ field.cn }}</el-tag>
-              </div>
+              </el-form-item>
             </section>
 
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">3 · 配置预警规则</div>
-              <div class="portal-vue-alert-rule">
-                <button type="button" class="portal-vue-alert-relation" aria-label="切换条件关系" @click="toggleRelation"><span>{{ form.relation === 'AND' ? '且' : '或' }}</span></button>
-                <div class="portal-vue-alert-condition-list">
-                  <div v-for="(condition, index) in form.conditions" :key="index" class="portal-vue-alert-condition-row">
-                    <el-select v-model="condition.field" filterable @change="changeConditionField(condition)">
-                      <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.type + '）'" :value="field.name"></el-option>
-                    </el-select>
-                    <el-select v-model="condition.op">
-                      <el-option v-for="op in conditionOps(condition)" :key="op.value" :label="op.label" :value="op.value"></el-option>
-                    </el-select>
-                    <span v-if="alertNoValueOps.includes(condition.op)" class="portal-vue-alert-novalue">无需填写值</span>
-                    <div v-else-if="condition.op === 'timeBetween'" class="portal-vue-alert-range">
-                      <el-time-picker v-model="condition.value" format="HH:mm" value-format="HH:mm" placeholder="开始"></el-time-picker>
-                      <span>~</span>
-                      <el-time-picker v-model="condition.value2" format="HH:mm" value-format="HH:mm" placeholder="结束"></el-time-picker>
+              <el-form-item label="触发条件" class="portal-vue-alert-wide">
+                <div class="portal-vue-alert-rule">
+                  <button type="button" class="portal-vue-alert-relation" aria-label="切换条件关系" @click="toggleRelation"><span>{{ form.relation === 'AND' ? '且' : '或' }}</span></button>
+                  <div class="portal-vue-alert-condition-list">
+                    <div v-for="(condition, index) in form.conditions" :key="index" class="portal-vue-alert-condition-row">
+                      <el-select v-model="condition.field" filterable @change="changeConditionField(condition)">
+                        <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.type + '）'" :value="field.name"></el-option>
+                      </el-select>
+                      <el-select v-model="condition.op">
+                        <el-option v-for="op in conditionOps(condition)" :key="op.value" :label="op.label" :value="op.value"></el-option>
+                      </el-select>
+                      <span v-if="alertNoValueOps.includes(condition.op)" class="portal-vue-alert-novalue">无需填写值</span>
+                      <div v-else-if="condition.op === 'timeBetween'" class="portal-vue-alert-range">
+                        <el-time-picker v-model="condition.value" format="HH:mm" value-format="HH:mm" placeholder="开始"></el-time-picker>
+                        <span>~</span>
+                        <el-time-picker v-model="condition.value2" format="HH:mm" value-format="HH:mm" placeholder="结束"></el-time-picker>
+                      </div>
+                      <div v-else-if="condition.op === 'between'" class="portal-vue-alert-range">
+                        <el-input v-model="condition.value" placeholder="最小值"></el-input>
+                        <span>~</span>
+                        <el-input v-model="condition.value2" placeholder="最大值"></el-input>
+                      </div>
+                      <el-select v-else-if="conditionField(condition).values" v-model="condition.value" :multiple="condition.op === 'in'" filterable placeholder="选择条件值">
+                        <el-option v-for="value in conditionField(condition).values" :key="value" :label="value" :value="value"></el-option>
+                      </el-select>
+                      <el-input v-else v-model="condition.value" placeholder="请输入条件值"></el-input>
+                      <el-button v-if="form.conditions.length > 1" link type="danger" title="删除条件" @click="removeCondition(index)">×</el-button>
+                      <span v-else></span>
                     </div>
-                    <div v-else-if="condition.op === 'between'" class="portal-vue-alert-range">
-                      <el-input v-model="condition.value" placeholder="最小值"></el-input>
-                      <span>~</span>
-                      <el-input v-model="condition.value2" placeholder="最大值"></el-input>
-                    </div>
-                    <el-select v-else-if="conditionField(condition).values" v-model="condition.value" :multiple="condition.op === 'in'" filterable placeholder="选择条件值">
-                      <el-option v-for="value in conditionField(condition).values" :key="value" :label="value" :value="value"></el-option>
-                    </el-select>
-                    <el-input v-else v-model="condition.value" placeholder="请输入条件值"></el-input>
-                    <el-button v-if="form.conditions.length > 1" link type="danger" title="删除条件" @click="removeCondition(index)">×</el-button>
-                    <span v-else></span>
+                    <el-button v-if="canEdit('数据预警')" link type="primary" @click="addCondition">+ 添加条件</el-button>
                   </div>
-                  <el-button v-if="canEdit('数据预警')" link type="primary" @click="addCondition">+ 添加条件</el-button>
                 </div>
-              </div>
-              <div class="portal-vue-alert-field" style="margin-top:14px"><label>触发逻辑（按条件自动生成）</label><div class="portal-vue-alert-logic">{{ ruleText }}</div></div>
-              <div class="portal-vue-alert-field"><label>背后表达式</label><pre class="portal-vue-alert-sql">{{ alertSql }}</pre></div>
+              </el-form-item>
+              <el-form-item label="触发逻辑" class="portal-vue-alert-wide">
+                <div class="portal-vue-alert-logic">{{ ruleText }}</div>
+              </el-form-item>
+              <el-form-item label="背后表达式" class="portal-vue-alert-wide">
+                <pre class="portal-vue-alert-sql">{{ alertSql }}</pre>
+              </el-form-item>
             </section>
 
             <section class="portal-vue-alert-section">
-              <div class="portal-vue-alert-section-title">4 · 配置预警模版<span class="portal-vue-alert-section-hint">新的模版样式：标题 + 字段行，支持插入变量并实时预览</span></div>
-              <div class="portal-vue-alert-grid">
-                <div class="portal-vue-alert-field">
-                  <label>模版样式</label>
-                  <el-radio-group v-model="form.template.style">
-                    <el-radio v-for="style in templateStyles" :key="style.value" :value="style.value">{{ style.label }}</el-radio>
-                  </el-radio-group>
-                </div>
-              </div>
-              <div class="portal-vue-alert-field">
-                <label>通知标题</label>
-                <div class="portal-vue-alert-inline">
-                  <el-input v-model="form.template.title" maxlength="60" placeholder="例如：用户工作时间非公司环境登陆"></el-input>
-                  <el-button @click="insertTitleVariable">插入变量</el-button>
-                </div>
-              </div>
-              <div class="portal-vue-alert-field">
-                <label>通知内容</label>
+              <div class="portal-vue-alert-section-title">4 · 配置预警模版<span class="portal-vue-alert-section-hint">标题 + 内容行，支持插入变量并实时预览</span></div>
+              <el-form-item label="模版样式">
+                <el-radio-group v-model="form.template.style">
+                  <el-radio v-for="style in templateStyles" :key="style.value" :value="style.value">{{ style.label }}</el-radio>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item label="通知标题">
+                <el-input v-model="form.template.title" maxlength="60" placeholder="例如：用户工作时间非公司环境登陆"></el-input>
+              </el-form-item>
+              <el-form-item label="通知内容" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-tpl">
                   <div v-for="(line, index) in form.template.lines" :key="index" class="portal-vue-alert-tpl-row">
                     <el-input v-model="line.label" placeholder="字段名，例如：登陆时间"></el-input>
                     <el-input v-model="line.value" placeholder="值或变量，例如：{登陆时间}"></el-input>
-                    <el-select v-model="line.value" filterable placeholder="插入变量" class="portal-vue-alert-tpl-var" @change="value => { line.value = '{' + value + '}'; }">
-                      <el-option v-for="name in templateVariables" :key="name" :label="name" :value="name"></el-option>
-                    </el-select>
+                    <el-dropdown trigger="click" @command="name => insertVariable(index, name)">
+                      <el-button>插入变量</el-button>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item v-for="name in templateVariables" :key="name" :command="name">{{ name }}</el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
                     <el-button v-if="form.template.lines.length > 1" link type="danger" title="删除该行" @click="removeTemplateLine(index)">×</el-button>
                     <span v-else></span>
                   </div>
                   <el-button v-if="canEdit('数据预警')" link type="primary" @click="addTemplateLine">+ 添加内容行</el-button>
                 </div>
-              </div>
-              <div class="portal-vue-alert-field">
-                <label>推送效果预览</label>
+              </el-form-item>
+              <el-form-item label="推送效果预览" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-preview">
                   <div class="portal-vue-alert-preview-head"><span class="portal-vue-alert-preview-avatar">观</span><div><strong>{{ botName }}</strong><span>机器人 · 刚刚</span></div></div>
                   <div class="portal-vue-alert-preview-card" :class="'style-' + form.template.style">
@@ -3488,85 +3496,85 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                     <div class="portal-vue-alert-preview-foot">观星台 · 数据预警 · {{ modeSummary(form) }}</div>
                   </div>
                 </div>
-              </div>
+              </el-form-item>
             </section>
 
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">5 · 配置预警通道</div>
-              <div class="portal-vue-alert-bot"><span class="portal-vue-ai-bot-icon">🤖</span><div><strong>{{ botName }}</strong><span>已接入飞书，触发时按下方群与人员推送卡片消息</span></div><el-tag size="small" type="success" effect="light">已接入</el-tag></div>
-              <div class="portal-vue-alert-grid">
-                <div class="portal-vue-alert-field">
-                  <label>预警群</label>
-                  <el-select v-model="form.channel.groups" multiple filterable placeholder="选择要通知的飞书群">
-                    <el-option v-for="group in groupChoices" :key="group" :label="group" :value="group"></el-option>
-                  </el-select>
-                </div>
-                <div class="portal-vue-alert-field">
-                  <label>通知人</label>
-                  <el-select v-model="form.channel.users" multiple filterable placeholder="选择要通知的用户">
-                    <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
-                  </el-select>
-                </div>
-              </div>
-              <div class="portal-vue-alert-test">
-                <div class="portal-vue-alert-test-head"><strong>测试通道</strong><span class="portal-vue-muted">测试预警只发往测试通道，不会打扰正式预警群</span></div>
-                <div class="portal-vue-alert-grid">
-                  <div class="portal-vue-alert-field">
-                    <label>测试群</label>
-                    <el-select v-model="form.testChannel.groups" multiple filterable placeholder="选择测试群">
-                      <el-option v-for="group in testGroupChoices" :key="group" :label="group" :value="group"></el-option>
-                    </el-select>
+              <el-form-item label="飞书机器人" class="portal-vue-alert-wide">
+                <div class="portal-vue-alert-bot"><span class="portal-vue-ai-bot-icon">🤖</span><div><strong>{{ botName }}</strong><span>已接入飞书，触发时按下方群与人员推送卡片消息</span></div><el-tag size="small" type="success" effect="light">已接入</el-tag></div>
+              </el-form-item>
+              <el-form-item label="预警群">
+                <el-select v-model="form.channel.groups" multiple filterable placeholder="选择要通知的飞书群">
+                  <el-option v-for="group in groupChoices" :key="group" :label="group" :value="group"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="通知人">
+                <el-select v-model="form.channel.users" multiple filterable placeholder="选择要通知的用户">
+                  <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="测试通道" class="portal-vue-alert-wide">
+                <div class="portal-vue-alert-test">
+                  <div class="portal-vue-alert-test-head"><span class="portal-vue-muted">测试预警只发往测试通道，不会打扰正式预警群</span></div>
+                  <div class="portal-vue-alert-test-grid">
+                    <div class="portal-vue-alert-field">
+                      <label>测试群</label>
+                      <el-select v-model="form.testChannel.groups" multiple filterable placeholder="选择测试群">
+                        <el-option v-for="group in testGroupChoices" :key="group" :label="group" :value="group"></el-option>
+                      </el-select>
+                    </div>
+                    <div class="portal-vue-alert-field">
+                      <label>测试接收人</label>
+                      <el-select v-model="form.testChannel.users" multiple filterable placeholder="选择测试接收人">
+                        <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
+                      </el-select>
+                    </div>
                   </div>
-                  <div class="portal-vue-alert-field">
-                    <label>测试接收人</label>
-                    <el-select v-model="form.testChannel.users" multiple filterable placeholder="选择测试接收人">
-                      <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
-                    </el-select>
+                  <div class="portal-vue-alert-inline">
+                    <el-button :loading="testing" @click="sendTestAlert">发送测试预警</el-button>
+                    <span v-if="testResult" class="portal-vue-alert-ok">✓ {{ testResult }}</span>
+                    <span v-else class="portal-vue-muted">测试通道未配置时无法测试发送</span>
                   </div>
                 </div>
-                <div class="portal-vue-alert-inline">
-                  <el-button :loading="testing" @click="sendTestAlert">发送测试预警</el-button>
-                  <span v-if="testResult" class="portal-vue-alert-ok">✓ {{ testResult }}</span>
-                  <span v-else class="portal-vue-muted">测试通道未配置时无法测试发送</span>
-                </div>
-              </div>
+              </el-form-item>
             </section>
 
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">6 · 设置预警方式</div>
-              <div class="portal-vue-alert-grid">
-                <div class="portal-vue-alert-field">
-                  <label>预警方式</label>
-                  <el-radio-group v-model="form.mode">
-                    <el-radio value="realtime">实时（事件到达即计算并通知）</el-radio>
-                    <el-radio value="scheduled">定时（按调度周期扫描）</el-radio>
-                  </el-radio-group>
+              <el-form-item label="预警方式">
+                <el-radio-group v-model="form.mode">
+                  <el-radio value="realtime">实时（事件到达即计算并通知）</el-radio>
+                  <el-radio value="scheduled">定时（按调度周期扫描）</el-radio>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item v-if="form.mode === 'scheduled'" label="检查频率">
+                <el-select v-model="form.schedule.freq">
+                  <el-option v-for="item in freqChoices" :key="item" :label="item" :value="item"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item v-if="form.mode === 'scheduled'" label="执行时间">
+                <div v-if="form.schedule.freq === '每小时'" class="portal-vue-alert-inline">
+                  <span>每小时第</span>
+                  <el-input-number v-model="form.schedule.minute" :min="0" :max="59" controls-position="right"></el-input-number>
+                  <span>分钟执行</span>
                 </div>
-                <div v-if="form.mode === 'scheduled'" class="portal-vue-alert-field">
-                  <label>检查频率</label>
-                  <el-select v-model="form.schedule.freq"><el-option v-for="item in freqChoices" :key="item" :label="item" :value="item"></el-option></el-select>
-                </div>
-                <div v-if="form.mode === 'scheduled'" class="portal-vue-alert-field">
-                  <label>执行时间</label>
-                  <div v-if="form.schedule.freq === '每小时'" class="portal-vue-alert-inline"><span>每小时第</span><el-input-number v-model="form.schedule.minute" :min="0" :max="59" controls-position="right"></el-input-number><span>分钟执行</span></div>
-                  <el-time-picker v-else v-model="form.schedule.time" format="HH:mm" value-format="HH:mm" placeholder="选择时间"></el-time-picker>
-                </div>
-              </div>
-              <div class="portal-vue-alert-field">
-                <label>重复预警</label>
-                <div class="portal-vue-alert-inline">
+                <el-time-picker v-else v-model="form.schedule.time" format="HH:mm" value-format="HH:mm" placeholder="选择时间"></el-time-picker>
+              </el-form-item>
+              <el-form-item label="重复预警" class="portal-vue-alert-wide">
+                <div class="portal-vue-alert-stack">
                   <el-radio-group v-model="form.dedup.mode">
                     <el-radio v-for="item in dedupChoices" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
                   </el-radio-group>
+                  <div v-if="form.dedup.mode === 'interval'" class="portal-vue-alert-inline">
+                    <span>同一{{ keyFieldLabel }}相同问题每</span>
+                    <el-input-number v-model="form.dedup.intervalMinutes" :min="1" :max="1440" controls-position="right"></el-input-number>
+                    <span>分钟通知一次</span>
+                  </div>
                 </div>
-                <div v-if="form.dedup.mode === 'interval'" class="portal-vue-alert-inline" style="margin-top:8px">
-                  <span>同一{{ keyFieldLabel }}相同问题每</span>
-                  <el-input-number v-model="form.dedup.intervalMinutes" :min="1" :max="1440" controls-position="right"></el-input-number>
-                  <span>分钟通知一次</span>
-                </div>
-              </div>
+              </el-form-item>
             </section>
-          </div>
+          </el-form>
           <template #footer>
             <el-button @click="dialogVisible = false">取消</el-button>
             <el-button v-if="canEdit('数据预警')" type="primary" :loading="validating" @click="runValidation">校验并保存</el-button>
@@ -3729,6 +3737,19 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       },
       fieldsOfTable(tableName) { return this.monitorTables.find(table => table.name === tableName)?.fields || []; },
       ruleSummary(row) { return alertRuleText(row.conditions, row.relation, this.fieldsOfTable(row.table)); },
+      modeLabel(row) { return row.mode === "scheduled" ? "定时" : "实时"; },
+      scheduleSummary(row) {
+        if (row.mode !== "scheduled") return "事件到达即计算";
+        const schedule = row.schedule || {};
+        if (schedule.freq === "每小时") return "每小时第 " + (schedule.minute ?? 0) + " 分钟";
+        return (schedule.freq || "每天") + " " + (schedule.time || "09:00");
+      },
+      conditionCount(row) { return (row.conditions || []).length; },
+      templateStyleLabel(row) { return alertTemplateStyles.find(style => style.value === row.template?.style)?.label || "飞书卡片"; },
+      templateFieldSummary(row) {
+        const labels = (row.template?.lines || []).map(line => line.label).filter(Boolean);
+        return labels.length ? labels.length + " 行 · " + labels.join("、") : "未配置内容行";
+      },
       modeSummary(row) {
         if (row.mode === "scheduled") {
           const schedule = row.schedule || {};
