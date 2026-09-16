@@ -3407,7 +3407,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-button @click="categoryManagerVisible = true">管理分类</el-button>
                 </div>
               </el-form-item>
-              <el-form-item label="负责人">
+              <el-form-item label="负责人" prop="owner">
                 <el-select v-model="form.owner" filterable>
                   <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
                 </el-select>
@@ -3549,7 +3549,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">6 · 设置预警方式</div>
-              <el-form-item label="预警方式">
+              <el-form-item label="预警方式" prop="mode">
                 <el-radio-group v-model="form.mode">
                   <el-radio value="realtime">实时（事件到达即计算并通知）</el-radio>
                   <el-radio value="scheduled">定时（按调度周期扫描）</el-radio>
@@ -3573,7 +3573,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </div>
                 <el-time-picker v-else v-model="form.schedule.time" format="HH:mm" value-format="HH:mm" placeholder="选择时间"></el-time-picker>
               </el-form-item>
-              <el-form-item label="重复预警" class="portal-vue-alert-wide">
+              <el-form-item label="重复预警" class="portal-vue-alert-wide" prop="dedup.mode">
                 <el-radio-group v-model="form.dedup.mode">
                   <el-radio v-for="item in dedupChoices" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
                 </el-radio-group>
@@ -3654,6 +3654,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           "template.lines": [{ required: true, validator: this.validateTemplateLines, trigger: "change" }],
           "channel.groups": [{ required: true, type: "array", message: "请至少选择一个预警群", trigger: "change" }],
           "schedule.freq": [required("请选择检查频率")],
+          mode: [required("请选择预警方式")],
+          "dedup.mode": [required("请选择重复预警方式")],
           "schedule.weekday": [required("请选择执行日")],
           "schedule.time": [required("请选择执行时间")]
         };
