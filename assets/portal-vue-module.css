@@ -593,6 +593,7 @@
 
 /* 模版编辑器 */
 .portal-vue-alert-tpl { display: grid; gap: 8px; }
+.portal-vue-alert-tpl > .el-button { justify-self: start; }
 .portal-vue-alert-tpl-row { display: grid; grid-template-columns: 220px minmax(0, 1fr) 118px 32px; gap: 10px; align-items: center; }
 .portal-vue-alert-tpl-row .el-select,
 .portal-vue-alert-tpl-row .el-input { width: 100%; }
