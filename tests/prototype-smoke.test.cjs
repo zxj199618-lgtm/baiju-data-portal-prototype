@@ -157,6 +157,7 @@ assert(portalBridge.includes('name: "数据开放平台", badge: "2.0"'), "API�
 assert(portalBridge.includes('name: "表管理", badge: ["2.0", "3.0", "4.0"]') && portalBridge.includes('name: "标签管理", badge: "3.0"') && portalBridge.indexOf('name: "标签管理"') > portalBridge.indexOf('name: "表管理"') && portalBridge.indexOf('name: "维表管理"') > portalBridge.indexOf('name: "标签管理"'), "标签管理应紧跟表管理，位于维表管理之前");
 assert(portalBridge.includes('badge: "3.0", items: [{ name: "人群包推送渠道", badge: "3.0" }]'), "数据推送应标记 3.0");
 assert(portalVue.includes("navBadges("), "侧栏应支持同一菜单展示多个版本角标");
+assert(portalCss.includes(".portal-vue-menu .el-sub-menu__title { padding-right: 38px !important; }"), "侧栏分组标题需为展开/折叠箭头预留位置，避免版本角标遮挡");
 assert(!portalBridge.includes("isNew: true") && !portalVue.includes(">NEW</el-tag>"), "菜单不应再使用 NEW 角标");
 assert(portalVue.includes("设为维表") && portalVue.includes("关联字典") && portalVue.includes("portal-vue-dict-preview"), "表管理应支持设为维表并在关联字典时悬停预览");
 assert(portalVue.includes("设为标签表，保存后出现在「标签管理」"), "新建表应支持设为标签表且不配置导出字段");
