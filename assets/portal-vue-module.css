@@ -583,7 +583,7 @@
 .portal-vue-alert-relation::before { content: ""; position: absolute; top: 0; bottom: 0; right: 6px; width: 16px; border: 2px solid #c7d0dd; border-right: 0; border-radius: 8px 0 0 8px; }
 .portal-vue-alert-relation span { position: absolute; z-index: 1; top: 50%; right: 10px; display: inline-flex; width: 28px; height: 24px; align-items: center; justify-content: center; border-radius: 999px; background: #edf5ff; color: #1677ff; font-size: 12px; font-weight: 700; transform: translateY(-50%); }
 .portal-vue-alert-condition-list { min-width: 0; }
-.portal-vue-alert-condition-row { display: grid; grid-template-columns: 210px 150px minmax(240px, 380px) 32px; gap: 10px; align-items: center; min-height: 40px; margin-bottom: 10px; }
+.portal-vue-alert-condition-row { display: grid; grid-template-columns: 290px 150px minmax(240px, 380px) 32px; gap: 10px; align-items: center; min-height: 40px; margin-bottom: 10px; }
 .portal-vue-alert-condition-row .el-select,
 .portal-vue-alert-condition-row .el-input { width: 100%; }
 .portal-vue-alert-novalue { display: inline-flex; height: 32px; align-items: center; padding: 0 12px; border-radius: 6px; background: #f5f7fa; color: #98a2b3; font-size: 12px; }
