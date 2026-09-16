@@ -2984,9 +2984,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     }
   };
 
-  /* ===== 数据预警：选监控表 → 配预警规则 → 配预警模版 → 配预警通道 → 设预警方式 ===== */
+  /* ===== 数据告警：选监控表 → 配告警规则 → 配告警模版 → 配告警通道 → 设告警方式 ===== */
 
-  /* 监控埋点表：预警按事件流计算，字段同时作为规则条件与模版变量来源 */
+  /* 监控埋点表：告警按事件流计算，字段同时作为规则条件与模版变量来源 */
   const alertMonitorTables = [
     {
       name: "dwd_user_login_log", cn: "用户登录埋点", bizLine: "安全合规",
@@ -3012,7 +3012,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     {
       name: "dwd_board_share_log", cn: "看板分享埋点", bizLine: "安全合规",
-      desc: "看板/报告分享与访问事件流，用于外发风险预警",
+      desc: "看板/报告分享与访问事件流，用于外发风险告警",
       keyField: "user_name", timeField: "event_time",
       fields: [
         { name: "user_name", cn: "用户名", type: "VARCHAR" },
@@ -3030,7 +3030,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     {
       name: "dwd_data_export_log", cn: "数据导出埋点", bizLine: "安全合规",
-      desc: "数据导出/下载事件流，用于导出量与敏感字段预警",
+      desc: "数据导出/下载事件流，用于导出量与敏感字段告警",
       keyField: "user_name", timeField: "event_time",
       fields: [
         { name: "user_name", cn: "用户名", type: "VARCHAR" },
@@ -3048,7 +3048,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
   /* 条件算子：按字段类型收敛可用算子 */
   /* 条件算子按字段类型收敛，取值方式与「人群包」保持一致；
-     日期额外保留「时间范围」，用于表达工作时段类预警（人群包的相对/绝对时间覆盖不到）。 */
+     日期额外保留「时间范围」，用于表达工作时段类告警（人群包的相对/绝对时间覆盖不到）。 */
   const alertTypeOps = {
     "数值": [["gt", "大于"], ["lt", "小于"], ["eq", "等于"], ["gte", "大于等于"], ["lte", "小于等于"], ["between", "区间"], ["notnull", "有值"], ["isnull", "无值"]],
     "文本": [["eq", "等于"], ["ne", "不等于"], ["notnull", "有值"], ["isnull", "无值"]],
@@ -3120,11 +3120,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     between: " ", timeBetween: " "
   };
 
-  /* 预警分类：可在「分类管理」中维护（参照人群包需求分类的做法） */
+  /* 告警分类：可在「分类管理」中维护（参照人群包需求分类的做法） */
   const alertCategoryDefaults = ["账号安全", "数据外发", "数据质量", "业务波动"];
   const alertBotName = "观星台飞书机器人";
-  const alertGroupChoices = ["数据安全预警群", "投放运营群", "数据分析师群", "权益业务群", "高管数据群"];
-  const alertTestGroupChoices = ["预警测试群（仅自己）"];
+  const alertGroupChoices = ["数据安全告警群", "投放运营群", "数据分析师群", "权益业务群", "高管数据群"];
+  const alertTestGroupChoices = ["告警测试群（仅自己）"];
   const alertFreqChoices = ["每小时", "每天", "每周"];
   const alertWeekdayChoices = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   const alertTimeChoices = ["00:00", "08:00", "09:00", "10:00", "12:00", "18:00", "20:00"];
@@ -3142,7 +3142,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     "数据表": "dwd_user_order_detail", "导出格式": "xlsx", "导出行数": "128,430"
   };
 
-  /* 新建预警的初始表单：默认落在登录埋点表，实时计算 */
+  /* 新建告警的初始表单：默认落在登录埋点表，实时计算 */
   function createAlertForm() {
     const table = alertMonitorTables[0];
     return {
@@ -3198,8 +3198,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
-      channel: { groups: ["数据安全预警群"], users: ["曾祥竞"] },
-      testChannel: { groups: ["预警测试群（仅自己）"], users: ["曾祥竞"] },
+      channel: { groups: ["数据安全告警群"], users: ["曾祥竞"] },
+      testChannel: { groups: ["告警测试群（仅自己）"], users: ["曾祥竞"] },
       template: {
         style: "card", title: "用户工作时间非公司环境登陆",
         lines: [
@@ -3212,9 +3212,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       },
       enabled: true, lastTriggered: "2026-09-15 10:24", triggerCount: 12,
       history: [
-        { time: "2026-09-15 10:24", summary: "曾祥竞 工作时间从非公司环境登陆（广东省深圳市），已推送「数据安全预警群」", status: "已推送" },
-        { time: "2026-09-12 14:08", summary: "谭嘉颖 工作时间从非公司环境登陆（广东省广州市），已推送「数据安全预警群」", status: "已推送" },
-        { time: "2026-09-11 09:31", summary: "林金维 工作时间从非公司环境登陆（海南省海口市），已推送「数据安全预警群」", status: "已推送" }
+        { time: "2026-09-15 10:24", summary: "曾祥竞 工作时间从非公司环境登陆（广东省深圳市），已推送「数据安全告警群」", status: "已推送" },
+        { time: "2026-09-12 14:08", summary: "谭嘉颖 工作时间从非公司环境登陆（广东省广州市），已推送「数据安全告警群」", status: "已推送" },
+        { time: "2026-09-11 09:31", summary: "林金维 工作时间从非公司环境登陆（海南省海口市），已推送「数据安全告警群」", status: "已推送" }
       ]
     },
     {
@@ -3231,8 +3231,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
-      channel: { groups: ["数据安全预警群"], users: ["曾祥竞"] },
-      testChannel: { groups: ["预警测试群（仅自己）"], users: ["曾祥竞"] },
+      channel: { groups: ["数据安全告警群"], users: ["曾祥竞"] },
+      testChannel: { groups: ["告警测试群（仅自己）"], users: ["曾祥竞"] },
       template: {
         style: "card", title: "用户工作时间异地登陆",
         lines: [
@@ -3244,8 +3244,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       },
       enabled: true, lastTriggered: "2026-09-15 09:12", triggerCount: 7,
       history: [
-        { time: "2026-09-15 09:12", summary: "黄佩贤 工作时间异地登陆（广东省深圳市），已推送「数据安全预警群」", status: "已推送" },
-        { time: "2026-09-10 16:47", summary: "李雨航 工作时间异地登陆（北京市），已推送「数据安全预警群」", status: "已推送" }
+        { time: "2026-09-15 09:12", summary: "黄佩贤 工作时间异地登陆（广东省深圳市），已推送「数据安全告警群」", status: "已推送" },
+        { time: "2026-09-10 16:47", summary: "李雨航 工作时间异地登陆（北京市），已推送「数据安全告警群」", status: "已推送" }
       ]
     },
     {
@@ -3260,8 +3260,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
-      channel: { groups: ["数据安全预警群", "投放运营群"], users: ["黄佩贤"] },
-      testChannel: { groups: ["预警测试群（仅自己）"], users: ["黄佩贤"] },
+      channel: { groups: ["数据安全告警群", "投放运营群"], users: ["黄佩贤"] },
+      testChannel: { groups: ["告警测试群（仅自己）"], users: ["黄佩贤"] },
       template: {
         style: "card", title: "用户新设备登陆",
         lines: [
@@ -3274,7 +3274,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       },
       enabled: true, lastTriggered: "2026-09-14 20:31", triggerCount: 4,
       history: [
-        { time: "2026-09-14 20:31", summary: "林金维 在新设备 DEV-8f3c21a9 登陆（广东省广州市），已推送「数据安全预警群」", status: "已推送" },
+        { time: "2026-09-14 20:31", summary: "林金维 在新设备 DEV-8f3c21a9 登陆（广东省广州市），已推送「数据安全告警群」", status: "已推送" },
         { time: "2026-09-08 11:02", summary: "谭嘉颖 在新设备 DEV-2b71e0c4 登陆（广东省佛山市），已推送「投放运营群」", status: "已推送" }
       ]
     },
@@ -3289,8 +3289,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
-      channel: { groups: ["数据安全预警群"], users: ["李雨航"] },
-      testChannel: { groups: ["预警测试群（仅自己）"], users: ["李雨航"] },
+      channel: { groups: ["数据安全告警群"], users: ["李雨航"] },
+      testChannel: { groups: ["告警测试群（仅自己）"], users: ["李雨航"] },
       template: {
         style: "card", title: "用户微信环境登陆",
         lines: [
@@ -3303,7 +3303,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       },
       enabled: true, lastTriggered: "2026-09-13 18:55", triggerCount: 3,
       history: [
-        { time: "2026-09-13 18:55", summary: "王鑫宇 从微信内置浏览器登陆（广东省广州市），已推送「数据安全预警群」", status: "已推送" }
+        { time: "2026-09-13 18:55", summary: "王鑫宇 从微信内置浏览器登陆（广东省广州市），已推送「数据安全告警群」", status: "已推送" }
       ]
     },
     {
@@ -3317,8 +3317,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
-      channel: { groups: ["数据安全预警群"], users: ["曾祥竞"] },
-      testChannel: { groups: ["预警测试群（仅自己）"], users: ["曾祥竞"] },
+      channel: { groups: ["数据安全告警群"], users: ["曾祥竞"] },
+      testChannel: { groups: ["告警测试群（仅自己）"], users: ["曾祥竞"] },
       template: {
         style: "card", title: "用户今日多设备登陆",
         lines: [
@@ -3329,20 +3329,20 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       },
       enabled: true, lastTriggered: "2026-09-15 11:40", triggerCount: 9,
       history: [
-        { time: "2026-09-15 11:40", summary: "谭嘉颖 今日已在 2 台设备登陆（最近登陆 11:40），已推送「数据安全预警群」", status: "已推送" },
-        { time: "2026-09-15 10:18", summary: "林金维 今日已在 3 台设备登陆（最近登陆 10:18），已推送「数据安全预警群」", status: "已推送" }
+        { time: "2026-09-15 11:40", summary: "谭嘉颖 今日已在 2 台设备登陆（最近登陆 11:40），已推送「数据安全告警群」", status: "已推送" },
+        { time: "2026-09-15 10:18", summary: "林金维 今日已在 3 台设备登陆（最近登陆 10:18），已推送「数据安全告警群」", status: "已推送" }
       ]
     }
   ];
 
-  /* 数据预警：配置式规则（选表 → 规则 → 模版 → 通道 → 方式），推送走观星台飞书机器人 */
+  /* 数据告警：配置式规则（选表 → 规则 → 模版 → 通道 → 方式），推送走观星台飞书机器人 */
   const AlertManagementApp = {
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left">
-              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索预警名称、监控表或分类"></el-input>
+              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索告警名称、监控表或分类"></el-input>
               <el-select v-model="categoryFilter" clearable placeholder="全部分类" style="width:150px">
                 <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
               </el-select>
@@ -3361,11 +3361,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </div>
             <div class="portal-vue-actions">
               <el-button @click="categoryManagerVisible = true">分类管理</el-button>
-              <el-button v-if="canEdit('数据预警')" type="primary" @click="openCreate">＋ 新建预警</el-button>
+              <el-button v-if="canEdit('数据告警')" type="primary" @click="openCreate">＋ 新建告警</el-button>
             </div>
           </div>
-          <el-table :data="filteredRows" class="portal-vue-table portal-vue-alert-table" border empty-text="暂无预警数据，点右上角「新建预警」配置规则">
-            <el-table-column label="预警名称" min-width="180" fixed="left">
+          <el-table :data="filteredRows" class="portal-vue-table portal-vue-alert-table" border empty-text="暂无告警数据，点右上角「新建告警」配置规则">
+            <el-table-column label="告警名称" min-width="180" fixed="left">
               <template #default="scope">
                 <div class="portal-vue-alert-cell-name">{{ scope.row.name }}</div>
               </template>
@@ -3397,7 +3397,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div class="portal-vue-alert-cell-rule">{{ ruleSummary(scope.row) }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="预警方式" width="104">
+            <el-table-column label="告警方式" width="104">
               <template #default="scope">
                 <el-tag size="small" :type="scope.row.mode === 'realtime' ? 'primary' : 'warning'" effect="plain">{{ modeLabel(scope.row) }}</el-tag>
                 <div v-if="scope.row.mode === 'scheduled'" class="portal-vue-muted portal-vue-alert-cell-sub">{{ scheduleSummary(scope.row) }}</div>
@@ -3429,35 +3429,35 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </el-table-column>
             <el-table-column label="状态" width="88" align="center">
               <template #default="scope">
-                <el-switch :disabled="!canEdit('数据预警')" v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch>
+                <el-switch :disabled="!canEdit('数据告警')" v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="96" fixed="right">
               <template #default="scope">
                 <div class="portal-vue-actions">
-                  <el-button v-if="canEdit('数据预警')" link type="primary" @click="openEdit(scope.row)">编辑</el-button>
-                  <el-button v-if="canEdit('数据预警')" link type="danger" @click="removeAlert(scope.row)">删除</el-button>
+                  <el-button v-if="canEdit('数据告警')" link type="primary" @click="openEdit(scope.row)">编辑</el-button>
+                  <el-button v-if="canEdit('数据告警')" link type="danger" @click="removeAlert(scope.row)">删除</el-button>
                 </div>
               </template>
             </el-table-column>
           </el-table>
-          <div class="portal-vue-muted" style="margin-top:12px">预警基于埋点事件流计算，实时方式在事件到达时判定并推送；推送统一走内置「{{ botName }}」。</div>
+          <div class="portal-vue-muted" style="margin-top:12px">告警基于埋点事件流计算，实时方式在事件到达时判定并推送；推送统一走内置「{{ botName }}」。</div>
         </section>
 
         <el-dialog v-model="dialogVisible" fullscreen class="portal-vue-fullscreen-dialog" :close-on-click-modal="false">
           <template #header>
             <div class="portal-vue-alert-dialog-head">
               <el-button link class="portal-vue-alert-back" @click="dialogVisible = false"><span class="portal-vue-alert-back-arrow">←</span> 返回</el-button>
-              <span class="portal-vue-alert-dialog-title">{{ (editingId ? '编辑' : '新建') + '数据预警' }}</span>
+              <span class="portal-vue-alert-dialog-title">{{ (editingId ? '编辑' : '新建') + '数据告警' }}</span>
             </div>
           </template>
           <el-form ref="formRef" :model="form" :rules="formRules" label-position="left" label-width="170px" class="portal-vue-alert-form">
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">1 · 基本信息</div>
-              <el-form-item label="预警名称" prop="name">
+              <el-form-item label="告警名称" prop="name">
                 <el-input v-model="form.name" maxlength="50" show-word-limit placeholder="例如：用户工作时间非公司环境登陆"></el-input>
               </el-form-item>
-              <el-form-item label="预警分类" prop="category">
+              <el-form-item label="告警分类" prop="category">
                 <div class="portal-vue-alert-inline">
                   <el-select v-model="form.category" filterable allow-create default-first-option placeholder="选择或输入分类">
                     <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
@@ -3471,12 +3471,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </el-select>
               </el-form-item>
               <el-form-item label="需求人" prop="requester">
-                <el-select v-model="form.requester" filterable placeholder="选择提出该预警需求的同事">
+                <el-select v-model="form.requester" filterable placeholder="选择提出该告警需求的同事">
                   <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
                 </el-select>
               </el-form-item>
-              <el-form-item label="预警说明">
-                <el-input v-model="form.desc" type="textarea" :rows="2" maxlength="200" show-word-limit placeholder="说明这条预警监控什么、触发后会通知谁"></el-input>
+              <el-form-item label="告警说明">
+                <el-input v-model="form.desc" type="textarea" :rows="2" maxlength="200" show-word-limit placeholder="说明这条告警监控什么、触发后会通知谁"></el-input>
               </el-form-item>
             </section>
 
@@ -3490,7 +3490,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </section>
 
             <section class="portal-vue-alert-section">
-              <div class="portal-vue-alert-section-title">3 · 配置预警规则</div>
+              <div class="portal-vue-alert-section-title">3 · 配置告警规则</div>
               <el-form-item label="触发条件" prop="conditions" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-rule">
                   <button type="button" class="portal-vue-alert-relation" aria-label="切换条件关系" @click="toggleRelation"><span>{{ form.relation === 'AND' ? '且' : '或' }}</span></button>
@@ -3527,14 +3527,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                       <el-button v-if="form.conditions.length > 1" link type="danger" title="删除条件" @click="removeCondition(index)">×</el-button>
                       <span v-else></span>
                     </div>
-                    <el-button v-if="canEdit('数据预警')" link type="primary" @click="addCondition">+ 添加条件</el-button>
+                    <el-button v-if="canEdit('数据告警')" link type="primary" @click="addCondition">+ 添加条件</el-button>
                   </div>
                 </div>
               </el-form-item>
             </section>
 
             <section class="portal-vue-alert-section">
-              <div class="portal-vue-alert-section-title">4 · 配置预警模版<span class="portal-vue-alert-section-hint">标题 + 内容行，支持插入变量并实时预览</span></div>
+              <div class="portal-vue-alert-section-title">4 · 配置告警模版<span class="portal-vue-alert-section-hint">标题 + 内容行，支持插入变量并实时预览</span></div>
               <el-form-item label="通知标题" prop="template.title">
                 <el-input v-model="form.template.title" maxlength="60" placeholder="例如：用户工作时间非公司环境登陆"></el-input>
               </el-form-item>
@@ -3554,7 +3554,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                     <el-button v-if="form.template.lines.length > 1" link type="danger" title="删除该行" @click="removeTemplateLine(index)">×</el-button>
                     <span v-else></span>
                   </div>
-                  <el-button v-if="canEdit('数据预警')" link type="primary" @click="addTemplateLine">+ 添加内容行</el-button>
+                  <el-button v-if="canEdit('数据告警')" link type="primary" @click="addTemplateLine">+ 添加内容行</el-button>
                 </div>
               </el-form-item>
               <el-form-item label="推送效果预览" class="portal-vue-alert-wide">
@@ -3565,18 +3565,18 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                     <div class="portal-vue-alert-preview-body">
                       <div v-for="(line, index) in previewLines" :key="index" class="portal-vue-alert-preview-line"><span>{{ line.label }}</span><b>{{ line.text }}</b></div>
                     </div>
-                    <div class="portal-vue-alert-preview-foot">观星台 · 数据预警 · {{ modeSummary(form) }}</div>
+                    <div class="portal-vue-alert-preview-foot">观星台 · 数据告警 · {{ modeSummary(form) }}</div>
                   </div>
                 </div>
               </el-form-item>
             </section>
 
             <section class="portal-vue-alert-section">
-              <div class="portal-vue-alert-section-title">5 · 配置预警通道</div>
+              <div class="portal-vue-alert-section-title">5 · 配置告警通道</div>
               <el-form-item label="飞书机器人" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-bot"><span class="portal-vue-ai-bot-icon">🤖</span><div><strong>{{ botName }}</strong><span>已接入飞书，触发时按下方群与人员推送卡片消息</span></div><el-tag size="small" type="success" effect="light">已接入</el-tag></div>
               </el-form-item>
-              <el-form-item label="预警群" prop="channel.groups">
+              <el-form-item label="告警群" prop="channel.groups">
                 <el-select v-model="form.channel.groups" multiple filterable placeholder="选择要通知的飞书群">
                   <el-option v-for="group in groupChoices" :key="group" :label="group" :value="group"></el-option>
                 </el-select>
@@ -3588,7 +3588,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </el-form-item>
               <el-form-item label="测试通道" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-test">
-                  <div class="portal-vue-alert-test-head"><span class="portal-vue-muted">测试预警只发往测试通道，不会打扰正式预警群</span></div>
+                  <div class="portal-vue-alert-test-head"><span class="portal-vue-muted">测试告警只发往测试通道，不会打扰正式告警群</span></div>
                   <div class="portal-vue-alert-test-grid">
                     <div class="portal-vue-alert-field">
                       <label>测试群</label>
@@ -3604,7 +3604,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                     </div>
                   </div>
                   <div class="portal-vue-alert-inline">
-                    <el-button :loading="testing" @click="sendTestAlert">发送测试预警</el-button>
+                    <el-button :loading="testing" @click="sendTestAlert">发送测试告警</el-button>
                     <span v-if="testResult" class="portal-vue-alert-ok">✓ {{ testResult }}</span>
                     <span v-else class="portal-vue-muted">测试通道未配置时无法测试发送</span>
                   </div>
@@ -3613,8 +3613,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </section>
 
             <section class="portal-vue-alert-section">
-              <div class="portal-vue-alert-section-title">6 · 设置预警方式</div>
-              <el-form-item label="预警方式" prop="mode">
+              <div class="portal-vue-alert-section-title">6 · 设置告警方式</div>
+              <el-form-item label="告警方式" prop="mode">
                 <el-radio-group v-model="form.mode">
                   <el-radio value="realtime">实时（事件到达即计算并通知）</el-radio>
                   <el-radio value="scheduled">定时（按调度周期扫描）</el-radio>
@@ -3638,7 +3638,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </div>
                 <el-time-picker v-else v-model="form.schedule.time" format="HH:mm" value-format="HH:mm" placeholder="选择时间"></el-time-picker>
               </el-form-item>
-              <el-form-item label="重复预警" class="portal-vue-alert-wide" prop="dedup.mode">
+              <el-form-item label="重复告警" class="portal-vue-alert-wide" prop="dedup.mode">
                 <el-radio-group v-model="form.dedup.mode">
                   <el-radio v-for="item in dedupChoices" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
                 </el-radio-group>
@@ -3647,11 +3647,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <el-select v-model="form.keyField" filterable placeholder="选择用于判断是否重复的字段">
                   <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
                 </el-select>
-                <div class="portal-vue-alert-hint">用来判断"是不是同一个问题"：同一<b>{{ keyFieldLabel }}</b>触发本预警只算同一条，再按上面的重复规则决定要不要再次通知。例如主体字段选「用户名」，则同一用户的多次触发会按规则合并，不同用户各算一条。</div>
+                <div class="portal-vue-alert-hint">用来判断"是不是同一个问题"：同一<b>{{ keyFieldLabel }}</b>触发本告警只算同一条，再按上面的重复规则决定要不要再次通知。例如主体字段选「用户名」，则同一用户的多次触发会按规则合并，不同用户各算一条。</div>
               </el-form-item>
               <el-form-item v-if="form.dedup.mode === 'interval'" label="重复间隔">
                 <div class="portal-vue-alert-inline">
-                  <span>同一{{ keyFieldLabel }}在本预警内每</span>
+                  <span>同一{{ keyFieldLabel }}在本告警内每</span>
                   <el-input-number v-model="form.dedup.intervalMinutes" :min="1" :max="1440" controls-position="right"></el-input-number>
                   <span>分钟通知一次</span>
                 </div>
@@ -3660,11 +3660,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           </el-form>
           <template #footer>
             <el-button @click="dialogVisible = false">取消</el-button>
-            <el-button v-if="canEdit('数据预警')" type="primary" :loading="saving" @click="saveAlert">保存预警</el-button>
+            <el-button v-if="canEdit('数据告警')" type="primary" :loading="saving" @click="saveAlert">保存告警</el-button>
           </template>
         </el-dialog>
 
-        <el-dialog v-model="categoryManagerVisible" title="管理预警分类" width="520px">
+        <el-dialog v-model="categoryManagerVisible" title="管理告警分类" width="520px">
           <div class="portal-vue-alert-inline">
             <el-input v-model="categoryDraft" maxlength="20" placeholder="输入新的分类名称"></el-input>
             <el-button type="primary" @click="addCategory">添加</el-button>
@@ -3672,8 +3672,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           <div class="portal-vue-alert-cats">
             <div v-for="item in managedCategories" :key="item" class="portal-vue-alert-cat">
               <span>{{ item }}</span>
-              <span class="portal-vue-muted">{{ countByCategory(item) }} 条预警</span>
-              <el-button v-if="canEdit('数据预警')" link type="danger" @click="removeCategory(item)">删除</el-button>
+              <span class="portal-vue-muted">{{ countByCategory(item) }} 条告警</span>
+              <el-button v-if="canEdit('数据告警')" link type="danger" @click="removeCategory(item)">删除</el-button>
             </div>
           </div>
           <template #footer><el-button @click="categoryManagerVisible = false">关闭</el-button></template>
@@ -3708,8 +3708,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       formRules() {
         const required = message => ({ required: true, message, trigger: "change" });
         return {
-          name: [{ required: true, message: "请填写预警名称", trigger: "blur" }],
-          category: [required("请选择预警分类")],
+          name: [{ required: true, message: "请填写告警名称", trigger: "blur" }],
+          category: [required("请选择告警分类")],
           owner: [required("请选择负责人")],
           requester: [required("请选择需求人")],
           table: [required("请选择监控表")],
@@ -3717,10 +3717,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           conditions: [{ required: true, validator: this.validateConditions, trigger: "change" }],
           "template.title": [{ required: true, message: "请填写通知标题", trigger: "blur" }],
           "template.lines": [{ required: true, validator: this.validateTemplateLines, trigger: "change" }],
-          "channel.groups": [{ required: true, type: "array", message: "请至少选择一个预警群", trigger: "change" }],
+          "channel.groups": [{ required: true, type: "array", message: "请至少选择一个告警群", trigger: "change" }],
           "schedule.freq": [required("请选择检查频率")],
-          mode: [required("请选择预警方式")],
-          "dedup.mode": [required("请选择重复预警方式")],
+          mode: [required("请选择告警方式")],
+          "dedup.mode": [required("请选择重复告警方式")],
           "schedule.weekday": [required("请选择执行日")],
           "schedule.time": [required("请选择执行时间")]
         };
@@ -3827,17 +3827,17 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if (this.managedCategories.includes(name)) return ep.ElMessage.warning("该分类已存在");
         this.savedCategories.push(name);
         this.categoryDraft = "";
-        notify("已添加预警分类「" + name + "」");
+        notify("已添加告警分类「" + name + "」");
       },
       async removeCategory(category) {
         const used = this.countByCategory(category);
-        const note = used ? "，当前有 " + used + " 条预警正在使用" : "";
-        if (!await confirmAction("删除预警分类", "确认删除分类「" + category + "」" + note + "？", "删除")) return;
+        const note = used ? "，当前有 " + used + " 条告警正在使用" : "";
+        if (!await confirmAction("删除告警分类", "确认删除分类「" + category + "」" + note + "？", "删除")) return;
         this.savedCategories = this.savedCategories.filter(item => item !== category);
         this.alerts.forEach(item => { if (item.category === category) item.category = ""; });
         if (this.form.category === category) this.form.category = "";
         this.persistAlerts();
-        notify("预警分类已删除");
+        notify("告警分类已删除");
       },
       openCreate() {
         this.editingId = "";
@@ -3906,8 +3906,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         setTimeout(() => {
           this.testing = false;
           const target = [...(channel.groups || []), ...(channel.users || [])].join("、");
-          this.testResult = "测试预警已发送至 " + target + "，请确认收到后再保存";
-          ep.ElMessage.success("测试预警已发送");
+          this.testResult = "测试告警已发送至 " + target + "，请确认收到后再保存";
+          ep.ElMessage.success("测试告警已发送");
         }, 800);
       },
       revalidate(prop) {
@@ -3986,16 +3986,16 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.persistAlerts();
         this.saving = false;
         this.dialogVisible = false;
-        notify("预警「" + payload.name + "」已保存" + (this.editingId ? "并更新" : "，飞书机器人将按配置推送"));
+        notify("告警「" + payload.name + "」已保存" + (this.editingId ? "并更新" : "，飞书机器人将按配置推送"));
       },
-      toggleEnabled(row) { notify("预警「" + row.name + "」已" + (row.enabled ? "启用，触发时将推送飞书" : "停用，不再推送")); },
+      toggleEnabled(row) { notify("告警「" + row.name + "」已" + (row.enabled ? "启用，触发时将推送飞书" : "停用，不再推送")); },
       async removeAlert(row) {
         try {
-          await ep.ElMessageBox.confirm("删除后该预警将停止推送，确认删除「" + row.name + "」？", "删除预警", { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" });
+          await ep.ElMessageBox.confirm("删除后该告警将停止推送，确认删除「" + row.name + "」？", "删除告警", { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" });
         } catch (error) { return; }
         this.alerts = this.alerts.filter(item => item.id !== row.id);
         this.persistAlerts();
-        notify("预警「" + row.name + "」已删除");
+        notify("告警「" + row.name + "」已删除");
       },
       openHistory(row) { this.historyTitle = row.name; this.historyRows = row.history || []; this.historyVisible = true; }
     },

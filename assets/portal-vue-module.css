@@ -539,7 +539,7 @@
 .el-dialog.portal-vue-fullscreen-dialog .el-dialog__footer { flex: none; border-top: 1px solid #eef1f6; padding: 12px 20px; }
 .el-dialog.portal-vue-fullscreen-dialog .el-dialog__header { padding-bottom: 14px; border-bottom: 1px solid #eef1f6; margin-right: 0; }
 
-/* 数据预警 */
+/* 数据告警 */
 .portal-vue-alert-step { display: flex; align-items: center; gap: 10px; }
 .portal-vue-alert-step b { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #1677ff; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
 .portal-vue-alert-step strong { display: block; font-size: 14px; color: #1f2733; line-height: 22px; }
@@ -556,7 +556,7 @@
 .portal-vue-alert-bot span { display: block; font-size: 12px; }
 .portal-vue-alert-bot .el-tag { margin-left: auto; }
 
-/* 数据预警：单列表单（一个字段一行，左标签 + 右输入框，对齐人群包表单） */
+/* 数据告警：单列表单（一个字段一行，左标签 + 右输入框，对齐人群包表单） */
 .portal-vue-alert-dialog-head { display: flex; align-items: center; gap: 14px; }
 .portal-vue-alert-back { height: auto; padding: 0; color: #566174; font-size: 14px; font-weight: 500; }
 .portal-vue-alert-back:hover { color: #1677ff; }
@@ -578,7 +578,7 @@
 .portal-vue-alert-inline > .el-select,
 .portal-vue-alert-inline > .el-input { flex: 1 1 auto; min-width: 0; }
 .portal-vue-alert-inline > span { color: #566174; font-size: 13px; }
-/* 表单内联行（如预警分类 + 管理分类）：下拉不撑满，按钮保持同行 */
+/* 表单内联行（如告警分类 + 管理分类）：下拉不撑满，按钮保持同行 */
 .portal-vue-alert-form .portal-vue-alert-inline > .el-select { flex: 0 0 300px; }
 .portal-vue-alert-form .portal-vue-alert-inline > .el-input { flex: 0 1 300px; }
 /* 表单项下方的说明文案：强制独占一行，避免与控件挤在同一行 */
@@ -631,7 +631,7 @@
 .portal-vue-alert-cat { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #e9edf4; border-radius: 8px; }
 .portal-vue-alert-cat > span:first-child { color: #1f2733; font-size: 13px; font-weight: 650; }
 
-/* 数据预警列表：每格最多两行，只保留必要信息 */
+/* 数据告警列表：每格最多两行，只保留必要信息 */
 .portal-vue-alert-table .portal-vue-alert-cell-name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .portal-vue-alert-table .portal-vue-alert-cell-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 4px; font-size: 12px; }
 .portal-vue-alert-table .portal-vue-alert-cell-sub { font-size: 12px; margin-top: 3px; }

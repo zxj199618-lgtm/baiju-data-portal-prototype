@@ -232,25 +232,25 @@ assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("Mode
 assert(portalVue.includes("v1/model-config") && portalVue.includes("已禁用"), "模型配置应支持禁用历史模型并持久化到网关");
 assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCascadeOptions") && portalVue.includes("activeTablePath") && portalVue.includes("changeTablePath") && portalVue.includes("<el-cascader"), "数据表选择应使用单个业务线到数据表的级联下拉");
 assert(!portalVue.includes("portal-vue-ai-cascade-grid") && !portalVue.includes("activeBizLine") && !portalVue.includes("filteredTableOptions") && !portalVue.includes("changeBizLine"), "数据表选择不应保留拆分的业务线/数据表下拉");
-assert(portalBridge.includes('name: "数据预警"') && portalBridge.includes('icon: "alert"'), "侧边栏应在数据资产上方提供数据预警菜单");
-assert(html.includes('id="alertManagementView"') && portalVue.includes('mount("#alertManagementView"'), "数据预警应挂载独立视图");
-assert(portalVue.includes("AlertManagementApp") && portalVue.includes("alertMonitorTables") && portalVue.includes("选择监控表"), "数据预警应按「选择监控表 → 配置规则」的配置式流程创建");
-assert(portalVue.includes("alertTypeOps") && portalVue.includes("alertOpsOf") && portalVue.includes("toggleRelation") && portalVue.includes("addCondition") && portalVue.includes("portal-vue-alert-rule"), "数据预警应提供且/或条件构建器");
+assert(portalBridge.includes('name: "数据告警"') && portalBridge.includes('icon: "alert"'), "侧边栏应在数据资产上方提供数据告警菜单");
+assert(html.includes('id="alertManagementView"') && portalVue.includes('mount("#alertManagementView"'), "数据告警应挂载独立视图");
+assert(portalVue.includes("AlertManagementApp") && portalVue.includes("alertMonitorTables") && portalVue.includes("选择监控表"), "数据告警应按「选择监控表 → 配置规则」的配置式流程创建");
+assert(portalVue.includes("alertTypeOps") && portalVue.includes("alertOpsOf") && portalVue.includes("toggleRelation") && portalVue.includes("addCondition") && portalVue.includes("portal-vue-alert-rule"), "数据告警应提供且/或条件构建器");
 assert(portalVue.includes(String.raw`"数值": [["gt", "大于"]`) && portalVue.includes(String.raw`"布尔": [["true", "是"]`) && portalVue.includes(String.raw`"日期": [["timeBetween", "时间范围"]`), "条件算子应按字段类型收敛，算子集合与人群包保持一致");
-assert(!portalVue.includes("触发逻辑") && !portalVue.includes("背后表达式") && !portalVue.includes("alertSql"), "数据预警表单不应再展示触发逻辑与背后表达式");
+assert(!portalVue.includes("触发逻辑") && !portalVue.includes("背后表达式") && !portalVue.includes("alertSql"), "数据告警表单不应再展示触发逻辑与背后表达式");
 assert(portalVue.includes("ruleSummary") && portalVue.includes("alertRuleText"), "触发条件摘要仍应保留用于列表展示");
-assert(portalVue.includes("portal-vue-alert-preview") && portalVue.includes("insertVariable") && portalVue.includes("insertTitleVariable"), "数据预警应提供变量插入与推送效果预览");
-assert(!portalVue.includes("alertTemplateStyles") && !portalVue.includes("模版样式"), "数据预警不应再提供模版样式选择（当前版本不支持）");
-assert(portalVue.includes("观星台飞书机器人") && portalVue.includes("预警群") && portalVue.includes("alertGroupChoices"), "数据预警应通过观星台飞书机器人选择群");
-assert(portalVue.includes("sendTestAlert") && portalVue.includes("testChannel") && portalVue.includes("测试通道"), "数据预警应支持配置测试通道并测试发送预警");
-assert(portalVue.includes("预警方式") && portalVue.includes("realtime") && portalVue.includes("scheduled") && portalVue.includes("modeSummary"), "数据预警应支持实时与定时两种预警方式");
-assert(portalVue.includes("alertCategoryDefaults") && portalVue.includes("categoryManagerVisible") && portalVue.includes("addCategory"), "数据预警应支持预警分类配置与分类管理");
+assert(portalVue.includes("portal-vue-alert-preview") && portalVue.includes("insertVariable") && portalVue.includes("insertTitleVariable"), "数据告警应提供变量插入与推送效果预览");
+assert(!portalVue.includes("alertTemplateStyles") && !portalVue.includes("模版样式"), "数据告警不应再提供模版样式选择（当前版本不支持）");
+assert(portalVue.includes("观星台飞书机器人") && portalVue.includes("告警群") && portalVue.includes("alertGroupChoices"), "数据告警应通过观星台飞书机器人选择群");
+assert(portalVue.includes("sendTestAlert") && portalVue.includes("testChannel") && portalVue.includes("测试通道"), "数据告警应支持配置测试通道并测试发送告警");
+assert(portalVue.includes("告警方式") && portalVue.includes("realtime") && portalVue.includes("scheduled") && portalVue.includes("modeSummary"), "数据告警应支持实时与定时两种告警方式");
+assert(portalVue.includes("alertCategoryDefaults") && portalVue.includes("categoryManagerVisible") && portalVue.includes("addCategory"), "数据告警应支持告警分类配置与分类管理");
 assert(portalVue.includes("alertWeekdayChoices") && portalVue.includes('label="执行日"') && portalVue.includes('"schedule.weekday"'), "检查频率为每周时应先选择执行日（周几）");
-assert(portalVue.includes("alertDedupChoices") && portalVue.includes("intervalMinutes") && portalVue.includes("dedupSummary"), "重复预警是否再次通知、按什么间隔通知应可配置");
-assert(portalVue.includes("formRules") && portalVue.includes("validateConditions") && portalVue.includes("validateTemplateLines") && portalVue.includes("saveAlert"), "数据预警应在表单内做必填校验并直接保存");
-assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验并保存"), "数据预警不应再使用独立的校验弹窗");
+assert(portalVue.includes("alertDedupChoices") && portalVue.includes("intervalMinutes") && portalVue.includes("dedupSummary"), "重复告警是否再次通知、按什么间隔通知应可配置");
+assert(portalVue.includes("formRules") && portalVue.includes("validateConditions") && portalVue.includes("validateTemplateLines") && portalVue.includes("saveAlert"), "数据告警应在表单内做必填校验并直接保存");
+assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验并保存"), "数据告警不应再使用独立的校验弹窗");
 ["prop=\"name\"", "prop=\"category\"", "prop=\"keyField\"", "prop=\"conditions\"", "prop=\"template.lines\"", "prop=\"channel.groups\""].forEach(prop => {
-  assert(portalVue.includes(prop), `数据预警必填字段应绑定 prop 以渲染必填标记：${prop}`);
+  assert(portalVue.includes(prop), `数据告警必填字段应绑定 prop 以渲染必填标记：${prop}`);
 });
 [
   "用户工作时间非公司环境登陆",
@@ -258,22 +258,22 @@ assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验�
   "用户新设备登陆",
   "用户微信环境登陆",
   "用户今日多设备登陆"
-].forEach(name => assert(portalVue.includes(name), `应内置登录与设备类预警规则：${name}`));
-["分类", "监控表", "预警方式", "重复通知", "累计触发"].forEach(label => {
-  assert(portalVue.includes(`<el-table-column label="${label}"`), `数据预警列表应把「${label}」拆成独立列`);
+].forEach(name => assert(portalVue.includes(name), `应内置登录与设备类告警规则：${name}`));
+["分类", "监控表", "告警方式", "重复通知", "累计触发"].forEach(label => {
+  assert(portalVue.includes(`<el-table-column label="${label}"`), `数据告警列表应把「${label}」拆成独立列`);
 });
 assert(portalVue.includes('label="状态" width="88"'), "状态列宽需容纳开关，避免单元格溢出被省略号截断");
-assert(portalVue.includes("portal-vue-alert-cell-name"), "数据预警列表名称列应有独立样式");
+assert(portalVue.includes("portal-vue-alert-cell-name"), "数据告警列表名称列应有独立样式");
 assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("是不是同一个问题"), "主体字段应提供说明文案，帮助理解重复判断口径");
 assert(portalVue.includes('class="portal-vue-alert-preview-avatar" src="assets/momentx-observatory-icon.png"'), "推送效果预览的头像应使用观星台品牌图标");
-assert(portalVue.includes("portal-vue-alert-dialog-head") && portalVue.includes("portal-vue-alert-back"), "数据预警编辑弹窗左上角应提供返回按钮");
-assert(portalVue.includes('label="负责人" prop="owner"') && portalVue.includes('label="预警方式" prop="mode"') && portalVue.includes('prop="dedup.mode"'), "负责人/预警方式/重复预警均应绑定 prop 以渲染必填星标");
-assert(portalVue.includes('label="需求人" prop="requester"'), "数据预警表单应包含需求人必填字段");
+assert(portalVue.includes("portal-vue-alert-dialog-head") && portalVue.includes("portal-vue-alert-back"), "数据告警编辑弹窗左上角应提供返回按钮");
+assert(portalVue.includes('label="负责人" prop="owner"') && portalVue.includes('label="告警方式" prop="mode"') && portalVue.includes('prop="dedup.mode"'), "负责人/告警方式/重复告警均应绑定 prop 以渲染必填星标");
+assert(portalVue.includes('label="需求人" prop="requester"'), "数据告警表单应包含需求人必填字段");
 assert(portalVue.includes('<el-table-column label="需求人"') && portalVue.includes('<el-table-column label="负责人"') && portalVue.includes("requesterFilter") && portalVue.includes("ownerFilter"), "列表应展示需求人与负责人，并支持按两者筛选");
 assert(portalVue.includes("groupFilter") && portalVue.includes("pushUserFilter") && portalVue.includes("全部推送群") && portalVue.includes("全部推送人"), "列表应支持按推送群与推送人筛选");
 assert(portalCss.includes(".portal-vue-alert-form .portal-vue-alert-hint"), "主体字段说明文案应独占一行显示在控件下方");
-assert(portalCss.includes(".portal-vue-alert-table .el-table__cell { vertical-align: middle; }"), "数据预警列表单元格内容应上下居中，行高随内容自适应");
-assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据预警列表不应再提供「我的 / 全部」切换");
+assert(portalCss.includes(".portal-vue-alert-table .el-table__cell { vertical-align: middle; }"), "数据告警列表单元格内容应上下居中，行高随内容自适应");
+assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据告警列表不应再提供「我的 / 全部」切换");
 assert(portalVue.includes("portal-vue-ai-chip-table-cascader") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "表选择按钮应直接展开级联菜单，不应先打开中间弹层");
 assert(portalVue.includes("portal-vue-ai-chip-model-select") && !portalVue.includes("portal-vue-ai-model-panel-popper"), "模型选择按钮应直接展开模型列表，不应先打开中间弹层");
 assert(portalCss.includes(".portal-vue-ai-chip-table-cascader { width: 200px; }") && portalCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }"), "表与模型下拉应统一为紧凑的 200px 宽度");
