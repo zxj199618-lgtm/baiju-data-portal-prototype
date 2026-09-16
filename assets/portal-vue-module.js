@@ -3067,10 +3067,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
   /* 预警分类：可在「分类管理」中维护（参照人群包需求分类的做法） */
   const alertCategoryDefaults = ["账号安全", "数据外发", "数据质量", "业务波动"];
-  const alertTemplateStyles = [
-    { value: "card", label: "飞书卡片", hint: "标题 + 逐行字段，适合安全类预警" },
-    { value: "compact", label: "紧凑摘要", hint: "标题 + 字段拼接单行，适合高频预警" }
-  ];
   const alertBotName = "观星台飞书机器人";
   const alertGroupChoices = ["数据安全预警群", "投放运营群", "数据分析师群", "权益业务群", "高管数据群"];
   const alertTestGroupChoices = ["预警测试群（仅自己）"];
@@ -3233,7 +3229,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       channel: { groups: ["数据安全预警群"], users: ["李雨航"] },
       testChannel: { groups: ["预警测试群（仅自己）"], users: ["李雨航"] },
       template: {
-        style: "compact", title: "用户微信环境登陆",
+        style: "card", title: "用户微信环境登陆",
         lines: [
           { label: "用户名", value: "{用户名}" },
           { label: "登陆时间", value: "{登陆时间}" },
@@ -3414,11 +3410,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">4 · 配置预警模版<span class="portal-vue-alert-section-hint">标题 + 内容行，支持插入变量并实时预览</span></div>
-              <el-form-item label="模版样式">
-                <el-radio-group v-model="form.template.style">
-                  <el-radio v-for="style in templateStyles" :key="style.value" :value="style.value">{{ style.label }}</el-radio>
-                </el-radio-group>
-              </el-form-item>
               <el-form-item label="通知标题" prop="template.title">
                 <el-input v-model="form.template.title" maxlength="60" placeholder="例如：用户工作时间非公司环境登陆"></el-input>
               </el-form-item>
@@ -3444,12 +3435,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-form-item label="推送效果预览" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-preview">
                   <div class="portal-vue-alert-preview-head"><span class="portal-vue-alert-preview-avatar">观</span><div><strong>{{ botName }}</strong><span>机器人 · 刚刚</span></div></div>
-                  <div class="portal-vue-alert-preview-card" :class="'style-' + form.template.style">
+                  <div class="portal-vue-alert-preview-card">
                     <div class="portal-vue-alert-preview-title">{{ previewTitle }}</div>
-                    <div v-if="form.template.style === 'card'" class="portal-vue-alert-preview-body">
+                    <div class="portal-vue-alert-preview-body">
                       <div v-for="(line, index) in previewLines" :key="index" class="portal-vue-alert-preview-line"><span>{{ line.label }}</span><b>{{ line.text }}</b></div>
                     </div>
-                    <div v-else class="portal-vue-alert-preview-compact">{{ previewSummary }}</div>
                     <div class="portal-vue-alert-preview-foot">观星台 · 数据预警 · {{ modeSummary(form) }}</div>
                   </div>
                 </div>
@@ -3580,7 +3570,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       botName: alertBotName, alertOps, alertNoValueOps, alertRangeOps,
       groupChoices: alertGroupChoices, testGroupChoices: alertTestGroupChoices,
       freqChoices: alertFreqChoices, timeChoices: alertTimeChoices,
-      dedupChoices: alertDedupChoices, templateStyles: alertTemplateStyles
+      dedupChoices: alertDedupChoices
     }),
     computed: {
       /* 必填校验：标量字段走 Element Plus 规则，条件/模版等复合项走自定义校验器 */
@@ -3633,10 +3623,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           .filter(line => line.label || line.value)
           .map(line => ({ label: line.label || "字段", text: this.renderTemplateText(line.value) }));
       },
-      previewSummary() {
-        const text = this.previewLines.map(line => line.label + "：" + line.text).join(" · ");
-        return text || "（尚未配置通知内容）";
-      }
     },
     methods: {
       loadAlerts() {

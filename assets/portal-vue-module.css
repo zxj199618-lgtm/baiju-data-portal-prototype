@@ -606,13 +606,11 @@
 .portal-vue-alert-preview-head strong { display: block; color: #1f2733; font-size: 13px; line-height: 18px; }
 .portal-vue-alert-preview-head span { display: block; color: #98a2b3; font-size: 11px; line-height: 16px; }
 .portal-vue-alert-preview-card { border: 1px solid #e4e9f2; border-left: 3px solid #1677ff; border-radius: 10px; background: #fff; padding: 12px 14px; }
-.portal-vue-alert-preview-card.style-compact { border-left-color: #12a35b; }
 .portal-vue-alert-preview-title { color: #1f2733; font-size: 15px; font-weight: 700; line-height: 1.5; }
 .portal-vue-alert-preview-body { display: grid; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e9edf4; }
 .portal-vue-alert-preview-line { display: grid; grid-template-columns: 106px minmax(0, 1fr); gap: 8px; font-size: 13px; line-height: 1.6; }
 .portal-vue-alert-preview-line span { color: #667085; }
 .portal-vue-alert-preview-line b { color: #1f2733; font-weight: 650; overflow-wrap: anywhere; }
-.portal-vue-alert-preview-compact { margin-top: 8px; color: #344054; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
 .portal-vue-alert-preview-foot { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e9edf4; color: #a5aebd; font-size: 11px; }
 
 /* 测试通道与分类管理 */

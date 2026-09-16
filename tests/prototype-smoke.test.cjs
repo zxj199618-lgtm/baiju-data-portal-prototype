@@ -238,7 +238,8 @@ assert(portalVue.includes("AlertManagementApp") && portalVue.includes("alertMoni
 assert(portalVue.includes("alertOps") && portalVue.includes("toggleRelation") && portalVue.includes("addCondition") && portalVue.includes("portal-vue-alert-rule"), "数据预警应提供且/或条件构建器");
 assert(!portalVue.includes("触发逻辑") && !portalVue.includes("背后表达式") && !portalVue.includes("alertSql"), "数据预警表单不应再展示触发逻辑与背后表达式");
 assert(portalVue.includes("ruleSummary") && portalVue.includes("alertRuleText"), "触发条件摘要仍应保留用于列表展示");
-assert(portalVue.includes("portal-vue-alert-preview") && portalVue.includes("alertTemplateStyles") && portalVue.includes("insertVariable") && portalVue.includes("insertTitleVariable"), "数据预警应提供模版样式配置、变量插入与推送效果预览");
+assert(portalVue.includes("portal-vue-alert-preview") && portalVue.includes("insertVariable") && portalVue.includes("insertTitleVariable"), "数据预警应提供变量插入与推送效果预览");
+assert(!portalVue.includes("alertTemplateStyles") && !portalVue.includes("模版样式"), "数据预警不应再提供模版样式选择（当前版本不支持）");
 assert(portalVue.includes("观星台飞书机器人") && portalVue.includes("预警群") && portalVue.includes("alertGroupChoices"), "数据预警应通过观星台飞书机器人选择群");
 assert(portalVue.includes("sendTestAlert") && portalVue.includes("testChannel") && portalVue.includes("测试通道"), "数据预警应支持配置测试通道并测试发送预警");
 assert(portalVue.includes("预警方式") && portalVue.includes("realtime") && portalVue.includes("scheduled") && portalVue.includes("modeSummary"), "数据预警应支持实时与定时两种预警方式");
