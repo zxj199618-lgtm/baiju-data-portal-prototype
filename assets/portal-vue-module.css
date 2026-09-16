@@ -632,7 +632,8 @@
 /* 分类标签：列宽不足时换行，避免被 .cell 的省略号截断 */
 .portal-vue-alert-table .portal-vue-alert-cell-tag,
 .portal-vue-alert-table .portal-vue-alert-cell-tag .el-tag__content { height: auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
-.portal-vue-alert-table .el-table__cell { vertical-align: top; }
+/* 单元格内容上下居中；行高由内容最多的单元格撑开（自适应高度） */
+.portal-vue-alert-table .el-table__cell { vertical-align: middle; }
 
 /* 系统管理：菜单管理 / Skill 配置 */
 .portal-vue-skill-drawer { display: grid; gap: 12px; }
