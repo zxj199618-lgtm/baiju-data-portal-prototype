@@ -3494,7 +3494,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </el-form-item>
               <el-form-item label="推送效果预览" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-preview">
-                  <div class="portal-vue-alert-preview-head"><span class="portal-vue-alert-preview-avatar">观</span><div><strong>{{ botName }}</strong><span>机器人 · 刚刚</span></div></div>
+                  <div class="portal-vue-alert-preview-head"><img class="portal-vue-alert-preview-avatar" src="assets/momentx-observatory-icon.png" alt="观星台" /><div><strong>{{ botName }}</strong><span>机器人 · 刚刚</span></div></div>
                   <div class="portal-vue-alert-preview-card">
                     <div class="portal-vue-alert-preview-title">{{ previewTitle }}</div>
                     <div class="portal-vue-alert-preview-body">

@@ -264,6 +264,7 @@ assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验�
 assert(portalVue.includes('label="状态" width="88"'), "状态列宽需容纳开关，避免单元格溢出被省略号截断");
 assert(portalVue.includes("portal-vue-alert-cell-name"), "数据预警列表名称列应有独立样式");
 assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("是不是同一个问题"), "主体字段应提供说明文案，帮助理解重复判断口径");
+assert(portalVue.includes('class="portal-vue-alert-preview-avatar" src="assets/momentx-observatory-icon.png"'), "推送效果预览的头像应使用观星台品牌图标");
 assert(portalVue.includes("portal-vue-alert-dialog-head") && portalVue.includes("portal-vue-alert-back"), "数据预警编辑弹窗左上角应提供返回按钮");
 assert(portalVue.includes('label="负责人" prop="owner"') && portalVue.includes('label="预警方式" prop="mode"') && portalVue.includes('prop="dedup.mode"'), "负责人/预警方式/重复预警均应绑定 prop 以渲染必填星标");
 assert(portalVue.includes('label="需求人" prop="requester"'), "数据预警表单应包含需求人必填字段");
