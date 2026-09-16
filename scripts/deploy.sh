@@ -160,7 +160,7 @@ ok "服务器代码已更新到 $COMMIT"
 # ---------------------------------------------------------------------------
 # 4. 服务器：重建容器
 # ---------------------------------------------------------------------------
-log "重建并重启容器（$DEPLOY_SERVICE）"
+log "重建并重启容器（${DEPLOY_SERVICE}）"
 run_remote "set -euo pipefail
 cd '$DEPLOY_PATH'
 $DEPLOY_DOCKER compose ${COMPOSE_ARGS[*]} up -d --build '$DEPLOY_SERVICE' 2>&1 | tail -4"
@@ -190,7 +190,7 @@ fi
 # 6. 核对线上版本号
 # ---------------------------------------------------------------------------
 if [ -n "$DEPLOY_URL" ]; then
-  log "核对线上版本号（期望 $EXPECT_VERSION）"
+  log "核对线上版本号（期望 ${EXPECT_VERSION}）"
   live=""
   for i in $(seq 1 "$DEPLOY_VERIFY_RETRIES"); do
     live="$(curl -fsS --max-time 15 "$DEPLOY_URL" 2>/dev/null | grep -oE 'assets/portal-vue-module\.js\?v=[A-Za-z0-9]+' | head -1 | sed 's/.*?v=//' || true)"
