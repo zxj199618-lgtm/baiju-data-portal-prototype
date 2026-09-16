@@ -3290,22 +3290,40 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </div>
           </div>
           <el-table :data="filteredRows" class="portal-vue-table portal-vue-alert-table" border empty-text="暂无预警数据，点右上角「新建预警」配置规则">
-            <el-table-column label="预警名称" min-width="220">
+            <el-table-column label="预警名称" min-width="180" fixed="left">
               <template #default="scope">
                 <div class="portal-vue-alert-cell-name">{{ scope.row.name }}</div>
-                <div class="portal-vue-alert-cell-meta">
-                  <el-tag v-if="scope.row.category" size="small" effect="plain">{{ scope.row.category }}</el-tag>
-                  <span class="portal-vue-muted">{{ scope.row.tableCn || scope.row.table }}</span>
-                </div>
               </template>
             </el-table-column>
-            <el-table-column label="触发条件" min-width="210">
+            <el-table-column label="分类" width="104">
+              <template #default="scope">
+                <el-tag v-if="scope.row.category" size="small" effect="plain">{{ scope.row.category }}</el-tag>
+                <span v-else class="portal-vue-muted">—</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="监控表" min-width="132">
+              <template #default="scope">
+                <div>{{ scope.row.tableCn || scope.row.table }}</div>
+                <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ scope.row.table }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column label="触发条件" min-width="230">
               <template #default="scope">
                 <div class="portal-vue-alert-cell-rule">{{ ruleSummary(scope.row) }}</div>
-                <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ modeLine(scope.row) }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="推送通道" min-width="160">
+            <el-table-column label="预警方式" width="104">
+              <template #default="scope">
+                <el-tag size="small" :type="scope.row.mode === 'realtime' ? 'primary' : 'warning'" effect="plain">{{ modeLabel(scope.row) }}</el-tag>
+                <div v-if="scope.row.mode === 'scheduled'" class="portal-vue-muted portal-vue-alert-cell-sub">{{ scheduleSummary(scope.row) }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column label="重复通知" min-width="146">
+              <template #default="scope">
+                <span>{{ dedupSummary(scope.row) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="推送通道" min-width="150">
               <template #default="scope">
                 <div style="display:flex;flex-wrap:wrap;gap:4px">
                   <el-tag v-for="group in scope.row.channel.groups" :key="group" size="small" type="success" effect="plain">{{ group }}</el-tag>
@@ -3314,18 +3332,22 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="最近触发" min-width="140">
+            <el-table-column label="最近触发" width="150">
               <template #default="scope">
                 <el-button link type="primary" class="portal-vue-alert-cell-link" @click="openHistory(scope.row)">{{ scope.row.lastTriggered === '—' ? '尚未触发' : scope.row.lastTriggered }}</el-button>
-                <div v-if="scope.row.triggerCount" class="portal-vue-muted portal-vue-alert-cell-sub">累计 {{ scope.row.triggerCount }} 次</div>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="66">
+            <el-table-column label="累计触发" width="84">
+              <template #default="scope">
+                <span>{{ scope.row.triggerCount || 0 }} 次</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="88" align="center">
               <template #default="scope">
                 <el-switch :disabled="!canEdit('数据预警')" v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="100" fixed="right">
+            <el-table-column label="操作" width="96" fixed="right">
               <template #default="scope">
                 <div class="portal-vue-actions">
                   <el-button v-if="canEdit('数据预警')" link type="primary" @click="openEdit(scope.row)">编辑</el-button>
@@ -3664,10 +3686,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const schedule = row.schedule || {};
         if (schedule.freq === "每小时") return "每小时第 " + (schedule.minute ?? 0) + " 分钟";
         return (schedule.freq || "每天") + " " + (schedule.time || "09:00");
-      },
-      modeLine(row) {
-        const mode = row.mode === "scheduled" ? this.modeLabel(row) + " " + this.scheduleSummary(row) : this.modeLabel(row);
-        return mode + " · " + this.dedupSummary(row);
       },
       modeSummary(row) {
         if (row.mode === "scheduled") {

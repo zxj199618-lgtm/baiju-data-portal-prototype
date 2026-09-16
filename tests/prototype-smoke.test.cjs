@@ -257,7 +257,11 @@ assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验�
   "用户微信环境登陆",
   "用户今日多设备登陆"
 ].forEach(name => assert(portalVue.includes(name), `应内置登录与设备类预警规则：${name}`));
-assert(portalVue.includes("modeLine") && portalVue.includes("portal-vue-alert-cell-name"), "数据预警列表应精简为每格两行以内，并把预警方式合并进触发条件");
+["分类", "监控表", "预警方式", "重复通知", "累计触发"].forEach(label => {
+  assert(portalVue.includes(`<el-table-column label="${label}"`), `数据预警列表应把「${label}」拆成独立列`);
+});
+assert(portalVue.includes('label="状态" width="88"'), "状态列宽需容纳开关，避免单元格溢出被省略号截断");
+assert(portalVue.includes("portal-vue-alert-cell-name"), "数据预警列表名称列应有独立样式");
 assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据预警列表不应再提供「我的 / 全部」切换");
 assert(portalVue.includes("portal-vue-ai-chip-table-cascader") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "表选择按钮应直接展开级联菜单，不应先打开中间弹层");
 assert(portalVue.includes("portal-vue-ai-chip-model-select") && !portalVue.includes("portal-vue-ai-model-panel-popper"), "模型选择按钮应直接展开模型列表，不应先打开中间弹层");
