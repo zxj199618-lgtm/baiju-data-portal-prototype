@@ -3367,20 +3367,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </section>
 
             <section class="portal-vue-alert-section">
-              <div class="portal-vue-alert-section-title">2 · 选择监控表与字段</div>
+              <div class="portal-vue-alert-section-title">2 · 选择监控表</div>
               <el-form-item label="监控表" prop="table">
                 <el-select v-model="form.table" filterable @change="changeTable">
                   <el-option v-for="table in monitorTables" :key="table.name" :label="table.cn + '（' + table.name + '）'" :value="table.name"></el-option>
-                </el-select>
-              </el-form-item>
-              <el-form-item label="主体字段" prop="keyField">
-                <el-select v-model="form.keyField" filterable placeholder="选择用户/主体标识字段，用于重复通知去重">
-                  <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
-                </el-select>
-              </el-form-item>
-              <el-form-item label="时间字段" prop="timeField">
-                <el-select v-model="form.timeField" filterable>
-                  <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
                 </el-select>
               </el-form-item>
             </section>
@@ -3535,15 +3525,20 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <el-time-picker v-else v-model="form.schedule.time" format="HH:mm" value-format="HH:mm" placeholder="选择时间"></el-time-picker>
               </el-form-item>
               <el-form-item label="重复预警" class="portal-vue-alert-wide">
-                <div class="portal-vue-alert-stack">
-                  <el-radio-group v-model="form.dedup.mode">
-                    <el-radio v-for="item in dedupChoices" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
-                  </el-radio-group>
-                  <div v-if="form.dedup.mode === 'interval'" class="portal-vue-alert-inline">
-                    <span>同一{{ keyFieldLabel }}相同问题每</span>
-                    <el-input-number v-model="form.dedup.intervalMinutes" :min="1" :max="1440" controls-position="right"></el-input-number>
-                    <span>分钟通知一次</span>
-                  </div>
+                <el-radio-group v-model="form.dedup.mode">
+                  <el-radio v-for="item in dedupChoices" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item v-if="form.dedup.mode !== 'always'" label="主体字段" prop="keyField">
+                <el-select v-model="form.keyField" filterable placeholder="按该字段判断是否为同一个问题，可选本预警内的任意字段">
+                  <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item v-if="form.dedup.mode === 'interval'" label="重复间隔">
+                <div class="portal-vue-alert-inline">
+                  <span>同一{{ keyFieldLabel }}在本预警内每</span>
+                  <el-input-number v-model="form.dedup.intervalMinutes" :min="1" :max="1440" controls-position="right"></el-input-number>
+                  <span>分钟通知一次</span>
                 </div>
               </el-form-item>
             </section>
@@ -3603,7 +3598,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           owner: [required("请选择负责人")],
           table: [required("请选择监控表")],
           keyField: [required("请选择主体字段（用于重复通知去重）")],
-          timeField: [required("请选择时间字段")],
           conditions: [{ required: true, validator: this.validateConditions, trigger: "change" }],
           "template.title": [{ required: true, message: "请填写通知标题", trigger: "blur" }],
           "template.lines": [{ required: true, validator: this.validateTemplateLines, trigger: "change" }],

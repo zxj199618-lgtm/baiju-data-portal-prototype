@@ -234,7 +234,7 @@ assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCa
 assert(!portalVue.includes("portal-vue-ai-cascade-grid") && !portalVue.includes("activeBizLine") && !portalVue.includes("filteredTableOptions") && !portalVue.includes("changeBizLine"), "数据表选择不应保留拆分的业务线/数据表下拉");
 assert(portalBridge.includes('name: "数据预警"') && portalBridge.includes('icon: "alert"'), "侧边栏应在数据资产上方提供数据预警菜单");
 assert(html.includes('id="alertManagementView"') && portalVue.includes('mount("#alertManagementView"'), "数据预警应挂载独立视图");
-assert(portalVue.includes("AlertManagementApp") && portalVue.includes("alertMonitorTables") && portalVue.includes("选择监控表与字段"), "数据预警应按「选择监控表 → 配置规则」的配置式流程创建");
+assert(portalVue.includes("AlertManagementApp") && portalVue.includes("alertMonitorTables") && portalVue.includes("选择监控表"), "数据预警应按「选择监控表 → 配置规则」的配置式流程创建");
 assert(portalVue.includes("alertOps") && portalVue.includes("toggleRelation") && portalVue.includes("addCondition") && portalVue.includes("portal-vue-alert-rule"), "数据预警应提供且/或条件构建器");
 assert(portalVue.includes("portal-vue-alert-sql") && portalVue.includes("alertSql") && portalVue.includes("ruleText"), "数据预警应生成触发逻辑与背后表达式，供业务与技术核对");
 assert(portalVue.includes("portal-vue-alert-preview") && portalVue.includes("alertTemplateStyles") && portalVue.includes("insertVariable") && portalVue.includes("insertTitleVariable"), "数据预警应提供模版样式配置、变量插入与推送效果预览");
