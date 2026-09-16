@@ -235,7 +235,8 @@ assert(!portalVue.includes("portal-vue-ai-cascade-grid") && !portalVue.includes(
 assert(portalBridge.includes('name: "数据预警"') && portalBridge.includes('icon: "alert"'), "侧边栏应在数据资产上方提供数据预警菜单");
 assert(html.includes('id="alertManagementView"') && portalVue.includes('mount("#alertManagementView"'), "数据预警应挂载独立视图");
 assert(portalVue.includes("AlertManagementApp") && portalVue.includes("alertMonitorTables") && portalVue.includes("选择监控表"), "数据预警应按「选择监控表 → 配置规则」的配置式流程创建");
-assert(portalVue.includes("alertOps") && portalVue.includes("toggleRelation") && portalVue.includes("addCondition") && portalVue.includes("portal-vue-alert-rule"), "数据预警应提供且/或条件构建器");
+assert(portalVue.includes("alertTypeOps") && portalVue.includes("alertOpsOf") && portalVue.includes("toggleRelation") && portalVue.includes("addCondition") && portalVue.includes("portal-vue-alert-rule"), "数据预警应提供且/或条件构建器");
+assert(portalVue.includes(String.raw`"数值": [["gt", "大于"]`) && portalVue.includes(String.raw`"布尔": [["true", "是"]`) && portalVue.includes(String.raw`"日期": [["timeBetween", "时间范围"]`), "条件算子应按字段类型收敛，算子集合与人群包保持一致");
 assert(!portalVue.includes("触发逻辑") && !portalVue.includes("背后表达式") && !portalVue.includes("alertSql"), "数据预警表单不应再展示触发逻辑与背后表达式");
 assert(portalVue.includes("ruleSummary") && portalVue.includes("alertRuleText"), "触发条件摘要仍应保留用于列表展示");
 assert(portalVue.includes("portal-vue-alert-preview") && portalVue.includes("insertVariable") && portalVue.includes("insertTitleVariable"), "数据预警应提供变量插入与推送效果预览");

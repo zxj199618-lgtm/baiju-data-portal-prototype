@@ -3047,23 +3047,78 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   ];
 
   /* 条件算子：按字段类型收敛可用算子 */
-  const alertOps = [
-    { value: "eq", label: "等于" },
-    { value: "ne", label: "不等于" },
-    { value: "gt", label: "大于" },
-    { value: "gte", label: "大于等于" },
-    { value: "lt", label: "小于" },
-    { value: "lte", label: "小于等于" },
-    { value: "between", label: "在…之间" },
-    { value: "timeBetween", label: "时间范围" },
-    { value: "in", label: "属于" },
-    { value: "contains", label: "包含" },
-    { value: "notEmpty", label: "不为空" },
-    { value: "isEmpty", label: "为空" }
-  ];
-  const alertNoValueOps = ["notEmpty", "isEmpty"];
+  /* 条件算子按字段类型收敛，取值方式与「人群包」保持一致；
+     日期额外保留「时间范围」，用于表达工作时段类预警（人群包的相对/绝对时间覆盖不到）。 */
+  const alertTypeOps = {
+    "数值": [["gt", "大于"], ["lt", "小于"], ["eq", "等于"], ["gte", "大于等于"], ["lte", "小于等于"], ["between", "区间"], ["notnull", "有值"], ["isnull", "无值"]],
+    "文本": [["eq", "等于"], ["ne", "不等于"], ["notnull", "有值"], ["isnull", "无值"]],
+    "日期": [["timeBetween", "时间范围"], ["relative", "相对时间"], ["absolute", "绝对时间"], ["notnull", "有值"], ["isnull", "无值"]],
+    "布尔": [["true", "是"], ["false", "否"], ["notnull", "有值"], ["isnull", "无值"]]
+  };
+  const alertNoValueOps = ["notnull", "isnull", "true", "false"];
   const alertRangeOps = ["between", "timeBetween"];
-  const alertNumericTypes = ["BIGINT", "INT", "INTEGER", "DECIMAL", "DOUBLE", "FLOAT", "NUMBER"];
+  const alertMultiValueTypes = ["文本"];
+
+  /* 库内字段类型（VARCHAR/DATETIME/BOOLEAN/...）→ 人群包同款中文类型 */
+  function alertFieldType(type) {
+    const raw = String(type || "").toUpperCase();
+    if (raw.startsWith("BOOL")) return "布尔";
+    if (raw.startsWith("DATE") || raw.startsWith("TIME")) return "日期";
+    if (["BIGINT", "INT", "INTEGER", "DECIMAL", "DOUBLE", "FLOAT", "NUMBER"].some(item => raw.startsWith(item))) return "数值";
+    return "文本";
+  }
+  function alertOpsOf(type) {
+    return (alertTypeOps[type] || alertTypeOps["文本"]).map(([value, label]) => ({ value, label }));
+  }
+  function alertNewCondition(fields) {
+    const field = (fields || [])[0] || { name: "", type: "VARCHAR" };
+    const type = alertFieldType(field.type);
+    return {
+      field: field.name,
+      op: (alertTypeOps[type] || alertTypeOps["文本"])[0][0],
+      value: alertMultiValueTypes.includes(type) ? [] : "",
+      value1: null, value2: null, range: []
+    };
+  }
+  /* 旧数据（历史上用 eq/in/contains/notEmpty/isEmpty 等算子）迁移到新算子模型 */
+  function normalizeAlertConditions(conditions, fields) {
+    return (conditions || []).map(condition => {
+      const field = (fields || []).find(item => item.name === condition.field) || {};
+      const type = alertFieldType(field.type);
+      const next = {
+        field: condition.field, op: condition.op,
+        value: condition.value, value1: condition.value1, value2: condition.value2,
+        range: Array.isArray(condition.range) ? condition.range : []
+      };
+      if (condition.op === "notEmpty") next.op = "notnull";
+      if (condition.op === "isEmpty") next.op = "isnull";
+      if (["in", "contains", "notcontains"].includes(condition.op)) next.op = type === "文本" ? "eq" : "eq";
+      if (type === "布尔") {
+        if (condition.op === "eq") next.op = String(condition.value) === "是" ? "true" : "false";
+        else if (condition.op === "ne") next.op = String(condition.value) === "是" ? "false" : "true";
+        next.value = "";
+      }
+      if (type === "文本" && !Array.isArray(next.value)) {
+        next.value = next.value === "" || next.value === undefined || next.value === null ? [] : [String(next.value)];
+      }
+      if (type === "数值" && !alertNoValueOps.includes(next.op) && !alertRangeOps.includes(next.op)
+        && next.value !== "" && next.value !== null && next.value !== undefined && !Number.isNaN(Number(next.value))) {
+        next.value = Number(next.value);
+      }
+      if (condition.op === "between" || condition.op === "timeBetween") {
+        next.value1 = condition.value1 ?? condition.value ?? null;
+        next.value2 = condition.value2 ?? null;
+        next.value = "";
+      }
+      const allowed = (alertTypeOps[type] || alertTypeOps["文本"]).map(item => item[0]);
+      if (!allowed.includes(next.op)) next.op = allowed[0];
+      return next;
+    });
+  }
+  const alertCompactOps = {
+    gt: ">", lt: "<", eq: "=", gte: "≥", lte: "≤", ne: "≠",
+    between: " ", timeBetween: " "
+  };
 
   /* 预警分类：可在「分类管理」中维护（参照人群包需求分类的做法） */
   const alertCategoryDefaults = ["账号安全", "数据外发", "数据质量", "业务波动"];
@@ -3094,7 +3149,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       name: "", category: alertCategoryDefaults[0], desc: "", owner: LOGIN_USER_NAME, requester: LOGIN_USER_NAME,
       table: table.name, keyField: table.keyField, timeField: table.timeField,
       relation: "AND",
-      conditions: [{ field: table.fields[0].name, op: "eq", value: "", value2: "" }],
+      conditions: [alertNewCondition(table.fields)],
       mode: "realtime",
       schedule: { freq: "每天", weekday: "周一", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
@@ -3105,25 +3160,28 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   }
 
   /* 条件 → 人类可读规则描述（纯函数，列表页与表单页共用） */
-  /* 列表里的触发条件用紧凑写法：算子用符号、区间省略「在…之间」，避免长文案占满整列 */
-  const alertCompactOps = {
-    eq: "=", ne: "≠", gt: ">", gte: "≥", lt: "<", lte: "≤",
-    between: "~", timeBetween: "~", in: "∈", contains: "包含",
-    notEmpty: "非空", isEmpty: "为空"
-  };
-
+  /* 列表摘要：算子用符号，区间省略「在…之间」，避免长文案占满整列 */
   function alertRuleText(conditions, relation, fields) {
     const labelOf = fieldName => fields.find(field => field.name === fieldName)?.cn || fieldName || "";
     const rows = (conditions || []).filter(condition => condition.field);
     if (!rows.length) return "尚未配置触发条件";
     const joiner = relation === "AND" ? " 且 " : " 或 ";
+    const blank = value => value === "" || value === undefined || value === null;
     return rows.map(row => {
       const field = labelOf(row.field);
-      if (alertNoValueOps.includes(row.op)) return field + " " + alertCompactOps[row.op];
-      if (alertRangeOps.includes(row.op)) return field + " " + (row.value || "?") + "~" + (row.value2 || "?");
+      if (row.op === "true") return field + "=是";
+      if (row.op === "false") return field + "=否";
+      if (row.op === "notnull") return field + " 有值";
+      if (row.op === "isnull") return field + " 无值";
+      if (row.op === "between") return field + " " + (blank(row.value1) ? "?" : row.value1) + "~" + (blank(row.value2) ? "?" : row.value2);
+      if (row.op === "timeBetween") return field + " " + (row.value1 || "?") + "~" + (row.value2 || "?");
+      if (row.op === "relative") return field + " 最近 " + (blank(row.value1) ? "?" : row.value1) + " 天";
+      if (row.op === "absolute") {
+        const range = row.range || [];
+        return field + " " + (range[0] || "?") + "~" + (range[1] || "?");
+      }
       const value = Array.isArray(row.value) ? row.value.join("、") : row.value;
-      const text = value === "" || value === undefined || value === null ? "?" : value;
-      return field + (alertCompactOps[row.op] || row.op) + text;
+      return field + (alertCompactOps[row.op] || row.op) + (blank(value) ? "?" : value);
     }).join(joiner);
   }
 
@@ -3134,9 +3192,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
       relation: "AND",
       conditions: [
-        { field: "is_workday", op: "eq", value: "是", value2: "" },
-        { field: "event_time", op: "timeBetween", value: "09:00", value2: "19:00" },
-        { field: "is_office_network", op: "eq", value: "否", value2: "" }
+        { field: "is_workday", op: "true", value: "", value1: null, value2: null, range: [] },
+        { field: "event_time", op: "timeBetween", value: "", value1: "09:00", value2: "19:00", range: [] },
+        { field: "is_office_network", op: "false", value: "", value1: null, value2: null, range: [] }
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
@@ -3165,11 +3223,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
       relation: "AND",
       conditions: [
-        { field: "is_workday", op: "eq", value: "是", value2: "" },
-        { field: "event_time", op: "timeBetween", value: "09:00", value2: "19:00" },
-        { field: "city", op: "ne", value: "广州", value2: "" },
-        { field: "is_domestic", op: "eq", value: "是", value2: "" },
-        { field: "is_login", op: "eq", value: "是", value2: "" }
+        { field: "is_workday", op: "true", value: "", value1: null, value2: null, range: [] },
+        { field: "event_time", op: "timeBetween", value: "", value1: "09:00", value2: "19:00", range: [] },
+        { field: "city", op: "ne", value: ["广州"], value1: null, value2: null, range: [] },
+        { field: "is_domestic", op: "true", value: "", value1: null, value2: null, range: [] },
+        { field: "is_login", op: "true", value: "", value1: null, value2: null, range: [] }
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
@@ -3196,9 +3254,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
       relation: "AND",
       conditions: [
-        { field: "is_new_device", op: "eq", value: "是", value2: "" },
-        { field: "is_new_ip", op: "eq", value: "是", value2: "" },
-        { field: "is_login", op: "eq", value: "是", value2: "" }
+        { field: "is_new_device", op: "true", value: "", value1: null, value2: null, range: [] },
+        { field: "is_new_ip", op: "true", value: "", value1: null, value2: null, range: [] },
+        { field: "is_login", op: "true", value: "", value1: null, value2: null, range: [] }
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
@@ -3226,8 +3284,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
       relation: "AND",
       conditions: [
-        { field: "is_wechat_env", op: "eq", value: "是", value2: "" },
-        { field: "is_login", op: "eq", value: "是", value2: "" }
+        { field: "is_wechat_env", op: "true", value: "", value1: null, value2: null, range: [] },
+        { field: "is_login", op: "true", value: "", value1: null, value2: null, range: [] }
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
@@ -3254,8 +3312,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
       relation: "AND",
       conditions: [
-        { field: "today_device_cnt", op: "gte", value: "2", value2: "" },
-        { field: "is_login", op: "eq", value: "是", value2: "" }
+        { field: "today_device_cnt", op: "gte", value: 2, value1: null, value2: null, range: [] },
+        { field: "is_login", op: "true", value: "", value1: null, value2: null, range: [] }
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
       dedup: { mode: "interval", intervalMinutes: 10 },
@@ -3446,18 +3504,25 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                       </el-select>
                       <span v-if="alertNoValueOps.includes(condition.op)" class="portal-vue-alert-novalue">无需填写值</span>
                       <div v-else-if="condition.op === 'timeBetween'" class="portal-vue-alert-range">
-                        <el-time-picker v-model="condition.value" format="HH:mm" value-format="HH:mm" placeholder="开始"></el-time-picker>
+                        <el-time-picker v-model="condition.value1" format="HH:mm" value-format="HH:mm" placeholder="开始"></el-time-picker>
                         <span>~</span>
                         <el-time-picker v-model="condition.value2" format="HH:mm" value-format="HH:mm" placeholder="结束"></el-time-picker>
                       </div>
                       <div v-else-if="condition.op === 'between'" class="portal-vue-alert-range">
-                        <el-input v-model="condition.value" placeholder="最小值"></el-input>
+                        <el-input-number v-model="condition.value1" :controls="false" placeholder="最小值"></el-input-number>
                         <span>~</span>
-                        <el-input v-model="condition.value2" placeholder="最大值"></el-input>
+                        <el-input-number v-model="condition.value2" :controls="false" placeholder="最大值"></el-input-number>
                       </div>
-                      <el-select v-else-if="conditionField(condition).values" v-model="condition.value" :multiple="condition.op === 'in'" filterable placeholder="选择条件值">
-                        <el-option v-for="value in conditionField(condition).values" :key="value" :label="value" :value="value"></el-option>
+                      <div v-else-if="condition.op === 'relative'" class="portal-vue-alert-inline">
+                        <span>最近</span>
+                        <el-input-number v-model="condition.value1" :min="1" :step="1" controls-position="right"></el-input-number>
+                        <span>天以内（含今天）</span>
+                      </div>
+                      <el-date-picker v-else-if="condition.op === 'absolute'" v-model="condition.range" type="datetimerange" range-separator="到" start-placeholder="开始时间" end-placeholder="结束时间" format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DD HH:mm"></el-date-picker>
+                      <el-select v-else-if="alertMultiValueTypes.includes(conditionType(condition))" v-model="condition.value" multiple filterable allow-create default-first-option placeholder="选择或输入值，可多选">
+                        <el-option v-for="value in conditionField(condition).values || []" :key="value" :label="value" :value="value"></el-option>
                       </el-select>
+                      <el-input-number v-else-if="conditionType(condition) === '数值'" v-model="condition.value" :controls="false" placeholder="请输入数值"></el-input-number>
                       <el-input v-else v-model="condition.value" placeholder="请输入条件值"></el-input>
                       <el-button v-if="form.conditions.length > 1" link type="danger" title="删除条件" @click="removeCondition(index)">×</el-button>
                       <span v-else></span>
@@ -3633,7 +3698,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       testing: false, testResult: "",
       historyVisible: false, historyTitle: "", historyRows: [],
       alerts: [],
-      botName: alertBotName, alertOps, alertNoValueOps, alertRangeOps,
+      botName: alertBotName, alertNoValueOps, alertRangeOps, alertMultiValueTypes,
       groupChoices: alertGroupChoices, testGroupChoices: alertTestGroupChoices,
       freqChoices: alertFreqChoices, timeChoices: alertTimeChoices, weekdayChoices: alertWeekdayChoices,
       dedupChoices: alertDedupChoices
@@ -3703,7 +3768,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       loadAlerts() {
         let saved = [];
         try { saved = JSON.parse(localStorage.getItem("portal-alert-rules") || "[]"); } catch (error) { saved = []; }
-        this.alerts = [...saved, ...alertSeeds.map(seed => JSON.parse(JSON.stringify(seed)))];
+        this.alerts = [
+          ...saved.map(item => ({ ...item, conditions: normalizeAlertConditions(item.conditions, this.fieldsOfTable(item.table)) })),
+          ...alertSeeds.map(seed => JSON.parse(JSON.stringify(seed)))
+        ];
       },
       persistAlerts() {
         try {
@@ -3718,19 +3786,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       conditionField(condition) {
         return this.currentFields.find(field => field.name === condition.field) || {};
       },
-      opLabel(opValue, fieldName) {
-        return alertOps.find(op => op.value === opValue)?.label || opValue;
-      },
-      conditionOps(condition) {
-        const field = this.conditionField(condition);
-        if (!field.name) return alertOps;
-        if (field.type === "DATETIME") return alertOps.filter(op => ["timeBetween", "gte", "lte", "notEmpty", "isEmpty"].includes(op.value));
-        if (field.values) return alertOps.filter(op => ["eq", "ne", "in"].includes(op.value));
-        if (alertNumericTypes.some(type => String(field.type || "").toUpperCase().startsWith(type))) {
-          return alertOps.filter(op => ["eq", "ne", "gt", "gte", "lt", "lte", "between", "notEmpty", "isEmpty"].includes(op.value));
-        }
-        return alertOps.filter(op => ["eq", "ne", "contains", "in", "notEmpty", "isEmpty"].includes(op.value));
-      },
+      conditionType(condition) { return alertFieldType(this.conditionField(condition).type); },
+      conditionOps(condition) { return alertOpsOf(this.conditionType(condition)); },
       fieldsOfTable(tableName) { return this.monitorTables.find(table => table.name === tableName)?.fields || []; },
       ruleSummary(row) { return alertRuleText(row.conditions, row.relation, this.fieldsOfTable(row.table)); },
       modeLabel(row) { return row.mode === "scheduled" ? "定时" : "实时"; },
@@ -3813,17 +3870,20 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.clearValidation();
       },
       changeConditionField(condition) {
-        const field = this.conditionField(condition);
-        const allowed = this.conditionOps(condition).map(op => op.value);
-        if (!allowed.includes(condition.op)) condition.op = allowed[0] || "eq";
-        condition.value = field.values ? "" : "";
-        condition.value2 = "";
+        const type = this.conditionType(condition);
+        const allowed = (alertTypeOps[type] || alertTypeOps["文本"]).map(item => item[0]);
+        if (!allowed.includes(condition.op)) condition.op = allowed[0];
+        condition.value = alertMultiValueTypes.includes(type) ? [] : "";
+        condition.value1 = null;
+        condition.value2 = null;
+        condition.range = [];
         this.revalidate("conditions");
       },
       toggleRelation() { this.form.relation = this.form.relation === "AND" ? "OR" : "AND"; this.revalidate("conditions"); },
       addCondition() {
         const last = this.form.conditions[this.form.conditions.length - 1];
-        this.form.conditions.push({ field: last?.field || this.currentFields[0]?.name || "", op: "eq", value: "", value2: "" });
+        const nextField = this.currentFields.find(item => item.name === last?.field) || this.currentFields[0];
+        this.form.conditions.push(alertNewCondition(nextField ? [nextField] : this.currentFields));
         this.revalidate("conditions");
       },
       removeCondition(index) { this.form.conditions.splice(index, 1); this.revalidate("conditions"); },
@@ -3862,10 +3922,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       validateConditions(rule, value, callback) {
         const rows = (this.form.conditions || []).filter(condition => condition.field);
         if (!rows.length) return callback(new Error("请至少配置一个触发条件"));
+        const blank = value => value === "" || value === undefined || value === null;
         const incomplete = rows.find(condition => {
           if (alertNoValueOps.includes(condition.op)) return false;
-          if (alertRangeOps.includes(condition.op)) return !condition.value || !condition.value2;
-          return condition.value === "" || condition.value === undefined || condition.value === null;
+          if (condition.op === "between" || condition.op === "timeBetween") return blank(condition.value1) || blank(condition.value2);
+          if (condition.op === "relative") return blank(condition.value1);
+          if (condition.op === "absolute") { const range = condition.range || []; return !range[0] || !range[1]; }
+          if (Array.isArray(condition.value)) return !condition.value.length;
+          return blank(condition.value);
         });
         if (incomplete) return callback(new Error("条件「" + (this.fieldLabel(incomplete.field) || "未选择字段") + "」的值未填写完整"));
         callback();
