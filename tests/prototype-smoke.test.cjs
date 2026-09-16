@@ -242,6 +242,7 @@ assert(portalVue.includes("ruleSummary") && portalVue.includes("alertRuleText"),
 assert(portalVue.includes("portal-vue-alert-preview") && portalVue.includes("insertVariable") && portalVue.includes("insertTitleVariable"), "数据告警应提供变量插入与推送效果预览");
 assert(!portalVue.includes("alertTemplateStyles") && !portalVue.includes("模版样式"), "数据告警不应再提供模版样式选择（当前版本不支持）");
 assert(portalVue.includes("观星台飞书机器人") && portalVue.includes("告警群") && portalVue.includes("alertGroupChoices"), "数据告警应通过观星台飞书机器人选择群");
+assert(portalVue.includes("validateChannelReach") && portalVue.includes("revalidateChannel") && portalVue.includes('label="通知人" prop="channel.users"'), "告警群与通知人应至少填写一个，且两处都显示必填标记");
 assert(portalVue.includes("sendTestAlert") && portalVue.includes("testChannel") && portalVue.includes("测试通道"), "数据告警应支持配置测试通道并测试发送告警");
 assert(portalVue.includes("告警方式") && portalVue.includes("realtime") && portalVue.includes("scheduled") && portalVue.includes("modeSummary"), "数据告警应支持实时与定时两种告警方式");
 assert(portalVue.includes("alertCategoryDefaults") && portalVue.includes("categoryManagerVisible") && portalVue.includes("addCategory"), "数据告警应支持告警分类配置与分类管理");

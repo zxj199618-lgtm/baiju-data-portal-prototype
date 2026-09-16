@@ -3577,12 +3577,13 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div class="portal-vue-alert-bot"><span class="portal-vue-ai-bot-icon">🤖</span><div><strong>{{ botName }}</strong><span>已接入飞书，触发时按下方群与人员推送卡片消息</span></div><el-tag size="small" type="success" effect="light">已接入</el-tag></div>
               </el-form-item>
               <el-form-item label="告警群" prop="channel.groups">
-                <el-select v-model="form.channel.groups" multiple filterable placeholder="选择要通知的飞书群">
+                <el-select v-model="form.channel.groups" multiple filterable placeholder="选择要通知的飞书群" @change="revalidateChannel">
                   <el-option v-for="group in groupChoices" :key="group" :label="group" :value="group"></el-option>
                 </el-select>
+                <div class="portal-vue-alert-hint">告警群与通知人<b>至少填写一个</b>，两者都填则同时推送。</div>
               </el-form-item>
-              <el-form-item label="通知人">
-                <el-select v-model="form.channel.users" multiple filterable placeholder="选择要通知的用户">
+              <el-form-item label="通知人" prop="channel.users">
+                <el-select v-model="form.channel.users" multiple filterable placeholder="选择要通知的用户" @change="revalidateChannel">
                   <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
                 </el-select>
               </el-form-item>
@@ -3717,7 +3718,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           conditions: [{ required: true, validator: this.validateConditions, trigger: "change" }],
           "template.title": [{ required: true, message: "请填写通知标题", trigger: "blur" }],
           "template.lines": [{ required: true, validator: this.validateTemplateLines, trigger: "change" }],
-          "channel.groups": [{ required: true, type: "array", message: "请至少选择一个告警群", trigger: "change" }],
+          "channel.groups": [{ required: true, validator: this.validateChannelReach, trigger: "change" }],
+          /* 通知人只用于渲染必填星标：二者填其一即可，因此自定义校验恒通过，错误提示统一挂在告警群上 */
+          "channel.users": [{ required: true, validator: (rule, value, callback) => callback(), trigger: "change" }],
           "schedule.freq": [required("请选择检查频率")],
           mode: [required("请选择告警方式")],
           "dedup.mode": [required("请选择重复告警方式")],
@@ -3909,6 +3912,20 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           this.testResult = "测试告警已发送至 " + target + "，请确认收到后再保存";
           ep.ElMessage.success("测试告警已发送");
         }, 800);
+      },
+      validateChannelReach(rule, value, callback) {
+        const groups = this.form.channel?.groups || [];
+        const users = this.form.channel?.users || [];
+        if (!groups.length && !users.length) return callback(new Error("告警群与通知人至少选择一个"));
+        callback();
+      },
+      revalidateChannel() {
+        const formRef = this.$refs.formRef;
+        if (!formRef) return;
+        this.$nextTick(() => {
+          formRef.validateField("channel.groups").catch(() => {});
+          formRef.validateField("channel.users").catch(() => {});
+        });
       },
       revalidate(prop) {
         const formRef = this.$refs.formRef;
