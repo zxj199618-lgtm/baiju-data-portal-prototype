@@ -243,7 +243,11 @@ assert(portalVue.includes("sendTestAlert") && portalVue.includes("testChannel") 
 assert(portalVue.includes("预警方式") && portalVue.includes("realtime") && portalVue.includes("scheduled") && portalVue.includes("modeSummary"), "数据预警应支持实时与定时两种预警方式");
 assert(portalVue.includes("alertCategoryDefaults") && portalVue.includes("categoryManagerVisible") && portalVue.includes("addCategory"), "数据预警应支持预警分类配置与分类管理");
 assert(portalVue.includes("alertDedupChoices") && portalVue.includes("intervalMinutes") && portalVue.includes("dedupSummary"), "重复预警是否再次通知、按什么间隔通知应可配置");
-assert(portalVue.includes("runValidation") && portalVue.includes("validateTestChannel") && portalVue.includes("确认保存"), "数据预警保存前应校验监控表/规则/模版/通道/测试通道");
+assert(portalVue.includes("formRules") && portalVue.includes("validateConditions") && portalVue.includes("validateTemplateLines") && portalVue.includes("saveAlert"), "数据预警应在表单内做必填校验并直接保存");
+assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验并保存"), "数据预警不应再使用独立的校验弹窗");
+["prop=\"name\"", "prop=\"category\"", "prop=\"keyField\"", "prop=\"conditions\"", "prop=\"template.lines\"", "prop=\"channel.groups\""].forEach(prop => {
+  assert(portalVue.includes(prop), `数据预警必填字段应绑定 prop 以渲染必填标记：${prop}`);
+});
 [
   "用户工作时间非公司环境登陆",
   "用户工作时间异地登陆",

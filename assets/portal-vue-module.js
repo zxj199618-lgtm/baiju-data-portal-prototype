@@ -3363,13 +3363,13 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         </section>
 
         <el-dialog v-model="dialogVisible" :title="(editingId ? '编辑' : '新建') + '数据预警'" fullscreen class="portal-vue-fullscreen-dialog" :close-on-click-modal="false">
-          <el-form label-position="left" label-width="170px" class="portal-vue-alert-form">
+          <el-form ref="formRef" :model="form" :rules="formRules" label-position="left" label-width="170px" class="portal-vue-alert-form">
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">1 · 基本信息</div>
-              <el-form-item label="预警名称">
+              <el-form-item label="预警名称" prop="name">
                 <el-input v-model="form.name" maxlength="50" show-word-limit placeholder="例如：用户工作时间非公司环境登陆"></el-input>
               </el-form-item>
-              <el-form-item label="预警分类">
+              <el-form-item label="预警分类" prop="category">
                 <div class="portal-vue-alert-inline">
                   <el-select v-model="form.category" filterable allow-create default-first-option placeholder="选择或输入分类">
                     <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
@@ -3377,7 +3377,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-button @click="categoryManagerVisible = true">管理分类</el-button>
                 </div>
               </el-form-item>
-              <el-form-item label="负责人">
+              <el-form-item label="负责人" prop="owner">
                 <el-select v-model="form.owner" filterable>
                   <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
                 </el-select>
@@ -3389,17 +3389,17 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">2 · 选择监控表与字段</div>
-              <el-form-item label="监控表">
+              <el-form-item label="监控表" prop="table">
                 <el-select v-model="form.table" filterable @change="changeTable">
                   <el-option v-for="table in monitorTables" :key="table.name" :label="table.cn + '（' + table.name + '）'" :value="table.name"></el-option>
                 </el-select>
               </el-form-item>
-              <el-form-item label="主体字段">
+              <el-form-item label="主体字段" prop="keyField">
                 <el-select v-model="form.keyField" filterable placeholder="选择用户/主体标识字段，用于重复通知去重">
                   <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
                 </el-select>
               </el-form-item>
-              <el-form-item label="时间字段">
+              <el-form-item label="时间字段" prop="timeField">
                 <el-select v-model="form.timeField" filterable>
                   <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
                 </el-select>
@@ -3414,7 +3414,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">3 · 配置预警规则</div>
-              <el-form-item label="触发条件" class="portal-vue-alert-wide">
+              <el-form-item label="触发条件" prop="conditions" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-rule">
                   <button type="button" class="portal-vue-alert-relation" aria-label="切换条件关系" @click="toggleRelation"><span>{{ form.relation === 'AND' ? '且' : '或' }}</span></button>
                   <div class="portal-vue-alert-condition-list">
@@ -3462,10 +3462,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-radio v-for="style in templateStyles" :key="style.value" :value="style.value">{{ style.label }}</el-radio>
                 </el-radio-group>
               </el-form-item>
-              <el-form-item label="通知标题">
+              <el-form-item label="通知标题" prop="template.title">
                 <el-input v-model="form.template.title" maxlength="60" placeholder="例如：用户工作时间非公司环境登陆"></el-input>
               </el-form-item>
-              <el-form-item label="通知内容" class="portal-vue-alert-wide">
+              <el-form-item label="通知内容" prop="template.lines" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-tpl">
                   <div v-for="(line, index) in form.template.lines" :key="index" class="portal-vue-alert-tpl-row">
                     <el-input v-model="line.label" placeholder="字段名，例如：登陆时间"></el-input>
@@ -3504,7 +3504,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-form-item label="飞书机器人" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-bot"><span class="portal-vue-ai-bot-icon">🤖</span><div><strong>{{ botName }}</strong><span>已接入飞书，触发时按下方群与人员推送卡片消息</span></div><el-tag size="small" type="success" effect="light">已接入</el-tag></div>
               </el-form-item>
-              <el-form-item label="预警群">
+              <el-form-item label="预警群" prop="channel.groups">
                 <el-select v-model="form.channel.groups" multiple filterable placeholder="选择要通知的飞书群">
                   <el-option v-for="group in groupChoices" :key="group" :label="group" :value="group"></el-option>
                 </el-select>
@@ -3548,12 +3548,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-radio value="scheduled">定时（按调度周期扫描）</el-radio>
                 </el-radio-group>
               </el-form-item>
-              <el-form-item v-if="form.mode === 'scheduled'" label="检查频率">
+              <el-form-item v-if="form.mode === 'scheduled'" label="检查频率" prop="schedule.freq">
                 <el-select v-model="form.schedule.freq">
                   <el-option v-for="item in freqChoices" :key="item" :label="item" :value="item"></el-option>
                 </el-select>
               </el-form-item>
-              <el-form-item v-if="form.mode === 'scheduled'" label="执行时间">
+              <el-form-item v-if="form.mode === 'scheduled'" label="执行时间" prop="schedule.time">
                 <div v-if="form.schedule.freq === '每小时'" class="portal-vue-alert-inline">
                   <span>每小时第</span>
                   <el-input-number v-model="form.schedule.minute" :min="0" :max="59" controls-position="right"></el-input-number>
@@ -3577,24 +3577,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           </el-form>
           <template #footer>
             <el-button @click="dialogVisible = false">取消</el-button>
-            <el-button v-if="canEdit('数据预警')" type="primary" :loading="validating" @click="runValidation">校验并保存</el-button>
-          </template>
-        </el-dialog>
-
-        <el-dialog v-model="validationVisible" class="cp-vue-validation-dialog" :title="validationTitle" width="560px" :close-on-click-modal="!validating" :close-on-press-escape="!validating" :show-close="!validating">
-          <p class="cp-vue-validation-intro">保存前将依次校验监控表、规则条件、通知模版、推送通道与测试通道。校验通过后才会创建预警。</p>
-          <div class="cp-vue-validation-list">
-            <div v-for="item in validationSteps" :key="item.key" class="cp-vue-validation-step" :class="item.state">
-              <span class="cp-vue-validation-icon">{{ validationIcon(item.state) }}</span>
-              <div class="cp-vue-validation-copy"><strong>{{ item.label }}</strong><span>{{ item.detail }}</span></div>
-              <span class="cp-vue-validation-state">{{ validationStateText(item.state) }}</span>
-            </div>
-          </div>
-          <el-alert v-if="validationError" class="cp-vue-validation-error" type="error" :closable="false" show-icon :title="validationError"></el-alert>
-          <el-alert v-else-if="validationComplete" class="cp-vue-validation-success" type="success" :closable="false" show-icon title="全部校验通过。确认保存后，预警才会创建并按配置推送。"></el-alert>
-          <template #footer>
-            <el-button :disabled="validating" @click="returnToForm">{{ validationError ? '返回修改' : '取消' }}</el-button>
-            <el-button v-if="validationComplete && canEdit('数据预警')" type="primary" @click="confirmSave">确认保存</el-button>
+            <el-button v-if="canEdit('数据预警')" type="primary" :loading="saving" @click="saveAlert">保存预警</el-button>
           </template>
         </el-dialog>
 
@@ -3627,7 +3610,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     data: () => ({
       view: "mine", keyword: "", categoryFilter: "",
       dialogVisible: false, editingId: "", form: createAlertForm(),
-      validationVisible: false, validationTitle: "", validationSteps: [], validating: false, validationComplete: false, validationError: "",
+      saving: false,
       categoryManagerVisible: false, categoryDraft: "", savedCategories: [],
       testing: false, testResult: "",
       historyVisible: false, historyTitle: "", historyRows: [],
@@ -3638,6 +3621,24 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       dedupChoices: alertDedupChoices, templateStyles: alertTemplateStyles
     }),
     computed: {
+      /* 必填校验：标量字段走 Element Plus 规则，条件/模版等复合项走自定义校验器 */
+      formRules() {
+        const required = message => ({ required: true, message, trigger: "change" });
+        return {
+          name: [{ required: true, message: "请填写预警名称", trigger: "blur" }],
+          category: [required("请选择预警分类")],
+          owner: [required("请选择负责人")],
+          table: [required("请选择监控表")],
+          keyField: [required("请选择主体字段（用于重复通知去重）")],
+          timeField: [required("请选择时间字段")],
+          conditions: [{ required: true, validator: this.validateConditions, trigger: "change" }],
+          "template.title": [{ required: true, message: "请填写通知标题", trigger: "blur" }],
+          "template.lines": [{ required: true, validator: this.validateTemplateLines, trigger: "change" }],
+          "channel.groups": [{ required: true, type: "array", message: "请至少选择一个预警群", trigger: "change" }],
+          "schedule.freq": [required("请选择检查频率")],
+          "schedule.time": [required("请选择执行时间")]
+        };
+      },
       currentUser() { refreshTick.value; return state.users.find(user => user.name === LOGIN_USER_NAME) || state.users[0]; },
       canViewAll() { return this.currentUser?.group === "门户管理员"; },
       myCount() { return this.alerts.filter(item => (item.creator || LOGIN_USER_NAME) === this.currentUser?.name).length; },
@@ -3796,6 +3797,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.form.owner = this.currentUser?.name || LOGIN_USER_NAME;
         this.testResult = "";
         this.dialogVisible = true;
+        this.clearValidation();
       },
       openEdit(row) {
         this.editingId = row.id;
@@ -3808,6 +3810,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         }));
         this.testResult = "";
         this.dialogVisible = true;
+        this.clearValidation();
       },
       changeTable(tableName) {
         const table = this.monitorTables.find(item => item.name === tableName);
@@ -3815,6 +3818,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.form.keyField = table.keyField || table.fields[0]?.name || "";
         this.form.timeField = table.timeField || table.fields[0]?.name || "";
         this.form.conditions = [{ field: table.fields[0]?.name || "", op: "eq", value: "", value2: "" }];
+        this.clearValidation();
       },
       changeConditionField(condition) {
         const field = this.conditionField(condition);
@@ -3822,15 +3826,17 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if (!allowed.includes(condition.op)) condition.op = allowed[0] || "eq";
         condition.value = field.values ? "" : "";
         condition.value2 = "";
+        this.revalidate("conditions");
       },
-      toggleRelation() { this.form.relation = this.form.relation === "AND" ? "OR" : "AND"; },
+      toggleRelation() { this.form.relation = this.form.relation === "AND" ? "OR" : "AND"; this.revalidate("conditions"); },
       addCondition() {
         const last = this.form.conditions[this.form.conditions.length - 1];
         this.form.conditions.push({ field: last?.field || this.currentFields[0]?.name || "", op: "eq", value: "", value2: "" });
+        this.revalidate("conditions");
       },
-      removeCondition(index) { this.form.conditions.splice(index, 1); },
+      removeCondition(index) { this.form.conditions.splice(index, 1); this.revalidate("conditions"); },
       addTemplateLine() { this.form.template.lines.push({ label: "", value: "" }); },
-      removeTemplateLine(index) { this.form.template.lines.splice(index, 1); },
+      removeTemplateLine(index) { this.form.template.lines.splice(index, 1); this.revalidate("template.lines"); },
       insertVariable(lineIndex, fieldCn) {
         const token = "{" + (fieldCn || this.currentFields[0]?.cn || "字段") + "}";
         const target = lineIndex >= 0 ? this.form.template.lines[lineIndex] : this.form.template.lines[this.form.template.lines.length - 1];
@@ -3852,70 +3858,31 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           ep.ElMessage.success("测试预警已发送");
         }, 800);
       },
-      runValidation() {
-        const steps = [
-          { key: "table", label: "监控表与字段校验", detail: "" },
-          { key: "condition", label: "规则条件校验", detail: "" },
-          { key: "template", label: "通知模版校验", detail: "" },
-          { key: "channel", label: "推送通道校验", detail: "" },
-          { key: "test", label: "测试通道校验", detail: "" }
-        ].map(step => ({ ...step, state: "waiting" }));
-        this.validationSteps = steps;
-        this.validationTitle = (this.editingId ? "编辑" : "新建") + "预警 · " + (this.form.name || "未命名");
-        this.validationComplete = false;
-        this.validationError = "";
-        this.validationVisible = true;
-        this.validating = true;
-        const results = {
-          table: this.validateTable(),
-          condition: this.validateCondition(),
-          template: this.validateTemplate(),
-          channel: this.validateChannel(),
-          test: this.validateTestChannel()
-        };
-        let cursor = 0;
-        const advance = () => {
-          if (cursor >= steps.length) {
-            this.validating = false;
-            const failed = steps.find(step => step.state === "error");
-            if (failed) this.validationError = failed.detail;
-            else this.validationComplete = true;
-            return;
-          }
-          const step = steps[cursor];
-          step.state = "checking";
-          step.detail = "正在校验，请稍候…";
-          setTimeout(() => {
-            const result = results[step.key];
-            step.state = result.ok ? "success" : "error";
-            step.detail = result.detail;
-            cursor += 1;
-            advance();
-          }, 320);
-        };
-        advance();
+      revalidate(prop) {
+        const formRef = this.$refs.formRef;
+        if (!formRef) return;
+        this.$nextTick(() => formRef.validateField(prop).catch(() => {}));
       },
-      validateTable() {
-        if (!this.form.table) return { ok: false, detail: "未选择监控表，请返回「2 · 选择监控表与字段」配置" };
-        if (!this.currentFields.length) return { ok: false, detail: "监控表「" + this.form.table + "」无可用字段" };
-        if (!this.form.keyField) return { ok: false, detail: "未选择主体字段，重复通知无法按主体去重" };
-        return { ok: true, detail: "监控表 " + (this.currentTable?.cn || this.form.table) + " · " + this.currentFields.length + " 个可用字段" };
+      clearValidation() {
+        const formRef = this.$refs.formRef;
+        if (formRef) this.$nextTick(() => formRef.clearValidate());
       },
-      validateCondition() {
-        if (!this.form.conditions.length) return { ok: false, detail: "至少需要配置一个触发条件" };
-        const empty = this.form.conditions.find(condition => {
-          if (!condition.field) return true;
+      validateConditions(rule, value, callback) {
+        const rows = (this.form.conditions || []).filter(condition => condition.field);
+        if (!rows.length) return callback(new Error("请至少配置一个触发条件"));
+        const incomplete = rows.find(condition => {
           if (alertNoValueOps.includes(condition.op)) return false;
           if (alertRangeOps.includes(condition.op)) return !condition.value || !condition.value2;
           return condition.value === "" || condition.value === undefined || condition.value === null;
         });
-        if (empty) return { ok: false, detail: "存在未填写完整的条件：" + (this.fieldLabel(empty.field) || "未选择字段") };
-        return { ok: true, detail: "共 " + this.form.conditions.length + " 个条件，关系：" + (this.form.relation === "AND" ? "且" : "或") };
+        if (incomplete) return callback(new Error("条件「" + (this.fieldLabel(incomplete.field) || "未选择字段") + "」的值未填写完整"));
+        callback();
       },
-      validateTemplate() {
-        if (!this.form.template.title.trim()) return { ok: false, detail: "通知标题不能为空" };
-        const lines = this.form.template.lines.filter(line => line.label || line.value);
-        if (!lines.length) return { ok: false, detail: "通知内容至少需要配置一行" };
+      validateTemplateLines(rule, value, callback) {
+        const lines = (this.form.template.lines || []).filter(line => line.label || line.value);
+        if (!lines.length) return callback(new Error("请至少配置一行通知内容"));
+        const incomplete = lines.find(line => !line.label || !line.value);
+        if (incomplete) return callback(new Error("通知内容存在未填写完整的行（字段名与值都需要填写）"));
         const names = this.templateVariables;
         const unknown = [];
         const scan = text => [...String(text || "").matchAll(/\{([^}]+)\}/g)].forEach(match => {
@@ -3924,27 +3891,22 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         });
         scan(this.form.template.title);
         lines.forEach(line => scan(line.value));
-        if (unknown.length) return { ok: false, detail: "模版变量不存在于当前监控表：" + [...new Set(unknown)].join("、") };
-        return { ok: true, detail: "标题 + " + lines.length + " 行内容，变量校验通过" };
+        if (unknown.length) return callback(new Error("模版变量不在当前监控表中：" + [...new Set(unknown)].join("、")));
+        callback();
       },
-      validateChannel() {
-        const channel = this.form.channel || {};
-        if (!channel.groups?.length && !channel.users?.length) return { ok: false, detail: "至少选择一个预警群或通知人" };
-        return { ok: true, detail: (channel.groups?.length || 0) + " 个群 · " + (channel.users?.length || 0) + " 个通知人" };
-      },
-      validateTestChannel() {
-        const channel = this.form.testChannel || {};
-        if (!channel.groups?.length && !channel.users?.length) return { ok: false, detail: "未配置测试通道，无法测试发送预警" };
-        if (!this.testResult) return { ok: false, detail: "测试通道已配置，但尚未「发送测试预警」验证" };
-        return { ok: true, detail: this.testResult };
-      },
-      validationIcon(state) { return { waiting: "·", checking: "", success: "✓", error: "!" }[state] || "·"; },
-      validationStateText(state) { return { waiting: "待校验", checking: "校验中", success: "通过", error: "未通过" }[state] || "待校验"; },
-      returnToForm() { this.validationVisible = false; },
-      confirmSave() {
+      async saveAlert() {
+        const formRef = this.$refs.formRef;
+        if (!formRef) return;
+        try {
+          await formRef.validate();
+        } catch (error) {
+          ep.ElMessage.warning("还有必填项未完成，请按表单提示补全后再保存");
+          return;
+        }
+        this.saving = true;
         const table = this.currentTable;
         const payload = {
-          name: this.form.name.trim() || "未命名预警",
+          name: this.form.name.trim(),
           category: this.form.category, desc: this.form.desc.trim(), owner: this.form.owner,
           table: this.form.table, tableCn: table?.cn || this.form.table,
           keyField: this.form.keyField, timeField: this.form.timeField,
@@ -3966,7 +3928,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           });
         }
         this.persistAlerts();
-        this.validationVisible = false;
+        this.saving = false;
         this.dialogVisible = false;
         notify("预警「" + payload.name + "」已保存" + (this.editingId ? "并更新" : "，飞书机器人将按配置推送"));
       },
