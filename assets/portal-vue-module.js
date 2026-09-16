@@ -3383,12 +3383,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
                 </el-select>
               </el-form-item>
-              <el-form-item label="表字段" class="portal-vue-alert-wide">
-                <div class="portal-vue-alert-fields">
-                  <span class="portal-vue-muted">点击字段即插入到通知内容末行：</span>
-                  <el-tag v-for="field in currentFields" :key="field.name" size="small" effect="plain" class="portal-vue-alert-var-chip" @click="insertVariable(-1, field.cn)">{{ field.cn }}</el-tag>
-                </div>
-              </el-form-item>
             </section>
 
             <section class="portal-vue-alert-section">

@@ -576,9 +576,6 @@
 /* 表单内联行（如预警分类 + 管理分类）：下拉不撑满，按钮保持同行 */
 .portal-vue-alert-form .portal-vue-alert-inline > .el-select { flex: 0 0 300px; }
 .portal-vue-alert-form .portal-vue-alert-inline > .el-input { flex: 0 1 300px; }
-.portal-vue-alert-fields { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 10px 12px; border: 1px dashed #dbe3ef; border-radius: 8px; background: #fafbfd; }
-.portal-vue-alert-var-chip { cursor: pointer; }
-.portal-vue-alert-var-chip:hover { border-color: #1677ff; color: #1677ff; }
 /* 表单内需要纵向排列的复合控件（如重复预警的单选组 + 间隔配置） */
 .portal-vue-alert-stack { display: grid; gap: 10px; justify-items: start; }
 
