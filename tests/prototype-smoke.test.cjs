@@ -261,7 +261,7 @@ assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验�
   "用户微信环境登陆",
   "用户今日多设备登陆"
 ].forEach(name => assert(portalVue.includes(name), `应内置登录与设备类告警规则：${name}`));
-["分类", "监控表", "告警方式", "重复通知", "累计触发"].forEach(label => {
+["分类", "监控表", "告警方式", "重复通知", "近7日告警次数"].forEach(label => {
   assert(portalVue.includes(`<el-table-column label="${label}"`), `数据告警列表应把「${label}」拆成独立列`);
 });
 assert(portalVue.includes('label="状态" width="88"'), "状态列宽需容纳开关，避免单元格溢出被省略号截断");

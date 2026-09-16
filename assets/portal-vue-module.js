@@ -3210,7 +3210,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           { label: "登陆城市", value: "{登陆城市}" }
         ]
       },
-      enabled: true, lastTriggered: "2026-09-15 10:24", triggerCount: 12,
+      enabled: true, lastTriggered: "2026-09-15 10:24", recent7dCount: 12,
       history: [
         { time: "2026-09-15 10:24", summary: "曾祥竞 工作时间从非公司环境登陆（广东省深圳市），已推送「数据安全告警群」", status: "已推送" },
         { time: "2026-09-12 14:08", summary: "谭嘉颖 工作时间从非公司环境登陆（广东省广州市），已推送「数据安全告警群」", status: "已推送" },
@@ -3242,7 +3242,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           { label: "登陆城市", value: "{登陆城市}" }
         ]
       },
-      enabled: true, lastTriggered: "2026-09-15 09:12", triggerCount: 7,
+      enabled: true, lastTriggered: "2026-09-15 09:12", recent7dCount: 7,
       history: [
         { time: "2026-09-15 09:12", summary: "黄佩贤 工作时间异地登陆（广东省深圳市），已推送「数据安全告警群」", status: "已推送" },
         { time: "2026-09-10 16:47", summary: "李雨航 工作时间异地登陆（北京市），已推送「数据安全告警群」", status: "已推送" }
@@ -3272,7 +3272,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           { label: "登陆城市", value: "{登陆城市}" }
         ]
       },
-      enabled: true, lastTriggered: "2026-09-14 20:31", triggerCount: 4,
+      enabled: true, lastTriggered: "2026-09-14 20:31", recent7dCount: 4,
       history: [
         { time: "2026-09-14 20:31", summary: "林金维 在新设备 DEV-8f3c21a9 登陆（广东省广州市），已推送「数据安全告警群」", status: "已推送" },
         { time: "2026-09-08 11:02", summary: "谭嘉颖 在新设备 DEV-2b71e0c4 登陆（广东省佛山市），已推送「投放运营群」", status: "已推送" }
@@ -3301,7 +3301,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           { label: "登陆城市", value: "{登陆城市}" }
         ]
       },
-      enabled: true, lastTriggered: "2026-09-13 18:55", triggerCount: 3,
+      enabled: true, lastTriggered: "2026-09-13 18:55", recent7dCount: 3,
       history: [
         { time: "2026-09-13 18:55", summary: "王鑫宇 从微信内置浏览器登陆（广东省广州市），已推送「数据安全告警群」", status: "已推送" }
       ]
@@ -3327,7 +3327,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           { label: "最近登陆时间", value: "{登陆时间}" }
         ]
       },
-      enabled: true, lastTriggered: "2026-09-15 11:40", triggerCount: 9,
+      enabled: true, lastTriggered: "2026-09-15 11:40", recent7dCount: 9,
       history: [
         { time: "2026-09-15 11:40", summary: "谭嘉颖 今日已在 2 台设备登陆（最近登陆 11:40），已推送「数据安全告警群」", status: "已推送" },
         { time: "2026-09-15 10:18", summary: "林金维 今日已在 3 台设备登陆（最近登陆 10:18），已推送「数据安全告警群」", status: "已推送" }
@@ -3422,9 +3422,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <el-button link type="primary" class="portal-vue-alert-cell-link" @click="openHistory(scope.row)">{{ scope.row.lastTriggered === '—' ? '尚未触发' : scope.row.lastTriggered }}</el-button>
               </template>
             </el-table-column>
-            <el-table-column label="累计触发" width="84">
+            <el-table-column label="近7日告警次数" width="112">
               <template #default="scope">
-                <span>{{ scope.row.triggerCount || 0 }} 次</span>
+                <span>{{ scope.row.recent7dCount || 0 }} 次</span>
               </template>
             </el-table-column>
             <el-table-column label="状态" width="88" align="center">
@@ -3996,7 +3996,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           this.alerts.unshift({
             id: "AL" + Date.now(), ...payload, enabled: true,
             creator: this.currentUser?.name || LOGIN_USER_NAME,
-            lastTriggered: "—", triggerCount: 0, history: []
+            lastTriggered: "—", recent7dCount: 0, history: []
           });
         }
         this.persistAlerts();
