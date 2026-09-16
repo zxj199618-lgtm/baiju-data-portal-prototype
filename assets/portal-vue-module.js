@@ -3105,21 +3105,25 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   }
 
   /* 条件 → 人类可读规则描述（纯函数，列表页与表单页共用） */
+  /* 列表里的触发条件用紧凑写法：算子用符号、区间省略「在…之间」，避免长文案占满整列 */
+  const alertCompactOps = {
+    eq: "=", ne: "≠", gt: ">", gte: "≥", lt: "<", lte: "≤",
+    between: "~", timeBetween: "~", in: "∈", contains: "包含",
+    notEmpty: "非空", isEmpty: "为空"
+  };
+
   function alertRuleText(conditions, relation, fields) {
-    const fieldOf = fieldName => fields.find(field => field.name === fieldName);
-    const labelOf = fieldName => fieldOf(fieldName)?.cn || fieldName || "";
-    const opOf = opValue => alertOps.find(op => op.value === opValue)?.label || opValue;
+    const labelOf = fieldName => fields.find(field => field.name === fieldName)?.cn || fieldName || "";
     const rows = (conditions || []).filter(condition => condition.field);
     if (!rows.length) return "尚未配置触发条件";
     const joiner = relation === "AND" ? " 且 " : " 或 ";
     return rows.map(row => {
       const field = labelOf(row.field);
-      const boolField = (fieldOf(row.field)?.values || []).length > 0;
-      const op = boolField && row.op === "eq" ? "为" : boolField && row.op === "ne" ? "不为" : opOf(row.op);
-      if (alertNoValueOps.includes(row.op)) return field + " " + opOf(row.op);
-      if (alertRangeOps.includes(row.op)) return field + " 在 " + (row.value || "?") + " ~ " + (row.value2 || "?") + " 之间";
+      if (alertNoValueOps.includes(row.op)) return field + " " + alertCompactOps[row.op];
+      if (alertRangeOps.includes(row.op)) return field + " " + (row.value || "?") + "~" + (row.value2 || "?");
       const value = Array.isArray(row.value) ? row.value.join("、") : row.value;
-      return field + " " + op + " " + (value === "" || value === undefined || value === null ? "?" : value);
+      const text = value === "" || value === undefined || value === null ? "?" : value;
+      return field + (alertCompactOps[row.op] || row.op) + text;
     }).join(joiner);
   }
 
