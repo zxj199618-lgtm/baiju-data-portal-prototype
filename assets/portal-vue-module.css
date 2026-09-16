@@ -99,8 +99,7 @@
 .portal-vue-menu.el-menu--collapse .portal-nav-icon { margin-right: 0; }
 .portal-nav-badges { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto; }
 .portal-nav-new { height: 18px; padding: 0 5px; border: 0; font-size: 10px; font-weight: 750; line-height: 18px; --el-tag-border-color: transparent; }
-.portal-nav-badge--v40 { color: #f04438; background: #fff0ee; --el-tag-bg-color: #fff0ee; --el-tag-text-color: #f04438; }
-.portal-nav-badge--v30 { color: #dc6803; background: #fff6ed; --el-tag-bg-color: #fff6ed; --el-tag-text-color: #dc6803; }
+.portal-nav-badge--v31 { color: #1677ff; background: #edf5ff; --el-tag-bg-color: #edf5ff; --el-tag-text-color: #1677ff; }
 .portal-nav-badge--v20 { color: #667085; background: #f2f4f7; --el-tag-bg-color: #f2f4f7; --el-tag-text-color: #667085; }
 .portal-vue-menu.el-menu--collapse .portal-nav-badges { display: none; }
 .portal-vue-type-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
