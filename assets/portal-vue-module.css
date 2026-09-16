@@ -590,7 +590,6 @@
 .portal-vue-alert-range { display: grid; grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr); align-items: center; gap: 6px; }
 .portal-vue-alert-range > span { color: #98a2b3; font-size: 12px; text-align: center; }
 .portal-vue-alert-range .el-date-editor { width: 100%; }
-.portal-vue-alert-logic { padding: 10px 12px; border: 1px solid #dbe8fb; border-radius: 8px; background: #f7faff; color: #1f2733; font-size: 13px; line-height: 1.7; }
 
 /* 模版编辑器 */
 .portal-vue-alert-tpl { display: grid; gap: 8px; }

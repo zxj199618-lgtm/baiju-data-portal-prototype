@@ -3410,12 +3410,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   </div>
                 </div>
               </el-form-item>
-              <el-form-item label="触发逻辑" class="portal-vue-alert-wide">
-                <div class="portal-vue-alert-logic">{{ ruleText }}</div>
-              </el-form-item>
-              <el-form-item label="背后表达式" class="portal-vue-alert-wide">
-                <pre class="portal-vue-alert-sql">{{ alertSql }}</pre>
-              </el-form-item>
             </section>
 
             <section class="portal-vue-alert-section">
@@ -3633,14 +3627,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       currentFields() { return this.currentTable?.fields || []; },
       keyFieldLabel() { return this.fieldLabel(this.form.keyField) || "用户"; },
       templateVariables() { return this.currentFields.map(field => field.cn); },
-      ruleText() { return alertRuleText(this.form.conditions, this.form.relation, this.currentFields); },
-      alertSql() {
-        const rows = this.form.conditions.filter(condition => condition.field);
-        const joiner = this.form.relation === "AND" ? "\n  AND " : "\n  OR ";
-        const where = rows.length ? rows.map(row => "  " + this.conditionExpression(row)).join(joiner) : "  1 = 1";
-        const comment = this.form.mode === "realtime" ? "实时：事件到达即判定" : "定时：" + this.modeSummary(this.form);
-        return "SELECT *\nFROM " + (this.form.table || "监控表") + "\nWHERE " + where + "\n-- " + comment;
-      },
       previewTitle() { return this.renderTemplateText(this.form.template.title) || this.form.name || "（未填写通知标题）"; },
       previewLines() {
         return this.form.template.lines
@@ -3683,21 +3669,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           return alertOps.filter(op => ["eq", "ne", "gt", "gte", "lt", "lte", "between", "notEmpty", "isEmpty"].includes(op.value));
         }
         return alertOps.filter(op => ["eq", "ne", "contains", "in", "notEmpty", "isEmpty"].includes(op.value));
-      },
-      conditionExpression(condition) {
-        const sqlOp = { eq: "=", ne: "<>", gt: ">", gte: ">=", lt: "<", lte: "<=" }[condition.op];
-        const column = condition.field || "field";
-        if (condition.op === "notEmpty") return column + " IS NOT NULL";
-        if (condition.op === "isEmpty") return column + " IS NULL";
-        if (condition.op === "between") return column + " BETWEEN " + (condition.value || "?") + " AND " + (condition.value2 || "?");
-        if (condition.op === "timeBetween") return "TIME(" + column + ") BETWEEN '" + (condition.value || "?") + "' AND '" + (condition.value2 || "?") + "'";
-        if (condition.op === "in") {
-          const values = Array.isArray(condition.value) ? condition.value : String(condition.value || "").split(",");
-          return column + " IN (" + values.filter(Boolean).map(value => "'" + value + "'").join(", ") + ")";
-        }
-        if (condition.op === "contains") return column + " LIKE '%" + (condition.value || "") + "%'";
-        const value = Array.isArray(condition.value) ? condition.value.join("','") : condition.value;
-        return column + " " + (sqlOp || "=") + " '" + (value === "" || value === undefined ? "?" : value) + "'";
       },
       fieldsOfTable(tableName) { return this.monitorTables.find(table => table.name === tableName)?.fields || []; },
       ruleSummary(row) { return alertRuleText(row.conditions, row.relation, this.fieldsOfTable(row.table)); },

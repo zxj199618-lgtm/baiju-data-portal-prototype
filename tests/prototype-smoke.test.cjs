@@ -236,7 +236,8 @@ assert(portalBridge.includes('name: "数据预警"') && portalBridge.includes('i
 assert(html.includes('id="alertManagementView"') && portalVue.includes('mount("#alertManagementView"'), "数据预警应挂载独立视图");
 assert(portalVue.includes("AlertManagementApp") && portalVue.includes("alertMonitorTables") && portalVue.includes("选择监控表"), "数据预警应按「选择监控表 → 配置规则」的配置式流程创建");
 assert(portalVue.includes("alertOps") && portalVue.includes("toggleRelation") && portalVue.includes("addCondition") && portalVue.includes("portal-vue-alert-rule"), "数据预警应提供且/或条件构建器");
-assert(portalVue.includes("portal-vue-alert-sql") && portalVue.includes("alertSql") && portalVue.includes("ruleText"), "数据预警应生成触发逻辑与背后表达式，供业务与技术核对");
+assert(!portalVue.includes("触发逻辑") && !portalVue.includes("背后表达式") && !portalVue.includes("alertSql"), "数据预警表单不应再展示触发逻辑与背后表达式");
+assert(portalVue.includes("ruleSummary") && portalVue.includes("alertRuleText"), "触发条件摘要仍应保留用于列表展示");
 assert(portalVue.includes("portal-vue-alert-preview") && portalVue.includes("alertTemplateStyles") && portalVue.includes("insertVariable") && portalVue.includes("insertTitleVariable"), "数据预警应提供模版样式配置、变量插入与推送效果预览");
 assert(portalVue.includes("观星台飞书机器人") && portalVue.includes("预警群") && portalVue.includes("alertGroupChoices"), "数据预警应通过观星台飞书机器人选择群");
 assert(portalVue.includes("sendTestAlert") && portalVue.includes("testChannel") && portalVue.includes("测试通道"), "数据预警应支持配置测试通道并测试发送预警");
