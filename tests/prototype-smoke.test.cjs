@@ -248,6 +248,7 @@ assert(portalVue.includes("告警方式") && portalVue.includes("realtime") && p
 assert(portalVue.includes("alertCategoryDefaults") && portalVue.includes("categoryManagerVisible") && portalVue.includes("addCategory"), "数据告警应支持告警分类配置与分类管理");
 assert(portalVue.includes("alertWeekdayChoices") && portalVue.includes('label="执行日"') && portalVue.includes('"schedule.weekday"'), "检查频率为每周时应先选择执行日（周几）");
 assert(portalVue.includes("alertDedupChoices") && portalVue.includes("intervalMinutes") && portalVue.includes("dedupSummary"), "重复告警是否再次通知、按什么间隔通知应可配置");
+assert(portalVue.includes("时间范围内不重复通知") && portalVue.includes("分钟内不重复通知"), "重复告警默认项文案应为「时间范围内不重复通知」");
 assert(portalVue.includes("formRules") && portalVue.includes("validateConditions") && portalVue.includes("validateTemplateLines") && portalVue.includes("saveAlert"), "数据告警应在表单内做必填校验并直接保存");
 assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验并保存"), "数据告警不应再使用独立的校验弹窗");
 ["prop=\"name\"", "prop=\"category\"", "prop=\"keyField\"", "prop=\"conditions\"", "prop=\"template.lines\"", "prop=\"channel.groups\""].forEach(prop => {

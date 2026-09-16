@@ -3129,7 +3129,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   const alertWeekdayChoices = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   const alertTimeChoices = ["00:00", "08:00", "09:00", "10:00", "12:00", "18:00", "20:00"];
   const alertDedupChoices = [
-    { value: "interval", label: "按间隔重复通知" },
+    { value: "interval", label: "时间范围内不重复通知" },
     { value: "once", label: "只通知一次" },
     { value: "always", label: "每次触发都通知" }
   ];
@@ -3652,9 +3652,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </el-form-item>
               <el-form-item v-if="form.dedup.mode === 'interval'" label="重复间隔">
                 <div class="portal-vue-alert-inline">
-                  <span>同一{{ keyFieldLabel }}在本告警内每</span>
+                  <span>同一{{ keyFieldLabel }}在</span>
                   <el-input-number v-model="form.dedup.intervalMinutes" :min="1" :max="1440" controls-position="right"></el-input-number>
-                  <span>分钟通知一次</span>
+                  <span>分钟内不重复通知</span>
                 </div>
               </el-form-item>
             </section>
@@ -3814,7 +3814,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const dedup = row.dedup || {};
         if (dedup.mode === "once") return "仅通知一次";
         if (dedup.mode === "always") return "每次触发都通知";
-        return "每 " + (dedup.intervalMinutes || 10) + " 分钟通知一次";
+        return (dedup.intervalMinutes || 10) + " 分钟内不重复通知";
       },
       renderTemplateText(text) {
         return String(text || "").replace(/\{([^}]+)\}/g, (match, key) => {
