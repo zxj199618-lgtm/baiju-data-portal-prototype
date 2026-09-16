@@ -3340,6 +3340,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
+          <el-tabs v-model="status" class="portal-vue-status-tabs">
+            <el-tab-pane :label="'启用中（' + enabledCount + '）'" name="启用"></el-tab-pane>
+            <el-tab-pane :label="'已停用（' + disabledCount + '）'" name="停用"></el-tab-pane>
+          </el-tabs>
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left">
               <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索告警名称"></el-input>
@@ -3692,7 +3696,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       </el-config-provider>
     `,
     data: () => ({
-      keyword: "", categoryFilter: "", requesterFilter: "", ownerFilter: "", groupFilter: "", pushUserFilter: "",
+      status: "启用", keyword: "", categoryFilter: "", requesterFilter: "", ownerFilter: "", groupFilter: "", pushUserFilter: "",
       dialogVisible: false, editingId: "", form: createAlertForm(),
       saving: false,
       categoryManagerVisible: false, categoryDraft: "", savedCategories: [],
@@ -3729,9 +3733,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         };
       },
       currentUser() { refreshTick.value; return state.users.find(user => user.name === LOGIN_USER_NAME) || state.users[0]; },
+      enabledCount() { return this.alerts.filter(item => item.enabled).length; },
+      disabledCount() { return this.alerts.filter(item => !item.enabled).length; },
       filteredRows() {
         const keyword = this.keyword.trim().toLowerCase();
         return this.alerts.filter(item => {
+          if ((item.enabled ? "启用" : "停用") !== this.status) return false;
           if (this.categoryFilter && item.category !== this.categoryFilter) return false;
           if (this.requesterFilter && item.requester !== this.requesterFilter) return false;
           if (this.ownerFilter && item.owner !== this.ownerFilter) return false;
