@@ -3091,7 +3091,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   function createAlertForm() {
     const table = alertMonitorTables[0];
     return {
-      name: "", category: alertCategoryDefaults[0], desc: "", owner: LOGIN_USER_NAME,
+      name: "", category: alertCategoryDefaults[0], desc: "", owner: LOGIN_USER_NAME, requester: LOGIN_USER_NAME,
       table: table.name, keyField: table.keyField, timeField: table.timeField,
       relation: "AND",
       conditions: [{ field: table.fields[0].name, op: "eq", value: "", value2: "" }],
@@ -3130,7 +3130,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   const alertSeeds = [
     {
       id: "AL20260901001", name: "用户工作时间非公司环境登陆", category: "账号安全",
-      desc: "工作日 9:00–19:00 从非公司网络环境登录时实时提醒", owner: "曾祥竞", creator: "曾祥竞",
+      desc: "工作日 9:00–19:00 从非公司网络环境登录时实时提醒", owner: "曾祥竞", creator: "曾祥竞", requester: "曾祥竞",
       table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
       relation: "AND",
       conditions: [
@@ -3161,7 +3161,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     {
       id: "AL20260901002", name: "用户工作时间异地登陆", category: "账号安全",
-      desc: "工作日 9:00–19:00 国内且登录城市不在广州时实时提醒", owner: "曾祥竞", creator: "曾祥竞",
+      desc: "工作日 9:00–19:00 国内且登录城市不在广州时实时提醒", owner: "曾祥竞", creator: "曾祥竞", requester: "黄佩贤",
       table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
       relation: "AND",
       conditions: [
@@ -3192,7 +3192,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     {
       id: "AL20260901003", name: "用户新设备登陆", category: "账号安全",
-      desc: "新设备 ID 且新 IP 地址登录时实时提醒", owner: "黄佩贤", creator: "黄佩贤",
+      desc: "新设备 ID 且新 IP 地址登录时实时提醒", owner: "黄佩贤", creator: "黄佩贤", requester: "李雨航",
       table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
       relation: "AND",
       conditions: [
@@ -3222,7 +3222,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     {
       id: "AL20260901004", name: "用户微信环境登陆", category: "账号安全",
-      desc: "从微信内置浏览器打开观星台时实时提醒", owner: "李雨航", creator: "李雨航",
+      desc: "从微信内置浏览器打开观星台时实时提醒", owner: "李雨航", creator: "李雨航", requester: "谭嘉颖",
       table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
       relation: "AND",
       conditions: [
@@ -3250,7 +3250,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     {
       id: "AL20260901005", name: "用户今日多设备登陆", category: "账号安全",
-      desc: "同一用户当日登录设备数 ≥ 2 时实时提醒，疑似账号共享", owner: "曾祥竞", creator: "曾祥竞",
+      desc: "同一用户当日登录设备数 ≥ 2 时实时提醒，疑似账号共享", owner: "曾祥竞", creator: "曾祥竞", requester: "曾祥竞",
       table: "dwd_user_login_log", tableCn: "用户登录埋点", keyField: "user_name", timeField: "event_time",
       relation: "AND",
       conditions: [
@@ -3288,6 +3288,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-select v-model="categoryFilter" clearable placeholder="全部分类" style="width:150px">
                 <el-option v-for="item in managedCategories" :key="item" :label="item" :value="item"></el-option>
               </el-select>
+              <el-select v-model="requesterFilter" clearable filterable placeholder="全部需求人" style="width:150px">
+                <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
+              </el-select>
+              <el-select v-model="ownerFilter" clearable filterable placeholder="全部负责人" style="width:150px">
+                <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
+              </el-select>
             </div>
             <div class="portal-vue-actions">
               <el-button @click="categoryManagerVisible = true">分类管理</el-button>
@@ -3306,13 +3312,23 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <span v-else class="portal-vue-muted">—</span>
               </template>
             </el-table-column>
-            <el-table-column label="监控表" min-width="132">
+            <el-table-column label="监控表" min-width="150">
               <template #default="scope">
                 <div>{{ scope.row.tableCn || scope.row.table }}</div>
                 <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ scope.row.table }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="触发条件" min-width="230">
+            <el-table-column label="需求人" min-width="92">
+              <template #default="scope">
+                <span>{{ scope.row.requester || "—" }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="负责人" min-width="92">
+              <template #default="scope">
+                <span>{{ scope.row.owner || "—" }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="触发条件" min-width="200">
               <template #default="scope">
                 <div class="portal-vue-alert-cell-rule">{{ ruleSummary(scope.row) }}</div>
               </template>
@@ -3323,12 +3339,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div v-if="scope.row.mode === 'scheduled'" class="portal-vue-muted portal-vue-alert-cell-sub">{{ scheduleSummary(scope.row) }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="重复通知" min-width="146">
+            <el-table-column label="重复通知" min-width="152">
               <template #default="scope">
                 <span>{{ dedupSummary(scope.row) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="推送通道" min-width="150">
+            <el-table-column label="推送通道" min-width="140">
               <template #default="scope">
                 <div style="display:flex;flex-wrap:wrap;gap:4px">
                   <el-tag v-for="group in scope.row.channel.groups" :key="group" size="small" type="success" effect="plain">{{ group }}</el-tag>
@@ -3337,7 +3353,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="最近触发" width="150">
+            <el-table-column label="最近触发" width="146">
               <template #default="scope">
                 <el-button link type="primary" class="portal-vue-alert-cell-link" @click="openHistory(scope.row)">{{ scope.row.lastTriggered === '—' ? '尚未触发' : scope.row.lastTriggered }}</el-button>
               </template>
@@ -3385,8 +3401,13 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-button @click="categoryManagerVisible = true">管理分类</el-button>
                 </div>
               </el-form-item>
-              <el-form-item label="负责人" prop="owner">
+              <el-form-item label="负责人">
                 <el-select v-model="form.owner" filterable>
+                  <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="需求人" prop="requester">
+                <el-select v-model="form.requester" filterable placeholder="选择提出该预警需求的同事">
                   <el-option v-for="user in activeUsers" :key="user.name" :label="user.name" :value="user.name"></el-option>
                 </el-select>
               </el-form-item>
@@ -3599,7 +3620,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       </el-config-provider>
     `,
     data: () => ({
-      keyword: "", categoryFilter: "",
+      keyword: "", categoryFilter: "", requesterFilter: "", ownerFilter: "",
       dialogVisible: false, editingId: "", form: createAlertForm(),
       saving: false,
       categoryManagerVisible: false, categoryDraft: "", savedCategories: [],
@@ -3619,6 +3640,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           name: [{ required: true, message: "请填写预警名称", trigger: "blur" }],
           category: [required("请选择预警分类")],
           owner: [required("请选择负责人")],
+          requester: [required("请选择需求人")],
           table: [required("请选择监控表")],
           keyField: [required("请选择主体字段（用于重复通知去重）")],
           conditions: [{ required: true, validator: this.validateConditions, trigger: "change" }],
@@ -3635,8 +3657,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const keyword = this.keyword.trim().toLowerCase();
         return this.alerts.filter(item => {
           if (this.categoryFilter && item.category !== this.categoryFilter) return false;
+          if (this.requesterFilter && item.requester !== this.requesterFilter) return false;
+          if (this.ownerFilter && item.owner !== this.ownerFilter) return false;
           if (!keyword) return true;
-          return `${item.name} ${item.table} ${item.tableCn || ""} ${item.category || ""} ${item.desc || ""}`.toLowerCase().includes(keyword);
+          return `${item.name} ${item.table} ${item.tableCn || ""} ${item.category || ""} ${item.requester || ""} ${item.owner || ""} ${item.desc || ""}`.toLowerCase().includes(keyword);
         });
       },
       activeUsers() { refreshTick.value; return state.users.filter(user => user.status !== "已停用"); },
@@ -3751,6 +3775,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.editingId = "";
         this.form = createAlertForm();
         this.form.owner = this.currentUser?.name || LOGIN_USER_NAME;
+        this.form.requester = this.currentUser?.name || LOGIN_USER_NAME;
         this.testResult = "";
         this.dialogVisible = true;
         this.clearValidation();
@@ -3758,7 +3783,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       openEdit(row) {
         this.editingId = row.id;
         this.form = JSON.parse(JSON.stringify({
-          name: row.name, category: row.category, desc: row.desc, owner: row.owner,
+          name: row.name, category: row.category, desc: row.desc, owner: row.owner, requester: row.requester || row.owner,
           table: row.table, keyField: row.keyField, timeField: row.timeField,
           relation: row.relation, conditions: row.conditions, mode: row.mode,
           schedule: { weekday: "周一", ...(row.schedule || {}) }, dedup: row.dedup, channel: row.channel,
@@ -3863,7 +3888,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const table = this.currentTable;
         const payload = {
           name: this.form.name.trim(),
-          category: this.form.category, desc: this.form.desc.trim(), owner: this.form.owner,
+          category: this.form.category, desc: this.form.desc.trim(), owner: this.form.owner, requester: this.form.requester,
           table: this.form.table, tableCn: table?.cn || this.form.table,
           keyField: this.form.keyField, timeField: this.form.timeField,
           relation: this.form.relation, conditions: JSON.parse(JSON.stringify(this.form.conditions)),
