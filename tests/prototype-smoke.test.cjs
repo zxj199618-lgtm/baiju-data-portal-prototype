@@ -280,4 +280,12 @@ assert(portalVue.includes("ability") === false || (portalVue.includes("自动向
 assert(portalVue.includes("openVersionManage") && portalVue.includes("openNewVersion") && portalVue.includes("saveGrayDraft") && portalVue.includes("publishVersion") && portalVue.includes("versionStatusName") && portalVue.includes("回滚到此版本"), "Skill 版本管理应支持新增/未发布编辑/灰度/发版/查看历史/回滚全流程");
 assert(portalVue.includes("iconInput") && portalVue.includes("onIconUpload") && portalVue.includes("isImageIcon"), "Skill 图标应支持上传图片（列表与工作台卡片均可展示）");
 
+const deployScript = read("scripts/deploy.sh");
+assert(deployScript.includes("set -euo pipefail"), "发版脚本应启用 pipefail，避免管道吞掉失败退出码");
+assert(!/(\d{1,3}\.){3}\d{1,3}/.test(deployScript), "发版脚本不应硬编码服务器 IP，须从环境变量或 .deploy.env 读取");
+assert(deployScript.includes("git bundle create") && deployScript.includes("merge --ff-only"), "发版脚本应通过 git bundle 直传并快进合并，不依赖服务器访问 GitHub");
+assert(deployScript.includes("EXPECT_VERSION") && deployScript.includes("线上版本号"), "发版脚本应在发布后核对线上静态资源版本号");
+assert(exists(".deploy.env.example") && read(".gitignore").includes(".deploy.env"), "应提供发版配置样例，且本地 .deploy.env 不入库");
+assert(read("package.json").includes('"deploy": "bash scripts/deploy.sh"'), "应提供 npm run deploy 入口");
+
 console.log("观星台原型 smoke test: passed");
