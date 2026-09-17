@@ -3737,7 +3737,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </el-select>
                 <div class="portal-vue-alert-hint">用来判断"是不是同一个问题"：同一<b>{{ keyFieldLabel }}</b>触发本告警只算同一条，再按上面的重复规则决定要不要再次通知。例如重复判定字段选「用户名」，则同一用户的多次触发会按规则合并，不同用户各算一条。</div>
               </el-form-item>
-              <el-form-item v-if="form.dedup.mode === 'interval'" label="重复间隔">
+              <el-form-item v-if="form.dedup.mode === 'interval'" label="重复间隔" prop="dedup.intervalMinutes">
                 <div class="portal-vue-alert-inline">
                   <span>同一{{ keyFieldLabel }}在</span>
                   <el-input-number v-model="form.dedup.intervalMinutes" :min="1" :max="1440" controls-position="right"></el-input-number>
@@ -3811,6 +3811,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           "schedule.freq": [required("请选择检查频率")],
           mode: [required("请选择告警方式")],
           "dedup.mode": [required("请选择重复告警方式")],
+          "dedup.intervalMinutes": [
+            required("请输入重复间隔分钟数"),
+            { type: "number", min: 1, max: 1440, message: "重复间隔需在 1~1440 分钟之间", trigger: "change" }
+          ],
           "schedule.weekday": [required("请选择执行日")],
           "schedule.time": [required("请选择执行时间")]
         };

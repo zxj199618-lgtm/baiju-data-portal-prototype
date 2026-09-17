@@ -282,6 +282,7 @@ assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("是不
 assert(portalVue.includes('class="portal-vue-alert-preview-avatar" src="assets/momentx-observatory-icon.png"'), "推送效果预览的头像应使用观星台品牌图标");
 assert(portalVue.includes("portal-vue-alert-dialog-head") && portalVue.includes("portal-vue-alert-back"), "数据告警编辑弹窗左上角应提供返回按钮");
 assert(portalVue.includes('label="负责人" prop="owner"') && portalVue.includes('label="告警方式" prop="mode"') && portalVue.includes('prop="dedup.mode"'), "负责人/告警方式/重复告警均应绑定 prop 以渲染必填星标");
+assert(portalVue.includes('label="重复间隔" prop="dedup.intervalMinutes"') && portalVue.includes('"dedup.intervalMinutes": ['), "重复间隔应为必填项并校验 1~1440 分钟区间");
 assert(portalVue.includes('label="需求人" prop="requester"'), "数据告警表单应包含需求人必填字段");
 assert(portalVue.includes('<el-table-column label="需求人"') && portalVue.includes('<el-table-column label="负责人"') && portalVue.includes("requesterFilter") && portalVue.includes("ownerFilter"), "列表应展示需求人与负责人，并支持按两者筛选");
 assert(portalVue.includes("groupFilter") && portalVue.includes("pushUserFilter") && portalVue.includes("全部推送群") && portalVue.includes("全部推送人"), "列表应支持按推送群与推送人筛选");
