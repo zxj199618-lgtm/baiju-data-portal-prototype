@@ -225,6 +225,7 @@ assert(portalCss.includes(".portal-vue-user > span { white-space: nowrap") && po
 assert(portalBridge.includes('menuEdits: ["灵犀智析"') && portalBridge.includes("menuEdits: []"), "权限组数据应包含菜单编辑权限，只读角色默认无编辑权限");
 assert(portalBridge.includes('group: "系统管理"') && portalBridge.includes('name: "菜单管理"') && portalBridge.includes('name: "Skill 配置"'), "系统管理应包含菜单管理与 Skill 配置");
 assert(portalBridge.includes('name: "操作日志"'), "系统管理应提供操作日志菜单");
+assert(portalBridge.indexOf('name: "操作日志"') < portalBridge.indexOf('name: "菜单管理"') && portalBridge.indexOf('name: "操作日志"') > portalBridge.indexOf('name: "环境域名"'), "操作日志菜单应位于环境域名之后、菜单管理之前");
 assert(html.includes('id="operationLogView"') && portalVue.includes('mount("#operationLogView"'), "操作日志应挂载独立视图");
 assert(portalVue.includes("OperationLogApp") && portalVue.includes("operationLogEvents") && portalVue.includes("operationLogSeeds"), "操作日志应基于埋点事件定义构建");
 assert(portalVue.includes('"page_view"') && portalVue.includes('"dashboard_view_heartbeat"'), "操作日志应覆盖页面访问与看板心跳两类埋点");
