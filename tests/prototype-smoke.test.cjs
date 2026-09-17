@@ -274,7 +274,9 @@ assert(!portalVue.includes("validationVisible") && !portalVue.includes("校验�
 ["分类", "监控表", "告警方式", "重复通知", "近7日告警次数"].forEach(label => {
   assert(portalVue.includes(`<el-table-column label="${label}"`), `数据告警列表应把「${label}」拆成独立列`);
 });
-assert(portalVue.includes('label="状态" width="88"'), "状态列宽需容纳开关，避免单元格溢出被省略号截断");
+assert(portalVue.includes('label="状态" width="92"') && portalVue.includes("portal-vue-alert-cell-status"), "状态列需左对齐且留出宽度，避免开关被固定操作列覆盖");
+assert(!portalVue.includes("推送统一走内置"), "数据告警列表底部说明文案应移除");
+assert(portalVue.includes('label="触发条件" min-width="176"') && portalVue.includes('label="推送通道" min-width="128"'), "告警列表列宽合计需小于容器宽度，避免横向滚动导致固定列遮挡");
 assert(portalVue.includes("portal-vue-alert-cell-name"), "数据告警列表名称列应有独立样式");
 assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("是不是同一个问题"), "重复判定字段应提供说明文案，帮助理解重复判断口径");
 assert(portalVue.includes('class="portal-vue-alert-preview-avatar" src="assets/momentx-observatory-icon.png"'), "推送效果预览的头像应使用观星台品牌图标");

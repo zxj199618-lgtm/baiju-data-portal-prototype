@@ -3455,7 +3455,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div class="portal-vue-alert-cell-name">{{ scope.row.name }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="分类" min-width="112">
+            <el-table-column label="分类" min-width="104">
               <template #default="scope">
                 <el-tag v-if="scope.row.category" size="small" effect="plain" class="portal-vue-alert-cell-tag">{{ scope.row.category }}</el-tag>
                 <span v-else class="portal-vue-muted">—</span>
@@ -3467,17 +3467,17 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div class="portal-vue-muted portal-vue-alert-cell-sub">{{ scope.row.table }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="需求人" min-width="92">
+            <el-table-column label="需求人" min-width="88">
               <template #default="scope">
                 <span>{{ scope.row.requester || "—" }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="负责人" min-width="92">
+            <el-table-column label="负责人" min-width="88">
               <template #default="scope">
                 <span>{{ scope.row.owner || "—" }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="触发条件" min-width="200">
+            <el-table-column label="触发条件" min-width="176">
               <template #default="scope">
                 <div class="portal-vue-alert-cell-rule">{{ ruleSummary(scope.row) }}</div>
               </template>
@@ -3488,12 +3488,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div v-if="scope.row.mode === 'scheduled'" class="portal-vue-muted portal-vue-alert-cell-sub">{{ scheduleSummary(scope.row) }}</div>
               </template>
             </el-table-column>
-            <el-table-column label="重复通知" min-width="152">
+            <el-table-column label="重复通知" min-width="136">
               <template #default="scope">
                 <span>{{ dedupSummary(scope.row) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="推送通道" min-width="140">
+            <el-table-column label="推送通道" min-width="128">
               <template #default="scope">
                 <div style="display:flex;flex-wrap:wrap;gap:4px">
                   <el-tag v-for="group in scope.row.channel.groups" :key="group" size="small" type="success" effect="plain">{{ group }}</el-tag>
@@ -3502,7 +3502,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="最近触发" width="146">
+            <el-table-column label="最近触发" width="138">
               <template #default="scope">
                 <el-button link type="primary" class="portal-vue-alert-cell-link" @click="openHistory(scope.row)">{{ scope.row.lastTriggered === '—' ? '尚未触发' : scope.row.lastTriggered }}</el-button>
               </template>
@@ -3512,9 +3512,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <span>{{ scope.row.recent7dCount || 0 }} 次</span>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="88" align="center">
+            <el-table-column label="状态" width="92">
               <template #default="scope">
-                <el-switch :disabled="!canEdit('数据告警')" v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch>
+                <div class="portal-vue-alert-cell-status">
+                  <el-switch :disabled="!canEdit('数据告警')" v-model="scope.row.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch>
+                </div>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="96" fixed="right">
@@ -3527,7 +3529,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
-          <div class="portal-vue-muted" style="margin-top:12px">告警基于埋点事件流计算，实时方式在事件到达时判定并推送；推送统一走内置「{{ botName }}」。</div>
         </section>
 
         <el-dialog v-model="dialogVisible" fullscreen class="portal-vue-fullscreen-dialog" :close-on-click-modal="false">

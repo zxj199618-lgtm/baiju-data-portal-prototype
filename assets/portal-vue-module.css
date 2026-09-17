@@ -660,6 +660,7 @@
 .portal-vue-alert-cat { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #e9edf4; border-radius: 8px; }
 .portal-vue-alert-cat > span:first-child { color: #1f2733; font-size: 13px; font-weight: 650; }
 
+.portal-vue-alert-cell-status { display: flex; justify-content: flex-start; padding-right: 10px; }
 /* 数据告警列表：每格最多两行，只保留必要信息 */
 .portal-vue-alert-table .portal-vue-alert-cell-name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .portal-vue-alert-table .portal-vue-alert-cell-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 4px; font-size: 12px; }
