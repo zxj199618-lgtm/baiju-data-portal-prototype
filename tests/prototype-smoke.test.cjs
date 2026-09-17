@@ -231,6 +231,9 @@ assert(portalVue.includes('"page_view"') && portalVue.includes('"dashboard_view_
 assert(portalVue.includes('category: "页面访问"') && portalVue.includes('category: "查看看板"'), "操作日志应按页面访问 / 查看看板分类");
 assert(portalVue.includes("visitId") && portalVue.includes("duration_seconds") && portalVue.includes("visit_id"), "看板心跳应按 visit_id 归并为一次访问并计算停留时长");
 assert(portalVue.includes("portal-vue-log-attrs") && portalVue.includes("detailBeats"), "操作日志详情应展示完整埋点属性与心跳明细");
+assert(portalVue.includes('label="页面名称"') && portalVue.includes('label="页面URL"') && portalVue.includes('["menu_name", "菜单名称"'), "操作日志应把页面名称与页面URL拆成独立列，页面访问带菜单名称");
+assert(portalVue.includes('label="UA"') && portalVue.includes("operationLogUaSummary") && portalVue.includes("uaSummaryOf"), "操作日志应展示 UA（摘要 + 完整值 tooltip）");
+assert(portalVue.includes('type="datetimerange"') && portalVue.includes("rangeBounds") && portalVue.includes("timeShortcuts"), "操作日志时间筛选应支持选择时间范围，并保留快捷区间")
 assert(portalBridge.includes('"操作日志": ["操作日志"'), "操作日志应配置页面标题与说明");
 assert(html.includes('id="menuManagementView"') && portalVue.includes("mount(\"#menuManagementView\""), "菜单管理应挂载独立视图");
 assert(portalVue.includes("MenuManagementApp") && portalVue.includes("权限标识") && portalVue.includes("组件路径"), "菜单管理应提供层级树/组件路径/权限标识配置");

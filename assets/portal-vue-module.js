@@ -4261,6 +4261,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         ["user_name", "用户名称", "string"],
         ["user_id", "用户唯一ID", "string"],
         ["is_login", "是否登陆", "bool"],
+        ["menu_name", "菜单名称", "string"],
         ["page_url", "页面URL", "url"],
         ["referrer_url", "来源页面URL", "url"],
         ["distinct_id", "设备ID", "string"],
@@ -4329,6 +4330,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     ["quickbi_channel_quality", "渠道质量周报"]
   ];
 
+  /* 页面访问埋点上报的菜单名称：与页面 URL 中的 #page= 一致 */
+  function operationLogMenuName(url) {
+    const matched = String(url || "").match(/[#&?]page=([^&]*)/);
+    return matched ? decodeURIComponent(matched[1]) : "";
+  }
+
   function buildOperationLogs() {
     const base = new Date("2026-09-17T10:40:00");
     const pad = value => String(value).padStart(2, "0");
@@ -4348,6 +4355,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           user_name: user.name,
           user_id: user.userId,
           is_login: true,
+          menu_name: operationLogMenuName(page[0]),
           page_url: page[0],
           referrer_url: page[1],
           distinct_id: user.device,
@@ -4396,6 +4404,24 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     return records.sort((a, b) => b.ts - a.ts);
   }
 
+  /* UA 摘要：表格里展示「浏览器 · 系统」，完整 UA 放到 tooltip 与详情抽屉 */
+  function operationLogUaSummary(ua) {
+    const text = String(ua || "");
+    if (!text) return "—";
+    let browser = "未知浏览器";
+    if (/MicroMessenger/.test(text)) browser = "微信内置浏览器";
+    else if (/Edg\//.test(text)) browser = "Edge " + (text.match(/Edg\/(\d+)/) || [])[1];
+    else if (/Chrome\//.test(text)) browser = "Chrome " + (text.match(/Chrome\/(\d+)/) || [])[1];
+    else if (/Version\/[\d.]+ Safari/.test(text)) browser = "Safari " + (text.match(/Version\/(\d+)/) || [])[1];
+    else if (/Firefox\//.test(text)) browser = "Firefox " + (text.match(/Firefox\/(\d+)/) || [])[1];
+    let system = "未知系统";
+    if (/Mac OS X/.test(text)) system = "macOS";
+    else if (/Windows NT/.test(text)) system = "Windows";
+    else if (/iPhone|iPad/.test(text)) system = "iOS";
+    else if (/Android/.test(text)) system = "Android";
+    return browser + " · " + system;
+  }
+
   const operationLogSeeds = buildOperationLogs();
   const operationLogUserName = userId => operationLogUsers.find(user => user.userId === userId)?.name || "";
 
@@ -4418,13 +4444,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <el-option label="web" value="web"></el-option>
                 <el-option label="h5" value="h5"></el-option>
               </el-select>
-              <el-select v-model="timeRange" placeholder="全部时间" style="width:140px" @change="resetPage">
-                <el-option label="近 1 小时" value="1h"></el-option>
-                <el-option label="近 6 小时" value="6h"></el-option>
-                <el-option label="近 24 小时" value="24h"></el-option>
-                <el-option label="近 7 天" value="7d"></el-option>
-                <el-option label="全部时间" value="all"></el-option>
-              </el-select>
+              <el-date-picker v-model="timeRange" type="datetimerange" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DD HH:mm" :shortcuts="timeShortcuts" style="width:360px" @change="resetPage"></el-date-picker>
             </div>
           </div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无操作日志">
@@ -4443,13 +4463,17 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-table-column label="事件" width="120">
               <template #default="scope">{{ eventNameOf(scope.row) }}</template>
             </el-table-column>
-            <el-table-column label="页面 / 看板" min-width="260">
+            <el-table-column label="页面名称" min-width="180">
               <template #default="scope">
-                <div v-if="scope.row.kind === 'page'" class="portal-vue-log-url">{{ pageUrlOf(scope.row) }}</div>
-                <div v-else>
-                  <div>{{ dashboardNameOf(scope.row) }}</div>
-                  <div class="portal-vue-muted" style="font-size:12px">{{ dashboardIdOf(scope.row) }}</div>
-                </div>
+                <div>{{ pageNameOf(scope.row) || "—" }}</div>
+                <div v-if="scope.row.kind === 'dashboard'" class="portal-vue-muted" style="font-size:12px">{{ dashboardIdOf(scope.row) }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column label="页面URL" min-width="230">
+              <template #default="scope">
+                <el-tooltip :content="pageUrlOf(scope.row)" placement="top" :show-after="300">
+                  <div class="portal-vue-log-url">{{ pageUrlOf(scope.row) }}</div>
+                </el-tooltip>
               </template>
             </el-table-column>
             <el-table-column label="停留时长" width="110">
@@ -4460,6 +4484,13 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </el-table-column>
             <el-table-column label="终端" width="90">
               <template #default="scope"><el-tag size="small" effect="plain">{{ platformOf(scope.row) }}</el-tag></template>
+            </el-table-column>
+            <el-table-column label="UA" min-width="170">
+              <template #default="scope">
+                <el-tooltip :content="uaOf(scope.row)" placement="top" :show-after="300">
+                  <span class="portal-vue-log-ua-summary">{{ uaSummaryOf(scope.row) }}</span>
+                </el-tooltip>
+              </template>
             </el-table-column>
             <el-table-column label="IP地址" width="140">
               <template #default="scope">{{ ipOf(scope.row) }}</template>
@@ -4495,12 +4526,23 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       </el-config-provider>
     `,
     data: () => ({
-      category: "全部", keyword: "", userFilter: "", platformFilter: "", timeRange: "all",
+      category: "全部", keyword: "", userFilter: "", platformFilter: "", timeRange: [], timeShortcuts: [],
       page: 1, pageSize: 10,
       detailVisible: false, detailTitle: "", detailEvent: "", detailAttrs: [], detailBeats: [],
       logUsers: operationLogUsers,
       records: operationLogSeeds
     }),
+    created() {
+      /* 快捷区间以最新一条日志为锚点，避免样例数据与真实当前时间漂移导致筛不出结果 */
+      const anchor = this.records[0]?.ts || Date.now();
+      const back = ms => [new Date(anchor - ms), new Date(anchor)];
+      this.timeShortcuts = [
+        { text: "近 1 小时", value: () => back(3600000) },
+        { text: "近 6 小时", value: () => back(21600000) },
+        { text: "近 24 小时", value: () => back(86400000) },
+        { text: "近 7 天", value: () => back(604800000) }
+      ];
+    },
     computed: {
       categories() { return [...new Set(Object.values(operationLogEvents).map(item => item.category))]; },
       /* 看板心跳按 visit_id 归并为一条访问记录 */
@@ -4527,23 +4569,28 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       },
       filteredRows() {
         const keyword = this.keyword.trim().toLowerCase();
-        const since = this.sinceTime;
+        const bounds = this.rangeBounds;
         return this.allRows.filter(row => {
           if (this.category !== "全部" && this.categoryOf(row) !== this.category) return false;
           if (this.userFilter && this.rowUserName(row) !== this.userFilter) return false;
           if (this.platformFilter && this.platformOf(row) !== this.platformFilter) return false;
-          if (since && row.head.ts < since) return false;
+          if (bounds && (row.head.ts < bounds[0] || row.head.ts > bounds[1])) return false;
           if (!keyword) return true;
           const text = [this.rowUserName(row), this.rowUserId(row), this.pageUrlOf(row), this.dashboardNameOf(row), this.dashboardIdOf(row), this.ipOf(row)].join(" ").toLowerCase();
           return text.includes(keyword);
         });
       },
-      sinceTime() {
-        const spans = { "1h": 3600000, "6h": 21600000, "24h": 86400000, "7d": 604800000 };
-        const span = spans[this.timeRange];
-        if (!span) return 0;
-        const newest = this.allRows[0]?.head?.ts || Date.now();
-        return newest - span;
+      /* 时间范围解析：value-format 为 YYYY-MM-DD HH:mm，手动解析避免各浏览器对空格分隔的兼容差异 */
+      rangeBounds() {
+        const range = Array.isArray(this.timeRange) ? this.timeRange : [];
+        if (range.length !== 2) return null;
+        const toTs = value => {
+          const matched = String(value || "").match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+          return matched ? new Date(+matched[1], +matched[2] - 1, +matched[3], +matched[4], +matched[5]).getTime() : null;
+        };
+        const start = toTs(range[0]);
+        const end = toTs(range[1]);
+        return start === null || end === null ? null : [start, end];
       },
       pagedRows() {
         const result = paginate(this.filteredRows, this.page, this.pageSize);
@@ -4570,6 +4617,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       platformOf(row) { return this.headValue(row, "platform"); },
       ipOf(row) { return this.headValue(row, "ip"); },
       durationOf(row) { return row.records[row.records.length - 1].values.duration_seconds; },
+      pageNameOf(row) {
+        return row.kind === "page" ? (this.headValue(row, "menu_name") || "") : this.dashboardNameOf(row);
+      },
+      uaOf(row) { return this.headValue(row, "user_agent") || "—"; },
+      uaSummaryOf(row) { return operationLogUaSummary(this.headValue(row, "user_agent")); },
       openDetail(row) {
         const schema = operationLogEvents[row.head.event];
         this.detailTitle = schema.name + " · " + this.rowUserName(row);
