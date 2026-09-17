@@ -467,6 +467,33 @@
 .portal-vue-ai-group-label { margin: 2px 0 -2px; display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; color: #8a94a6; }
 .portal-vue-ai-group-label span { font-size: 11px; color: #b3bcc9; }
 .portal-vue-ai-composer { border: 1px solid #dcdfe6; border-radius: 12px; background: #fff; transition: border-color .15s, box-shadow .15s; }
+
+/* 灵犀智析：底部交互式澄清面板（多问、A/B/C 选项、逐题推进） */
+.portal-vue-ai-clarify { margin-bottom: 10px; border: 1px solid #dbe8fb; border-radius: 12px; background: #fff; box-shadow: 0 6px 18px rgba(15,35,70,.08); overflow: hidden; }
+.portal-vue-ai-clarify-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f0f7ff; border-bottom: 1px solid #e2edfb; }
+.portal-vue-ai-clarify-icon { font-size: 15px; }
+.portal-vue-ai-clarify-head strong { color: #1f2733; font-size: 13px; }
+.portal-vue-ai-clarify-steps { display: flex; align-items: center; gap: 6px; margin-left: 6px; }
+.portal-vue-ai-clarify-dot { width: 20px; height: 20px; padding: 0; border: 1px solid #c7d0dd; border-radius: 50%; background: #fff; color: #667085; font-size: 11px; font-weight: 700; cursor: pointer; transition: all .15s; }
+.portal-vue-ai-clarify-dot.is-done { border-color: #1677ff; background: #e8f2ff; color: #1677ff; }
+.portal-vue-ai-clarify-dot.is-active { border-color: #1677ff; background: #1677ff; color: #fff; }
+.portal-vue-ai-clarify-skip { margin-left: auto; padding: 0; border: 0; background: transparent; color: #8a94a6; font-size: 12px; cursor: pointer; }
+.portal-vue-ai-clarify-skip:hover { color: #1677ff; }
+.portal-vue-ai-clarify-body { padding: 14px 14px 12px; }
+.portal-vue-ai-clarify-question { margin: 0; color: #1f2733; font-size: 14px; font-weight: 650; }
+.portal-vue-ai-clarify-no { margin-right: 8px; padding: 1px 7px; border-radius: 999px; background: #edf5ff; color: #1677ff; font-size: 11px; font-weight: 700; }
+.portal-vue-ai-clarify-hint { margin: 6px 0 0; font-size: 12px; }
+.portal-vue-ai-clarify-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.portal-vue-ai-clarify-option { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px 7px 9px; border: 1px solid #dcdfe6; border-radius: 999px; background: #fff; color: #344054; font-size: 13px; cursor: pointer; transition: all .15s; }
+.portal-vue-ai-clarify-option:hover { border-color: #1677ff; color: #1677ff; }
+.portal-vue-ai-clarify-option.is-picked { border-color: #1677ff; background: #edf5ff; color: #1677ff; font-weight: 650; }
+.portal-vue-ai-clarify-key { display: inline-flex; width: 18px; height: 18px; align-items: center; justify-content: center; border-radius: 50%; background: #f2f4f7; color: #667085; font-size: 11px; font-weight: 700; }
+.portal-vue-ai-clarify-option.is-picked .portal-vue-ai-clarify-key { background: #1677ff; color: #fff; }
+.portal-vue-ai-clarify-desc { font-size: 12px; }
+.portal-vue-ai-clarify-foot { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid #eef1f6; background: #fafbfd; }
+.portal-vue-ai-clarify-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; font-size: 12px; }
+.portal-vue-ai-clarify-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
+.portal-vue-ai-confirms { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .portal-vue-ai-composer:focus-within { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(22,119,255,.08); }
 .portal-vue-ai-composer .el-textarea__inner { border: 0; box-shadow: none; background: transparent; padding: 8px 14px 2px; font-size: 13.5px; }
 .portal-vue-ai-composer-bar { display: flex; align-items: center; gap: 8px; padding: 4px 10px 6px; }

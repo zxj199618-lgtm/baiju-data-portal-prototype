@@ -1749,7 +1749,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
 </div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
                     <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
-                    <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
+                    <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div>
                 <div v-if="thinking" class="portal-vue-ai-message assistant"><div class="portal-vue-ai-bubble"><p class="portal-vue-muted">正在基于你有权限的数据表进行分析…</p></div></div>
@@ -1760,6 +1760,48 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <div class="portal-vue-ai-mention-list">
                     <button v-for="table in mentionTables" :key="table" type="button" @click="insertMention(table)">{{ table }}</button>
                     <p v-if="!mentionTables.length" class="portal-vue-muted">没有匹配的数据表，或当前权限组未配置数据表权限。</p>
+                  </div>
+                </div>
+                <div v-if="clarifyVisible && clarifyCurrent" class="portal-vue-ai-clarify">
+                  <div class="portal-vue-ai-clarify-head">
+                    <span class="portal-vue-ai-clarify-icon">🤖</span>
+                    <strong>需要你确认</strong>
+                    <span class="portal-vue-muted">已答 {{ clarifyAnsweredCount }} / {{ clarifyQuestions.length }}</span>
+                    <div class="portal-vue-ai-clarify-steps">
+                      <button v-for="(item, index) in clarifyQuestions" :key="item.key" type="button" class="portal-vue-ai-clarify-dot"
+                        :class="{ 'is-active': index === clarifyIndex, 'is-done': clarifyAnswers[item.key] }"
+                        :title="item.label || item.question" @click="clarifyIndex = index">{{ index + 1 }}</button>
+                    </div>
+                    <button type="button" class="portal-vue-ai-clarify-skip" @click="clarifyCancel">跳过，直接分析</button>
+                  </div>
+                  <div class="portal-vue-ai-clarify-body">
+                    <p class="portal-vue-ai-clarify-question">
+                      <span class="portal-vue-ai-clarify-no">第 {{ clarifyIndex + 1 }} 题</span>{{ clarifyCurrent.question }}
+                    </p>
+                    <p v-if="clarifyCurrent.hint" class="portal-vue-muted portal-vue-ai-clarify-hint">{{ clarifyCurrent.hint }}</p>
+                    <div class="portal-vue-ai-clarify-options">
+                      <button v-for="(option, index) in clarifyCurrent.options" :key="option" type="button"
+                        class="portal-vue-ai-clarify-option" :class="{ 'is-picked': clarifyAnswers[clarifyCurrent.key] === option }"
+                        @click="pickClarifyOption(option)">
+                        <span class="portal-vue-ai-clarify-key">{{ clarifyOptionKey(index) }}</span>
+                        <span class="portal-vue-ai-clarify-label">{{ option }}</span>
+                        <span v-if="clarifyCurrent.descriptions && clarifyCurrent.descriptions[option]" class="portal-vue-muted portal-vue-ai-clarify-desc">{{ clarifyCurrent.descriptions[option] }}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="portal-vue-ai-clarify-foot">
+                    <div class="portal-vue-ai-clarify-summary">
+                      <template v-if="clarifySummaryItems.length">
+                        <span class="portal-vue-muted">已选</span>
+                        <el-tag v-for="item in clarifySummaryItems" :key="item.key" size="small" effect="plain">{{ item.label }}</el-tag>
+                      </template>
+                      <span v-else class="portal-vue-muted">选择后按「下一题」继续，最后一题确认发送</span>
+                    </div>
+                    <div class="portal-vue-ai-clarify-actions">
+                      <el-button size="small" :disabled="clarifyIndex === 0" @click="clarifyPrev">上一题</el-button>
+                      <el-button v-if="clarifyIndex < clarifyQuestions.length - 1" size="small" type="primary" :disabled="!clarifyAnswers[clarifyCurrent.key]" @click="clarifyNext">下一题</el-button>
+                      <el-button v-else size="small" type="primary" :disabled="!clarifyAnsweredCount" @click="clarifySubmit">确认并发送</el-button>
+                    </div>
                   </div>
                 </div>
                 <div class="portal-vue-ai-composer">
@@ -1806,19 +1848,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div v-if="!activeReport().markdown && activeReport().messages.length" v-for="(msg, index) in activeReport().messages" :key="index" class="portal-vue-ai-message" :class="msg.role">
                   <div class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html }">
                     <template v-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div></template>
-                    <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
+                    <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div>
                 <p v-if="!activeReport().markdown && !activeReport().messages.length" class="portal-vue-muted">{{ activeReport().summary || "（无内容）" }}</p>
-              </div>
-            </div>
-          </el-dialog>
-          <el-dialog v-model="businessLineVisible" title="业务线咨询" width="460px" :close-on-click-modal="false">
-            <div class="portal-vue-skill-drawer">
-              <p style="margin:0;color:#1f2733;font-size:15px;font-weight:600">{{ activeSkill?.clarification?.question || "你问的是哪个业务线？" }}</p>
-              <p class="portal-vue-muted" style="margin:6px 0 14px">确定业务线后，数据查询与指标解答 Skill 会在你有权限的对应表和字段中检索。</p>
-              <div style="display:flex;flex-wrap:wrap;gap:10px">
-                <el-button v-for="line in businessLineOptions" :key="line" @click="confirmBusinessLine(line)">{{ line }}</el-button>
               </div>
             </div>
           </el-dialog>
@@ -1836,8 +1869,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       mentionKeyword: "",
       activeTable: "",
       activeTablePath: [],
-      businessLineVisible: false,
       pendingQuestion: "",
+      clarifyVisible: false,
+      clarifyIndex: 0,
+      clarifyAnswers: {},
       models: [],
       modelsLoading: false,
       model: "",
@@ -1894,7 +1929,19 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         return groups;
       },
       tableCascadeOptions(){return this.tableGroups.map(group=>({value:group.name,label:group.name,children:group.tables.map(table=>({value:table,label:table}))}));},
-      businessLineOptions(){return this.activeSkill?.clarification?.options||["存量","权益","保险","短剧","其他"];},
+      businessLineOptions(){return this.clarifyQuestions.find(item=>item.key==="businessLine")?.options||["存量","权益","保险","短剧","其他"];},
+      clarifyQuestions(){
+        const config=this.activeSkill?.clarification;
+        if(!config?.enabled)return [];
+        if(Array.isArray(config.questions)&&config.questions.length)return config.questions;
+        return config.question?[{key:"businessLine",label:"业务线",question:config.question,options:config.options||[]}]:[];
+      },
+      clarifyCurrent(){return this.clarifyQuestions[this.clarifyIndex]||null;},
+      clarifyAnsweredCount(){return this.clarifyQuestions.filter(item=>this.clarifyAnswers[item.key]).length;},
+      clarifySummaryItems(){
+        return this.clarifyQuestions.filter(item=>this.clarifyAnswers[item.key])
+          .map(item=>({key:item.key,label:(item.label||item.question)+"："+this.clarifyAnswers[item.key]}));
+      },
       currentContextLimit(){return this.modelLimits[this.model]||1000000;},
       ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
       historySessions(){return this.sessions.filter(item=>item.status!=="进行中");},
@@ -2165,21 +2212,48 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.mentionKeyword="";
       },
       tablesForBusinessLine(line){return this.tableGroups.find(group=>group.name===line)?.tables||[];},
-      confirmBusinessLine(line){
-        const question=this.pendingQuestion;
-        this.businessLineVisible=false;
-        this.pendingQuestion="";
-        this.sendMessage({question,businessLine:line});
+      clarifyOptionKey(index){return String.fromCharCode(65+index);},
+      openClarify(question){
+        this.pendingQuestion=question;
+        this.clarifyAnswers={};
+        this.clarifyIndex=0;
+        this.clarifyVisible=true;
       },
-      async sendMessage({question:questionOverride="",businessLine=""}={}){
+      pickClarifyOption(option){
+        const current=this.clarifyCurrent;
+        if(!current)return;
+        const next={...this.clarifyAnswers};
+        next[current.key]=next[current.key]===option?"":option;
+        this.clarifyAnswers=next;
+      },
+      clarifyPrev(){if(this.clarifyIndex>0)this.clarifyIndex-=1;},
+      clarifyNext(){if(this.clarifyIndex<this.clarifyQuestions.length-1)this.clarifyIndex+=1;},
+      clarifySubmit(){
+        const answers={...this.clarifyAnswers};
+        const question=this.pendingQuestion;
+        this.clarifyVisible=false;
+        this.pendingQuestion="";
+        this.sendMessage({question,clarifyAnswers:answers});
+      },
+      clarifyCancel(){
+        const question=this.pendingQuestion;
+        this.clarifyVisible=false;
+        this.pendingQuestion="";
+        this.sendMessage({question,clarifyAnswers:{}});
+      },
+      async sendMessage({question:questionOverride="",clarifyAnswers=null}={}){
         const question=(questionOverride||this.input).trim();
         if(!question||this.thinking)return;
         const explicitlyReferenced=this.myTables.some(table=>question.includes(`@${table}`))||!!this.activeTable;
-        if(this.activeSkill?.clarification?.enabled&&!explicitlyReferenced&&!businessLine){
-          this.pendingQuestion=question;
-          this.businessLineVisible=true;
+        /* clarifyAnswers 为 null 表示用户刚发出问题：先走澄清面板；{} 表示用户选择跳过 */
+        if(this.activeSkill?.clarification?.enabled&&!explicitlyReferenced&&clarifyAnswers===null&&this.clarifyQuestions.length){
+          this.openClarify(question);
           return;
         }
+        const answers=clarifyAnswers||{};
+        const businessLine=answers.businessLine||"";
+        const confirmations=this.clarifyQuestions.filter(item=>answers[item.key])
+          .map(item=>(item.label||item.question)+"："+answers[item.key]);
         const assetCandidates=businessLine?this.tablesForBusinessLine(businessLine):[];
         let session=this.activeSession;
         if(!session.id||session.suggested){
@@ -2189,7 +2263,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         }
         const mentionedTables=[...new Set([...this.myTables.filter(table=>question.includes(`@${table}`)),...(this.activeTable?[this.activeTable]:[])])];
         const evidenceTables=assetCandidates.length?assetCandidates:mentionedTables;
-        session.messages.push({role:"user",lines:[question],refs:evidenceTables.length?evidenceTables:undefined});
+        session.messages.push({role:"user",lines:[question],confirms:confirmations.length?confirmations:undefined,refs:evidenceTables.length?evidenceTables:undefined});
         session.title=session.title==="新的分析"?question.slice(0,18):session.title;
         this.input="";
         this.mentionOpen=false;
@@ -2702,7 +2776,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       icon: "📊", title: "数据查询与指标解答", displayDesc: "先选业务线，再检索表与字段", sort: 10, scenarioKey: "data-query", enabled: true,
       desc: "未指定数据表时先咨询业务线，再在授权资产中检索指标口径、表和字段。",
       scenarios: "指标查询 / 数据解答 / 口径说明",
-      clarification: { enabled:true, question:"你问的是哪个业务线？", options:["存量","权益","保险","短剧","其他"] },
+      clarification: {
+        enabled: true,
+        questions: [
+          { key: "businessLine", label: "业务线", question: "你问的是哪个业务线？", hint: "确定业务线后，会在你有权限的对应表和字段中检索。", options: ["存量", "权益", "保险", "短剧", "其他"] },
+          { key: "timeRange", label: "时间范围", question: "需要看哪个时间范围的数据？", hint: "影响数据范围以及同比 / 环比口径。", options: ["近 7 天", "近 30 天", "近 90 天", "本月", "今年至今"] },
+          { key: "granularity", label: "汇总粒度", question: "结果按什么粒度汇总？", hint: "决定输出结果的分组维度。", options: ["按天", "按周", "按渠道", "按计划", "不汇总"] }
+        ]
+      },
       assetScope: "按业务线检索已授权的表与字段",
       responseContract: ["引用表和字段","指标口径与时间范围","证据限制"],
       prompt: "你是观星台数据平台的数仓分析助手…\n\n## 解释规则\n1. 一句话说明：优先使用表 comment；\n2. 为什么这样设计：依次解释写入方式、JOIN、过滤、聚合、CASE、窗口和分区；\n3. 输出粒度：只根据 operators.group_by、窗口分区和目标字段判断；\n4. 重点口径：按目标字段合并 field_lineage，保留完整表达式。\n\n## 证据标签\n- SQL/DDL 明确证据\n- 结构解释\n- 待业务确认",
@@ -4037,7 +4118,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   };
 
   mount("#sidebar", SidebarApp, "sidebar");
-  mount("#analysisWorkbenchView", AnalysisWorkbenchApp, "analysis-workbench");
+  window.analysisWorkbenchVueApi = mount("#analysisWorkbenchView", AnalysisWorkbenchApp, "analysis-workbench");
   mount(".topbar", TopbarApp, "topbar");
   mount(".page-head", PageHeadApp, "page-head");
   mount("#dataBoardView", DataBoardApp, "data-board");

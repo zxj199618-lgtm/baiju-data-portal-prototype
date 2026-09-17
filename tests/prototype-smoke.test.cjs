@@ -295,7 +295,10 @@ assert(portalCss.includes(".portal-vue-ai-chip-table-cascader { width: 200px; }"
 assert(portalVue.includes('reasoning: "high"') && portalVue.includes("maxTokens=this.currentContextLimit") && portalVue.includes("reasoningEffort:this.reasoning,maxTokens:this.maxTokens"), "分析请求应固定使用最高推理强度和当前模型最高上下文");
 assert(!portalVue.includes("推理强度") && !portalVue.includes("上下文长度") && !portalVue.includes("重置为默认设置") && !portalVue.includes("portal-vue-ai-model-reset"), "模型菜单只应保留模型选择，不展示额外设置");
 assert(portalVue.includes('label="业务线"') && portalVue.includes("bizLines()"), "表管理应提供业务线列与筛选");
-assert(portalVue.includes("业务线咨询") && portalVue.includes("你问的是哪个业务线？") && portalVue.includes("businessLineVisible") && portalVue.includes("confirmBusinessLine"), "数据查询与指标解答在未引用数据表时应咨询业务线");
+assert(portalVue.includes("portal-vue-ai-clarify") && portalVue.includes("clarifyVisible") && portalVue.includes("openClarify") && portalVue.includes("你问的是哪个业务线？"), "未引用数据表时应弹出底部澄清面板咨询业务线");
+assert(portalVue.includes("clarifySubmit") && portalVue.includes("clarifyNext") && portalVue.includes("clarifyPrev") && portalVue.includes("clarifyOptionKey"), "澄清面板应支持 A/B/C 选项与上一题/下一题逐题推进");
+assert(portalVue.includes("clarifyAnswers") && portalVue.includes("msg.confirms"), "已确认项应随消息气泡回显");
+assert(portalVue.includes('questions: [') && portalVue.includes("timeRange") && portalVue.includes("granularity"), "澄清题目应支持配置多问");
 assert(portalVue.includes("存量") && portalVue.includes("权益") && portalVue.includes("保险") && portalVue.includes("短剧") && portalVue.includes("其他"), "业务线咨询应提供完整选项");
 assert(portalVue.includes("assetCandidates") && portalVue.includes("businessLine") && gatewaySource.includes("assetCandidates") && gatewaySource.includes("业务线范围"), "选择业务线后应把候选数据资产范围交给 Skill");
 assert(portalVue.includes("ability") === false || (portalVue.includes("自动向用户追问") && !portalVue.includes("资产检索范围") && !portalVue.includes("回答契约")), "Skill 编辑页应精简为标题/图标/描述/排序/提示词/上线状态，澄清改为模型自动追问");
