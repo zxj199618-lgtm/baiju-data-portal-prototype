@@ -3219,6 +3219,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     "布尔": [["true", "是"], ["false", "否"], ["notnull", "有值"], ["isnull", "无值"]]
   };
   const alertNoValueOps = ["notnull", "isnull", "true", "false"];
+  /* 「时间范围」按数据记录粒度选择：日=每天时段，周=周区间，月=月区间 */
+  const alertTimeGrains = ["日", "周", "月"];
   const alertRangeOps = ["between", "timeBetween"];
   const alertMultiValueTypes = ["文本"];
 
@@ -3240,7 +3242,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       field: field.name,
       op: (alertTypeOps[type] || alertTypeOps["文本"])[0][0],
       value: alertMultiValueTypes.includes(type) ? [] : "",
-      value1: null, value2: null, range: []
+      value1: null, value2: null, range: [],
+      grain: "日"
     };
   }
   /* 旧数据（历史上用 eq/in/contains/notEmpty/isEmpty 等算子）迁移到新算子模型 */
@@ -3273,6 +3276,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         next.value2 = condition.value2 ?? null;
         next.value = "";
       }
+      if (condition.op === "timeBetween") next.grain = alertTimeGrains.includes(condition.grain) ? condition.grain : "日";
       const allowed = (alertTypeOps[type] || alertTypeOps["文本"]).map(item => item[0]);
       if (!allowed.includes(next.op)) next.op = allowed[0];
       return next;
@@ -3356,7 +3360,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       relation: "AND",
       conditions: [
         { field: "is_workday", op: "true", value: "", value1: null, value2: null, range: [] },
-        { field: "event_time", op: "timeBetween", value: "", value1: "09:00", value2: "19:00", range: [] },
+        { field: "event_time", op: "timeBetween", value: "", value1: "09:00", value2: "19:00", range: [], grain: "日" },
         { field: "is_office_network", op: "false", value: "", value1: null, value2: null, range: [] }
       ],
       mode: "realtime", schedule: { freq: "每小时", time: "09:00", minute: 0 },
@@ -3387,7 +3391,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       relation: "AND",
       conditions: [
         { field: "is_workday", op: "true", value: "", value1: null, value2: null, range: [] },
-        { field: "event_time", op: "timeBetween", value: "", value1: "09:00", value2: "19:00", range: [] },
+        { field: "event_time", op: "timeBetween", value: "", value1: "09:00", value2: "19:00", range: [], grain: "日" },
         { field: "city", op: "ne", value: ["广州"], value1: null, value2: null, range: [] },
         { field: "is_domestic", op: "true", value: "", value1: null, value2: null, range: [] },
         { field: "is_login", op: "true", value: "", value1: null, value2: null, range: [] }
@@ -3671,11 +3675,25 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                       <el-select v-model="condition.op">
                         <el-option v-for="op in conditionOps(condition)" :key="op.value" :label="op.label" :value="op.value"></el-option>
                       </el-select>
+                      <el-select v-if="condition.op === 'timeBetween'" v-model="condition.grain" class="portal-vue-alert-grain" @change="changeConditionGrain(condition)">
+                        <el-option v-for="grain in timeGrains" :key="grain" :label="grain" :value="grain"></el-option>
+                      </el-select>
+                      <span v-else class="portal-vue-alert-grain-holder"></span>
                       <span v-if="alertNoValueOps.includes(condition.op)" class="portal-vue-alert-novalue">无需填写值</span>
-                      <div v-else-if="condition.op === 'timeBetween'" class="portal-vue-alert-range">
-                        <el-time-picker v-model="condition.value1" format="HH:mm" value-format="HH:mm" placeholder="开始"></el-time-picker>
+                      <div v-else-if="condition.op === 'timeBetween' && (condition.grain || '日') === '日'" class="portal-vue-alert-range">
+                        <el-time-picker v-model="condition.value1" format="HH:mm" value-format="HH:mm" placeholder="开始时间"></el-time-picker>
                         <span>~</span>
-                        <el-time-picker v-model="condition.value2" format="HH:mm" value-format="HH:mm" placeholder="结束"></el-time-picker>
+                        <el-time-picker v-model="condition.value2" format="HH:mm" value-format="HH:mm" placeholder="结束时间"></el-time-picker>
+                      </div>
+                      <div v-else-if="condition.op === 'timeBetween' && condition.grain === '周'" class="portal-vue-alert-range">
+                        <el-date-picker v-model="condition.value1" type="week" format="YYYY 年第 ww 周" value-format="YYYY 年第 ww 周" placeholder="开始周"></el-date-picker>
+                        <span>~</span>
+                        <el-date-picker v-model="condition.value2" type="week" format="YYYY 年第 ww 周" value-format="YYYY 年第 ww 周" placeholder="结束周"></el-date-picker>
+                      </div>
+                      <div v-else-if="condition.op === 'timeBetween' && condition.grain === '月'" class="portal-vue-alert-range">
+                        <el-date-picker v-model="condition.value1" type="month" format="YYYY-MM" value-format="YYYY-MM" placeholder="开始月"></el-date-picker>
+                        <span>~</span>
+                        <el-date-picker v-model="condition.value2" type="month" format="YYYY-MM" value-format="YYYY-MM" placeholder="结束月"></el-date-picker>
                       </div>
                       <div v-else-if="condition.op === 'between'" class="portal-vue-alert-range">
                         <el-input-number v-model="condition.value1" :controls="false" placeholder="最小值"></el-input-number>
@@ -3868,7 +3886,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       testing: false, testResult: "",
       historyVisible: false, historyTitle: "", historyRows: [],
       alerts: [],
-      botName: alertBotName, alertNoValueOps, alertRangeOps, alertMultiValueTypes,
+      botName: alertBotName, alertNoValueOps, alertRangeOps, alertMultiValueTypes, timeGrains: alertTimeGrains,
       groupChoices: alertGroupChoices, testGroupChoices: alertTestGroupChoices,
       freqChoices: alertFreqChoices, timeChoices: alertTimeChoices, weekdayChoices: alertWeekdayChoices,
       dedupChoices: alertDedupChoices
@@ -4055,6 +4073,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.form.timeField = table.timeField || table.fields[0]?.name || "";
         this.form.conditions = [{ field: table.fields[0]?.name || "", op: "eq", value: "", value2: "" }];
         this.clearValidation();
+      },
+      changeConditionGrain(condition) {
+        condition.value1 = null;
+        condition.value2 = null;
+        this.revalidate("conditions");
       },
       changeConditionField(condition) {
         const type = this.conditionType(condition);
