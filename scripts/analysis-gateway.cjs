@@ -893,8 +893,15 @@ function skillInstructions(id) {
 function installBuiltinPackages() {
   fs.mkdirSync(SKILLS_DIR, { recursive: true });
   const defs = [
-    { id: "warehouse-analyst", name: "数据查询与指标解答 Skill", source: "maxcompute-warehouse-analyst", version: "v1.3-portal", scenarioKey: "data-query", icon: "📊", title: "数据查询与指标解答", displayDesc: "先选业务线，再检索表与字段", sort: 10,
-      clarification: { enabled: true, question: "你问的是哪个业务线？", options: ["存量", "权益", "保险", "短剧", "其他"] }, assetScope: "按业务线检索已授权的表与字段", responseContract: ["引用表和字段", "指标口径与时间范围", "证据限制"],
+    { id: "warehouse-analyst", name: "数据查询与指标解答 Skill", source: "maxcompute-warehouse-analyst", version: "v1.4-portal", scenarioKey: "data-query", icon: "📊", title: "数据查询与指标解答", displayDesc: "先确认业务线等条件，再检索表与字段", sort: 10,
+      clarification: {
+        enabled: true,
+        questions: [
+          { key: "businessLine", label: "业务线", question: "你问的是哪个业务线？", hint: "确定业务线后，会在你有权限的对应表和字段中检索。", options: ["存量", "权益", "保险", "短剧", "其他"] },
+          { key: "timeRange", label: "时间范围", question: "需要看哪个时间范围的数据？", hint: "影响数据范围以及同比 / 环比口径。", options: ["近 7 天", "近 30 天", "近 90 天", "本月", "今年至今"] },
+          { key: "granularity", label: "汇总粒度", question: "结果按什么粒度汇总？", hint: "决定输出结果的分组维度。", options: ["按天", "按周", "按渠道", "按计划", "不汇总"] }
+        ]
+      }, assetScope: "按业务线检索已授权的表与字段", responseContract: ["引用表和字段", "指标口径与时间范围", "证据限制"],
       instructions: "你是观星台数据平台的数据查询与指标解答助手。未指定数据表时，先依据业务线范围检索用户有权限的表和字段。\n规则：\n1. 只基于提供的聚合统计、明细样例和字段注释分析，所有数字必须来自证据，不编造。\n2. 引用字段时用反引号；结论必须说明引用表、指标口径与时间范围。\n3. 样本明细有限时，基于聚合统计下结论，并标注「基于聚合口径」。\n4. 报告使用 Markdown，包含：一句话回答、引用数据资产、关键数据、口径说明、证据限制。" },
     { id: "lineage-analyst", name: "数据血缘与变更影响 Skill", source: "maxcompute-warehouse-analyst", version: "v1.3-portal", scenarioKey: "lineage", icon: "🔗", title: "数据血缘与变更影响", displayDesc: "上下游依赖与影响面", sort: 20,
       clarification: { enabled: false, question: "", options: [] }, assetScope: "引用表、字段与下游依赖", responseContract: ["直接影响", "间接影响", "待核对项"],
@@ -944,7 +951,8 @@ function installBuiltinPackages() {
       fs.writeFileSync(path.join(dir, "fields.json"), JSON.stringify(tables.map(({ generator, ...rest }) => rest)));
     }
     if (existing?.builtin) {
-      Object.assign(existing, { name: def.name, source: def.source, version: def.version, scenarioKey: def.scenarioKey, icon: def.icon, title: def.title, displayDesc: def.displayDesc, sort: def.sort, clarification: existing.clarification || def.clarification, assetScope: existing.assetScope || def.assetScope, responseContract: existing.responseContract || def.responseContract });
+      /* registry 的字段会在接口层覆盖 manifest，因此内置包升级时必须让代码定义覆盖旧值，否则改 clarification 不生效 */
+      Object.assign(existing, { name: def.name, source: def.source, version: def.version, scenarioKey: def.scenarioKey, icon: def.icon, title: def.title, displayDesc: def.displayDesc, sort: def.sort, clarification: needsBuiltinUpgrade || !existing.clarification ? def.clarification : existing.clarification, assetScope: needsBuiltinUpgrade || !existing.assetScope ? def.assetScope : existing.assetScope, responseContract: needsBuiltinUpgrade || !existing.responseContract ? def.responseContract : existing.responseContract });
     } else if (!existing) {
       registry.push({ id: def.id, name: def.name, source: def.source, version: def.version, dir: path.join(SKILLS_DIR, def.id), enabled: true, grayUsers: [], installedAt: new Date().toISOString(), builtin: true });
     }
