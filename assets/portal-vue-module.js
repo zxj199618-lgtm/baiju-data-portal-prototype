@@ -3219,8 +3219,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     "布尔": [["true", "是"], ["false", "否"], ["notnull", "有值"], ["isnull", "无值"]]
   };
   const alertNoValueOps = ["notnull", "isnull", "true", "false"];
-  /* 「时间范围」按数据记录粒度选择：日=每天时段，周=周区间，月=月区间 */
+  /* 「时间范围」按数据记录粒度选择：
+     日 = 一天内的时段（HH:mm），周 = 一周内的星期几，月 = 一个月内的日期 */
   const alertTimeGrains = ["日", "周", "月"];
+  const alertWeekChoices = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+  const alertMonthDayChoices = Array.from({ length: 31 }, (item, index) => index + 1 + "号");
   const alertRangeOps = ["between", "timeBetween"];
   const alertMultiValueTypes = ["文本"];
 
@@ -3276,7 +3279,15 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         next.value2 = condition.value2 ?? null;
         next.value = "";
       }
-      if (condition.op === "timeBetween") next.grain = alertTimeGrains.includes(condition.grain) ? condition.grain : "日";
+      if (condition.op === "timeBetween") {
+        next.grain = alertTimeGrains.includes(condition.grain) ? condition.grain : "日";
+        /* 早先周/月粒度用的是日历区间，取值与新下拉选项不同，迁移时清空避免出现无效值 */
+        const choices = next.grain === "周" ? alertWeekChoices : next.grain === "月" ? alertMonthDayChoices : null;
+        if (choices) {
+          if (!choices.includes(next.value1)) next.value1 = null;
+          if (!choices.includes(next.value2)) next.value2 = null;
+        }
+      }
       const allowed = (alertTypeOps[type] || alertTypeOps["文本"]).map(item => item[0]);
       if (!allowed.includes(next.op)) next.op = allowed[0];
       return next;
@@ -3668,7 +3679,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div class="portal-vue-alert-rule">
                   <button type="button" class="portal-vue-alert-relation" aria-label="切换条件关系" @click="toggleRelation"><span>{{ form.relation === 'AND' ? '且' : '或' }}</span></button>
                   <div class="portal-vue-alert-condition-list">
-                    <div v-for="(condition, index) in form.conditions" :key="index" class="portal-vue-alert-condition-row">
+                    <div v-for="(condition, index) in form.conditions" :key="index" class="portal-vue-alert-condition-row" :class="{ 'portal-vue-alert-row-grain': condition.op === 'timeBetween' }">
                       <el-select v-model="condition.field" filterable @change="changeConditionField(condition)">
                         <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
                       </el-select>
@@ -3678,7 +3689,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                       <el-select v-if="condition.op === 'timeBetween'" v-model="condition.grain" class="portal-vue-alert-grain" @change="changeConditionGrain(condition)">
                         <el-option v-for="grain in timeGrains" :key="grain" :label="grain" :value="grain"></el-option>
                       </el-select>
-                      <span v-else class="portal-vue-alert-grain-holder"></span>
                       <span v-if="alertNoValueOps.includes(condition.op)" class="portal-vue-alert-novalue">无需填写值</span>
                       <div v-else-if="condition.op === 'timeBetween' && (condition.grain || '日') === '日'" class="portal-vue-alert-range">
                         <el-time-picker v-model="condition.value1" format="HH:mm" value-format="HH:mm" placeholder="开始时间"></el-time-picker>
@@ -3686,14 +3696,22 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                         <el-time-picker v-model="condition.value2" format="HH:mm" value-format="HH:mm" placeholder="结束时间"></el-time-picker>
                       </div>
                       <div v-else-if="condition.op === 'timeBetween' && condition.grain === '周'" class="portal-vue-alert-range">
-                        <el-date-picker v-model="condition.value1" type="week" format="YYYY 年第 ww 周" value-format="YYYY 年第 ww 周" placeholder="开始周"></el-date-picker>
+                        <el-select v-model="condition.value1" filterable placeholder="开始星期">
+                          <el-option v-for="day in weekChoices" :key="day" :label="day" :value="day"></el-option>
+                        </el-select>
                         <span>~</span>
-                        <el-date-picker v-model="condition.value2" type="week" format="YYYY 年第 ww 周" value-format="YYYY 年第 ww 周" placeholder="结束周"></el-date-picker>
+                        <el-select v-model="condition.value2" filterable placeholder="结束星期">
+                          <el-option v-for="day in weekChoices" :key="day" :label="day" :value="day"></el-option>
+                        </el-select>
                       </div>
                       <div v-else-if="condition.op === 'timeBetween' && condition.grain === '月'" class="portal-vue-alert-range">
-                        <el-date-picker v-model="condition.value1" type="month" format="YYYY-MM" value-format="YYYY-MM" placeholder="开始月"></el-date-picker>
+                        <el-select v-model="condition.value1" filterable placeholder="开始日期">
+                          <el-option v-for="day in monthDayChoices" :key="day" :label="day" :value="day"></el-option>
+                        </el-select>
                         <span>~</span>
-                        <el-date-picker v-model="condition.value2" type="month" format="YYYY-MM" value-format="YYYY-MM" placeholder="结束月"></el-date-picker>
+                        <el-select v-model="condition.value2" filterable placeholder="结束日期">
+                          <el-option v-for="day in monthDayChoices" :key="day" :label="day" :value="day"></el-option>
+                        </el-select>
                       </div>
                       <div v-else-if="condition.op === 'between'" class="portal-vue-alert-range">
                         <el-input-number v-model="condition.value1" :controls="false" placeholder="最小值"></el-input-number>
@@ -3734,7 +3752,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                       <el-button>插入变量</el-button>
                       <template #dropdown>
                         <el-dropdown-menu>
-                          <el-dropdown-item v-for="name in templateVariables" :key="name" :command="name">{{ name }}</el-dropdown-item>
+                          <el-dropdown-item v-for="field in currentFields" :key="field.name" :command="field.cn">{{ field.cn }}（{{ field.name }}）</el-dropdown-item>
                         </el-dropdown-menu>
                       </template>
                     </el-dropdown>
@@ -3886,7 +3904,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       testing: false, testResult: "",
       historyVisible: false, historyTitle: "", historyRows: [],
       alerts: [],
-      botName: alertBotName, alertNoValueOps, alertRangeOps, alertMultiValueTypes, timeGrains: alertTimeGrains,
+      botName: alertBotName, alertNoValueOps, alertRangeOps, alertMultiValueTypes, timeGrains: alertTimeGrains, weekChoices: alertWeekChoices, monthDayChoices: alertMonthDayChoices,
       groupChoices: alertGroupChoices, testGroupChoices: alertTestGroupChoices,
       freqChoices: alertFreqChoices, timeChoices: alertTimeChoices, weekdayChoices: alertWeekdayChoices,
       dedupChoices: alertDedupChoices

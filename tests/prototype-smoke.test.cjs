@@ -255,12 +255,12 @@ assert(html.includes('id="alertManagementView"') && portalVue.includes('mount("#
 assert(portalVue.includes("AlertManagementApp") && portalVue.includes("alertMonitorTables") && portalVue.includes("选择监控表"), "数据告警应按「选择监控表 → 配置规则」的配置式流程创建");
 assert(portalVue.includes("alertTypeOps") && portalVue.includes("alertOpsOf") && portalVue.includes("toggleRelation") && portalVue.includes("addCondition") && portalVue.includes("portal-vue-alert-rule"), "数据告警应提供且/或条件构建器");
 assert(portalVue.includes("alertTimeGrains") && portalVue.includes("changeConditionGrain") && portalVue.includes("portal-vue-alert-grain"), "时间范围应支持按日/周/月粒度切换");
-assert(portalVue.includes('type="week"') && portalVue.includes('type="month"'), "时间范围应提供周区间与月区间选择器");
-assert(portalVue.includes('value-format="YYYY 年第 ww 周"') && portalVue.includes('placeholder="开始月"'), "周/月选择器应带正确的取值格式与占位文案");
+assert(portalVue.includes("alertWeekChoices") && portalVue.includes("alertMonthDayChoices") && portalVue.includes("weekChoices") && portalVue.includes("monthDayChoices"), "周/月粒度应提供星期与日期的下拉选项");
 assert(portalVue.includes(String.raw`"数值": [["gt", "大于"]`) && portalVue.includes(String.raw`"布尔": [["true", "是"]`) && portalVue.includes(String.raw`"日期": [["timeBetween", "时间范围"]`), "条件算子应按字段类型收敛，算子集合与人群包保持一致");
 assert(!portalVue.includes("触发逻辑") && !portalVue.includes("背后表达式") && !portalVue.includes("alertSql"), "数据告警表单不应再展示触发逻辑与背后表达式");
 assert(portalVue.includes("ruleSummary") && portalVue.includes("alertRuleText"), "触发条件摘要仍应保留用于列表展示");
 assert(portalVue.includes("portal-vue-alert-preview") && portalVue.includes("insertVariable") && portalVue.includes("insertTitleVariable"), "数据告警应提供变量插入与推送效果预览");
+assert(portalVue.includes('{{ field.cn }}（{{ field.name }}）'), "插入变量下拉应同时展示中文名与英文字段名");
 assert(!portalVue.includes("alertTemplateStyles") && !portalVue.includes("模版样式"), "数据告警不应再提供模版样式选择（当前版本不支持）");
 assert(portalVue.includes("观星台飞书机器人") && portalVue.includes("告警群") && portalVue.includes("alertGroupChoices"), "数据告警应通过观星台飞书机器人选择群");
 assert(portalVue.includes("validateChannelReach") && portalVue.includes("revalidateChannel") && portalVue.includes('label="通知人" prop="channel.users"'), "告警群与通知人应至少填写一个，且两处都显示必填标记");
