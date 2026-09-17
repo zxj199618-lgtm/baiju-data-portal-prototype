@@ -221,6 +221,14 @@ assert(portalVue.includes("visibleCategories") && portalVue.includes("可见范�
 assert(portalCss.includes(".portal-vue-user > span { white-space: nowrap") && portalCss.includes(".portal-vue-topbar > .el-dropdown { flex: 0 0 auto; }") && portalCss.includes(".portal-vue-tabs { flex: 1 1 auto"), "顶部 tab 过多时应由 tab 条滚动收缩，头像/姓名区域不压缩换行");
 assert(portalBridge.includes('menuEdits: ["灵犀智析"') && portalBridge.includes("menuEdits: []"), "权限组数据应包含菜单编辑权限，只读角色默认无编辑权限");
 assert(portalBridge.includes('group: "系统管理"') && portalBridge.includes('name: "菜单管理"') && portalBridge.includes('name: "Skill 配置"'), "系统管理应包含菜单管理与 Skill 配置");
+assert(portalBridge.includes('name: "操作日志"'), "系统管理应提供操作日志菜单");
+assert(html.includes('id="operationLogView"') && portalVue.includes('mount("#operationLogView"'), "操作日志应挂载独立视图");
+assert(portalVue.includes("OperationLogApp") && portalVue.includes("operationLogEvents") && portalVue.includes("operationLogSeeds"), "操作日志应基于埋点事件定义构建");
+assert(portalVue.includes('"page_view"') && portalVue.includes('"dashboard_view_heartbeat"'), "操作日志应覆盖页面访问与看板心跳两类埋点");
+assert(portalVue.includes('category: "页面访问"') && portalVue.includes('category: "查看看板"'), "操作日志应按页面访问 / 查看看板分类");
+assert(portalVue.includes("visitId") && portalVue.includes("duration_seconds") && portalVue.includes("visit_id"), "看板心跳应按 visit_id 归并为一次访问并计算停留时长");
+assert(portalVue.includes("portal-vue-log-attrs") && portalVue.includes("detailBeats"), "操作日志详情应展示完整埋点属性与心跳明细");
+assert(portalBridge.includes('"操作日志": ["操作日志"'), "操作日志应配置页面标题与说明");
 assert(html.includes('id="menuManagementView"') && portalVue.includes("mount(\"#menuManagementView\""), "菜单管理应挂载独立视图");
 assert(portalVue.includes("MenuManagementApp") && portalVue.includes("权限标识") && portalVue.includes("组件路径"), "菜单管理应提供层级树/组件路径/权限标识配置");
 assert(html.includes('id="skillManagementView"') && portalVue.includes("mount(\"#skillManagementView\""), "Skill 配置应挂载独立视图");

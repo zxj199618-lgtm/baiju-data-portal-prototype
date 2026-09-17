@@ -645,6 +645,15 @@
 /* 单元格内容上下居中；行高由内容最多的单元格撑开（自适应高度） */
 .portal-vue-alert-table .el-table__cell { vertical-align: middle; }
 
+/* 操作日志 */
+.portal-vue-log-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-vue-log-attrs { display: grid; gap: 0; border: 1px solid #e9edf4; border-radius: 10px; overflow: hidden; }
+.portal-vue-log-attr { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px; padding: 9px 12px; border-bottom: 1px solid #f0f3f8; font-size: 13px; }
+.portal-vue-log-attr:last-child { border-bottom: 0; }
+.portal-vue-log-attr > span { color: #667085; }
+.portal-vue-log-attr > strong { color: #1f2733; font-weight: 600; overflow-wrap: anywhere; }
+.portal-vue-log-attr > strong.portal-vue-log-ua { font-weight: 400; font-size: 12px; color: #566174; line-height: 1.6; }
+
 /* 系统管理：菜单管理 / Skill 配置 */
 .portal-vue-skill-drawer { display: grid; gap: 12px; }
 .portal-vue-skill-section { border-top: 1px dashed #e2e8f2; padding-top: 14px; }

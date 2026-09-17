@@ -8,7 +8,7 @@
         { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: "4.0" }, { name: "标签管理" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
         { group: "数据推送", icon: "push", items: [{ name: "人群包推送渠道" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },
-        { group: "系统管理", icon: "system", items: [{ name: "Skill 配置", badge: "5.0" }, { name: "模型配置", badge: "5.0" }, { name: "任务运维" }, { name: "环境域名" }, { name: "菜单管理" }] }
+        { group: "系统管理", icon: "system", items: [{ name: "Skill 配置", badge: "5.0" }, { name: "模型配置", badge: "5.0" }, { name: "任务运维" }, { name: "操作日志" }, { name: "环境域名" }, { name: "菜单管理" }] }
       ];
       const boardCategories = [
               "全部",
@@ -1503,6 +1503,7 @@
         "数据告警": ["数据告警", "选择监控表与字段配置告警规则、通知模版与飞书推送通道，支持实时或定时触发与重复通知控制。", "新建告警"],
         "Skill 配置": ["Skill 配置", "管理可用于灵犀智析和飞书机器人的分析 skill：展示、提示词、版本与用户灰度。", "上传 Skill"],
         "菜单管理": ["菜单管理", "维护门户侧边导航结构：层级、图标、排序、组件路径与权限标识。", "添加"],
+        "操作日志": ["操作日志", "基于前端埋点记录用户操作明细：页面访问与看板浏览，支持按分类、用户、终端与时间范围筛选。", ""],
         "模型配置": ["模型配置", "管理灵犀智析可用的模型：来自中转站的全部模型，可禁用历史或不可用模型。", ""],
         "任务运维": ["任务运维", "媒体报表数据运维：按广告主账户补拉分时数据、跟踪异步执行日志、对比分时表间消耗差异。", ""],
         "环境域名": ["环境域名", "服务域名、日志与监控入口速查；敏感凭据密文存储，仅后端可见。", ""],
@@ -3023,6 +3024,7 @@
         document.getElementById("skillManagementView")?.classList.toggle("hidden", page !== "Skill 配置");
         document.getElementById("menuManagementView")?.classList.toggle("hidden", page !== "菜单管理");
         document.getElementById("modelConfigView")?.classList.toggle("hidden", page !== "模型配置");
+        document.getElementById("operationLogView")?.classList.toggle("hidden", page !== "操作日志");
         document.getElementById("opsTaskView")?.classList.toggle("hidden", page !== "任务运维");
         document.getElementById("opsEnvView")?.classList.toggle("hidden", page !== "环境域名");
         document.getElementById("opsLineageView")?.classList.toggle("hidden", page !== "血缘查询");
@@ -3077,6 +3079,7 @@
         document.getElementById("skillManagementView")?.classList.add("hidden");
         document.getElementById("menuManagementView")?.classList.add("hidden");
         document.getElementById("modelConfigView")?.classList.add("hidden");
+        document.getElementById("operationLogView")?.classList.add("hidden");
         document.getElementById("opsTaskView")?.classList.add("hidden");
         document.getElementById("opsEnvView")?.classList.add("hidden");
         document.getElementById("opsLineageView")?.classList.add("hidden");
