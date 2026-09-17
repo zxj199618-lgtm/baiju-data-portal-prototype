@@ -4500,7 +4500,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
-          <div class="portal-vue-muted" style="margin-top:12px">数据来源：前端埋点 page_view（页面访问）与 dashboard_view_heartbeat（看板心跳，每 10 秒一次）。看板列表按 visit_id 归并为一次访问，停留时长取该次访问的最大心跳时长。</div>
         </section>
 
         <el-drawer v-model="detailVisible" :title="detailTitle" size="620px" :close-on-click-modal="true">

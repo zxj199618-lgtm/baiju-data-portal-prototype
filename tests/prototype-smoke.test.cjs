@@ -231,6 +231,7 @@ assert(portalVue.includes("OperationLogApp") && portalVue.includes("operationLog
 assert(portalVue.includes('"page_view"') && portalVue.includes('"dashboard_view_heartbeat"'), "操作日志应覆盖页面访问与看板心跳两类埋点");
 assert(portalVue.includes('category: "页面访问"') && portalVue.includes('category: "查看看板"'), "操作日志应按页面访问 / 查看看板分类");
 assert(portalVue.includes("visitId") && portalVue.includes("duration_seconds") && portalVue.includes("visit_id"), "看板心跳应按 visit_id 归并为一次访问并计算停留时长");
+assert(!portalVue.includes("数据来源：前端埋点"), "操作日志底部数据来源说明应移除");
 assert(portalVue.includes("portal-vue-log-attrs") && portalVue.includes("detailBeats"), "操作日志详情应展示完整埋点属性与心跳明细");
 assert(portalVue.includes('label="页面名称"') && portalVue.includes('label="页面URL"') && portalVue.includes('["menu_name", "菜单名称"'), "操作日志应把页面名称与页面URL拆成独立列，页面访问带菜单名称");
 assert(portalVue.includes('label="UA"') && portalVue.includes("operationLogUaSummary") && portalVue.includes("uaSummaryOf"), "操作日志应展示 UA（摘要 + 完整值 tooltip）");
