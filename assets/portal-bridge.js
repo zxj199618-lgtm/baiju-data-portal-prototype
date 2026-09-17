@@ -1,14 +1,14 @@
 
     (() => {
       const simpleNav = [
-        { group: "灵犀智析", icon: "analysis", items: [{ name: "灵犀智析" }] },
+        { group: "灵犀智析", icon: "analysis", badge: "5.0", items: [{ name: "灵犀智析", badge: "5.0" }] },
         { group: "数据看板", icon: "dashboard", items: [{ name: "数据看板" }] },
         { group: "数据服务", icon: "gateway", items: [{ name: "人群包管理" }, { name: "数据开放平台" }] },
         { group: "数据告警", icon: "alert", badge: "3.1", items: [{ name: "数据告警", badge: "3.1" }] },
-        { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理" }, { name: "标签管理" }, { name: "维表管理" }, { name: "字典管理" }] },
+        { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: "4.0" }, { name: "标签管理" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
         { group: "数据推送", icon: "push", items: [{ name: "人群包推送渠道" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },
-        { group: "系统管理", icon: "system", items: [{ name: "Skill 配置" }, { name: "模型配置" }, { name: "任务运维" }, { name: "环境域名" }, { name: "菜单管理" }] }
+        { group: "系统管理", icon: "system", items: [{ name: "Skill 配置", badge: "5.0" }, { name: "模型配置", badge: "5.0" }, { name: "任务运维", badge: "1.0" }, { name: "环境域名" }, { name: "菜单管理" }] }
       ];
       const boardCategories = [
               "全部",

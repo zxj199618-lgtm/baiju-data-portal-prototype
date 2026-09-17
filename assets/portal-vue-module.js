@@ -333,7 +333,7 @@
       isActive(section) { return section.items.some(item => item.name === this.menuActive); },
       iconPath(section) { return bridge.navIconPath(section.icon, this.isActive(section)); },
       navBadges(entry) { return Array.isArray(entry?.badge) ? entry.badge : entry?.badge ? [entry.badge] : []; },
-      badgeClass(badge) { return badge === "3.1" ? "portal-nav-badge--v31" : "portal-nav-badge--v20"; },
+      badgeClass(badge) { return badge === "3.1" ? "portal-nav-badge--v31" : badge === "4.0" ? "portal-nav-badge--v40" : "portal-nav-badge--v20"; },
       selectPage(page) { bridge.setPage(page); },
       toggleCollapse() {
         this.collapsed = !this.collapsed;
