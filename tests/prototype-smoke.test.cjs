@@ -281,7 +281,7 @@ assert(portalVue.includes('label="状态" width="92"') && portalVue.includes("po
 assert(!portalVue.includes("推送统一走内置"), "数据告警列表底部说明文案应移除");
 assert(portalVue.includes('label="触发条件" min-width="176"') && portalVue.includes('label="推送通道" min-width="128"'), "告警列表列宽合计需小于容器宽度，避免横向滚动导致固定列遮挡");
 assert(portalVue.includes("portal-vue-alert-cell-name"), "数据告警列表名称列应有独立样式");
-assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("是不是同一个问题"), "重复判定字段应提供说明文案，帮助理解重复判断口径");
+assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("只算同一条告警，是否再次通知由上面的重复规则决定"), "重复判定字段应提供简洁的重复判断说明");
 assert(portalVue.includes('class="portal-vue-alert-preview-avatar" src="assets/momentx-observatory-icon.png"'), "推送效果预览的头像应使用观星台品牌图标");
 assert(portalVue.includes("portal-vue-alert-dialog-head") && portalVue.includes("portal-vue-alert-back"), "数据告警编辑弹窗左上角应提供返回按钮");
 assert(portalVue.includes('label="负责人" prop="owner"') && portalVue.includes('label="告警方式" prop="mode"') && portalVue.includes('prop="dedup.mode"'), "负责人/告警方式/重复告警均应绑定 prop 以渲染必填星标");
