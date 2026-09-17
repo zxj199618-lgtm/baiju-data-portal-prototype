@@ -153,10 +153,9 @@ assert(!portalBridge.includes("data:image/"), "门户桥接脚本不应再内嵌
 assert(!portalVue.includes("data:image/png;base64") && !portalVue.includes("data:image/jpeg;base64"), "门户 Vue 模块不应再内嵌品牌图");
 
 assert(portalBridge.includes('name: "维表管理"') && portalBridge.includes('name: "字典管理"'), "数据资产应包含维表管理与字典管理菜单");
-["2.0", "3.0"].forEach(version => assert(!portalBridge.includes('badge: "' + version + '"'), "已上线能力的角标应清除：" + version));
+["2.0", "3.0", "1.0"].forEach(version => assert(!portalBridge.includes('badge: "' + version + '"'), "已上线能力的角标应清除：" + version));
 assert(portalBridge.includes('name: "表管理", badge: "4.0"') && portalBridge.includes('name: "维表管理", badge: "4.0"') && portalBridge.includes('name: "字典管理", badge: "4.0"'), "4.0 角标应保留");
 assert(portalBridge.includes('name: "灵犀智析", badge: "5.0"') && portalBridge.includes('name: "Skill 配置", badge: "5.0"'), "5.0 角标应保留");
-assert(portalBridge.includes('name: "任务运维", badge: "1.0"'), "1.0 角标应保留");
 assert(portalBridge.indexOf('name: "标签管理"') > portalBridge.indexOf('name: "表管理"') && portalBridge.indexOf('name: "维表管理"') > portalBridge.indexOf('name: "标签管理"'), "标签管理应紧跟表管理，位于维表管理之前");
 assert(portalBridge.includes('name: "数据告警", badge: "3.1"') && portalVue.includes("portal-nav-badge--v31"), "本次新增的数据告警应标记 3.1");
 assert(portalVue.includes("navBadges("), "侧栏应支持同一菜单展示多个版本角标");
