@@ -201,6 +201,9 @@ assert(portalVue.includes("menuGrants") && portalVue.includes("boardGrants") && 
 assert(portalBridge.includes("groupLockNote") && portalBridge.includes("lockedBoardNames"), "JS 兜底渲染同样应锁定权限组授予的权限");
 assert(portalVue.includes("管理范围") && portalVue.includes("el-tree-select") && portalVue.includes("buildDepartmentTree") && portalVue.includes("deptTree"), "配置权限应提供按部门配置的管理范围 tab，候选范围来自系统用户的部门");
 assert(portalVue.includes("userInManageScope") && portalVue.includes("visibleUsersFor") && portalVue.includes("manageScopeAll"), "用户管理只展示当前登录人管理范围内的用户，可配置全部用户");
+assert(portalVue.includes("查看权限") && portalVue.includes("viewVisible") && portalVue.includes("viewPermissionsOf") && portalVue.includes("portal-vue-perm-view"), "用户管理应提供查看权限（只读）入口");
+assert(portalVue.includes("仅查看权限，不可编辑任何菜单") && portalVue.includes("如需调整该用户权限"), "查看权限页应只读展示，不允许做任何权限操作");
+assert(portalVue.includes("此页不支持任何修改"), "查看权限页应明确提示不支持修改")
 assert(!portalVue.includes("同步飞书用户") && !portalVue.includes("syncUsers"), "用户管理不再提供飞书同步入口");
 assert(portalVue.includes("未配置（仅自己）") && portalVue.includes("只能看到自己"), "未配置管理范围时默认只看自己");
 assert(portalVue.includes("manageScope") && portalBridge.includes("manageScopeAll: true"), "管理范围按用户持久化，平台管理员默认全量可见");

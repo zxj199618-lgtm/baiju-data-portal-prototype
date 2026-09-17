@@ -1000,24 +1000,106 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-table-column label="所属权限组" width="130"><template #default="scope"><el-tag :type="scope.row.group==='未分配'?'warning':'primary'" effect="light">{{ scope.row.group }}</el-tag></template></el-table-column>
               <el-table-column label="账号状态" width="100"><template #default="scope"><el-tag :type="scope.row.status==='已停用'?'info':'success'" effect="plain">{{ scope.row.status==='已停用'?'已停用':'启用中' }}</el-tag></template></el-table-column>
               <el-table-column prop="login" label="最近登录" width="170"></el-table-column>
-              <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('用户管理')" link type="primary" @click="openAssign(scope.row)">设置权限组</el-button><el-button v-if="canEdit('用户管理')" link type="primary" @click="openPermission(scope.row)">配置权限</el-button></div></template></el-table-column>
+              <el-table-column label="操作" width="236" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openView(scope.row)">查看权限</el-button><el-button v-if="canEdit('用户管理')" link type="primary" @click="openAssign(scope.row)">设置权限组</el-button><el-button v-if="canEdit('用户管理')" link type="primary" @click="openPermission(scope.row)">配置权限</el-button></div></template></el-table-column>
             </el-table>
             <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
           </section>
         </div>
+        <el-drawer v-model="viewVisible" :title="viewUser ? '查看权限 · ' + viewUser.name : '查看权限'" size="600px" :close-on-click-modal="true">
+          <div v-if="viewUser" class="portal-vue-perm-view">
+            <el-alert type="info" :closable="false" show-icon title="只读查看" description="仅展示该用户当前生效的权限，此页不支持任何修改；如需调整请由门户管理员在「配置权限」中操作。" />
+            <div class="portal-vue-perm-section">
+              <h4>用户信息</h4>
+              <div class="portal-vue-detail-grid">
+                <div class="portal-vue-detail-item"><span>部门组织</span><strong>{{ viewUser.dept || "—" }}</strong></div>
+                <div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ viewUser.role || "—" }}</strong></div>
+                <div class="portal-vue-detail-item"><span>邮箱</span><strong>{{ viewUser.email || "—" }}</strong></div>
+                <div class="portal-vue-detail-item"><span>账号状态</span><strong>{{ viewUser.status || "—" }}</strong></div>
+              </div>
+            </div>
+            <div class="portal-vue-perm-section">
+              <h4>所属权限组</h4>
+              <div class="portal-vue-perm-group">
+                <el-tag size="small" effect="plain" :type="viewPermissions.group ? 'primary' : 'info'">{{ viewUser.group || "未分配" }}</el-tag>
+                <span class="portal-vue-muted">{{ viewPermissions.group ? viewPermissions.group.desc : "未加入任何权限组，仅拥有个人额外授权。" }}</span>
+              </div>
+            </div>
+            <div class="portal-vue-perm-section">
+              <h4>可查看菜单 <em>{{ viewPermissions.viewMenus.length }} 项</em></h4>
+              <div class="portal-vue-perm-tags">
+                <el-tag v-for="name in viewPermissions.viewMenus" :key="name" size="small" effect="plain">{{ name }}</el-tag>
+                <span v-if="!viewPermissions.viewMenus.length" class="portal-vue-muted">无</span>
+              </div>
+            </div>
+            <div class="portal-vue-perm-section">
+              <h4>可编辑菜单 <em>{{ viewPermissions.editMenus.length }} 项</em></h4>
+              <div class="portal-vue-perm-tags">
+                <el-tag v-for="name in viewPermissions.editMenus" :key="name" size="small" type="warning" effect="plain">{{ name }}</el-tag>
+                <span v-if="!viewPermissions.editMenus.length" class="portal-vue-muted">仅查看权限，不可编辑任何菜单</span>
+              </div>
+            </div>
+            <div class="portal-vue-perm-section">
+              <h4>数据看板 <em>{{ viewPermissions.boards.length }} 个</em><span v-if="viewPermissions.allBoards" class="portal-vue-muted">（全部看板）</span></h4>
+              <div class="portal-vue-perm-tags">
+                <el-tag v-for="name in viewPermissions.boards" :key="name" size="small" effect="plain">{{ name }}</el-tag>
+                <span v-if="!viewPermissions.boards.length" class="portal-vue-muted">无</span>
+              </div>
+            </div>
+            <div class="portal-vue-perm-section">
+              <h4>数据表 <em>{{ viewPermissions.tables.length }} 张</em><span v-if="viewPermissions.allTables" class="portal-vue-muted">（全部数据表）</span></h4>
+              <div class="portal-vue-perm-tags">
+                <el-tag v-for="name in viewPermissions.tables" :key="name" size="small" effect="plain">{{ name }}</el-tag>
+                <span v-if="!viewPermissions.tables.length" class="portal-vue-muted">无</span>
+              </div>
+            </div>
+            <div v-if="viewPermissions.personalTotal" class="portal-vue-perm-section">
+              <h4>个人额外授权 <em>{{ viewPermissions.personalTotal }} 项</em></h4>
+              <div class="portal-vue-perm-tags">
+                <el-tag v-for="name in viewPermissions.personalMenus" :key="'m' + name" size="small" type="success" effect="plain">菜单 · {{ name }}</el-tag>
+                <el-tag v-for="name in viewPermissions.personalBoards" :key="'b' + name" size="small" type="success" effect="plain">看板 · {{ name }}</el-tag>
+                <el-tag v-for="name in viewPermissions.personalTables" :key="'t' + name" size="small" type="success" effect="plain">表 · {{ name }}</el-tag>
+              </div>
+            </div>
+            <div class="portal-vue-perm-foot">如需调整该用户权限，请由门户管理员在「配置权限」中操作。</div>
+          </div>
+        </el-drawer>
         <el-dialog v-model="assignVisible" :title="assignUser ? assignUser.name + ' · 设置权限组' : '设置权限组'" width="520px"><div v-if="assignUser" class="portal-vue-detail-grid"><div class="portal-vue-detail-item"><span>部门组织</span><strong>{{ assignUser.dept }}</strong></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ assignUser.role }}</strong></div></div><el-form label-position="top" class="portal-vue-dialog-form"><el-form-item label="选择权限组"><el-select v-model="assignGroup"><el-option label="未分配" value="未分配"></el-option><el-option v-for="item in state.groups" :key="item.name" :label="item.name" :value="item.name"></el-option></el-select></el-form-item></el-form><template #footer><el-button @click="assignVisible=false">取消</el-button><el-button v-if="canEdit('用户管理')" type="primary" @click="saveAssign">保存权限组</el-button></template></el-dialog>
       </el-config-provider>
     `,
-    data:()=>({keyword:"",status:"全部状态",group:"全部权限组",page:1,pageSize:10,assignVisible:false,assignUser:null,assignGroup:"",state}),
+    data:()=>({keyword:"",status:"全部状态",group:"全部权限组",page:1,pageSize:10,assignVisible:false,assignUser:null,assignGroup:"",viewVisible:false,viewUser:null,state}),
     computed:{
       currentUser(){refreshTick.value;return loginUser();},
       visibleUsers(){refreshTick.value;return visibleUsersFor(this.currentUser);},
       groupOptions(){refreshTick.value;const users=this.visibleUsers;return ["全部权限组","未分配",...state.groups.map(item=>item.name)].map(name=>({name,count:name==="全部权限组"?users.length:users.filter(user=>user.group===name).length}));},
       filteredRows(){refreshTick.value;const keyword=this.keyword.trim().toLowerCase();return this.visibleUsers.filter(user=>(this.group==="全部权限组"||user.group===this.group)&&(this.status==="全部状态"||(this.status==="已停用"?user.status==="已停用":user.status!=="已停用"))&&(!keyword||`${user.name} ${user.email} ${user.dept} ${user.role}`.toLowerCase().includes(keyword)));},
       pagedRows(){const result=paginate(this.filteredRows,this.page,this.pageSize);if(result.safePage!==this.page)this.page=result.safePage;return result.rows;},
-      rangeText(){if(!this.filteredRows.length)return "0-0";return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`;}
+      rangeText(){if(!this.filteredRows.length)return "0-0";return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`;},
+      viewPermissions() {
+        const user = this.viewUser;
+        if (!user) return { group: null, viewMenus: [], editMenus: [], boards: [], tables: [], allBoards: false, allTables: false, personalMenus: [], personalBoards: [], personalTables: [], personalTotal: 0 };
+        return this.viewPermissionsOf(user);
+      }
     },
     methods:{
+      openView(user){this.viewUser=user;this.viewVisible=true;},
+      viewPermissionsOf(user){
+        const group=state.groups.find(item=>item.name===user?.group)||null;
+        const groupMenus=expandMenuNames(group?.menus||[]);
+        const groupEdits=expandMenuNames(group?.menuEdits||[]);
+        const personalMenus=Array.isArray(user?.menuGrants)?user.menuGrants:[];
+        const personalEdits=Array.isArray(user?.menuEditGrants)?user.menuEditGrants:[];
+        const viewMenus=[...new Set([...groupMenus,...personalMenus])];
+        const editMenus=[...new Set([...groupEdits,...personalEdits])].filter(name=>viewMenus.includes(name));
+        const boardGrants=[...(group?.boards||[]),...(Array.isArray(user?.boardGrants)?user.boardGrants:[])];
+        const allBoards=boardGrants.includes("全部看板");
+        const boards=(allBoards?state.boards.filter(board=>board.status==="已上线"):state.boards.filter(board=>board.status==="已上线"&&(boardGrants.includes(board.name)||boardGrants.includes(board.category)))).map(board=>board.name);
+        const tableGrants=[...(group?.tables||[]),...(Array.isArray(user?.tableGrants)?user.tableGrants:[])];
+        const allTables=tableGrants.includes("全部数据表");
+        const tables=(allTables?state.assets:state.assets.filter(table=>tableGrants.includes(table.cnName))).map(table=>table.cnName);
+        const personalBoards=(Array.isArray(user?.boardGrants)?user.boardGrants:[]).filter(name=>name!=="全部看板");
+        const personalTables=(Array.isArray(user?.tableGrants)?user.tableGrants:[]).filter(name=>name!=="全部数据表");
+        return { group, viewMenus, editMenus, boards, tables, allBoards, allTables, personalMenus, personalBoards, personalTables, personalTotal: personalMenus.length+personalEdits.length+personalBoards.length+personalTables.length };
+      },
       selectGroup(name){this.group=name;this.page=1;},openAssign(user){this.assignUser=user;this.assignGroup=user.group;this.assignVisible=true;},saveAssign(){this.assignUser.group=this.assignGroup;this.assignVisible=false;notify(`${this.assignUser.name} 已分配到「${this.assignGroup}」`);},openPermission(user){bridge.setActiveUserIndex(state.users.indexOf(user));bridge.setPage("配置权限");}
     }
   };
@@ -4136,7 +4218,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   mount("#apiCreateView", ApiCreateApp, "api-create");
   mount("#tagCatalogView", TagManagementApp, "tag-management");
   mount("#pushTargetView", TargetManagementApp, "target-management");
-  mount("#userManagementView", UserManagementApp, "user-management");
+  window.userManagementVueApi = mount("#userManagementView", UserManagementApp, "user-management");
   mount("#permissionGroupView", PermissionGroupApp, "permission-groups");
   mount("#permissionConfigView", PermissionConfigApp, "permission-config");
   mount("#quickBiView", QuickBiApp, "quick-bi");
