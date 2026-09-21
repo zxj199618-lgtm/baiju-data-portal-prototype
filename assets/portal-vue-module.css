@@ -184,9 +184,6 @@
 .portal-vue-page-head h1 { margin: 0; color: #1f2937; font-size: 24px; line-height: 34px; letter-spacing: 0; }
 .portal-vue-page-head p { margin: 5px 0 0; color: #7b8492; font-size: 14px; line-height: 22px; }
 .page-head.portal-vue-head-hidden { display: none; }
-/* 灵犀智析页头紧凑化：标语下行、标题缩小，把高度让给工作台内容 */
-.portal-vue-page-head.portal-vue-head-compact h1 { font-size: 20px; line-height: 27px; }
-.portal-vue-page-head.portal-vue-head-compact p { margin-top: 1px; font-size: 13px; line-height: 19px; }
 
 .portal-vue-panel { margin-top: 22px; border: 1px solid #e4e9f2; border-radius: 8px; background: #fff; overflow: hidden; }
 .portal-vue-panel.no-top-gap { margin-top: 0; }
@@ -221,10 +218,11 @@
 .portal-vue-viewer-item { min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 7px 2px; border-bottom: 1px solid #f0f2f5; }
 .portal-vue-viewer-item:last-child { border-bottom: 0; }
 .portal-vue-viewer-item > div { min-width: 0; }
-.portal-vue-viewer-item strong,
-.portal-vue-viewer-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.portal-vue-viewer-item strong { color: #344054; font-size: 13px; }
-.portal-vue-viewer-item span { margin-top: 2px; color: #98a2b3; font-size: 12px; }
+.portal-vue-viewer-item > div strong,
+.portal-vue-viewer-item > div span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-vue-viewer-item > div strong { color: #344054; font-size: 13px; }
+.portal-vue-viewer-item > div span { margin-top: 2px; color: #98a2b3; font-size: 12px; }
+.portal-vue-viewer-tag { flex: 0 0 auto; margin-left: auto; }
 .portal-vue-code { color: #344054; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; }
 .portal-vue-muted { color: #98a2b3; }
 .portal-vue-actions { display: flex; align-items: center; white-space: nowrap; }
@@ -290,8 +288,11 @@
 .portal-vue-permission-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
 .portal-vue-permission-block { padding: 14px; border: 1px solid #e4e9f2; border-radius: 8px; }
 .portal-vue-permission-block > strong { display: block; margin-bottom: 10px; }
+/* 看板编辑弹窗字段较多：内容区独立滚动，保证底部「取消 / 保存」始终可见 */
+.portal-vue-board-dialog .el-dialog__body { max-height: calc(100vh - 220px); overflow-y: auto; overscroll-behavior: contain; }
 .portal-vue-inherit-alert { margin: 0 0 14px; }
-.portal-vue-lock-tag { height: 18px; margin-left: 8px; padding: 0 6px; border-color: #d7e2f5; background: #f2f6fd; color: #4b5b73; }
+.portal-vue-lock-tag,
+.portal-vue-read-tag { height: 18px; margin-left: 8px; padding: 0 6px; border-color: #d7e2f5; background: #f2f6fd; color: #4b5b73; }
 .portal-vue-permission-block .el-checkbox.is-disabled { cursor: default; opacity: .95; }
 .portal-vue-permission-block .el-checkbox.is-disabled .el-checkbox__label { color: #3c4a5f; }
 .portal-vue-scope-hint { display: flex; align-items: center; gap: 14px; margin: 0 0 12px; padding: 8px 14px; border: 1px solid #e4e9f2; border-radius: 8px; background: #f8fafd; font-size: 13px; color: #4b5b73; }
@@ -313,8 +314,9 @@
 .portal-vue-parent-check .el-checkbox__label { color: #293241; font-size: 15px; font-weight: 700; line-height: 20px; }
 .portal-vue-parent-check.is-checked .el-checkbox__label { color: #1677ff; }
 .portal-vue-child-checks { display: grid; gap: 12px; margin: 16px 0 0 28px; }
-.portal-vue-child-checks .el-checkbox { min-width: 0; height: auto; margin-right: 0; align-items: flex-start; }
-.portal-vue-child-checks .el-checkbox__label { overflow-wrap: anywhere; color: #3f4857; line-height: 20px; }
+.portal-vue-child-checks .el-checkbox { min-width: 0; max-width: 100%; height: auto; margin-right: 0; align-items: flex-start; }
+/* Element Plus 的 .el-checkbox 是 nowrap，长看板/表名会顶出卡片；这里允许换行完整展示（title 仍保留全文悬浮） */
+.portal-vue-child-checks .el-checkbox__label { min-width: 0; overflow-wrap: anywhere; white-space: normal; color: #3f4857; line-height: 20px; }
 .portal-vue-child-checks .el-checkbox.is-checked .el-checkbox__label { color: #1677ff; }
 /* 菜单权限行：左侧菜单名，右侧「查看 / 编辑」两个勾选框 */
 .portal-vue-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; margin: 8px 0; }
@@ -344,7 +346,8 @@
 .portal-vue-member-option { min-height: 42px; display: flex; flex-direction: column; justify-content: center; line-height: 1.4; }
 .portal-vue-member-option small { color: #98a2b3; }
 
-.portal-vue-form-page { margin-top: 0; }
+/* 表单页底部操作区（配置用户权限 / 数据开放平台 API 表单）：默认悬浮在页面底部，内容滚动时不跟随滚走 */
+.portal-vue-form-page { margin-top: 0; padding-bottom: 96px; }
 .portal-vue-form-header { padding: 2px 0 18px; border-bottom: 1px solid #e9edf4; }
 .portal-vue-form-header .el-page-header__title { color: #667085; }
 .portal-vue-form-header .el-page-header__content { font-size: 20px; font-weight: 720; }
@@ -364,7 +367,7 @@
 .portal-vue-selected-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #eef1f5; }
 .portal-vue-selected-head .el-input-number { width: 136px; }
 .portal-vue-field-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 12px; }
-.portal-vue-form-actions { position: sticky; bottom: 0; z-index: 2; min-height: 64px; margin: 0 -28px -36px -36px; padding: 12px 36px; display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 1px solid #e9edf4; background: rgba(255,255,255,.96); box-shadow: 0 -6px 18px rgba(31,41,55,.04); }
+.portal-vue-form-actions { position: fixed; left: var(--portal-pane-left, 0); right: 0; bottom: 0; z-index: 7; min-height: 64px; padding: 12px 36px; display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 1px solid #e9edf4; background: rgba(255,255,255,.96); backdrop-filter: blur(6px); box-shadow: 0 -6px 18px rgba(31,41,55,.06); transition: left .18s ease; }
 
 .portal-vue-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
 .portal-vue-detail-item { padding: 12px; border: 1px solid #e9edf4; border-radius: 8px; background: #fbfcfe; }
@@ -413,14 +416,6 @@
 
 /* 分析工作台（Codex 风格布局） */
 .portal-vue-panel { position: relative; }
-.portal-vue-page-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; width: 100%; }
-.portal-vue-ai-bot-btn { flex-shrink: 0; display: flex; align-items: center; gap: 5px; margin-top: 2px; padding: 5px 12px; border: 1px solid #dbe8fb; border-radius: 999px; background: #eef5ff; color: #1677ff; font-size: 12px; cursor: pointer; transition: background .15s, border-color .15s; }
-.portal-vue-ai-bot-btn:hover { background: #dbeafe; border-color: #9cc5ff; }
-.portal-vue-ai-bot-icon { font-size: 14px; }
-.portal-vue-ai-feishu-drawer { display: grid; gap: 14px; }
-.portal-vue-ai-feishu-steps { display: grid; gap: 10px; }
-.portal-vue-ai-feishu-steps span { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 8px; background: #f3f7fd; color: #3f4857; font-size: 13px; line-height: 1.6; }
-.portal-vue-ai-feishu-steps b { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #1677ff; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
 .portal-vue-ai-layout { margin-top: 8px; display: grid; grid-template-columns: 300px minmax(0,1fr); gap: 14px; align-items: stretch; height: calc(100vh - 176px); min-height: 500px; }
 .portal-vue-ai-side { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #e4e9f2; border-radius: 10px; background: #fbfcfe; height: calc(100vh - 176px); min-height: 480px; }
 .portal-vue-ai-session-scroll { flex: 1 1 auto; min-height: 0; height: auto !important; }

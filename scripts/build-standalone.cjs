@@ -19,6 +19,15 @@ const imagePaths = [
   "assets/nav-permission-active.png",
   "assets/nav-push-default.svg",
   "assets/nav-push-active.svg",
+  // 侧栏图标按「默认/选中」成对列举：漏一个就会让单文件版在别人电脑上缺图标
+  "assets/nav-analysis-default.svg",
+  "assets/nav-analysis-active.svg",
+  "assets/nav-alert-default.svg",
+  "assets/nav-alert-active.svg",
+  "assets/nav-system-default.svg",
+  "assets/nav-system-active.svg",
+  "assets/nav-ai-default.svg",
+  "assets/nav-ai-active.svg",
   "assets/home-hero.png"
 ];
 

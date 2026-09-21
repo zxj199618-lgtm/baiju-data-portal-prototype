@@ -80,7 +80,8 @@
 }
 .cp-vue-summary { color: #98a2b3; font-size: 13px; white-space: nowrap; }
 
-.cp-vue-form-page { min-height: 0; background: #fff; padding-bottom: 0; }
+/* 底部悬浮操作区会盖住页面底部，表单页预留 96px 空白，保证最后一段表单不被遮挡 */
+.cp-vue-form-page { min-height: 0; background: #fff; padding-bottom: 96px; }
 .cp-vue-form-intro { display: flex; align-items: flex-start; gap: 14px; padding: 4px 0 18px; border-bottom: 1px solid #e9edf4; }
 .cp-vue-form-intro h2 { margin: 0; font-size: 20px; line-height: 32px; letter-spacing: 0; }
 .cp-vue-form-intro p { margin: 3px 0 0; color: #7a8493; font-size: 13px; }
@@ -210,7 +211,7 @@
 .cp-vue-schedule-line { display: flex; align-items: center; gap: 8px; color: #566174; font-size: 14px; }
 .cp-vue-schedule-line .el-date-editor { width: 148px; }
 .cp-vue-schedule-line .el-input-number { width: 128px; }
-.cp-vue-footer { position: sticky; bottom: 0; z-index: 8; min-height: 64px; margin: 0 -28px -36px -36px; padding: 12px 36px; display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 1px solid #e9edf4; background: rgba(255,255,255,.96); box-shadow: 0 -6px 18px rgba(31,41,55,.04); backdrop-filter: blur(6px); }
+.cp-vue-footer { position: fixed; left: var(--portal-pane-left, 0); right: 0; bottom: 0; z-index: 7; min-height: 64px; padding: 12px 36px; display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 1px solid #e9edf4; background: rgba(255,255,255,.96); box-shadow: 0 -6px 18px rgba(31,41,55,.06); backdrop-filter: blur(6px); transition: left .18s ease; }
 .cp-vue-footer .el-button { min-width: 104px; }
 
 .tag-enum-drawer .el-drawer__header { margin-bottom: 0; padding: 18px 24px; border-bottom: 1px solid #e9edf4; color: #1f2937; font-size: 16px; font-weight: 720; }

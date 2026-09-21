@@ -49,8 +49,8 @@ assert(portalVue.includes("window.PORTAL_GATEWAY_BASE") && shareHtml.includes("w
 assert(!/<style[\s>]/.test(html), "入口不应再内联样式");
 assert(!/<script>([\s\S]*?)<\/script>/.test(html), "入口不应再内联脚本");
 assert(html.includes('href="assets/portal-shell.css?v='), "入口应加载公共壳层样式（带版本号，避免缓存旧样式）");
-assert(portalVue.includes("portal-vue-ai-bot-btn") && !html.includes("feishuBotAddBtn"), "添加飞书机器人按钮应在工作台头部行内并贴页面最右");
-assert(exists("assets/portal-shell.css") && read("assets/portal-shell.css").includes("div:first-child.portal-vue-page-head { max-width: none; width: 100%; }"), "页面头部应解除 760px 宽度限制使按钮贴最右");
+assert(portalVue.includes('visible() { return !["灵犀智析"') && !portalVue.includes("portal-vue-ai-bot-btn") && !html.includes("feishuBotAddBtn"), "灵犀智析页应去掉顶部标题区，并不再提供添加飞书机器人入口");
+assert(exists("assets/portal-shell.css") && read("assets/portal-shell.css").includes("div:first-child.portal-vue-page-head { max-width: none; width: 100%; }"), "页面头部应解除 760px 宽度限制占满内容宽度");
 [
   "assets/portal-bridge.js",
   "assets/cp-bridge.js",
@@ -144,11 +144,20 @@ assert(drawerTags.every(tag => tag.includes(':close-on-click-modal="true"')), "�
   "nav-permission-default.png",
   "nav-permission-active.png",
   "nav-push-default.svg",
-  "nav-push-active.svg"
+  "nav-push-active.svg",
+  "nav-ai-default.svg",
+  "nav-ai-active.svg"
 ].forEach(file => assert(exists(`assets/${file}`), `缺少品牌资产: ${file}`));
 
 assert(html.includes('href="assets/momentx-observatory-favicon-32.png"'), "入口应使用站点 favicon");
 assert(portalBridge.includes('default: "assets/nav-push-default.svg"'), "推送导航图标应引用独立 SVG");
+// 单文件版靠 build-standalone.cjs 的 imagePaths 白名单内联资源：漏一个侧栏图标，
+// 分享出去的单文件就会缺图（系统管理 / 灵犀智析 / 数据告警 / AI 中心 曾整组缺失）。
+const standaloneBuild = read("scripts/build-standalone.cjs");
+const navIconAssets = [...new Set([...portalBridge.matchAll(/"(assets\/nav-[a-z0-9-]+\.(?:svg|png))"/g)].map(match => match[1]))];
+assert(navIconAssets.length >= 16, "侧栏图标应成对声明默认态与选中态资源");
+navIconAssets.forEach(asset => assert(exists(asset), `侧栏图标资源缺失: ${asset}`));
+navIconAssets.forEach(asset => assert(standaloneBuild.includes(`"${asset}"`), `单文件构建应内联侧栏图标（imagePaths 白名单）: ${asset}`));
 assert(!portalBridge.includes("data:image/"), "门户桥接脚本不应再内嵌 data URL 图片");
 assert(!portalVue.includes("data:image/png;base64") && !portalVue.includes("data:image/jpeg;base64"), "门户 Vue 模块不应再内嵌品牌图");
 
@@ -177,8 +186,8 @@ assert(portalVue.includes("被 {{ refList(scope.row).length }} 处引用") && po
 assert(html.includes('id="dimensionView"') && html.includes('id="dictionaryView"') && html.includes('id="dimensionDataView"'), "入口应挂载维表和字典页面");
 
 assert(portalBridge.includes('group: "灵犀智析"') && portalBridge.includes('group: "灵犀智析"') < portalBridge.indexOf('group: "数据看板"'), "灵犀智析应作为首个导航分组");
-assert(portalVue.includes("portal-vue-ai-bot-btn") && !html.includes("feishuBotAddBtn"), "添加飞书机器人按钮应在工作台头部行内并贴页面最右");
-assert(exists("assets/portal-shell.css") && read("assets/portal-shell.css").includes(".portal-vue-page-head { max-width: none; width: 100%; }"), "页面头部应解除 760px 宽度限制使按钮贴最右");
+assert(portalVue.includes('visible() { return !["灵犀智析"') && !portalVue.includes("portal-vue-ai-bot-btn") && !html.includes("feishuBotAddBtn"), "灵犀智析页应去掉顶部标题区，并不再提供添加飞书机器人入口");
+assert(exists("assets/portal-shell.css") && read("assets/portal-shell.css").includes(".portal-vue-page-head { max-width: none; width: 100%; }"), "页面头部应解除 760px 宽度限制占满内容宽度");
 assert(html.includes('id="analysisWorkbenchView"') && portalVue.includes("mount(\"#analysisWorkbenchView\""), "灵犀智析应挂载独立视图");
 assert(portalVue.includes("AnalysisWorkbenchApp") && portalVue.includes("飞书机器人"), "灵犀智析应提供飞书机器人沟通入口");
 assert(portalVue.includes("会话记录") && portalVue.includes("含飞书机器人") && portalVue.includes("分析资产"), "灵犀智析应包含资产菜单与会话记录（含飞书机器人会话）");
@@ -194,6 +203,10 @@ assert(portalVue.includes("const isReport=!errorMsg&&full.trim().length>=80"), "
 assert(portalVue.includes("report:report.markdown"), "分享内容应使用完整 markdown 正文");
 assert(portalVue.includes("数据表权限") && portalVue.includes("toggleAllTables") && portalVue.includes("allTables"), "权限组应支持数据表权限配置");
 assert(portalBridge.includes('tables: ["全部数据表"]'), "权限组数据应包含数据表权限维度");
+assert(portalVue.includes("boardChecked(board.name)") && portalVue.includes("boardChecked(name){return this.allBoards||this.selectedBoards.includes(name);}"), "权限组勾选「全部看板」后，分类下的看板应显示为已勾选（仍保持禁用，不可单独操作）");
+assert(!portalVue.includes(':disabled="allBoards" :model-value="selectedBoards.includes(board.name)"'), "勾选全部看板后不应再把子看板渲染成空的禁用勾选框（此断言防止回退）");
+assert(portalVue.includes(':title="board.name"') && portalVue.includes(':title="table.cnName"'), "权限组看板/数据表勾选项应带 title 悬浮全文，长名称不丢信息");
+assert(/\.portal-vue-child-checks \.el-checkbox__label \{[^}]*white-space:\s*normal/.test(portalCss), "长看板/表名应允许换行展示（Element Plus 默认 nowrap 会顶出卡片边界）");
 assert(portalVue.includes("myTables"), "灵犀智析应按权限组展示可用数据表");
 assert(portalVue.includes("权限组权限不可关闭") && portalVue.includes("isMenuLocked(item)") && portalVue.includes("isBoardLocked(board)") && portalVue.includes("isTableLocked(table)"), "配置个人权限时权限组已授予的菜单/看板/表权限应锁定，不允许关闭");
 assert((portalVue.match(/class="portal-vue-lock-tag" :title="'来自权限组：' \+ user.group">\{\{ user.group \}\}<\/el-tag>/g) || []).length === 5, "锁定项标签应直接显示权限组名称（悬浮提示来源）");
@@ -201,8 +214,12 @@ assert(portalVue.includes("menuGrants") && portalVue.includes("boardGrants") && 
 assert(portalBridge.includes("groupLockNote") && portalBridge.includes("lockedBoardNames"), "JS 兜底渲染同样应锁定权限组授予的权限");
 assert(portalVue.includes("管理范围") && portalVue.includes("el-tree-select") && portalVue.includes("buildDepartmentTree") && portalVue.includes("deptTree"), "配置权限应提供按部门配置的管理范围 tab，候选范围来自系统用户的部门");
 assert(portalVue.includes("userInManageScope") && portalVue.includes("visibleUsersFor") && portalVue.includes("manageScopeAll"), "用户管理只展示当前登录人管理范围内的用户，可配置全部用户");
-assert(portalVue.includes("查看权限") && portalVue.includes("viewVisible") && portalVue.includes("viewPermissionsOf") && portalVue.includes("portal-vue-perm-view"), "用户管理应提供查看权限（只读）入口");
-assert(portalVue.includes("仅查看权限，不可编辑任何菜单") && portalVue.includes("如需调整该用户权限"), "查看权限页应只读展示，不允许做任何权限操作");
+assert(portalVue.includes('openView(user){bridge.setActiveUserIndex(state.users.indexOf(user));bridge.setPage("查看权限");}') && portalBridge.includes('"查看权限": ["查看权限"'), "用户管理应提供「查看权限」入口，打开与「配置权限」同样的整页只读页面");
+assert(!portalVue.includes("portal-vue-perm-view") && !portalVue.includes("viewPermissionsOf"), "查看权限不再是抽屉标签列表：旧抽屉实现应删除（此断言防止回退）");
+assert(portalVue.includes("const PermissionReadApp") && portalVue.includes('mount("#permissionReadView", PermissionReadApp, "permission-read")') && html.includes('id="permissionReadView"') && portalBridge.includes('permissionReadView")?.classList.toggle("hidden", page !== "查看权限")'), "「查看权限」应为独立整页：容器 + Vue mount + 页面路由三者齐备");
+assert(portalVue.includes("permissionsOfUser(this.user)") && portalVue.includes("function permissionsOfUser(user)"), "查看权限页应复用统一的权限快照（菜单 / 看板 / 表 / 管理范围）");
+assert(portalVue.includes("items.filter(item=>this.permissions.viewMenus.includes(item.name))") && portalVue.includes("this.permissions.boards.includes(board.name)") && portalVue.includes("this.permissions.tables.includes(table.cnName)"), "查看权限页只渲染已授权的菜单/看板/数据表，未授权项不展示");
+assert(portalVue.includes("该用户当前没有任何菜单权限。") && portalVue.includes("管理范围内的用户") && portalVue.includes("scopeUsers"), "查看权限页应给出空态说明，管理范围只列范围内用户");
 assert(portalVue.includes("此页不支持任何修改"), "查看权限页应明确提示不支持修改")
 assert(!portalVue.includes("同步飞书用户") && !portalVue.includes("syncUsers"), "用户管理不再提供飞书同步入口");
 assert(portalVue.includes("未配置（仅自己）") && portalVue.includes("只能看到自己"), "未配置管理范围时默认只看自己");
@@ -215,21 +232,59 @@ assert(portalVue.includes("editSectionChecked") && portalVue.includes("togglePer
 assert(portalVue.includes('class="portal-vue-view-check"') && portalVue.includes('class="portal-vue-menu-checks"') && (portalVue.match(/>查看<\/el-checkbox>/g) || []).length >= 2 && portalVue.includes("<span>查看</span>"), "菜单权限配置应显式给出「查看」「编辑」两个勾选框（权限组页 + 个人配置页）");
 assert(portalVue.includes("canEditMenu") && portalVue.includes("effectiveEditMenus") && portalVue.includes("menuOfPage"), "菜单编辑权限按当前登录人的权限组 + 个人追加计算，子页面跟随父菜单");
 assert((portalVue.match(/canEdit\(/g) || []).length >= 60 && portalVue.includes("denyEdit"), "各菜单的新增/编辑/删除/保存/启停等写操作应按编辑权限隐藏");
+const formActionsRule = (portalCss.match(/\.portal-vue-form-actions\s*\{[^}]*\}/) || [""])[0];
+assert(!/position:\s*sticky/.test(formActionsRule), "表单底部操作区不应再用 position: sticky：.main 的 overflow-x: hidden 会隐式生成 overflow-y: auto 的滚动容器，sticky 会被拖到文档末尾（此断言防止回退）");
+assert(/position:\s*fixed/.test(formActionsRule) && /bottom:\s*0/.test(formActionsRule), "表单底部操作区应默认悬浮在页面底部（position: fixed + bottom: 0），内容滚动时始终可见");
+assert(/left:\s*var\(--portal-pane-left/.test(formActionsRule) && /right:\s*0/.test(formActionsRule), "悬浮操作区左边界应跟随侧栏宽度（left: var(--portal-pane-left)）并铺满内容区右侧，与内容区对齐");
+assert(["--portal-pane-left: 248px", "--portal-pane-left: 76px", "--portal-pane-left: 0"].every(token => read("assets/portal-shell.css").includes(token)), "壳层应给出侧栏展开 248 / 收起 76 / 隐藏 0 三档 --portal-pane-left，收起或隐藏侧栏后悬浮操作区仍对齐内容区");
+assert(/\.portal-vue-form-page\s*\{[^}]*padding-bottom:\s*96px/.test(portalCss), "悬浮操作区会盖住页面底部，表单页应预留 96px 底部空白，最后一个权限卡片不被遮挡");
+assert(!/\.portal-vue-form-actions\s*\{[^}]*margin:\s*0 -28px -36px -36px/.test(portalCss), "悬浮操作区改用 fixed 定位后不应再靠负 margin 贴边");
+assert((portalVue.match(/class="portal-vue-form-actions"/g) || []).length === 2, "配置用户权限页与数据开放平台 API 表单页共用同一套悬浮操作区（取消 / 保存）");
+const audienceCss = read("assets/cp-vue-module.css");
+const cpFooterRule = (audienceCss.match(/\.cp-vue-footer\s*\{[^}]*\}/) || [""])[0];
+assert(!/position:\s*sticky/.test(cpFooterRule) && /position:\s*fixed/.test(cpFooterRule) && /bottom:\s*0/.test(cpFooterRule) && /left:\s*var\(--portal-pane-left/.test(cpFooterRule), "人群包推送表单的底部操作区（取消 / 校验并保存）应与配置权限页一致：悬浮在页面底部并对齐内容区，不再被 .main 滚动容器拖到文档末尾");
+assert(/\.cp-vue-form-page\s*\{[^}]*padding-bottom:\s*96px/.test(audienceCss), "人群包推送表单页应预留 96px 底部空白，最后一段表单不被悬浮操作区遮挡");
 assert(audienceVue.includes("canEdit('人群包管理')"), "人群包管理的写操作同样按菜单编辑权限隐藏");
 assert(portalBridge.includes("canEditPage(activePage)") && portalVue.includes("syncPrimaryAction"), "页面右上角主操作按钮同样受菜单编辑权限控制");
 assert(portalVue.includes("canViewMenu") && portalVue.includes("effectiveViewMenus") && portalVue.includes("canView: canViewMenu"), "侧边栏与页面应按查看权限过滤菜单");
 assert(portalVue.includes("effectiveBoardNames") && portalVue.includes("effectiveTableNames") && portalVue.includes("boardScopeLabel"), "看板/数据表可见范围按权限组 + 个人授权计算并显示 N / 总数");
 assert(portalVue.includes("this.scopeBoardNames.has(board.name)") && portalVue.includes("this.scopeTableNames.has(item.cnName)") && portalVue.includes("scopeAssets"), "看板管理、表管理与数据看板目录只展示授权范围内的内容");
+assert(portalVue.includes('<el-form-item label="可查看用户">') && portalVue.includes("selectableUsers"), "看板编辑弹窗应在「可查看权限组」之后提供「可查看用户」多选，直接授权到具体用户");
+assert(portalVue.includes("users: [...(board.users || [])]") && portalVue.includes("users: [...(this.form.users || [])]"), "看板表单应读写 board.users：编辑回填已有授权，保存写回");
+assert(portalVue.includes("board.users.includes(user?.name)") && portalBridge.includes("boardDirectUsers") && portalBridge.includes('"QB_001": ["刘盾"]'), "直接授权的看板应对该用户可见（与权限组授权取并集），并带演示数据");
+assert(portalVue.includes("direct: directUsers.includes(user.name)") && portalVue.includes("direct: true") && portalVue.includes("portal-vue-viewer-tag"), "看板列表「可查看用户」应为权限组可见用户与直接授权用户的并集，并标出直接授权");
+assert(portalVue.includes("directBoardNames") && portalVue.includes("isBoardDirect(board)") && portalVue.includes("board.users=board.users.filter(name=>name!==this.user.name)"), "配置用户权限页应回显直接授权的看板（带「直接授权」标签），取消勾选并保存即收回");
+assert(portalCss.includes(".portal-vue-board-dialog .el-dialog__body { max-height: calc(100vh - 220px)"), "看板编辑弹窗字段较多，内容区应独立滚动，保证底部「取消 / 保存」始终可见");
 assert(portalVue.includes("visibleCategories") && portalVue.includes("可见范围："), "管理页的筛选下拉与范围提示随可见范围收敛");
 assert(portalCss.includes(".portal-vue-user > span { white-space: nowrap") && portalCss.includes(".portal-vue-topbar > .el-dropdown { flex: 0 0 auto; }") && portalCss.includes(".portal-vue-tabs { flex: 1 1 auto"), "顶部 tab 过多时应由 tab 条滚动收缩，头像/姓名区域不压缩换行");
 assert(portalBridge.includes('menuEdits: ["灵犀智析"') && portalBridge.includes("menuEdits: []"), "权限组数据应包含菜单编辑权限，只读角色默认无编辑权限");
-assert(portalBridge.includes('group: "系统管理"') && portalBridge.includes('name: "菜单管理"') && portalBridge.includes('name: "Skill 配置"'), "系统管理应包含菜单管理与 Skill 配置");
+assert(portalBridge.includes('group: "系统管理"') && portalBridge.includes('name: "菜单管理"'), "系统管理应包含菜单管理");
 assert(portalBridge.includes('name: "操作日志"'), "系统管理应提供操作日志菜单");
 assert(portalBridge.indexOf('name: "操作日志"') < portalBridge.indexOf('name: "菜单管理"') && portalBridge.indexOf('name: "操作日志"') > portalBridge.indexOf('name: "环境域名"'), "操作日志菜单应位于环境域名之后、菜单管理之前");
+// AI 中心：把 Skill 配置 / 模型配置从系统管理抽成独立一级菜单，排在系统管理之前
+const aiGroup = (portalBridge.match(/\{ group: "AI 中心"[\s\S]*?\}\] \}/) || [""])[0];
+const systemGroup = (portalBridge.match(/\{ group: "系统管理"[\s\S]*?\}\] \}/) || [""])[0];
+assert(portalBridge.includes('group: "AI 中心"') && portalBridge.indexOf('group: "AI 中心"') < portalBridge.indexOf('group: "系统管理"'), "AI 中心应作为一级菜单分组，排在系统管理之前");
+assert(aiGroup.includes('name: "Skill 配置", badge: "5.0"') && aiGroup.includes('name: "模型配置", badge: "5.0"') && portalBridge.indexOf('name: "Skill 配置"') < portalBridge.indexOf('name: "模型配置"'), "AI 中心应包含 Skill 配置与模型配置（Skill 在前，保留 5.0 角标）");
+assert(portalBridge.includes('group: "AI 中心", icon: "ai"'), "AI 中心应有独立侧栏图标");
+assert(systemGroup.includes('name: "任务运维"') && systemGroup.includes('name: "环境域名"') && systemGroup.includes('name: "操作日志"') && systemGroup.includes('name: "菜单管理"'), "系统管理应保留任务运维 / 环境域名 / 操作日志 / 菜单管理");
+assert(!systemGroup.includes("Skill 配置") && !systemGroup.includes("模型配置"), "系统管理不应再包含 Skill 配置与模型配置（此断言防止回退）");
+assert(portalBridge.includes('if (page === "Skill 配置" || page === "模型配置") return "ai";'), "AI 中心两个页面的顶部页签应使用 ai 图标");
+assert(portalBridge.includes('ai: { default: "assets/nav-ai-default.svg", active: "assets/nav-ai-active.svg" }'), "ai 图标应指向独立的默认/选中态资源");
+const adminGroup = (portalBridge.match(/\{ name: "门户管理员"[\s\S]*?status: "启用" \}/) || [""])[0];
+assert(adminGroup.includes('"AI 中心"') && adminGroup.includes('"模型配置"') && adminGroup.includes('"Skill 配置"'), "门户管理员权限组应同时给出 AI 中心分组名与两个菜单名（保存权限后分组名会被拍平成菜单名，不能只依赖分组授权）");
+assert(portalVue.includes('name: "AI 中心", icon: "ai"') && portalVue.includes('permission: "ai_center"'), "菜单管理树应同步新增 AI 中心一级菜单（含图标与权限标识）");
+assert((portalVue.match(/name: "Skill 配置"/g) || []).length === 1 && (portalVue.match(/name: "模型配置"/g) || []).length === 1, "菜单管理树里 Skill 配置 / 模型配置 只应出现在 AI 中心下，不重复挂载");
+assert(portalVue.includes('ai:"◈"'), "菜单管理图标字典应包含 ai 字形");
 assert(html.includes('id="operationLogView"') && portalVue.includes('mount("#operationLogView"'), "操作日志应挂载独立视图");
 assert(portalVue.includes("OperationLogApp") && portalVue.includes("operationLogEvents") && portalVue.includes("operationLogSeeds"), "操作日志应基于埋点事件定义构建");
 assert(portalVue.includes('"page_view"') && portalVue.includes('"dashboard_view_heartbeat"'), "操作日志应覆盖页面访问与看板心跳两类埋点");
 assert(portalVue.includes('category: "页面访问"') && portalVue.includes('category: "查看看板"'), "操作日志应按页面访问 / 查看看板分类");
+assert(portalVue.includes('const OPERATION_LOG_VISIBLE_CATEGORIES = ["查看看板"]') && portalVue.includes("!OPERATION_LOG_VISIBLE_CATEGORIES.includes(operationLogEvents[record.event]?.category)"), "操作日志当前只对外展示「查看看板」记录：页面访问等埋点隐藏（数据与定义保留，白名单加回即恢复）");
+assert(portalVue.includes("visibleCategories() { return this.categories.filter(item => OPERATION_LOG_VISIBLE_CATEGORIES.includes(item)); }") && portalVue.includes('v-if="visibleCategories.length > 1"'), "只剩一个分类时不渲染分类页签与分类列，后续加回分类会自动恢复");
+const logTabsBlock = (portalVue.match(/v-if="visibleCategories\.length > 1"[\s\S]{0,360}/) || [""])[0];
+assert(logTabsBlock.includes('v-for="item in visibleCategories"') && !logTabsBlock.includes('v-for="item in categories"'), "操作日志分类页签不得再直接遍历全部分类（此断言防止回退）");
+assert(portalBridge.includes("「查看看板」明细"), "操作日志页头文案应说明当前只开放查看看板明细");
 assert(portalVue.includes("visitId") && portalVue.includes("duration_seconds") && portalVue.includes("visit_id"), "看板心跳应按 visit_id 归并为一次访问并计算停留时长");
 assert(!portalVue.includes("数据来源：前端埋点"), "操作日志底部数据来源说明应移除");
 assert(portalVue.includes("portal-vue-log-attrs") && portalVue.includes("detailBeats"), "操作日志详情应展示完整埋点属性与心跳明细");
@@ -246,7 +301,12 @@ assert("testVisible" in portalVue.match(/SkillManagementApp[\s\S]{0,200}/g) === 
 assert(portalVue.includes("skillScenarios") && portalVue.includes("工作台展示") && portalVue.includes("openEdit") && portalVue.includes("saveAll"), "工作台场景卡片应由 Skill 配置驱动（icon/标题/描述/排序），操作列只保留单个编辑按钮");
 assert(!portalVue.includes("openCapability(") && !portalVue.includes("openDisplay(") && !portalVue.includes("openPrompt(") && !portalVue.includes("openGray(") && !portalVue.includes("openVersions("), "Skill 配置不应保留旧的五个独立入口按钮");
 assert(portalVue.includes('id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100') === false || portalVue.includes('scenarioKey: "single"'), "Skill 注册表应包含工作台展示元数据");
-assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("ModelConfigApp") && portalVue.includes("modelConfigView"), "系统管理应提供模型配置页");
+assert(!portalVue.includes('label="来源包"') && !portalVue.includes("搜索 Skill 名称、来源"), "Skill 列表应去掉「来源包」列，搜索也不再按来源匹配（此断言防止回退）");
+assert(portalVue.includes('@click="openCreate">＋ 新增 Skill') && !portalVue.includes("上传 Skill</el-button>") && !portalVue.includes("onUploadFile") && !portalVue.includes("Skill 以 ZIP 包"), "右上角应改为「新增 Skill」手动新增，移除 ZIP 上传按钮与上传说明");
+assert(portalVue.includes("openCreate(){") && portalVue.includes("saveCreate(){") && portalVue.includes("state.skills.unshift(skill)") && portalVue.includes("versions:[{version,time:now"), "新增 Skill 应写入注册表并自动生成初始版本（v1.0 / 已发布 / 操作人）");
+assert(portalVue.includes('v-model="createForm.name"') && portalVue.includes('v-model="createForm.prompt"') && portalVue.includes("onCreateIconUpload") && portalVue.includes("applyIcon(event,target)"), "新增 Skill 表单应覆盖名称/标题/图标/描述/排序/提示词/版本/上线状态，图标复用同一套上传逻辑");
+assert(portalVue.includes("item.local&&!list.some(entry=>entry.id===item.id)") && portalVue.includes("filter(item=>item.local&&!remotes.some(entry=>entry.id===item.id))"), "门户手动新增的 Skill 在网关数据刷新后仍保留，不会建完就消失");
+assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("ModelConfigApp") && portalVue.includes("modelConfigView"), "AI 中心应提供模型配置页");
 assert(portalVue.includes("v1/model-config") && portalVue.includes("已禁用"), "模型配置应支持禁用历史模型并持久化到网关");
 assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCascadeOptions") && portalVue.includes("activeTablePath") && portalVue.includes("changeTablePath") && portalVue.includes("<el-cascader"), "数据表选择应使用单个业务线到数据表的级联下拉");
 assert(!portalVue.includes("portal-vue-ai-cascade-grid") && !portalVue.includes("activeBizLine") && !portalVue.includes("filteredTableOptions") && !portalVue.includes("changeBizLine"), "数据表选择不应保留拆分的业务线/数据表下拉");
@@ -290,6 +350,12 @@ assert(!portalVue.includes("推送统一走内置"), "数据告警列表底部�
 assert(portalVue.includes('label="触发条件" min-width="176"') && portalVue.includes('label="推送通道" min-width="128"'), "告警列表列宽合计需小于容器宽度，避免横向滚动导致固定列遮挡");
 assert(portalVue.includes("portal-vue-alert-cell-name"), "数据告警列表名称列应有独立样式");
 assert(portalVue.includes("portal-vue-alert-hint") && portalVue.includes("只算同一条告警，是否再次通知由上面的重复规则决定"), "重复判定字段应提供简洁的重复判断说明");
+const dedupBlock = (portalVue.match(/prop="keyField"[\s\S]{0,560}/) || [""])[0];
+assert(portalVue.includes("MEASURE_SQL_TYPES") && portalVue.includes("function isMeasureField(field)"), "应定义「度量值（数值型）」判定，供重复判定字段过滤使用");
+assert(portalVue.includes("dedupFields() { return this.currentFields.filter(field => !isMeasureField(field)); }") && dedupBlock.includes('v-for="field in dedupFields"') && !dedupBlock.includes('v-for="field in currentFields"'), "重复判定字段下拉只能选维度字段，度量值（数值型）不可选（此断言防止回退）");
+assert(dedupBlock.includes("度量值（数值型）不能作为去重口径"), "重复判定字段应说明只提供维度字段、度量值不可选");
+assert(portalVue.includes("validateKeyField(rule, value, callback)") && portalVue.includes("不能作为重复判定字段"), "保存时仍应拦住度量值：校验器拒绝数值型字段作为重复判定字段");
+assert(portalVue.includes("const dimensionFields = (table.fields || []).filter(field => !isMeasureField(field))") && portalVue.includes("defaultKeyField"), "新建表单与切换监控表的默认重复判定字段应落在维度字段上，不会默认选中度量值");
 assert(portalVue.includes('class="portal-vue-alert-preview-avatar" src="assets/momentx-observatory-icon.png"'), "推送效果预览的头像应使用观星台品牌图标");
 assert(portalVue.includes("portal-vue-alert-dialog-head") && portalVue.includes("portal-vue-alert-back"), "数据告警编辑弹窗左上角应提供返回按钮");
 assert(portalVue.includes('label="负责人" prop="owner"') && portalVue.includes('label="告警方式" prop="mode"') && portalVue.includes('prop="dedup.mode"'), "负责人/告警方式/重复告警均应绑定 prop 以渲染必填星标");

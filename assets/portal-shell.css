@@ -369,6 +369,8 @@
       transition: margin-left .18s ease;
       background: #fff;
       overflow-x: hidden;
+      /* 内容区左边界：供页面内 position: fixed 的底部操作区对齐（侧栏展开 248 / 收起 76 / 隐藏 0） */
+      --portal-pane-left: 248px;
     }
 
     .topbar {
@@ -391,8 +393,16 @@
       left: 76px;
     }
 
+    .sidebar.collapsed + .main {
+      --portal-pane-left: 76px;
+    }
+
     .sidebar.hidden + .main .topbar {
       left: 0;
+    }
+
+    .sidebar.hidden + .main {
+      --portal-pane-left: 0;
     }
 
     .crumbs {
@@ -2364,6 +2374,11 @@
       overflow: hidden;
     }
 
+    /* 灵犀智析页去掉顶部标题区：整屏工作台，标题已在左侧导航与标签栏体现。 */
+    .main:has(#analysisWorkbenchView:not(.hidden)) .page-head {
+      display: none;
+    }
+
     .main:has(#analysisWorkbenchView:not(.hidden)) .content {
       height: calc(100vh - 72px);
       min-height: 0;
@@ -3417,6 +3432,7 @@
       .main,
       .sidebar.collapsed + .main {
         margin-left: 0;
+        --portal-pane-left: 0;
       }
 
       .topbar,

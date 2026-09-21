@@ -8,7 +8,8 @@
         { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: "4.0" }, { name: "标签管理" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
         { group: "数据推送", icon: "push", items: [{ name: "人群包推送渠道" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },
-        { group: "系统管理", icon: "system", items: [{ name: "Skill 配置", badge: "5.0" }, { name: "模型配置", badge: "5.0" }, { name: "任务运维" }, { name: "环境域名" }, { name: "操作日志" }, { name: "菜单管理" }] }
+        { group: "AI 中心", icon: "ai", items: [{ name: "Skill 配置", badge: "5.0" }, { name: "模型配置", badge: "5.0" }] },
+        { group: "系统管理", icon: "system", items: [{ name: "任务运维" }, { name: "环境域名" }, { name: "操作日志" }, { name: "菜单管理" }] }
       ];
       const boardCategories = [
               "全部",
@@ -1011,6 +1012,15 @@
               }
       ];
 
+      // 看板可直接授权到具体用户（不经过权限组）：board.users 为该看板的直接可见用户，
+      // 与 groups 授权取并集；用于「未分配权限组」「权限组未覆盖该看板」等补充授权场景。
+      const boardDirectUsers = {
+              "QB_001": ["刘盾"],
+              "QB_020": ["李雨航"],
+              "QB_030": ["谭嘉颖"]
+      };
+      migratedBoards.forEach(board => { board.users = boardDirectUsers[board.quickBiId] || []; });
+
       const simpleUsers = [
         { name: "黄佩贤", phone: "138****2491", dept: "商业化中心 / 投放一组", role: "部门管理员", email: "huangpeixian@baiju.com", group: "门户管理员", peopleStatus: "在职", status: "启用", login: "2026-06-15 09:21", feishu: "ou_7f31c9" },
         { name: "林金维", phone: "136****5830", dept: "商业化中心 / 投放二组", role: "投放组长", email: "linjinwei@baiju.com", group: "投放组长", peopleStatus: "在职", status: "启用", login: "2026-06-15 08:46", feishu: "ou_2a90de" },
@@ -1195,7 +1205,7 @@
       window.simpleUsers = simpleUsers;
 
       const permissionGroups = [
-        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "系统管理", "菜单管理", "Skill 配置", "任务运维", "环境域名", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], menuEdits: ["灵犀智析", "系统管理", "菜单管理", "Skill 配置", "任务运维", "环境域名", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
+        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "AI 中心", "系统管理", "菜单管理", "Skill 配置", "模型配置", "任务运维", "环境域名", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], menuEdits: ["灵犀智析", "AI 中心", "系统管理", "菜单管理", "Skill 配置", "模型配置", "任务运维", "环境域名", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
         { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["CPA事业部", "大盘数据"], tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"], status: "启用" },
         { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["CPA事业部", "新媒体"], tables: ["广告计划日报表", "广告账户日报"], status: "启用" },
         { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["大盘数据", "产品运营部"], tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"], status: "启用" },
@@ -1503,7 +1513,7 @@
         "数据告警": ["数据告警", "选择监控表与字段配置告警规则、通知模版与飞书推送通道，支持实时或定时触发与重复通知控制。", "新建告警"],
         "Skill 配置": ["Skill 配置", "管理可用于灵犀智析和飞书机器人的分析 skill：展示、提示词、版本与用户灰度。", "上传 Skill"],
         "菜单管理": ["菜单管理", "维护门户侧边导航结构：层级、图标、排序、组件路径与权限标识。", "添加"],
-        "操作日志": ["操作日志", "基于前端埋点记录用户操作明细：页面访问与看板浏览，支持按分类、用户、终端与时间范围筛选。", ""],
+        "操作日志": ["操作日志", "基于前端埋点记录「查看看板」明细（页面访问等其他埋点暂未开放），支持按用户、终端与时间范围筛选。", ""],
         "模型配置": ["模型配置", "管理灵犀智析可用的模型：来自中转站的全部模型，可禁用历史或不可用模型。", ""],
         "任务运维": ["任务运维", "媒体报表数据运维：按广告主账户补拉分时数据、跟踪异步执行日志、对比分时表间消耗差异。", ""],
         "环境域名": ["环境域名", "服务域名、日志与监控入口速查；敏感凭据密文存储，仅后端可见。", ""],
@@ -1523,6 +1533,7 @@
         "用户管理": ["用户管理", "", "同步飞书用户"],
         "权限组": ["权限组", "", "新增权限组"],
         "配置权限": ["配置权限", "编辑用户可访问菜单和 Quick BI 看板范围，当前菜单仅包含数据看板、用户管理。", "保存权限"],
+        "查看权限": ["查看权限", "只读回显该用户当前生效的菜单、看板、数据表和用户管理范围，不支持任何修改。", ""],
         "Quick BI 展示": ["Quick BI 展示", "展示已迁移的 Quick BI 看板内容。", "打开 Quick BI"]
       };
 
@@ -1687,7 +1698,8 @@
         if (page === "标签管理") return "asset";
         if (page === "人群包推送渠道") return "push";
         if (page === "用户管理" || page === "权限组") return "permission";
-        if (page === "菜单管理" || page === "模型配置" || page === "Skill 配置" || page === "任务运维" || page === "环境域名") return "system";
+        if (page === "Skill 配置" || page === "模型配置") return "ai";
+        if (page === "菜单管理" || page === "任务运维" || page === "环境域名") return "system";
         if (page === "表详情") return "asset";
         return "asset";
       }
@@ -1701,7 +1713,8 @@
           permission: { default: "assets/nav-permission-default.png", active: "assets/nav-permission-active.png" },
           system: { default: "assets/nav-system-default.svg", active: "assets/nav-system-active.svg" },
           alert: { default: "assets/nav-alert-default.svg", active: "assets/nav-alert-active.svg" },
-          analysis: { default: "assets/nav-analysis-default.svg", active: "assets/nav-analysis-active.svg" }
+          analysis: { default: "assets/nav-analysis-default.svg", active: "assets/nav-analysis-active.svg" },
+          ai: { default: "assets/nav-ai-default.svg", active: "assets/nav-ai-active.svg" }
         };
         return (icons[icon] || icons.asset)[active ? "active" : "default"];
       }
@@ -3040,6 +3053,7 @@
         userManagementView.classList.toggle("hidden", page !== "用户管理");
         document.getElementById("permissionGroupView").classList.toggle("hidden", page !== "权限组");
         document.getElementById("permissionConfigView").classList.toggle("hidden", page !== "配置权限");
+        document.getElementById("permissionReadView")?.classList.toggle("hidden", page !== "查看权限");
         document.getElementById("quickBiView").classList.toggle("hidden", page !== "Quick BI 展示");
         document.getElementById("cpListView").classList.toggle("hidden", page !== "人群包管理");
         document.getElementById("cpCreateView").classList.toggle("hidden", page !== "新建人群包");
@@ -3095,6 +3109,7 @@
         userManagementView.classList.add("hidden");
         document.getElementById("permissionGroupView").classList.add("hidden");
         document.getElementById("permissionConfigView").classList.add("hidden");
+        document.getElementById("permissionReadView")?.classList.add("hidden");
         document.getElementById("quickBiView").classList.add("hidden");
         document.getElementById("cpListView").classList.add("hidden");
         document.getElementById("cpCreateView").classList.add("hidden");

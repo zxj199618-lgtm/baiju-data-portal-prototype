@@ -162,6 +162,7 @@
     "新增API": "数据开放平台",
     "新建人群包": "人群包管理",
     "配置权限": "用户管理",
+    "查看权限": "用户管理",
     "维表数据维护": "维表管理",
     "表详情": "表管理",
     "Quick BI 展示": "数据看板"
@@ -213,6 +214,8 @@
     const names = new Set();
     state.boards.forEach(board => {
       if (grants.includes(board.name) || grants.includes(board.category)) names.add(board.name);
+      // 看板管理里「可查看用户」直接授权的看板：不依赖权限组，与权限组授权取并集
+      if (Array.isArray(board.users) && board.users.includes(user?.name)) names.add(board.name);
     });
     return names;
   }
@@ -232,6 +235,36 @@
   function tableScopeLabel(user, total) {
     if (effectiveTableNames(user).size >= state.assets.length) return "全部数据表";
     return `${effectiveTableNames(user).size} / ${total} 张数据表`;
+  }
+
+  // 用户当前生效的权限快照（菜单 / 看板 / 数据表 / 管理范围），供「查看权限」只读页回显
+  function permissionsOfUser(user) {
+    const group = state.groups.find(item => item.name === user?.group) || null;
+    const groupMenus = expandMenuNames(group?.menus || []);
+    const groupMenuEdits = expandMenuNames(group?.menuEdits || []);
+    const personalMenus = Array.isArray(user?.menuGrants) ? user.menuGrants : [];
+    const personalMenuEdits = Array.isArray(user?.menuEditGrants) ? user.menuEditGrants : [];
+    const viewMenus = [...new Set([...groupMenus, ...personalMenus])];
+    const editMenus = [...new Set([...groupMenuEdits, ...personalMenuEdits])].filter(name => viewMenus.includes(name));
+    const boardGrants = [...(group?.boards || []), ...(Array.isArray(user?.boardGrants) ? user.boardGrants : [])];
+    const allBoards = boardGrants.includes("全部看板");
+    const grantedBoards = (allBoards ? state.boards.filter(board => board.status === "已上线") : state.boards.filter(board => board.status === "已上线" && (boardGrants.includes(board.name) || boardGrants.includes(board.category)))).map(board => board.name);
+    const directBoards = state.boards.filter(board => board.status === "已上线" && Array.isArray(board.users) && board.users.includes(user?.name)).map(board => board.name);
+    const boards = [...new Set([...grantedBoards, ...directBoards])];
+    const groupBoardSet = new Set(allBoards ? state.boards.filter(board => board.status === "已上线").map(board => board.name) : state.boards.filter(board => board.status === "已上线" && (boardGrants.includes(board.name) || boardGrants.includes(board.category))).map(board => board.name));
+    const tableGrants = [...(group?.tables || []), ...(Array.isArray(user?.tableGrants) ? user.tableGrants : [])];
+    const allTables = tableGrants.includes("全部数据表");
+    const tables = (allTables ? state.assets : state.assets.filter(table => tableGrants.includes(table.cnName))).map(table => table.cnName);
+    const groupTableSet = new Set(allTables ? state.assets.map(table => table.cnName) : state.assets.filter(table => tableGrants.includes(table.cnName)).map(table => table.cnName));
+    const personalBoards = (Array.isArray(user?.boardGrants) ? user.boardGrants : []).filter(name => name !== "全部看板");
+    const personalTables = (Array.isArray(user?.tableGrants) ? user.tableGrants : []).filter(name => name !== "全部数据表");
+    return {
+      group, viewMenus, editMenus, boards, directBoards, tables, allBoards, allTables,
+      groupMenus: [...groupMenus], groupBoardSet, groupTableSet,
+      personalMenus, personalBoards, personalTables,
+      scope: manageScopeOf(user), scopeAll: Boolean(user?.manageScopeAll),
+      personalTotal: personalMenus.length + personalMenuEdits.length + personalBoards.length + personalTables.length
+    };
   }
 
   function canEditMenu(menu) {
@@ -392,46 +425,22 @@
   const PageHeadApp = {
     template: `
       <el-config-provider :locale="locale">
-        <div v-if="visible" class="portal-vue-page-head" :class="{ 'portal-vue-head-compact': page === '灵犀智析' }">
-          <div class="portal-vue-page-head-row">
-            <div><h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p></div>
-            <button v-if="page === '灵犀智析' && !feishuBotAdded" type="button" class="portal-vue-ai-bot-btn" @click="feishuOpen = true"><span class="portal-vue-ai-bot-icon">🤖</span><span>添加飞书机器人</span></button>
-          </div>
+        <div v-if="visible" class="portal-vue-page-head">
+          <div><h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p></div>
         </div>
-        <el-drawer v-if="page === '灵犀智析'" v-model="feishuOpen" title="观星台 · 飞书机器人" size="420px" :close-on-click-modal="true">
-          <div class="portal-vue-ai-feishu-drawer">
-            <p class="portal-vue-muted">在飞书里直接和「观星台」机器人对话即可完成数据分析，无需登录门户；机器人的沟通记录会自动同步到左侧会话列表。</p>
-            <div class="portal-vue-ai-feishu-steps">
-              <span><b>1</b>飞书搜索并关注「观星台」机器人</span>
-              <span><b>2</b>首次使用发送「绑定」，完成飞书账号与门户账号关联</span>
-              <span><b>3</b>直接提问，如「近7天巨量渠道CPA趋势」；分析结果以卡片回复，沟通记录自动同步到工作台</span>
-            </div>
-            <p class="portal-vue-muted">机器人与工作台使用同一套表权限：只能分析你有权限的数据表。</p>
-            <el-button v-if="!feishuBotAdded" type="primary" style="width:100%" @click="markBotAdded">我已完成添加，不再展示此入口</el-button>
-          </div>
-        </el-drawer>
       </el-config-provider>
     `,
-    data:()=>({feishuOpen:false,feishuBotAdded:false}),
     computed: {
       page() { return currentPage.value; },
       meta() { refreshTick.value; return bridge.pageMeta[this.page] || bridge.pageMeta["数据看板"]; },
-      visible() { return !["新增API", "新建人群包", "Quick BI 展示", "配置权限", "无权限", "维表数据维护", "表详情"].includes(this.page); },
+      // 灵犀智析是整屏工作台，自身已有导航与标签栏标识，不再展示页面标题区。
+      visible() { return !["灵犀智析", "新增API", "新建人群包", "Quick BI 展示", "配置权限", "查看权限", "无权限", "维表数据维护", "表详情"].includes(this.page); },
       title() { return this.meta?.[0] || this.page; },
       subtitle() { return this.meta?.[1] || ""; }
     },
     watch: { visible(value) { document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", !value); } },
     mounted() {
       document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", !this.visible);
-      try { this.feishuBotAdded = localStorage.getItem("feishuBotAdded") === "1"; } catch (error) { this.feishuBotAdded = false; }
-    },
-    methods: {
-      markBotAdded() {
-        this.feishuBotAdded = true;
-        try { localStorage.setItem("feishuBotAdded", "1"); } catch (error) { /* 隐私模式下仅本次会话生效 */ }
-        this.feishuOpen = false;
-        ep.ElMessage.success("飞书机器人已添加，沟通记录将同步到灵犀智析");
-      }
     }
   };
 
@@ -539,6 +548,7 @@
                     <div v-for="user in boardViewers(scope.row)" :key="user.feishu || user.name" class="portal-vue-viewer-item">
                       <el-avatar :size="30" :style="avatarStyle(user.name)">{{ avatarText(user.name) }}</el-avatar>
                       <div><strong>{{ user.name }}</strong><span>{{ user.dept || '未挂部门' }}</span></div>
+                      <el-tag v-if="user.direct" size="small" type="warning" effect="plain" class="portal-vue-viewer-tag">直接授权</el-tag>
                     </div>
                   </el-scrollbar>
                 </el-popover>
@@ -553,7 +563,7 @@
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
 
-        <el-dialog v-model="formVisible" :title="editingIndex<0?'新增看板':'编辑看板'" width="620px" destroy-on-close>
+        <el-dialog v-model="formVisible" class="portal-vue-board-dialog" :title="editingIndex<0?'新增看板':'编辑看板'" width="620px" destroy-on-close>
           <el-form class="portal-vue-dialog-form" label-position="top">
             <el-form-item label="看板名称" required><el-input v-model="form.name" placeholder="请输入看板名称"></el-input></el-form-item>
             <el-form-item label="Quick BI 看板 ID" required><el-input v-model="form.quickBiId" placeholder="例如：QB_073"></el-input></el-form-item>
@@ -561,6 +571,7 @@
             <el-form-item label="负责人" required><el-select v-model="form.owner" filterable><el-option v-for="item in userNames" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
             <el-form-item label="看板说明"><el-input v-model="form.desc" type="textarea" :rows="3" placeholder="说明看板用途和数据口径"></el-input></el-form-item>
             <el-form-item label="可查看权限组" required><el-select v-model="form.groups" multiple><el-option v-for="item in groupNames" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
+            <el-form-item label="可查看用户"><el-select v-model="form.users" multiple filterable clearable collapse-tags collapse-tags-tooltip :max-collapse-tags="4" placeholder="选择可直接查看该看板的用户（可不选）"><el-option v-for="item in selectableUsers" :key="item.name" :label="item.name" :value="item.name"><span>{{ item.name }}</span><span class="portal-vue-muted" style="float:right;margin-left:18px">{{ item.dept || '未挂部门' }}</span></el-option></el-select><p class="portal-vue-muted" style="margin:6px 0 0">直接授权的用户无需加入权限组即可在「数据看板」看到该看板，与权限组授权取并集；停用用户不参与授权。</p></el-form-item>
           </el-form>
           <template #footer><el-button @click="formVisible=false">取消</el-button><el-button v-if="canEdit('看板管理')" type="primary" @click="saveBoard">保存</el-button></template>
         </el-dialog>
@@ -579,6 +590,7 @@
       visibleCategories() { const allowed = this.scopeBoardNames; return state.categories.filter(item => item !== "全部" && state.boards.some(board => board.category === item && allowed.has(board.name))); },
       owners() { const allowed = this.scopeBoardNames; return [...new Set(state.boards.filter(board => allowed.has(board.name)).map(board => board.owner))]; },
       userNames() { return state.users.map(user => user.name); },
+      selectableUsers() { refreshTick.value; return state.users.filter(user => user.status !== "已停用"); },
       groupNames() { return state.groups.map(group => group.name); },
       filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.boards.filter(board => this.scopeBoardNames.has(board.name) && board.status === this.status && (this.category === "全部分类" || board.category === this.category) && (this.owner === "全部负责人" || board.owner === this.owner) && (!keyword || `${board.name} ${board.quickBiId}`.toLowerCase().includes(keyword))); },
       pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
@@ -590,18 +602,23 @@
       resetPage() { this.page = 1; },
       boardViewers(board) {
         const directGroups = Array.isArray(board.groups) ? board.groups : [];
+        const directUsers = Array.isArray(board.users) ? board.users : [];
         const visibleGroups = new Set(state.groups.filter(group => directGroups.includes(group.name)
           || group.boards.includes("全部看板")
           || group.boards.includes(board.name)
           || group.boards.includes(board.category)).map(group => group.name));
-        return state.users.filter(user => user.status !== "已停用" && visibleGroups.has(user.group));
+        // 权限组推导出的可见用户 + 看板「可查看用户」直接授权的用户，取并集
+        const byGroup = state.users.filter(user => user.status !== "已停用" && visibleGroups.has(user.group));
+        const seen = new Set(byGroup.map(user => user.name));
+        const direct = state.users.filter(user => user.status !== "已停用" && directUsers.includes(user.name) && !seen.has(user.name));
+        return [...byGroup.map(user => ({ ...user, direct: directUsers.includes(user.name) })), ...direct.map(user => ({ ...user, direct: true }))];
       },
       avatarText(name) { return String(name || "用").slice(0,1); },
       avatarStyle(name) { const colors = ["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"]; const seed = [...String(name || "")].reduce((total,char)=>total+char.charCodeAt(0),0); return { background: colors[seed % colors.length], color: "#fff" }; },
-      openForm(board = null) { this.editingIndex = board ? state.boards.indexOf(board) : -1; this.form = board ? { ...board, groups: [...board.groups] } : { name: "", quickBiId: `QB_${String(state.boards.length + 1).padStart(3,"0")}`, category: this.categories[0] || "", owner: "曾祥竞", desc: "", groups: ["门户管理员"], status: "已上线", updatedAt: "2026-07-15 10:00" }; this.formVisible = true; },
+      openForm(board = null) { this.editingIndex = board ? state.boards.indexOf(board) : -1; this.form = board ? { ...board, groups: [...board.groups], users: [...(board.users || [])] } : { name: "", quickBiId: `QB_${String(state.boards.length + 1).padStart(3,"0")}`, category: this.categories[0] || "", owner: "曾祥竞", desc: "", groups: ["门户管理员"], users: [], status: "已上线", updatedAt: "2026-07-15 10:00" }; this.formVisible = true; },
       saveBoard() {
         if (!this.form.name.trim() || !this.form.quickBiId.trim() || !this.form.category || !this.form.owner || !this.form.groups.length) return ep.ElMessage.warning("请补全看板必填信息");
-        const payload = { ...this.form, name: this.form.name.trim(), quickBiId: this.form.quickBiId.trim(), updatedAt: "2026-07-15 10:00" };
+        const payload = { ...this.form, name: this.form.name.trim(), quickBiId: this.form.quickBiId.trim(), users: [...(this.form.users || [])], updatedAt: "2026-07-15 10:00" };
         if (this.editingIndex < 0) state.boards.unshift(payload); else Object.assign(state.boards[this.editingIndex], payload);
         this.formVisible = false; notify(`看板「${payload.name}」已保存`);
       },
@@ -1005,101 +1022,20 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
           </section>
         </div>
-        <el-drawer v-model="viewVisible" :title="viewUser ? '查看权限 · ' + viewUser.name : '查看权限'" size="600px" :close-on-click-modal="true">
-          <div v-if="viewUser" class="portal-vue-perm-view">
-            <el-alert type="info" :closable="false" show-icon title="只读查看" description="仅展示该用户当前生效的权限，此页不支持任何修改；如需调整请由门户管理员在「配置权限」中操作。" />
-            <div class="portal-vue-perm-section">
-              <h4>用户信息</h4>
-              <div class="portal-vue-detail-grid">
-                <div class="portal-vue-detail-item"><span>部门组织</span><strong>{{ viewUser.dept || "—" }}</strong></div>
-                <div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ viewUser.role || "—" }}</strong></div>
-                <div class="portal-vue-detail-item"><span>邮箱</span><strong>{{ viewUser.email || "—" }}</strong></div>
-                <div class="portal-vue-detail-item"><span>账号状态</span><strong>{{ viewUser.status || "—" }}</strong></div>
-              </div>
-            </div>
-            <div class="portal-vue-perm-section">
-              <h4>所属权限组</h4>
-              <div class="portal-vue-perm-group">
-                <el-tag size="small" effect="plain" :type="viewPermissions.group ? 'primary' : 'info'">{{ viewUser.group || "未分配" }}</el-tag>
-                <span class="portal-vue-muted">{{ viewPermissions.group ? viewPermissions.group.desc : "未加入任何权限组，仅拥有个人额外授权。" }}</span>
-              </div>
-            </div>
-            <div class="portal-vue-perm-section">
-              <h4>可查看菜单 <em>{{ viewPermissions.viewMenus.length }} 项</em></h4>
-              <div class="portal-vue-perm-tags">
-                <el-tag v-for="name in viewPermissions.viewMenus" :key="name" size="small" effect="plain">{{ name }}</el-tag>
-                <span v-if="!viewPermissions.viewMenus.length" class="portal-vue-muted">无</span>
-              </div>
-            </div>
-            <div class="portal-vue-perm-section">
-              <h4>可编辑菜单 <em>{{ viewPermissions.editMenus.length }} 项</em></h4>
-              <div class="portal-vue-perm-tags">
-                <el-tag v-for="name in viewPermissions.editMenus" :key="name" size="small" type="warning" effect="plain">{{ name }}</el-tag>
-                <span v-if="!viewPermissions.editMenus.length" class="portal-vue-muted">仅查看权限，不可编辑任何菜单</span>
-              </div>
-            </div>
-            <div class="portal-vue-perm-section">
-              <h4>数据看板 <em>{{ viewPermissions.boards.length }} 个</em><span v-if="viewPermissions.allBoards" class="portal-vue-muted">（全部看板）</span></h4>
-              <div class="portal-vue-perm-tags">
-                <el-tag v-for="name in viewPermissions.boards" :key="name" size="small" effect="plain">{{ name }}</el-tag>
-                <span v-if="!viewPermissions.boards.length" class="portal-vue-muted">无</span>
-              </div>
-            </div>
-            <div class="portal-vue-perm-section">
-              <h4>数据表 <em>{{ viewPermissions.tables.length }} 张</em><span v-if="viewPermissions.allTables" class="portal-vue-muted">（全部数据表）</span></h4>
-              <div class="portal-vue-perm-tags">
-                <el-tag v-for="name in viewPermissions.tables" :key="name" size="small" effect="plain">{{ name }}</el-tag>
-                <span v-if="!viewPermissions.tables.length" class="portal-vue-muted">无</span>
-              </div>
-            </div>
-            <div v-if="viewPermissions.personalTotal" class="portal-vue-perm-section">
-              <h4>个人额外授权 <em>{{ viewPermissions.personalTotal }} 项</em></h4>
-              <div class="portal-vue-perm-tags">
-                <el-tag v-for="name in viewPermissions.personalMenus" :key="'m' + name" size="small" type="success" effect="plain">菜单 · {{ name }}</el-tag>
-                <el-tag v-for="name in viewPermissions.personalBoards" :key="'b' + name" size="small" type="success" effect="plain">看板 · {{ name }}</el-tag>
-                <el-tag v-for="name in viewPermissions.personalTables" :key="'t' + name" size="small" type="success" effect="plain">表 · {{ name }}</el-tag>
-              </div>
-            </div>
-            <div class="portal-vue-perm-foot">如需调整该用户权限，请由门户管理员在「配置权限」中操作。</div>
-          </div>
-        </el-drawer>
         <el-dialog v-model="assignVisible" :title="assignUser ? assignUser.name + ' · 设置权限组' : '设置权限组'" width="520px"><div v-if="assignUser" class="portal-vue-detail-grid"><div class="portal-vue-detail-item"><span>部门组织</span><strong>{{ assignUser.dept }}</strong></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ assignUser.role }}</strong></div></div><el-form label-position="top" class="portal-vue-dialog-form"><el-form-item label="选择权限组"><el-select v-model="assignGroup"><el-option label="未分配" value="未分配"></el-option><el-option v-for="item in state.groups" :key="item.name" :label="item.name" :value="item.name"></el-option></el-select></el-form-item></el-form><template #footer><el-button @click="assignVisible=false">取消</el-button><el-button v-if="canEdit('用户管理')" type="primary" @click="saveAssign">保存权限组</el-button></template></el-dialog>
       </el-config-provider>
     `,
-    data:()=>({keyword:"",status:"全部状态",group:"全部权限组",page:1,pageSize:10,assignVisible:false,assignUser:null,assignGroup:"",viewVisible:false,viewUser:null,state}),
+    data:()=>({keyword:"",status:"全部状态",group:"全部权限组",page:1,pageSize:10,assignVisible:false,assignUser:null,assignGroup:"",state}),
     computed:{
       currentUser(){refreshTick.value;return loginUser();},
       visibleUsers(){refreshTick.value;return visibleUsersFor(this.currentUser);},
       groupOptions(){refreshTick.value;const users=this.visibleUsers;return ["全部权限组","未分配",...state.groups.map(item=>item.name)].map(name=>({name,count:name==="全部权限组"?users.length:users.filter(user=>user.group===name).length}));},
       filteredRows(){refreshTick.value;const keyword=this.keyword.trim().toLowerCase();return this.visibleUsers.filter(user=>(this.group==="全部权限组"||user.group===this.group)&&(this.status==="全部状态"||(this.status==="已停用"?user.status==="已停用":user.status!=="已停用"))&&(!keyword||`${user.name} ${user.email} ${user.dept} ${user.role}`.toLowerCase().includes(keyword)));},
       pagedRows(){const result=paginate(this.filteredRows,this.page,this.pageSize);if(result.safePage!==this.page)this.page=result.safePage;return result.rows;},
-      rangeText(){if(!this.filteredRows.length)return "0-0";return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`;},
-      viewPermissions() {
-        const user = this.viewUser;
-        if (!user) return { group: null, viewMenus: [], editMenus: [], boards: [], tables: [], allBoards: false, allTables: false, personalMenus: [], personalBoards: [], personalTables: [], personalTotal: 0 };
-        return this.viewPermissionsOf(user);
-      }
+      rangeText(){if(!this.filteredRows.length)return "0-0";return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`;}
     },
     methods:{
-      openView(user){this.viewUser=user;this.viewVisible=true;},
-      viewPermissionsOf(user){
-        const group=state.groups.find(item=>item.name===user?.group)||null;
-        const groupMenus=expandMenuNames(group?.menus||[]);
-        const groupEdits=expandMenuNames(group?.menuEdits||[]);
-        const personalMenus=Array.isArray(user?.menuGrants)?user.menuGrants:[];
-        const personalEdits=Array.isArray(user?.menuEditGrants)?user.menuEditGrants:[];
-        const viewMenus=[...new Set([...groupMenus,...personalMenus])];
-        const editMenus=[...new Set([...groupEdits,...personalEdits])].filter(name=>viewMenus.includes(name));
-        const boardGrants=[...(group?.boards||[]),...(Array.isArray(user?.boardGrants)?user.boardGrants:[])];
-        const allBoards=boardGrants.includes("全部看板");
-        const boards=(allBoards?state.boards.filter(board=>board.status==="已上线"):state.boards.filter(board=>board.status==="已上线"&&(boardGrants.includes(board.name)||boardGrants.includes(board.category)))).map(board=>board.name);
-        const tableGrants=[...(group?.tables||[]),...(Array.isArray(user?.tableGrants)?user.tableGrants:[])];
-        const allTables=tableGrants.includes("全部数据表");
-        const tables=(allTables?state.assets:state.assets.filter(table=>tableGrants.includes(table.cnName))).map(table=>table.cnName);
-        const personalBoards=(Array.isArray(user?.boardGrants)?user.boardGrants:[]).filter(name=>name!=="全部看板");
-        const personalTables=(Array.isArray(user?.tableGrants)?user.tableGrants:[]).filter(name=>name!=="全部数据表");
-        return { group, viewMenus, editMenus, boards, tables, allBoards, allTables, personalMenus, personalBoards, personalTables, personalTotal: personalMenus.length+personalEdits.length+personalBoards.length+personalTables.length };
-      },
+      openView(user){bridge.setActiveUserIndex(state.users.indexOf(user));bridge.setPage("查看权限");},
       selectGroup(name){this.group=name;this.page=1;},openAssign(user){this.assignUser=user;this.assignGroup=user.group;this.assignVisible=true;},saveAssign(){this.assignUser.group=this.assignGroup;this.assignVisible=false;notify(`${this.assignUser.name} 已分配到「${this.assignGroup}」`);},openPermission(user){bridge.setActiveUserIndex(state.users.indexOf(user));bridge.setPage("配置权限");}
     }
   };
@@ -1144,7 +1080,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div class="portal-vue-permission-card-grid portal-vue-board-card-grid">
                   <article v-for="group in boardGroups" :key="group.category" class="portal-vue-group-permission-card">
                     <strong class="portal-vue-permission-card-title">{{ group.category }}</strong>
-                    <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="board in group.boards" :key="board.name" :disabled="allBoards" :model-value="selectedBoards.includes(board.name)" @change="value=>toggleBoard(board.name,value)">{{ board.name }}</el-checkbox></div>
+                    <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="board in group.boards" :key="board.name" :title="board.name" :disabled="allBoards" :model-value="boardChecked(board.name)" @change="value=>toggleBoard(board.name,value)">{{ board.name }}</el-checkbox></div>
                   </article>
                 </div>
               </section>
@@ -1153,7 +1089,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <div class="portal-vue-permission-card-grid portal-vue-board-card-grid">
                   <article v-for="group in tableGroups" :key="group.source" class="portal-vue-group-permission-card">
                     <strong class="portal-vue-permission-card-title">{{ group.source }}</strong>
-                    <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="table in group.tables" :key="table.cnName" :model-value="selectedTables.includes(table.cnName)" @change="value=>toggleTable(table.cnName,value)">{{ table.cnName }}</el-checkbox></div>
+                    <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="table in group.tables" :key="table.cnName" :title="table.cnName" :model-value="selectedTables.includes(table.cnName)" @change="value=>toggleTable(table.cnName,value)">{{ table.cnName }}</el-checkbox></div>
                   </article>
                 </div>
                 <p class="portal-vue-muted" style="margin-top:12px">未勾选任何数据表时，该权限组成员无法在灵犀智析发起分析和调用数据 API。</p>
@@ -1209,6 +1145,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       toggleEditSection(section,checked){this.sectionNames(section).forEach(name=>this.toggleEdit(name,checked,section,false));this.dirty=true;},
       toggleEdit(name,checked,section,mark=true){const index=this.selectedMenuEdits.indexOf(name);if(checked){if(index<0)this.selectedMenuEdits.push(name);if(!this.selectedMenus.includes(name))this.selectedMenus.push(name);}else if(index>=0)this.selectedMenuEdits.splice(index,1);if(mark)this.dirty=true;},
       toggleAllBoards(value){this.allBoards=value;if(value)this.selectedBoards=[];this.dirty=true;},
+      // 勾选「全部看板」后逐项放开：分类下的看板仍不可单独操作，但应显示为已勾选，避免看起来像没授权
+      boardChecked(name){return this.allBoards||this.selectedBoards.includes(name);},
       toggleBoard(name,checked){const index=this.selectedBoards.indexOf(name);if(checked&&index<0)this.selectedBoards.push(name);else if(!checked&&index>=0)this.selectedBoards.splice(index,1);this.dirty=true;},
       toggleAllTables(value){this.selectedTables=value?[...this.allTableNames]:[];this.dirty=true;},
       toggleTable(name,checked){const index=this.selectedTables.indexOf(name);if(checked&&index<0)this.selectedTables.push(name);else if(!checked&&index>=0)this.selectedTables.splice(index,1);this.dirty=true;},
@@ -1232,9 +1170,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <aside class="portal-vue-split-left"><div class="portal-vue-split-body" v-if="user"><div style="display:flex;align-items:center;gap:12px;margin-bottom:18px"><el-avatar :size="42">{{ user.name.slice(0,1) }}</el-avatar><div><span class="portal-vue-name">{{ user.name }}</span><div class="portal-vue-muted" style="margin-top:4px">{{ user.dept }}</div></div></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ user.role }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>当前权限组</span><strong>{{ user.group }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>组内权限</span><strong>{{ inherited ? lockedTotal + ' 项 · 不可关闭' : '未加入权限组' }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>个人追加</span><strong>{{ personalTotal }} 项</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>账号状态</span><strong>{{ user.status }}</strong></div></div></aside>
             <section class="portal-vue-split-right"><div class="portal-vue-permission-body">
               <el-alert v-if="inherited" class="portal-vue-inherit-alert" type="info" show-icon :closable="false" title="权限组权限不可关闭" :description="'该用户属于权限组「' + user.group + '」，组内已授予的权限已锁定勾选（标签即权限组名称），个人配置只能在此基础上追加，不能取消；如需收回请调整权限组或将该用户移出权限组。'"></el-alert>
+              <el-alert v-if="directBoardNames.size" class="portal-vue-inherit-alert" type="warning" show-icon :closable="false" title="看板直接授权" :description="'有 ' + directBoardNames.size + ' 个看板在「看板管理 - 可查看用户」里直接授权给该用户（标签显示「直接授权」），无需加入权限组即可查看；取消勾选并保存即收回该看板的直接授权。'"></el-alert>
               <el-tabs v-model="activeTab"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane label="看板权限" name="boards"></el-tab-pane><el-tab-pane label="表权限" name="tables"></el-tab-pane><el-tab-pane label="管理范围" name="scope"></el-tab-pane></el-tabs>
               <div v-show="activeTab==='menus'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><strong>菜单权限（查看 / 编辑）</strong><p class="portal-vue-muted" style="margin:0">「查看」决定菜单是否可见，「编辑」决定该菜单内能否新增/修改/删除；勾选编辑会自动带上查看。带权限组名称的项由该权限组授予，个人配置中不可取消。</p></div><div v-for="section in state.nav" :key="section.group" class="portal-vue-permission-block"><strong v-if="section.items.length>1">{{ section.group }}</strong><div v-for="item in section.items" :key="item.name" class="portal-vue-menu-row"><span class="portal-vue-menu-name" :class="{'portal-vue-menu-name-parent': section.items.length===1}">{{ item.name }}</span><span class="portal-vue-menu-checks"><el-checkbox class="portal-vue-view-check" :model-value="selectedMenus.includes(item.name)" :disabled="isMenuLocked(item)" @change="value=>togglePersonalView(item.name,value)"><span>查看</span><el-tag v-if="isMenuLocked(item)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><el-checkbox class="portal-vue-edit-check" :model-value="selectedMenuEdits.includes(item.name)" :disabled="isMenuEditLocked(item)" @change="value=>togglePersonalEdit(item.name,value)"><span>编辑</span><el-tag v-if="isMenuEditLocked(item)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></span></div></div></div>
-              <div v-show="activeTab==='boards'" class="portal-vue-permission-grid"><div v-for="group in boardGroups" :key="group.category" class="portal-vue-permission-block"><strong>{{ group.category }}</strong><el-checkbox v-for="board in group.boards" :key="board.name" v-model="selectedBoards" :value="board.name" :disabled="isBoardLocked(board)" style="display:flex;margin:8px 0"><span>{{ board.name }}</span><el-tag v-if="isBoardLocked(board)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></div></div>
+              <div v-show="activeTab==='boards'" class="portal-vue-permission-grid"><div v-for="group in boardGroups" :key="group.category" class="portal-vue-permission-block"><strong>{{ group.category }}</strong><el-checkbox v-for="board in group.boards" :key="board.name" v-model="selectedBoards" :value="board.name" :disabled="isBoardLocked(board)" style="display:flex;margin:8px 0"><span>{{ board.name }}</span><el-tag v-if="isBoardDirect(board)" size="small" type="warning" effect="plain" class="portal-vue-lock-tag" :title="'来自「看板管理 - 可查看用户」直接授权，取消勾选并保存即收回'">直接授权</el-tag><el-tag v-else-if="isBoardLocked(board)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></div></div>
               <div v-show="activeTab==='tables'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><el-checkbox :model-value="allTablesSelected" :indeterminate="tablesIndeterminate" :disabled="groupAllTables" @change="toggleAllTables"><span>全部数据表</span><el-tag v-if="groupAllTables" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><p class="portal-vue-muted" style="margin:6px 0 0">{{ inherited ? '带权限组名称标签的数据表由权限组授予，不可取消；其余数据表可以按需追加。未勾选任何数据表时，该用户无法在灵犀智析发起分析。' : '未加入权限组，可自由配置个人数据表权限；未勾选任何数据表时，该用户无法在灵犀智析发起分析。' }}</p></div><div v-for="group in tableGroups" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><el-checkbox v-for="table in group.tables" :key="table.cnName" v-model="selectedTables" :value="table.cnName" :disabled="isTableLocked(table)" style="display:flex;margin:8px 0"><span>{{ table.cnName }}</span><el-tag v-if="isTableLocked(table)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></div></div>
               <div v-show="activeTab==='scope'" class="portal-vue-permission-grid">
                 <div class="portal-vue-permission-block" style="grid-column:1/-1">
@@ -1262,6 +1201,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       groupMenuNames(){return expandMenuNames(this.group?.menus||[]);},
       groupMenuEditNames(){return expandMenuNames(this.group?.menuEdits||[]);},
       groupBoardNames(){const grants=this.group?.boards||[];if(grants.includes("全部看板"))return new Set(this.onlineBoardNames);const names=new Set();state.boards.filter(board=>board.status==="已上线"&&(grants.includes(board.name)||grants.includes(board.category))).forEach(board=>names.add(board.name));return names;},
+      // 看板管理里「可查看用户」直接授权给该用户的看板（与权限组授权取并集，单独打标签）
+      directBoardNames(){refreshTick.value;const name=this.user?.name;if(!name)return new Set();return new Set(state.boards.filter(board=>board.status==="已上线"&&Array.isArray(board.users)&&board.users.includes(name)).map(board=>board.name));},
       groupTableNames(){const grants=this.group?.tables||[];if(grants.includes("全部数据表"))return new Set(this.allTableNames);return new Set(state.assets.filter(table=>grants.includes(table.cnName)).map(table=>table.cnName));},
       groupAllTables(){return (this.group?.tables||[]).includes("全部数据表");},
       lockedTotal(){return this.groupMenuNames.size+this.groupBoardNames.size+this.groupTableNames.size;},
@@ -1283,6 +1224,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       isMenuLocked(item){return this.inherited&&this.groupMenuNames.has(item.name);},
       isMenuEditLocked(item){return this.inherited&&this.groupMenuEditNames.has(item.name);},
       isBoardLocked(board){return this.inherited&&this.groupBoardNames.has(board.name);},
+      isBoardDirect(board){return this.directBoardNames.has(board.name);},
       isTableLocked(table){return this.inherited&&this.groupTableNames.has(table.cnName);},
       togglePersonalView(name,checked){
         if(this.isMenuLocked({name}))return;
@@ -1302,7 +1244,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const personalMenuEdits=Array.isArray(this.user?.menuEditGrants)?this.user.menuEditGrants:[];
         this.selectedMenuEdits=[...new Set([...this.groupMenuEditNames,...personalMenuEdits])].filter(name=>this.selectedMenus.includes(name));
         const personalBoards=(Array.isArray(this.user?.boardGrants)?this.user.boardGrants:[]).filter(name=>this.onlineBoardNames.includes(name));
-        this.selectedBoards=[...new Set([...this.groupBoardNames,...personalBoards])];
+        this.selectedBoards=[...new Set([...this.groupBoardNames,...this.directBoardNames,...personalBoards])];
         const personalTables=(Array.isArray(this.user?.tableGrants)?this.user.tableGrants:[]).filter(name=>name!=="全部数据表");
         this.selectedTables=[...new Set([...this.groupTableNames,...personalTables])];
         this.selectedScope=manageScopeOf(this.user);
@@ -1316,9 +1258,16 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       async save(){
         if(!this.user)return;
         const groupMenus=this.groupMenuNames,groupMenuEdits=this.groupMenuEditNames,groupBoards=this.groupBoardNames,groupTables=this.groupTableNames;
+        // 快照本次加载时的「直接授权」看板：取消勾选 = 收回该看板的直接授权（写回看板数据）
+        const directBoards=new Set(this.directBoardNames);
+        state.boards.forEach(board=>{
+          if(Array.isArray(board.users)&&board.users.includes(this.user.name)&&!this.selectedBoards.includes(board.name)){
+            board.users=board.users.filter(name=>name!==this.user.name);
+          }
+        });
         const personalMenus=this.selectedMenus.filter(name=>!groupMenus.has(name));
         const personalMenuEdits=this.selectedMenuEdits.filter(name=>!groupMenuEdits.has(name)&&this.selectedMenus.includes(name));
-        const personalBoards=this.selectedBoards.filter(name=>!groupBoards.has(name));
+        const personalBoards=this.selectedBoards.filter(name=>!groupBoards.has(name)&&!directBoards.has(name));
         const personalTables=this.selectedTables.filter(name=>!groupTables.has(name));
         this.user.menuGrants=personalMenus;
         this.user.menuEditGrants=personalMenuEdits;
@@ -1334,6 +1283,68 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.back();
       }
     }
+  };
+
+  // 「查看权限」整页只读版：与「配置用户权限」同一版式（左用户卡片 + 四个 tab），
+  // 只回显该用户有权限的菜单 / 看板 / 数据表 / 管理范围内用户，其余项不展示，且不提供任何修改入口。
+  const PermissionReadApp = {
+    template: `
+      <el-config-provider :locale="locale">
+        <div class="portal-vue-form-page">
+          <el-page-header class="portal-vue-form-header" title="返回用户管理" :content="user ? '查看权限 · ' + user.name : '查看权限'" @back="back"></el-page-header>
+          <el-alert class="portal-vue-inherit-alert" type="info" show-icon :closable="false" title="只读查看" description="仅回显该用户当前生效的权限，此页不支持任何修改；没有权限的菜单、看板、数据表和用户不会展示。如需调整请由门户管理员在「配置权限」中操作。"></el-alert>
+          <div class="portal-vue-split" style="grid-template-columns:280px minmax(0,1fr)">
+            <aside class="portal-vue-split-left"><div class="portal-vue-split-body" v-if="user"><div style="display:flex;align-items:center;gap:12px;margin-bottom:18px"><el-avatar :size="42">{{ user.name.slice(0,1) }}</el-avatar><div><span class="portal-vue-name">{{ user.name }}</span><div class="portal-vue-muted" style="margin-top:4px">{{ user.dept }}</div></div></div><div class="portal-vue-detail-item"><span>岗位角色</span><strong>{{ user.role }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>当前权限组</span><strong>{{ user.group }}</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>可见菜单</span><strong>{{ permissions.viewMenus.length }} 项</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>可见看板</span><strong>{{ permissions.boards.length }} 个</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>可见数据表</span><strong>{{ permissions.tables.length }} 张</strong></div><div class="portal-vue-detail-item" style="margin-top:10px"><span>账号状态</span><strong>{{ user.status }}</strong></div></div></aside>
+            <section class="portal-vue-split-right"><div class="portal-vue-permission-body">
+              <el-tabs v-model="activeTab"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane label="看板权限" name="boards"></el-tab-pane><el-tab-pane label="表权限" name="tables"></el-tab-pane><el-tab-pane label="管理范围" name="scope"></el-tab-pane></el-tabs>
+              <div v-show="activeTab==='menus'" class="portal-vue-permission-grid">
+                <div class="portal-vue-permission-block" style="grid-column:1/-1"><strong>菜单权限（{{ permissions.viewMenus.length }} 项）</strong><p class="portal-vue-muted" style="margin:0">只列出该用户当前可见的菜单，未授予的菜单不展示；「查看」为菜单可见，「编辑」为该菜单内可新增/修改/删除。带权限组名称的项由该权限组授予。</p></div>
+                <div v-for="section in menuSections" :key="section.group" class="portal-vue-permission-block"><strong v-if="section.items.length>1">{{ section.group }}</strong><div v-for="item in section.items" :key="item.name" class="portal-vue-menu-row"><span class="portal-vue-menu-name" :class="{'portal-vue-menu-name-parent': section.items.length===1}">{{ item.name }}</span><span class="portal-vue-menu-checks"><el-checkbox class="portal-vue-view-check" :model-value="true" disabled><span>查看</span></el-checkbox><el-checkbox class="portal-vue-edit-check" :model-value="permissions.editMenus.includes(item.name)" disabled><span>编辑</span></el-checkbox></span></div></div>
+                <div v-if="!permissions.viewMenus.length" class="portal-vue-permission-block" style="grid-column:1/-1"><span class="portal-vue-muted">该用户当前没有任何菜单权限。</span></div>
+              </div>
+              <div v-show="activeTab==='boards'" class="portal-vue-permission-grid">
+                <div class="portal-vue-permission-block" style="grid-column:1/-1"><strong>看板权限（{{ permissions.boards.length }} 个）</strong><p class="portal-vue-muted" style="margin:0">{{ permissions.allBoards ? '该用户拥有全部看板权限。' : '只列出该用户当前可查看的看板，未授权的看板不展示。带权限组名称的项由权限组授予，带「直接授权」标签的项由「看板管理 - 可查看用户」直接授权。' }}</p></div>
+                <div v-for="group in boardGroups" :key="group.category" class="portal-vue-permission-block"><strong>{{ group.category }}</strong><el-checkbox v-for="board in group.boards" :key="board.name" :model-value="true" disabled style="display:flex;margin:8px 0"><span>{{ board.name }}</span><el-tag v-if="directBoards.has(board.name)" size="small" type="warning" effect="plain" class="portal-vue-read-tag" title="来自「看板管理 - 可查看用户」直接授权">直接授权</el-tag><el-tag v-else-if="groupBoards.has(board.name)" size="small" type="info" effect="plain" class="portal-vue-read-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></div>
+                <div v-if="!permissions.boards.length" class="portal-vue-permission-block" style="grid-column:1/-1"><span class="portal-vue-muted">该用户当前没有任何看板权限。</span></div>
+              </div>
+              <div v-show="activeTab==='tables'" class="portal-vue-permission-grid">
+                <div class="portal-vue-permission-block" style="grid-column:1/-1"><strong>数据表权限（{{ permissions.tables.length }} 张）</strong><p class="portal-vue-muted" style="margin:0">只列出该用户当前可使用的数据表，未授权的数据表不展示；没有数据表权限时该用户无法在灵犀智析发起分析。</p></div>
+                <div v-for="group in tableGroups" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><el-checkbox v-for="table in group.tables" :key="table.cnName" :model-value="true" disabled style="display:flex;margin:8px 0"><span>{{ table.cnName }}</span><el-tag v-if="groupTables.has(table.cnName)" size="small" type="info" effect="plain" class="portal-vue-read-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></div>
+                <div v-if="!permissions.tables.length" class="portal-vue-permission-block" style="grid-column:1/-1"><span class="portal-vue-muted">该用户当前没有任何数据表权限。</span></div>
+              </div>
+              <div v-show="activeTab==='scope'" class="portal-vue-permission-grid">
+                <div class="portal-vue-permission-block" style="grid-column:1/-1">
+                  <div class="portal-vue-scope-head"><el-checkbox :model-value="permissions.scopeAll" disabled>全部用户（不受部门限制）</el-checkbox><span class="portal-vue-muted">选中部门=该部门及下级部门所有人自动纳入</span></div>
+                  <div v-if="scopeTags.length" class="portal-vue-perm-tags" style="margin-top:12px"><el-tag v-for="tag in scopeTags" :key="tag" size="small" effect="plain">{{ tag }}</el-tag></div>
+                  <p class="portal-vue-muted" style="margin:10px 0 0">{{ scopeSummary }}</p>
+                </div>
+                <div class="portal-vue-permission-block" style="grid-column:1/-1">
+                  <strong>管理范围内的用户（{{ scopeUsers.length }} 人）</strong>
+                  <div class="portal-vue-scope-preview"><el-tag v-for="name in scopeUsers" :key="name" size="small" effect="plain">{{ name }}</el-tag><span v-if="!scopeUsers.length" class="portal-vue-muted">无</span></div>
+                </div>
+              </div>
+            </div></section>
+          </div>
+        </div>
+      </el-config-provider>
+    `,
+    data:()=>({state,activeTab:"menus"}),
+    computed:{
+      user(){refreshTick.value;return state.users[bridge.getActiveUserIndex()]||state.users[0];},
+      permissions(){refreshTick.value;return this.user?permissionsOfUser(this.user):{group:null,viewMenus:[],editMenus:[],boards:[],directBoards:[],tables:[],allBoards:false,allTables:false,groupMenus:[],groupBoardSet:new Set(),groupTableSet:new Set(),personalMenus:[],personalBoards:[],personalTables:[],scope:[],scopeAll:false,personalTotal:0};},
+      directBoards(){return new Set(this.permissions.directBoards||[]);},
+      groupBoards(){return this.permissions.groupBoardSet||new Set();},
+      groupTables(){return this.permissions.groupTableSet||new Set();},
+      menuSections(){return state.nav.map(section=>({group:section.group,items:section.items.filter(item=>this.permissions.viewMenus.includes(item.name))})).filter(section=>section.items.length);},
+      boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线"&&this.permissions.boards.includes(board.name))})).filter(group=>group.boards.length);},
+      tableGroups(){const groups=[];state.assets.filter(table=>this.permissions.tables.includes(table.cnName)).forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
+      scopeTags(){return (this.permissions.scope||[]).map(item=>isUserScopeItem(item)?"成员 · "+userScopeName(item):item);},
+      scopeUsers(){refreshTick.value;const me=this.user;if(!me)return [];if(this.permissions.scopeAll)return state.users.map(user=>user.name);const scope=this.permissions.scope||[];if(!scope.length)return [me.name];return state.users.filter(user=>user.name===me.name||scopeMatched(user,scope)).map(user=>user.name);},
+      scopeSummary(){const me=this.user;if(!me)return "";if(this.permissions.scopeAll)return `已配置为「全部用户」：该用户在「用户管理」里可以看到全部 ${state.users.length} 名用户。`;if(!(this.permissions.scope||[]).length)return "未配置任何部门或成员：该用户在「用户管理」里只能看到自己。";return `已选择 ${manageScopeSummary({manageScope:this.permissions.scope})}：该用户在「用户管理」里可以看到范围内 ${this.scopeUsers.length} 名用户（含自己）。`;}
+    },
+    mounted(){this.pageHandler=event=>{if(event.detail?.page==="查看权限")refreshTick.value+=1;};window.addEventListener("portal:page-change",this.pageHandler);},
+    beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
+    methods:{ back(){bridge.setPage("用户管理");} }
   };
 
   const QuickBiApp = {
@@ -1943,7 +1954,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       </el-config-provider>
     `,
     data:()=>({
-      feishuOpen: false,
       scenario: "data-query",
       input: "",
       thinking: false,
@@ -2054,10 +2064,13 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           if(!response.ok)return;
           const list=await response.json();
           if(Array.isArray(list)&&list.length){
-            state.skills=list.map(entry=>{
+            const remotes=list.map(entry=>{
               const builtin=skillRegistrySeed.find(item=>item.id===entry.id);
               return builtin?{...entry,name:builtin.name,version:builtin.version,icon:builtin.icon,title:builtin.title,displayDesc:builtin.displayDesc,sort:builtin.sort,scenarioKey:builtin.scenarioKey,desc:builtin.desc,clarification:entry.clarification||builtin.clarification,assetScope:entry.assetScope||builtin.assetScope,responseContract:entry.responseContract||builtin.responseContract,versions:entry.versions||builtin.versions,stats:entry.stats||builtin.stats}:{...entry,versions:entry.versions||[],stats:entry.stats||{calls:0,successRate:"—",avgLatency:"—",tokens:"—"}};
             });
+            // 门户手动新增的 Skill 不在网关注册表里，刷新时保留，避免刚建完就消失
+            const locals=(state.skills||[]).filter(item=>item.local&&!remotes.some(entry=>entry.id===item.id));
+            state.skills=[...remotes,...locals];
           }
         }catch(error){/* 网关未启动时保留内置注册表 */}
       },
@@ -2717,18 +2730,23 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       ]
     },
     {
+      id: "M950", name: "AI 中心", icon: "ai", sort: 950, path: "/ai", cache: true, permission: "ai_center",
+      children: [
+        { id: "M1020", name: "Skill 配置", icon: "--", sort: 10, path: "/ai/skill-management/index", cache: true, permission: "ai_skill_management", children: [] },
+        { id: "M1030", name: "模型配置", icon: "--", sort: 20, path: "/ai/model-config/index", cache: true, permission: "ai_model_config", children: [] }
+      ]
+    },
+    {
       id: "M1000", name: "系统管理", icon: "system", sort: 10000, path: "/system", cache: true, permission: "system_management",
       children: [
         { id: "M1010", name: "菜单管理", icon: "--", sort: 10, path: "/system/menu-management/index", cache: true, permission: "system_menu_management", children: [] },
-        { id: "M1030", name: "模型配置", icon: "--", sort: 30, path: "/system/model-config/index", cache: true, permission: "system_model_config", children: [] },
-        { id: "M1020", name: "Skill 配置", icon: "--", sort: 20, path: "/system/skill-management/index", cache: true, permission: "system_skill_management", children: [] },
         { id: "M1040", name: "任务运维", icon: "--", sort: 40, path: "/system/ops-task/index", cache: true, permission: "system_ops_task", children: [] },
         { id: "M1050", name: "环境域名", icon: "--", sort: 50, path: "/system/env-domains/index", cache: true, permission: "system_env_domains", children: [] }
       ]
     }
   ];
 
-  const menuIcons = ["pie", "asset", "service", "permission", "system", "analysis", "push"];
+  const menuIcons = ["pie", "asset", "service", "permission", "system", "analysis", "push", "ai"];
 
   const ModelConfigApp = {
     template: `
@@ -2817,7 +2835,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       treeRows(){return this.menus;}
     },
     methods:{
-      iconGlyph(icon){return {pie:"◔",asset:"▤",service:"▣",permission:"🔒",system:"⚙",analysis:"✦",push:"⇩"}[icon]||"●";},
+      iconGlyph(icon){return {pie:"◔",asset:"▤",service:"▣",permission:"🔒",system:"⚙",analysis:"✦",push:"⇩",ai:"◈"}[icon]||"●";},
       findMenu(id,list=this.menus,parent=null){for(const item of list){if(item.id===id)return{menu:item,parent};const found=this.findMenu(id,item.children,item);if(found)return found;}return null;},
       toggleCache(row,value){const found=this.findMenu(row.id);if(found){found.menu.cache=value;notify(`「${row.name}」缓存已${value?"开启":"关闭"}`);}},
       openForm(row,parent){this.editingId=row?.id||"";this.parentId=parent?.id||row?.parentId||"";this.form=row?{name:row.name,parentId:row.parentId||"",icon:row.icon,sort:row.sort,path:row.path,cache:row.cache,permission:row.permission}:{name:"",parentId:parent?.id||"",icon:parent?"--":"pie",sort:parent?(parent.children.length+1)*10:100,path:"",cache:true,permission:""};this.formVisible=true;},
@@ -2919,22 +2937,40 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
-            <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索 Skill 名称、来源"></el-input></div>
-            <el-button v-if="canEdit('Skill 配置')" type="primary" :loading="uploading" @click="uploadInput?.click()">上传 Skill</el-button>
-            <input ref="uploadInput" type="file" accept=".zip" style="display:none" @change="onUploadFile"></input>
+            <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索 Skill 名称"></el-input></div>
+            <el-button v-if="canEdit('Skill 配置')" type="primary" @click="openCreate">＋ 新增 Skill</el-button>
           </div>
           <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无 Skill">
-            <el-table-column label="Skill" min-width="240"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.desc }}</div></div></template></el-table-column>
-            <el-table-column prop="source" label="来源包" width="230"><template #default="scope"><code class="portal-vue-code">{{ scope.row.source }}</code></template></el-table-column>
-            <el-table-column label="工作台展示" min-width="200"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:6px"><img v-if="isImageIcon(scope.row.icon)" :src="scope.row.icon" alt="" style="width:17px;height:17px;object-fit:contain" /><span v-else>{{ scope.row.icon }}</span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">已下线</span></template></el-table-column>
+            <el-table-column label="Skill" min-width="280"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.desc }}</div></div></template></el-table-column>
+            <el-table-column label="工作台展示" min-width="280"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:6px"><img v-if="isImageIcon(scope.row.icon)" :src="scope.row.icon" alt="" style="width:17px;height:17px;object-fit:contain" /><span v-else>{{ scope.row.icon }}</span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">已下线</span></template></el-table-column>
             <el-table-column prop="version" label="当前版本" width="120"></el-table-column>
             <el-table-column label="状态" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:6px"><el-switch :disabled="!canEdit('Skill 配置')" v-model="scope.row.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch><el-tag v-if="scope.row.enabled!==false && skillStatus(scope.row)!=='已发布'" size="small" :type="skillStatus(scope.row)==='未发布' ? 'info' : 'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></div></template></el-table-column>
             <el-table-column label="灰度用户" min-width="170"><template #default="scope"><div v-if="scope.row.grayUsers.length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.grayUsers.slice(0,3)" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="scope.row.grayUsers.length>3" class="portal-vue-muted">+{{ scope.row.grayUsers.length-3 }}</span></div><span v-else class="portal-vue-muted">全量发布</span></template></el-table-column>
             <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
             <el-table-column label="操作" width="100" fixed="right"><template #default="scope"><el-button v-if="canEdit('Skill 配置')" link type="primary" @click="openVersionManage(scope.row)">版本管理</el-button></template></el-table-column>
           </el-table>
-          <div class="portal-vue-muted" style="margin-top:12px">Skill 以 ZIP 包（SKILL.md + 脚本 + 依赖清单）上传到网关统一执行；提示词与版本更新即时生效，无需发版。</div>
+          <div class="portal-vue-muted" style="margin-top:12px">Skill 在门户手动维护（名称 / 图标 / 描述 / 排序 / 提示词 / 上线状态），新增与修改即时生效；版本、灰度与回滚在「版本管理」中操作，无需发版。</div>
         </section>
+        <el-dialog v-model="createVisible" title="新增 Skill" width="620px" class="portal-vue-board-dialog" destroy-on-close>
+          <el-form class="portal-vue-dialog-form" label-position="top">
+            <el-form-item label="Skill 名称" required><el-input v-model="createForm.name" placeholder="如：人群包效果分析 Skill"></el-input></el-form-item>
+            <el-form-item label="工作台展示标题" required><el-input v-model="createForm.title" placeholder="如：人群包效果分析"></el-input></el-form-item>
+            <el-form-item label="图标">
+              <div class="portal-vue-skill-icon-upload" @click="$refs.createIconInput?.click()">
+                <span class="portal-vue-skill-icon-preview"><img v-if="isImageIcon(createForm.icon)" :src="createForm.icon" alt="图标" /><span v-else>{{ createForm.icon || "✦" }}</span></span>
+                <span class="portal-vue-skill-icon-tips"><strong>点击上传图标</strong><small>支持 png / jpg / gif / svg，不超过 300KB；不传用默认图标</small></span>
+              </div>
+              <input ref="createIconInput" type="file" accept="image/*" style="display:none" @change="onCreateIconUpload"></input>
+            </el-form-item>
+            <el-form-item label="描述"><el-input v-model="createForm.desc" type="textarea" :rows="2" resize="none" placeholder="列表里展示的一句话说明"></el-input></el-form-item>
+            <el-form-item label="工作台展示描述"><el-input v-model="createForm.displayDesc" placeholder="如：分群规模与转化对比"></el-input></el-form-item>
+            <el-form-item label="排序（越小越靠前）"><el-input-number v-model="createForm.sort" :min="1" :max="999"></el-input-number></el-form-item>
+            <el-form-item label="提示词"><el-input v-model="createForm.prompt" type="textarea" :rows="6" resize="none" placeholder="该 Skill 的分析指令，保存后即时生效"></el-input></el-form-item>
+            <el-form-item label="初始版本号" required><el-input v-model="createForm.version" placeholder="如：v1.0"></el-input></el-form-item>
+            <el-form-item label="上线状态"><el-switch v-model="createForm.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">上线后立即出现在灵犀智析工作台</span></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('Skill 配置')" type="primary" @click="saveCreate">新增 Skill</el-button></template>
+        </el-dialog>
         <el-drawer v-model="editVisible" :title="(addMode ? '新增版本' : '编辑版本') + ' · ' + (activeSkill?.name || '')" size="620px" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
           <div v-if="activeSkill" class="portal-vue-skill-drawer">
             <div class="portal-vue-skill-section"><el-form-item label="标题" required><el-input v-model="editForm.title" placeholder="如：数据查询与指标解答"></el-input></el-form-item></div>
@@ -3016,27 +3052,44 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({keyword:"",uploading:false,editVisible:false,editForm:{},addMode:true,editingVersion:null,activeSkill:null,publishVisible:false,publishSkill:null,viewVisible:false,viewVersion:null,grayDialogVisible:false,grayVersion:null,grayDraft:[]}),
+    data:()=>({keyword:"",createVisible:false,createForm:{},editVisible:false,editForm:{},addMode:true,editingVersion:null,activeSkill:null,publishVisible:false,publishSkill:null,viewVisible:false,viewVersion:null,grayDialogVisible:false,grayVersion:null,grayDraft:[]}),
     computed:{
       skills(){refreshTick.value;return (state.skills||[]).filter(item=>item.id!=="numa-warehouse");},
-      filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.source}`.toLowerCase().includes(keyword));},
+      filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.title||""} ${item.desc||""}`.toLowerCase().includes(keyword));},
+      currentUser(){refreshTick.value;return loginUser()||state.users[0];},
       activeUsers(){refreshTick.value;return state.users.filter(user=>user.status!=="已停用");}
     },
     methods:{
-      async onUploadFile(event){
-        const file=event.target.files?.[0];
-        event.target.value="";
-        if(!file)return;
-        if(!file.name.toLowerCase().endsWith(".zip"))return ep.ElMessage.warning("请选择 .zip 格式的 Skill 包（skill.json + SKILL.md + tools/）");
-        this.uploading=true;
+      openCreate(){
+        const maxSort=(state.skills||[]).reduce((max,item)=>Math.max(max,Number(item.sort)||0),0);
+        this.createForm={name:"",title:"",icon:"✦",desc:"",displayDesc:"",sort:maxSort+10,prompt:"",version:"v1.0",enabled:true};
+        this.createVisible=true;
+      },
+      async saveCreate(){
+        const form=this.createForm;
+        const name=String(form.name||"").trim();
+        const title=String(form.title||"").trim();
+        if(!name)return ep.ElMessage.warning("请输入 Skill 名称");
+        if(!title)return ep.ElMessage.warning("请输入工作台展示标题");
+        if((state.skills||[]).some(item=>item.name===name))return ep.ElMessage.warning("Skill 名称已存在");
+        const version=String(form.version||"").trim()||"v1.0";
+        const id=`skill-${Date.now().toString(36)}`;
+        const now=new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-");
+        const skill={
+          id, name, source:id, local:true, version, grayUsers:[],
+          icon:form.icon||"✦", title, displayDesc:String(form.displayDesc||"").trim(), sort:Number(form.sort)||50, scenarioKey:id,
+          enabled:form.enabled!==false, desc:String(form.desc||"").trim(), scenarios:"",
+          clarification:{enabled:false,question:"",options:[]}, assetScope:"", responseContract:[],
+          prompt:String(form.prompt||""),
+          versions:[{version,time:now,operator:this.currentUser?.name||"曾祥竞",note:"新建 Skill",current:true,status:"已发布",grayUsers:[]}],
+          stats:{calls:0,successRate:"—",avgLatency:"—",tokens:"—"}
+        };
+        state.skills.unshift(skill);
         try{
-          const response=await fetch(`${analysisGatewayBase}/v1/skills/upload`,{method:"POST",headers:{"Content-Type":"application/zip"},body:file});
-          const data=await response.json();
-          if(!response.ok)throw new Error(data.error||"上传失败");
-          await this.loadGatewaySkills();
-          ep.ElMessage.success(`Skill「${data.name}」已上传并注册到网关，即时生效`);
-        }catch(error){ep.ElMessage.error(`上传失败：${error.message}`);}
-        this.uploading=false;
+          await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:skill.icon,title:skill.title,displayDesc:skill.displayDesc,sort:skill.sort,enabled:skill.enabled,scenarioKey:skill.scenarioKey})});
+        }catch(error){/* 网关未启动时仅保存在原型状态 */}
+        this.createVisible=false;
+        notify(`Skill「${name}」已新增（${version}）${skill.enabled?"并上线":"，当前为下线状态"}，灵犀智析工作台即时生效`);
       },
       async loadGatewaySkills(){
         try{
@@ -3044,7 +3097,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           if(!response.ok)return;
           const list=await response.json();
           if(Array.isArray(list)&&list.length){
-            state.skills=list.map(entry=>({ ...entry, versions: entry.versions || [], stats: entry.stats || { calls: 0, successRate: "—", avgLatency: "—", tokens: "—" } }));
+            const locals=(state.skills||[]).filter(item=>item.local&&!list.some(entry=>entry.id===item.id));
+            state.skills=[...list.map(entry=>({ ...entry, versions: entry.versions || [], stats: entry.stats || { calls: 0, successRate: "—", avgLatency: "—", tokens: "—" } })), ...locals];
           }
         }catch(error){/* 网关未启动时保留内置注册表 */}
       },
@@ -3100,14 +3154,16 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       },
       isImageIcon(icon){return /^(data:image|https?:|blob:)/i.test(String(icon||""));},
       openIconPicker(){this.$refs.iconInput?.click();},
-      onIconUpload(event){
+      onIconUpload(event){this.applyIcon(event,this.editForm);},
+      onCreateIconUpload(event){this.applyIcon(event,this.createForm);},
+      applyIcon(event,target){
         const file=event.target.files?.[0];
         event.target.value="";
         if(!file)return;
         if(!/^image\/(png|jpe?g|gif|svg\+xml|webp)$/i.test(file.type))return ep.ElMessage.warning("请选择图片文件");
         if(file.size>300*1024)return ep.ElMessage.warning("图片不能超过 300KB");
         const reader=new FileReader();
-        reader.onload=()=>{this.editForm.icon=String(reader.result||"").slice(0,200000);ep.ElMessage.success("图标已上传，保存后生效");};
+        reader.onload=()=>{target.icon=String(reader.result||"").slice(0,200000);ep.ElMessage.success("图标已上传，保存后生效");};
         reader.readAsDataURL(file);
       },
       openVersionManage(row){this.publishSkill=row;this.publishVisible=true;},
@@ -3148,6 +3204,13 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   };
 
   /* ===== 数据告警：选监控表 → 配告警规则 → 配告警模版 → 配告警通道 → 设告警方式 ===== */
+
+  /* 度量值（数值型）字段不能作为「重复判定字段」：去重口径必须是用户名、设备、渠道这类维度字段 */
+  const MEASURE_SQL_TYPES = ["BIGINT", "INT", "INTEGER", "SMALLINT", "TINYINT", "DECIMAL", "NUMERIC", "DOUBLE", "FLOAT", "REAL", "NUMBER", "MONEY", "BIGDECIMAL"];
+  function isMeasureField(field) {
+    const type = String(field?.type || "").toUpperCase().split("(")[0].trim();
+    return MEASURE_SQL_TYPES.includes(type);
+  }
 
   /* 监控埋点表：告警按事件流计算，字段同时作为规则条件与模版变量来源 */
   const alertMonitorTables = [
@@ -3323,9 +3386,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   /* 新建告警的初始表单：默认落在登录埋点表，实时计算 */
   function createAlertForm() {
     const table = alertMonitorTables[0];
+    const dimensionFields = (table.fields || []).filter(field => !isMeasureField(field));
+    const defaultKeyField = dimensionFields.find(field => field.name === table.keyField) || dimensionFields[0] || {};
     return {
       name: "", category: alertCategoryDefaults[0], desc: "", owner: LOGIN_USER_NAME, requester: LOGIN_USER_NAME,
-      table: table.name, keyField: table.keyField, timeField: table.timeField,
+      table: table.name, keyField: defaultKeyField.name || "", timeField: table.timeField,
       relation: "AND",
       conditions: [alertNewCondition(table.fields)],
       mode: "realtime",
@@ -3850,10 +3915,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </el-radio-group>
               </el-form-item>
               <el-form-item v-if="form.dedup.mode !== 'always'" label="重复判定字段" prop="keyField">
-                <el-select v-model="form.keyField" filterable placeholder="选择用于判断是否重复的字段">
-                  <el-option v-for="field in currentFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
+                <el-select v-model="form.keyField" filterable :placeholder="dedupFields.length ? '选择用于判断是否重复的字段' : '该表没有可去重的维度字段'">
+                  <el-option v-for="field in dedupFields" :key="field.name" :label="field.cn + '（' + field.name + '）'" :value="field.name"></el-option>
                 </el-select>
-                <div class="portal-vue-alert-hint">同一<b>{{ keyFieldLabel }}</b>只算同一条告警，是否再次通知由上面的重复规则决定。</div>
+                <div class="portal-vue-alert-hint">同一<b>{{ keyFieldLabel }}</b>只算同一条告警，是否再次通知由上面的重复规则决定。<span class="portal-vue-muted">只提供维度字段，度量值（数值型）不能作为去重口径。</span></div>
               </el-form-item>
               <el-form-item v-if="form.dedup.mode === 'interval'" label="重复间隔" prop="dedup.intervalMinutes">
                 <div class="portal-vue-alert-inline">
@@ -3919,7 +3984,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           owner: [required("请选择负责人")],
           requester: [required("请选择需求人")],
           table: [required("请选择监控表")],
-          keyField: [required("请选择重复判定字段（用于重复通知去重）")],
+          keyField: [
+            required("请选择重复判定字段（用于重复通知去重）"),
+            { validator: this.validateKeyField, trigger: "change" }
+          ],
           conditions: [{ required: true, validator: this.validateConditions, trigger: "change" }],
           "template.title": [{ required: true, message: "请填写通知标题", trigger: "blur" }],
           "template.lines": [{ required: true, validator: this.validateTemplateLines, trigger: "change" }],
@@ -3978,6 +4046,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       },
       currentTable() { return this.monitorTables.find(table => table.name === this.form.table) || null; },
       currentFields() { return this.currentTable?.fields || []; },
+      /* 重复判定字段候选：排除度量值（数值型）字段 */
+      dedupFields() { return this.currentFields.filter(field => !isMeasureField(field)); },
       keyFieldLabel() { return this.fieldLabel(this.form.keyField) || "用户"; },
       templateVariables() { return this.currentFields.map(field => field.cn); },
       previewTitle() { return this.renderTemplateText(this.form.template.title) || this.form.name || "（未填写通知标题）"; },
@@ -4087,7 +4157,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       changeTable(tableName) {
         const table = this.monitorTables.find(item => item.name === tableName);
         if (!table) return;
-        this.form.keyField = table.keyField || table.fields[0]?.name || "";
+        // 重复判定字段只能是维度字段：换了监控表后若原字段不可用，回落到该表 keyField 或第一个维度字段
+        const dimensionFields = (table.fields || []).filter(field => !isMeasureField(field));
+        const preferred = (table.fields || []).find(field => field.name === table.keyField && !isMeasureField(field));
+        this.form.keyField = preferred?.name || dimensionFields[0]?.name || "";
         this.form.timeField = table.timeField || table.fields[0]?.name || "";
         this.form.conditions = [{ field: table.fields[0]?.name || "", op: "eq", value: "", value2: "" }];
         this.clearValidation();
@@ -4177,6 +4250,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if (incomplete) return callback(new Error("条件「" + (this.fieldLabel(incomplete.field) || "未选择字段") + "」的值未填写完整"));
         callback();
       },
+      /* 重复判定字段必须是维度字段：度量值（数值型）不参与去重口径 */
+      validateKeyField(rule, value, callback) {
+        if (!value) return callback();
+        const field = this.currentFields.find(item => item.name === value);
+        if (isMeasureField(field)) return callback(new Error(`「${field?.cn || value}」是度量值，不能作为重复判定字段，请选择用户名/设备/渠道等维度字段`));
+        if (field && !this.dedupFields.some(item => item.name === value)) return callback(new Error("该字段不是可用的维度字段"));
+        callback();
+      },
       validateTemplateLines(rule, value, callback) {
         const lines = (this.form.template.lines || []).filter(line => line.label || line.value);
         if (!lines.length) return callback(new Error("请至少配置一行通知内容"));
@@ -4262,6 +4343,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   window.userManagementVueApi = mount("#userManagementView", UserManagementApp, "user-management");
   mount("#permissionGroupView", PermissionGroupApp, "permission-groups");
   mount("#permissionConfigView", PermissionConfigApp, "permission-config");
+  window.permissionReadVueApi = mount("#permissionReadView", PermissionReadApp, "permission-read");
   mount("#quickBiView", QuickBiApp, "quick-bi");
   mount("#noPermissionView", NoPermissionApp, "no-permission");
   mount("#menuManagementView", MenuManagementApp, "menu-management");
@@ -4270,6 +4352,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
   /* ===== 操作日志：基于前端埋点（页面访问 page_view / 看板心跳 dashboard_view_heartbeat） =====
      schema 同时驱动列表列与详情抽屉，后续新增「权限变更」等事件只需补一份定义与数据。 */
+  /* 操作日志当前只对外展示「查看看板」明细：页面访问等埋点先隐藏（数据与定义都保留），
+     后续需要时把分类加回白名单即可，列表行、分类页签、分类列会一起恢复。 */
+  const OPERATION_LOG_VISIBLE_CATEGORIES = ["查看看板"];
   const operationLogEvents = {
     page_view: {
       category: "页面访问",
@@ -4448,9 +4533,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
-          <el-tabs v-model="category" class="portal-vue-status-tabs" @tab-change="resetPage">
+          <el-tabs v-if="visibleCategories.length > 1" v-model="category" class="portal-vue-status-tabs" @tab-change="resetPage">
             <el-tab-pane :label="'全部（' + allRows.length + '）'" name="全部"></el-tab-pane>
-            <el-tab-pane v-for="item in categories" :key="item" :label="item + '（' + countOfCategory(item) + '）'" :name="item"></el-tab-pane>
+            <el-tab-pane v-for="item in visibleCategories" :key="item" :label="item + '（' + countOfCategory(item) + '）'" :name="item"></el-tab-pane>
           </el-tabs>
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left">
@@ -4469,7 +4554,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-table-column label="时间" width="180">
               <template #default="scope"><span>{{ rowTime(scope.row) }}</span></template>
             </el-table-column>
-            <el-table-column label="分类" width="100">
+            <el-table-column v-if="visibleCategories.length > 1" label="分类" width="100">
               <template #default="scope"><el-tag size="small" :type="scope.row.kind === 'page' ? 'primary' : 'success'" effect="plain">{{ categoryOf(scope.row) }}</el-tag></template>
             </el-table-column>
             <el-table-column label="用户" min-width="140">
@@ -4562,11 +4647,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     computed: {
       categories() { return [...new Set(Object.values(operationLogEvents).map(item => item.category))]; },
-      /* 看板心跳按 visit_id 归并为一条访问记录 */
+      /* 当前对外展示的分类：只有一个时不渲染分类页签与分类列 */
+      visibleCategories() { return this.categories.filter(item => OPERATION_LOG_VISIBLE_CATEGORIES.includes(item)); },
+      /* 看板心跳按 visit_id 归并为一条访问记录；只保留白名单分类（当前仅「查看看板」） */
       allRows() {
         const rows = [];
         const visits = new Map();
         this.records.forEach(record => {
+          if (!OPERATION_LOG_VISIBLE_CATEGORIES.includes(operationLogEvents[record.event]?.category)) return;
           if (record.event === "page_view") {
             rows.push({ key: record.id, kind: "page", records: [record], head: record });
             return;
