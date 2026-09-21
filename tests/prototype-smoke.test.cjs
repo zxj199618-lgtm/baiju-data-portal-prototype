@@ -263,7 +263,10 @@ assert(portalVue.includes("users: [...(board.users || [])]") && portalVue.includ
 assert(portalVue.includes("board.users.includes(user?.name)") && portalBridge.includes("boardDirectUsers") && portalBridge.includes('"QB_001": ["刘盾"]'), "直接授权的看板应对该用户可见（与权限组授权取并集），并带演示数据");
 assert(portalVue.includes("direct: directUsers.includes(user.name)") && portalVue.includes("direct: true") && portalVue.includes("portal-vue-viewer-tag"), "看板列表「可查看用户」应为权限组可见用户与直接授权用户的并集，并标出直接授权");
 assert(portalVue.includes("directBoardNames") && portalVue.includes("isBoardDirect(board)") && portalVue.includes("board.users=board.users.filter(name=>name!==this.user.name)"), "配置用户权限页应回显直接授权的看板（带「直接授权」标签），取消勾选并保存即收回");
-assert(portalCss.includes(".portal-vue-board-dialog .el-dialog__body { max-height: calc(100vh - 220px)"), "看板编辑弹窗字段较多，内容区应独立滚动，保证底部「取消 / 保存」始终可见");
+// 居中弹窗 top:15vh，body 上限必须同时扣掉 15vh 与头/脚高度；旧值 calc(100vh - 220px)
+// 在 958px 视口下把底部按钮推出视口（新增表 / 新增 Skill 实测被裁），统一收敛到 calc(85vh - 150px)。
+assert(portalCss.includes(".el-dialog:not(.portal-vue-fullscreen-dialog):not(.portal-vue-ai-report-dialog) .el-dialog__body { max-height: calc(85vh - 150px); overflow-y: auto"), "居中弹窗字段多时内容区应独立滚动，且 body 上限要扣掉 15vh 顶距与头/脚高度，保证底部「取消 / 保存」始终可见");
+assert(!/max-height:\s*calc\(100vh - 220px\)/.test(portalCss) && !portalVue.includes("portal-vue-board-dialog"), "不应回退到会把底部按钮裁掉的旧弹窗高度写法（此断言防止回退）");
 assert(portalVue.includes("visibleCategories") && portalVue.includes("可见范围："), "管理页的筛选下拉与范围提示随可见范围收敛");
 assert(portalCss.includes(".portal-vue-user > span { white-space: nowrap") && portalCss.includes(".portal-vue-topbar > .el-dropdown { flex: 0 0 auto; }") && portalCss.includes(".portal-vue-tabs { flex: 1 1 auto"), "顶部 tab 过多时应由 tab 条滚动收缩，头像/姓名区域不压缩换行");
 assert(portalBridge.includes('menuEdits: ["灵犀智析"') && portalBridge.includes("menuEdits: []"), "权限组数据应包含菜单编辑权限，只读角色默认无编辑权限");
@@ -314,9 +317,38 @@ assert(!portalVue.includes('label="来源包"') && !portalVue.includes("搜索 S
 assert(portalVue.includes('@click="openCreate">＋ 新增 Skill') && !portalVue.includes("上传 Skill</el-button>") && !portalVue.includes("onUploadFile") && !portalVue.includes("Skill 以 ZIP 包"), "右上角应改为「新增 Skill」手动新增，移除 ZIP 上传按钮与上传说明");
 assert(portalVue.includes("openCreate(){") && portalVue.includes("saveCreate(){") && portalVue.includes("state.skills.unshift(skill)") && portalVue.includes("versions:[{version,time:now"), "新增 Skill 应写入注册表并自动生成初始版本（v1.0 / 已发布 / 操作人）");
 assert(portalVue.includes('v-model="createForm.name"') && portalVue.includes('v-model="createForm.prompt"') && portalVue.includes("onCreateIconUpload") && portalVue.includes("applyIcon(event,target)"), "新增 Skill 表单应覆盖名称/标题/图标/描述/排序/提示词/版本/上线状态，图标复用同一套上传逻辑");
+
+// 新增 Skill 字段多（含 6 行提示词）。弹窗 15vh 顶距 + body max-height:calc(100vh - 220px)
+// 在 958px 视口下正好把底部「取消 / 新增 Skill」推出视口，因此改为右侧抽屉：整屏高、内容区滚动、底部常驻。
+assert(portalVue.includes('<el-drawer v-model="createVisible" title="新增 Skill" size="620px" direction="rtl" class="portal-vue-skill-create-drawer"'), "新增 Skill 应改为右侧抽屉展开（direction=rtl、620px）");
+assert(!portalVue.includes('<el-dialog v-model="createVisible" title="新增 Skill"'), "新增 Skill 不应再使用居中弹窗（此断言防止回退成被裁掉底部的样式）");
+const createDrawerBodyRule = portalCss.match(/\.el-drawer\.portal-vue-skill-create-drawer\s+\.el-drawer__body\s*\{([^}]*)\}/);
+const createDrawerFooterRule = portalCss.match(/\.el-drawer\.portal-vue-skill-create-drawer\s+\.el-drawer__footer\s*\{([^}]*)\}/);
+assert(createDrawerBodyRule && /overflow-y:\s*auto/.test(createDrawerBodyRule[1]) && createDrawerFooterRule && /flex:\s*none/.test(createDrawerFooterRule[1]), "新增 Skill 抽屉必须「内容区滚动 + 底部按钮常驻」（body overflow-y:auto、footer flex:none）");
+assert(portalVue.includes('@click="createVisible=false">取消</el-button>') && portalVue.includes('@click="saveCreate">新增 Skill</el-button>'), "新增 Skill 抽屉底部应保留「取消 / 新增 Skill」两个按钮");
 assert(portalVue.includes("item.local&&!list.some(entry=>entry.id===item.id)") && portalVue.includes("filter(item=>item.local&&!remotes.some(entry=>entry.id===item.id))"), "门户手动新增的 Skill 在网关数据刷新后仍保留，不会建完就消失");
 assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("ModelConfigApp") && portalVue.includes("modelConfigView"), "AI 中心应提供模型配置页");
 assert(portalVue.includes("v1/model-config") && portalVue.includes("已禁用"), "模型配置应支持禁用历史模型并持久化到网关");
+
+/* 模型配置 → 供应商接入：自配 Base URL / Key 类型 / 模型清单，Key 只写不读。
+ * 参考 CC Switch 与 DeepSeek Harness：预设模板带出端点与鉴权、连通性语义化、模型路由按供应商优先。 */
+assert(gatewaySource.includes('const PROVIDERS_FILE = path.join(DATA_DIR, "providers.json")') && gatewaySource.includes("function loadProviders()") && gatewaySource.includes("function saveProviders("), "网关应把自配供应商持久化到 DATA_DIR/providers.json");
+assert(gatewaySource.includes("function publicProvider(") && gatewaySource.includes("function maskSecret(") && gatewaySource.includes("keyMasked") && !gatewaySource.includes("apiKey: provider.apiKey"), "供应商接口只回显 Key 掩码，绝不回传明文");
+assert(gatewaySource.includes("fs.writeFileSync(tmp, JSON.stringify({ providers }, null, 2), { mode: 0o600 })") && gatewaySource.includes("fs.chmodSync(tmp, 0o600)"), "含密钥的 providers.json 必须以 0600 权限落盘");
+assert(read(".gitignore").includes("data/"), "数据目录（含 providers.json）必须被 gitignore，密钥不入库");
+assert(gatewaySource.includes('url.pathname === "/v1/providers"') && gatewaySource.includes('url.pathname === "/v1/providers/test"') && gatewaySource.includes("/refresh") && gatewaySource.includes('req.method === "DELETE" && providerMatch'), "网关应提供供应商列表/新增/修改/删除/连通性测试/拉取模型列表接口");
+assert(gatewaySource.includes("const PROVIDER_AUTH_TYPES = [\"bearer\", \"x-api-key\", \"x-goog-api-key\", \"api-key-header\", \"query\", \"custom-header\"]"), "应支持常见 Key 类型：Bearer / x-api-key / x-goog-api-key / api-key / 查询参数 / 自定义 Header");
+assert(gatewaySource.includes("headers[name || \"X-Api-Key\"] = key") && gatewaySource.includes('headers["anthropic-version"]') && gatewaySource.includes("url.searchParams.set(String(provider.authKeyName") && gatewaySource.includes("openai/deployments/"), "鉴权头/查询参数与 Azure deployment 路径要按 Key 类型正确拼装");
+assert(gatewaySource.includes("function routeForModel(") && gatewaySource.includes("const route = routeForModel(model);") && gatewaySource.includes("if (route) return providerChat(route, model, payload);"), "分析调用应按模型路由到自配供应商（relayChat / relayChatStream 都要接）");
+assert(gatewaySource.includes("Boolean(PROVIDER_PROTOCOLS[provider.protocol]?.callable)") && gatewaySource.includes("adaptable") && gatewaySource.includes('"gemini": { label: "Google Gemini", callable: false }'), "非 OpenAI 兼容协议只登记不参与分析，并在清单里标注");
+assert(gatewaySource.includes('"Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"'), "CORS 需放行 DELETE，否则浏览器里删不掉供应商");
+assert(portalVue.includes("MODEL_PROVIDER_PRESETS") && portalVue.includes('id: "deepseek"') && portalVue.includes('id: "ark"') && portalVue.includes('id: "anthropic"') && portalVue.includes('id: "gemini"') && portalVue.includes('id: "azure"') && portalVue.includes('id: "custom"'), "模型配置应提供 DeepSeek / ARK / Anthropic / Gemini / Azure / 自定义等预设模板");
+assert(portalVue.includes("MODEL_AUTH_LABELS") && portalVue.includes('query: "URL 查询参数"'), "Key 类型下拉应覆盖常见鉴权方式");
+assert(portalVue.includes('v-model="drawerVisible"') && portalVue.includes("class=\"portal-vue-edit-drawer\"") && portalVue.includes('@click="openProvider(null)">＋ 接入供应商'), "「接入供应商」应用右侧抽屉承载表单");
+assert(portalVue.includes("async saveProvider(") && portalVue.includes("async testForm(") && portalVue.includes("async rowRefresh(") && portalVue.includes("async removeProvider(") && portalVue.includes("async toggleProvider("), "供应商抽屉应支持保存 / 测试连通性 / 拉取模型 / 启停 / 删除");
+assert(portalVue.includes('type="password" show-password autocomplete="new-password"') && portalVue.includes("keyMasked") && !portalVue.includes("response.apiKey"), "API Key 输入只写不读，页面只展示掩码");
+assert(portalVue.includes('{{ scope.row.source }}') && portalVue.includes("portal-vue-key-state ok"), "模型清单应展示来源与 Key 配置状态点");
+assert(portalBridge.includes("内置中转站 + 自配供应商"), "模型配置页副标题要说明可自配供应商");
 assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCascadeOptions") && portalVue.includes("activeTablePath") && portalVue.includes("changeTablePath") && portalVue.includes("<el-cascader"), "数据表选择应使用单个业务线到数据表的级联下拉");
 assert(!portalVue.includes("portal-vue-ai-cascade-grid") && !portalVue.includes("activeBizLine") && !portalVue.includes("filteredTableOptions") && !portalVue.includes("changeBizLine"), "数据表选择不应保留拆分的业务线/数据表下拉");
 assert(portalBridge.includes('name: "数据告警"') && portalBridge.includes('icon: "alert"'), "侧边栏应在数据资产上方提供数据告警菜单");

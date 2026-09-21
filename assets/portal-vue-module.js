@@ -563,7 +563,7 @@
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
 
-        <el-dialog v-model="formVisible" class="portal-vue-board-dialog" :title="editingIndex<0?'新增看板':'编辑看板'" width="620px" destroy-on-close>
+        <el-dialog v-model="formVisible" :title="editingIndex<0?'新增看板':'编辑看板'" width="620px" destroy-on-close>
           <el-form class="portal-vue-dialog-form" label-position="top">
             <el-form-item label="看板名称" required><el-input v-model="form.name" placeholder="请输入看板名称"></el-input></el-form-item>
             <el-form-item label="Quick BI 看板 ID" required><el-input v-model="form.quickBiId" placeholder="例如：QB_073"></el-input></el-form-item>
@@ -2748,38 +2748,279 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
   const menuIcons = ["pie", "asset", "service", "permission", "system", "analysis", "push", "ai"];
 
+  /* 模型配置 → 供应商接入：字段与交互参考 CC Switch / DeepSeek Harness 的 provider 配置
+     （预设模板带出端点与鉴权、Key 只写不读、连通性语义化、模型能力挂在模型上） */
+  const MODEL_PROVIDER_PRESETS = [
+    { id: "deepseek", label: "DeepSeek 官方", protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", authType: "bearer", models: ["deepseek-chat", "deepseek-reasoner"], note: "OpenAI 兼容 + Bearer Token" },
+    { id: "kimi", label: "月之暗面 Kimi", protocol: "openai-compatible", baseUrl: "https://api.moonshot.cn/v1", authType: "bearer", models: ["kimi-k2-0905-preview"], note: "OpenAI 兼容 + Bearer Token" },
+    { id: "glm", label: "智谱 GLM", protocol: "openai-compatible", baseUrl: "https://open.bigmodel.cn/api/paas/v4", authType: "bearer", models: ["glm-4.6"], note: "OpenAI 兼容 + Bearer Token" },
+    { id: "qwen", label: "阿里百炼 Qwen", protocol: "openai-compatible", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", authType: "bearer", models: ["qwen3-max"], note: "兼容模式端点 + Bearer Token" },
+    { id: "ark", label: "火山方舟 ARK", protocol: "ark", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", authType: "bearer", models: [], note: "模型填接入点 ID（ep-xxxxxxxx）或模型名" },
+    { id: "openai", label: "OpenAI 官方", protocol: "openai-compatible", baseUrl: "https://api.openai.com/v1", authType: "bearer", models: ["gpt-4o-mini"], note: "OpenAI 兼容 + Bearer Token" },
+    { id: "anthropic", label: "Anthropic 原生", protocol: "anthropic", baseUrl: "https://api.anthropic.com", authType: "x-api-key", models: ["claude-sonnet-4-5"], note: "x-api-key 头 + anthropic-version；协议待适配，暂不参与分析调用" },
+    { id: "anthropic-relay", label: "Anthropic 兼容中转", protocol: "anthropic-compatible", baseUrl: "", authType: "bearer", models: [], note: "DeepSeek / GLM / Kimi 等 /anthropic 端点；协议待适配，暂不参与分析调用" },
+    { id: "gemini", label: "Google Gemini", protocol: "gemini", baseUrl: "https://generativelanguage.googleapis.com", authType: "x-goog-api-key", models: ["gemini-2.5-pro"], note: "x-goog-api-key 头；协议待适配，暂不参与分析调用" },
+    { id: "azure", label: "Azure OpenAI", protocol: "azure-openai", baseUrl: "https://<资源名>.openai.azure.com", authType: "api-key-header", models: [], note: "api-key 头，模型填 deployment 名，另需填 api-version" },
+    { id: "ollama", label: "本地 Ollama / vLLM", protocol: "openai-compatible", baseUrl: "http://127.0.0.1:11434/v1", authType: "bearer", models: [], note: "本地服务通常不校验 Key，可留空" },
+    { id: "custom", label: "自定义（OpenAI 兼容）", protocol: "custom", baseUrl: "", authType: "bearer", models: [], note: "手填 Base URL、鉴权方式与模型 ID" }
+  ];
+  const MODEL_PROTOCOL_FALLBACK = [
+    { id: "openai-compatible", label: "OpenAI 兼容", callable: true },
+    { id: "ark", label: "火山方舟 ARK", callable: true },
+    { id: "custom", label: "自定义兼容端点", callable: true },
+    { id: "azure-openai", label: "Azure OpenAI", callable: true },
+    { id: "anthropic", label: "Anthropic 原生", callable: false },
+    { id: "anthropic-compatible", label: "Anthropic 兼容中转", callable: false },
+    { id: "gemini", label: "Google Gemini", callable: false }
+  ];
+  const MODEL_AUTH_LABELS = { bearer: "Bearer Token", "x-api-key": "x-api-key 头", "x-goog-api-key": "x-goog-api-key 头", "api-key-header": "api-key 头", query: "URL 查询参数", "custom-header": "自定义 Header" };
+  const MODEL_AUTH_KEY_DEFAULTS = { "x-api-key": "x-api-key", "x-goog-api-key": "x-goog-api-key", "api-key-header": "api-key", query: "key", "custom-header": "X-Api-Key" };
+
   const ModelConfigApp = {
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
-            <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索模型名称"></el-input></div>
-            <div><el-button :loading="loading" @click="load">刷新</el-button></div>
+            <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索模型名称或供应商"></el-input></div>
+            <div>
+              <el-button :loading="loading" @click="load">刷新</el-button>
+              <el-button v-if="canEdit('模型配置')" type="primary" @click="openProvider(null)">＋ 接入供应商</el-button>
+            </div>
           </div>
-          <el-table :data="filteredRows" class="portal-vue-table" border empty-text="网关未连接或中转站不可达">
+          <el-alert v-if="relayError" class="portal-vue-provider-alert" type="warning" :closable="false" show-icon :title="'内置中转站：' + relayError"></el-alert>
+
+          <div class="portal-vue-block-head"><strong>供应商接入</strong><span class="portal-vue-muted">填 Base URL、Key 类型与 API Key，点「拉取模型列表」自动带出可用模型；Key 只写入网关，页面只显示掩码</span></div>
+          <el-table :data="providers" class="portal-vue-table" border empty-text="还没有接入外部供应商，点右上角「接入供应商」添加">
+            <el-table-column label="供应商" min-width="210">
+              <template #default="scope">
+                <div><span class="portal-vue-name">{{ scope.row.name }}</span><el-tag size="small" effect="plain" style="margin-left:6px">{{ scope.row.protocolLabel }}</el-tag><el-tag v-if="!scope.row.callable" size="small" type="warning" effect="light" style="margin-left:4px">协议待适配</el-tag></div>
+                <div v-if="scope.row.note" class="portal-vue-muted" style="margin-top:2px">{{ scope.row.note }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column label="Base URL" min-width="230"><template #default="scope"><code class="portal-vue-code">{{ scope.row.baseUrl }}</code></template></el-table-column>
+            <el-table-column label="Key 类型" width="130"><template #default="scope">{{ authLabel(scope.row.authType) }}</template></el-table-column>
+            <el-table-column label="API Key" width="175">
+              <template #default="scope">
+                <span v-if="scope.row.hasKey" class="portal-vue-key-state ok"><i></i>{{ scope.row.keyMasked }}</span>
+                <span v-else class="portal-vue-key-state miss"><i></i>{{ scope.row.callable ? "未配置" : "无需 Key" }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="模型" width="80" align="right"><template #default="scope">{{ scope.row.models.length }}</template></el-table-column>
+            <el-table-column label="连通性" width="140">
+              <template #default="scope">
+                <el-tooltip v-if="scope.row.health" :content="scope.row.health.message + '（' + healthTime(scope.row.health.at) + '）'" placement="top">
+                  <el-tag size="small" :type="scope.row.health.ok ? 'success' : 'danger'" effect="light">{{ scope.row.health.ok ? "正常" : "异常" }}</el-tag>
+                </el-tooltip>
+                <span v-else class="portal-vue-muted">未测试</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="启用" width="90"><template #default="scope"><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled !== false" inline-prompt active-text="启用" inactive-text="停用" @change="value=>toggleProvider(scope.row, value)"></el-switch></template></el-table-column>
+            <el-table-column label="操作" width="230" fixed="right">
+              <template #default="scope">
+                <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="rowTest(scope.row)">测试</el-button>
+                <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="rowRefresh(scope.row)">拉取模型</el-button>
+                <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="openProvider(scope.row)">编辑</el-button>
+                <el-button link type="danger" :disabled="!canEdit('模型配置')" @click="removeProvider(scope.row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div class="portal-vue-block-head"><strong>模型清单</strong><span class="portal-vue-muted">禁用后立即从灵犀智析下拉框隐藏；「协议待适配」的模型只登记、不参与分析</span></div>
+          <el-table :data="filteredRows" class="portal-vue-table" border empty-text="网关未连接，或还没有可用模型">
             <el-table-column prop="id" label="模型" min-width="220"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
+            <el-table-column label="来源" min-width="180">
+              <template #default="scope">
+                <el-tag size="small" :type="scope.row.sourceType === 'provider' ? 'primary' : 'info'" effect="plain">{{ scope.row.source }}</el-tag>
+                <el-tag v-if="scope.row.sourceType === 'provider' && scope.row.adaptable === false" size="small" type="warning" effect="light" style="margin-left:4px">协议待适配</el-tag>
+                <el-tag v-else-if="scope.row.sourceType === 'provider' && scope.row.providerEnabled === false" size="small" type="info" effect="light" style="margin-left:4px">供应商已停用</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="scope.row.enabled ? 'success' : 'info'" effect="light">{{ scope.row.enabled ? "可用" : "已禁用" }}</el-tag></template></el-table-column>
             <el-table-column label="禁用时间" width="180"><template #default="scope">{{ scope.row.disabledAt ? scope.row.disabledAt.slice(0, 16).replace("T", " ") : "—" }}</template></el-table-column>
             <el-table-column label="操作" width="130" fixed="right"><template #default="scope"><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch></template></el-table-column>
           </el-table>
-          <div class="portal-vue-muted" style="margin-top:12px">禁用后模型立即从灵犀智析的下拉框隐藏，进行中的分析不受影响；配置保存在网关数据卷，重启不丢失。</div>
+          <div class="portal-vue-muted" style="margin-top:12px">模型按「自配供应商优先」路由：同名模型命中已启用供应商时走该供应商的 Base URL 与 Key；配置保存在网关数据卷（providers.json，权限 600），重启不丢失。</div>
         </section>
+
+        <el-drawer v-model="drawerVisible" :title="editingId ? '编辑供应商 · ' + form.name : '接入供应商'" size="620px" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true" destroy-on-close>
+          <el-form class="portal-vue-dialog-form" label-position="top">
+            <el-form-item label="预设模板">
+              <el-select v-model="presetId" placeholder="选常见供应商，自动带出 Base URL 与 Key 类型" @change="applyPreset">
+                <el-option v-for="item in presets" :key="item.id" :label="item.label" :value="item.id"></el-option>
+              </el-select>
+              <span v-if="presetNote" class="portal-vue-muted" style="font-size:12px">{{ presetNote }}</span>
+            </el-form-item>
+            <el-form-item label="供应商名称" required><el-input v-model="form.name" placeholder="如：DeepSeek 官方"></el-input></el-form-item>
+            <el-form-item label="协议类型" required>
+              <el-select v-model="form.protocol">
+                <el-option v-for="item in protocols" :key="item.id" :label="item.label + (item.callable ? '' : '（协议待适配）')" :value="item.id"></el-option>
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Base URL" required><el-input v-model="form.baseUrl" placeholder="如：https://api.deepseek.com/v1"></el-input></el-form-item>
+            <el-form-item label="Key 类型（鉴权方式）" required>
+              <el-select v-model="form.authType" @change="onAuthTypeChange">
+                <el-option v-for="item in authOptions" :key="item.id" :label="item.label" :value="item.id"></el-option>
+              </el-select>
+            </el-form-item>
+            <el-form-item v-if="form.authType !== 'bearer'" :label="authKeyNameLabel">
+              <el-input v-model="form.authKeyName" :placeholder="authKeyPlaceholder"></el-input>
+            </el-form-item>
+            <el-form-item label="API Key">
+              <el-input v-model="form.apiKey" type="password" show-password autocomplete="new-password" :placeholder="keyPlaceholder"></el-input>
+              <span class="portal-vue-muted" style="font-size:12px">{{ keyHint }}</span>
+            </el-form-item>
+            <el-form-item v-if="form.protocol === 'azure-openai'" label="api-version" required><el-input v-model="form.apiVersion" placeholder="如：2024-10-21"></el-input></el-form-item>
+            <el-form-item label="模型 ID" required>
+              <el-input v-model="modelsText" type="textarea" :rows="4" resize="none" placeholder="每行或逗号分隔，如：deepseek-chat, deepseek-reasoner"></el-input>
+              <div class="portal-vue-provider-actions">
+                <el-button size="small" :loading="testing" @click="testForm(false)">测试连通性</el-button>
+                <el-button size="small" :loading="testing" @click="testForm(true)">拉取模型列表</el-button>
+                <span v-if="testResult" class="portal-vue-provider-test-result" :class="testOk ? 'ok' : 'bad'">{{ testResult }}</span>
+              </div>
+            </el-form-item>
+            <el-form-item label="默认模型（可选）"><el-select v-model="form.defaultModel" clearable placeholder="不填则用模型清单里的第一个"><el-option v-for="item in parsedModels" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
+            <el-form-item label="备注"><el-input v-model="form.note" placeholder="如：给归因分析用的备用通道"></el-input></el-form-item>
+            <el-form-item label="启用"><el-switch v-model="form.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">停用后该供应商的模型立即从灵犀智析隐藏</span></el-form-item>
+            <el-form-item v-if="editingId && form.hasKey" label="已保存的 Key"><el-button size="small" @click="clearKey">清除已保存的 Key</el-button></el-form-item>
+          </el-form>
+          <template #footer>
+            <div style="display:flex;justify-content:flex-end;gap:10px">
+              <el-button @click="drawerVisible=false">取消</el-button>
+              <el-button type="primary" :loading="saving" :disabled="!canEdit('模型配置')" @click="saveProvider">保存</el-button>
+            </div>
+          </template>
+        </el-drawer>
       </el-config-provider>
     `,
-    data:()=>({models:[],keyword:"",loading:false}),
+    data:()=>({models:[],providers:[],protocols:MODEL_PROTOCOL_FALLBACK,keyword:"",loading:false,relayError:"",drawerVisible:false,editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",form:{}}),
     computed:{
-      filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.models.filter(item=>!keyword||item.id.toLowerCase().includes(keyword));}
+      filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.models.filter(item=>!keyword||item.id.toLowerCase().includes(keyword)||String(item.source||"").toLowerCase().includes(keyword));},
+      authOptions(){return Object.keys(MODEL_AUTH_LABELS).map(id=>({id,label:MODEL_AUTH_LABELS[id]}));},
+      parsedModels(){return this.modelsText.split(/[\n,，;；]/).map(item=>item.trim()).filter(Boolean);},
+      presetNote(){const preset=this.presets.find(item=>item.id===this.presetId);return preset?preset.note:"";},
+      authKeyNameLabel(){return this.form.authType==="query"?"查询参数名":"Header 名称";},
+      authKeyPlaceholder(){return MODEL_AUTH_KEY_DEFAULTS[this.form.authType]||"X-Api-Key";},
+      keyPlaceholder(){return this.form.hasKey?"已保存 "+this.form.keyMasked+"，留空表示不修改":"粘贴 API Key（只需密钥本身）";},
+      keyHint(){return this.form.hasKey?"Key 只写不读，页面不会再回显明文；要更换就直接粘贴新 Key":"Key 只写入网关数据卷，页面不回显明文"}
     },
     mounted(){this.pageHandler=event=>{if(event.detail?.page==="模型配置")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
+      authLabel(value){return MODEL_AUTH_LABELS[value]||value||"Bearer Token";},
+      healthTime(value){return value?String(value).slice(0,16).replace("T"," "):"—";},
       async load(){
         this.loading=true;
         try{
           const response=await fetch(`${analysisGatewayBase}/v1/model-config`);
-          if(response.ok){const data=await response.json();this.models=data.models||[];}
-        }catch(error){this.models=[];}
+          if(response.ok){
+            const data=await response.json();
+            this.models=data.models||[];
+            this.providers=data.providers||[];
+            if(Array.isArray(data.protocols)&&data.protocols.length)this.protocols=data.protocols;
+            this.relayError=data.relay&&data.relay.ok===false?(data.relay.error||""):"";
+          }
+        }catch(error){this.models=[];this.providers=[];this.relayError="";}
         this.loading=false;
+      },
+      openProvider(row){
+        this.testResult="";this.testOk=null;
+        if(row){
+          this.editingId=row.id;
+          this.presetId="";
+          this.form={name:row.name,protocol:row.protocol,baseUrl:row.baseUrl,authType:row.authType||"bearer",authKeyName:row.authKeyName||"",apiVersion:row.apiVersion||"",defaultModel:row.defaultModel||"",note:row.note||"",enabled:row.enabled!==false,apiKey:"",hasKey:row.hasKey,keyMasked:row.keyMasked};
+          this.modelsText=(row.models||[]).join("\n");
+        }else{
+          this.editingId="";
+          this.form={name:"",protocol:"openai-compatible",baseUrl:"",authType:"bearer",authKeyName:"",apiVersion:"",defaultModel:"",note:"",enabled:true,apiKey:"",hasKey:false,keyMasked:""};
+          this.modelsText="";
+          this.applyPreset("deepseek");
+        }
+        this.drawerVisible=true;
+      },
+      applyPreset(id){
+        const preset=this.presets.find(item=>item.id===(id||this.presetId));
+        if(!preset)return;
+        this.presetId=preset.id;
+        this.form=Object.assign({},this.form,{
+          name:this.editingId?this.form.name||preset.label:preset.label,
+          protocol:preset.protocol,baseUrl:preset.baseUrl,authType:preset.authType,
+          authKeyName:MODEL_AUTH_KEY_DEFAULTS[preset.authType]||"",note:preset.note
+        });
+        this.modelsText=(preset.models||[]).join("\n");
+      },
+      onAuthTypeChange(value){if(!this.form.authKeyName||Object.values(MODEL_AUTH_KEY_DEFAULTS).includes(this.form.authKeyName))this.form.authKeyName=MODEL_AUTH_KEY_DEFAULTS[value]||"";},
+      async testForm(pullModels){
+        if(!this.form.baseUrl||!this.form.baseUrl.trim())return ep.ElMessage.warning("先填 Base URL");
+        this.testing=true;this.testResult="";this.testOk=null;
+        try{
+          const payload=Object.assign({},this.form,{id:this.editingId||undefined});
+          const response=await fetch(`${analysisGatewayBase}/v1/providers/test`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+          const data=await response.json().catch(()=>({}));
+          this.testOk=Boolean(data.ok);
+          this.testResult=data.message||data.error||"测试失败";
+          if(data.ok&&data.models&&data.models.length){
+            if(pullModels||!this.parsedModels.length){this.modelsText=data.models.join("\n");this.testResult="已拉取 "+data.models.length+" 个模型，确认后点保存";}
+          }
+          if(!data.ok)ep.ElMessage.error(this.testResult);
+        }catch(error){this.testOk=false;this.testResult="网络错误：无法连接分析网关";}
+        this.testing=false;
+      },
+      async saveProvider(){
+        if(!this.form.name||!this.form.name.trim())return ep.ElMessage.warning("请填写供应商名称");
+        if(!this.form.baseUrl||!this.form.baseUrl.trim())return ep.ElMessage.warning("请填写 Base URL");
+        const models=this.parsedModels;
+        if(!models.length)return ep.ElMessage.warning("至少填一个模型 ID，可先点「拉取模型列表」");
+        this.saving=true;
+        try{
+          const payload=Object.assign({},this.form,{models});
+          delete payload.hasKey;delete payload.keyMasked;
+          if(!payload.apiKey)delete payload.apiKey;
+          payload.clearKey=this.form.clearKey===true&&!payload.apiKey;
+          const url=this.editingId?`${analysisGatewayBase}/v1/providers/${encodeURIComponent(this.editingId)}`:`${analysisGatewayBase}/v1/providers`;
+          const response=await fetch(url,{method:this.editingId?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+          const data=await response.json().catch(()=>({}));
+          if(!response.ok)return ep.ElMessage.error(data.error||"保存失败，请确认网关已启动");
+          this.drawerVisible=false;
+          notify(this.editingId?`供应商「${payload.name}」已更新`:`供应商「${payload.name}」已接入，模型清单已刷新`);
+          await this.load();
+        }catch(error){ep.ElMessage.error("保存失败，请确认网关已启动");}
+        this.saving=false;
+      },
+      clearKey(){this.form.apiKey="";this.form.hasKey=false;this.form.keyMasked="";this.form.clearKey=true;ep.ElMessage.info("保存后清除网关里已存的 Key");},
+      async toggleProvider(row,value){
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/providers/${encodeURIComponent(row.id)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:value})});
+          if(!response.ok){const data=await response.json().catch(()=>({}));return ep.ElMessage.error(data.error||"保存失败，请确认网关已启动");}
+          notify(`供应商「${row.name}」已${value?"启用":"停用"}`);
+          await this.load();
+        }catch(error){ep.ElMessage.error("保存失败，请确认网关已启动");}
+      },
+      async rowTest(row){
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/providers/test`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:row.id})});
+          const data=await response.json().catch(()=>({}));
+          if(data.ok)ep.ElMessage.success(`${row.name}：${data.message}`);
+          else ep.ElMessage.error(`${row.name}：${data.message||"测试失败"}`);
+          await this.load();
+        }catch(error){ep.ElMessage.error("网络错误：无法连接分析网关");}
+      },
+      async rowRefresh(row){
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/providers/${encodeURIComponent(row.id)}/refresh`,{method:"POST"});
+          const data=await response.json().catch(()=>({}));
+          if(data.ok&&data.count)notify(`已从「${row.name}」拉取 ${data.count} 个模型`);
+          else ep.ElMessage.error(`拉取失败：${data.message||"未知原因"}`);
+          await this.load();
+        }catch(error){ep.ElMessage.error("网络错误：无法连接分析网关");}
+      },
+      async removeProvider(row){
+        if(!(await confirmAction("删除供应商",`删除后「${row.name}」下 ${row.models.length} 个模型会从模型清单移除，确认删除？`,"删除")))return;
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/providers/${encodeURIComponent(row.id)}`,{method:"DELETE"});
+          if(!response.ok){const data=await response.json().catch(()=>({}));return ep.ElMessage.error(data.error||"删除失败");}
+          notify(`供应商「${row.name}」已删除`);
+          await this.load();
+        }catch(error){ep.ElMessage.error("删除失败，请确认网关已启动");}
       },
       async toggleModel(row,value){
         await this.putConfig(row.id,{enabled:value});
@@ -2795,6 +3036,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       }
     }
   };
+
 
   const MenuManagementApp = {
     template: `
@@ -2951,7 +3193,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">Skill 在门户手动维护（名称 / 图标 / 描述 / 排序 / 提示词 / 上线状态），新增与修改即时生效；版本、灰度与回滚在「版本管理」中操作，无需发版。</div>
         </section>
-        <el-dialog v-model="createVisible" title="新增 Skill" width="620px" class="portal-vue-board-dialog" destroy-on-close>
+        <!-- 新增 Skill 字段多（含 6 行提示词），弹窗 15vh 顶距 + body max-height 会超出视口把底部按钮裁掉；
+             改成右侧抽屉：整屏高、内容区独立滚动、底部「取消 / 新增 Skill」常驻可见。 -->
+        <el-drawer v-model="createVisible" title="新增 Skill" size="620px" direction="rtl" class="portal-vue-skill-create-drawer" destroy-on-close :close-on-click-modal="true">
           <el-form class="portal-vue-dialog-form" label-position="top">
             <el-form-item label="Skill 名称" required><el-input v-model="createForm.name" placeholder="如：人群包效果分析 Skill"></el-input></el-form-item>
             <el-form-item label="工作台展示标题" required><el-input v-model="createForm.title" placeholder="如：人群包效果分析"></el-input></el-form-item>
@@ -2969,8 +3213,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-form-item label="初始版本号" required><el-input v-model="createForm.version" placeholder="如：v1.0"></el-input></el-form-item>
             <el-form-item label="上线状态"><el-switch v-model="createForm.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">上线后立即出现在灵犀智析工作台</span></el-form-item>
           </el-form>
-          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('Skill 配置')" type="primary" @click="saveCreate">新增 Skill</el-button></template>
-        </el-dialog>
+          <template #footer>
+            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('Skill 配置')" type="primary" @click="saveCreate">新增 Skill</el-button></div>
+          </template>
+        </el-drawer>
         <el-drawer v-model="editVisible" :title="(addMode ? '新增版本' : '编辑版本') + ' · ' + (activeSkill?.name || '')" size="620px" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
           <div v-if="activeSkill" class="portal-vue-skill-drawer">
             <div class="portal-vue-skill-section"><el-form-item label="标题" required><el-input v-model="editForm.title" placeholder="如：数据查询与指标解答"></el-input></el-form-item></div>

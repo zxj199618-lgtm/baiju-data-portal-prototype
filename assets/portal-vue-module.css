@@ -288,8 +288,12 @@
 .portal-vue-permission-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
 .portal-vue-permission-block { padding: 14px; border: 1px solid #e4e9f2; border-radius: 8px; }
 .portal-vue-permission-block > strong { display: block; margin-bottom: 10px; }
-/* 看板编辑弹窗字段较多：内容区独立滚动，保证底部「取消 / 保存」始终可见 */
-.portal-vue-board-dialog .el-dialog__body { max-height: calc(100vh - 220px); overflow-y: auto; overscroll-behavior: contain; }
+/* 居中弹窗默认 top:15vh，body 上限必须同时扣掉 15vh 与头部/底部高度：
+   旧值 calc(100vh - 220px) 在 958px 视口下让弹窗总高约 1001px，底部「取消 / 保存」被推出视口
+   （实测：新增表溢出 63px、新增 Skill 溢出 44px、新增维表在 1280x700 视口溢出 167px，按钮完全不可点）。
+   统一按视口高度收敛，内容超高时由 body 自身滚动，底部按钮始终可见；
+   全屏弹窗与报告弹窗已有各自的高度处理，排除在外。 */
+.el-dialog:not(.portal-vue-fullscreen-dialog):not(.portal-vue-ai-report-dialog) .el-dialog__body { max-height: calc(85vh - 150px); overflow-y: auto; overscroll-behavior: contain; }
 .portal-vue-inherit-alert { margin: 0 0 14px; }
 .portal-vue-lock-tag,
 .portal-vue-read-tag { height: 18px; margin-left: 8px; padding: 0 6px; border-color: #d7e2f5; background: #f2f6fd; color: #4b5b73; }
@@ -560,6 +564,10 @@
 .el-drawer.portal-vue-edit-drawer { display: flex; flex-direction: column; }
 .el-drawer.portal-vue-edit-drawer .el-drawer__body { flex: 1; min-height: 0; overflow-y: auto; }
 .el-drawer.portal-vue-edit-drawer .el-drawer__footer { flex: none; border-top: 1px solid #eef1f6; padding: 12px 20px; background: #fff; }
+/* 新增 Skill 由弹窗改为右侧抽屉：抽屉整屏高，内容区滚动，底部按钮永不被视口裁掉 */
+.el-drawer.portal-vue-skill-create-drawer { display: flex; flex-direction: column; }
+.el-drawer.portal-vue-skill-create-drawer .el-drawer__body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: 8px; }
+.el-drawer.portal-vue-skill-create-drawer .el-drawer__footer { flex: none; border-top: 1px solid #eef1f6; padding: 12px 20px; background: #fff; }
 .portal-vue-skill-icon-upload { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px dashed #c8d4e3; border-radius: 10px; background: #fafcff; cursor: pointer; transition: border-color .15s, background .15s; }
 .portal-vue-skill-icon-upload:hover { border-color: #1677ff; background: #f0f7ff; }
 .portal-vue-skill-icon-preview { flex: none; width: 56px; height: 56px; display: grid; place-items: center; border-radius: 10px; background: #fff; border: 1px solid #e9edf4; font-size: 26px; color: #8a94a6; overflow: hidden; }
@@ -808,3 +816,17 @@
 .portal-vue-lineage-spinner i:nth-child(2) { animation-delay: .15s; }
 .portal-vue-lineage-spinner i:nth-child(3) { animation-delay: .3s; }
 @keyframes portal-vue-lineage-bounce { 0%, 100% { transform: translateY(0); opacity: .5; } 50% { transform: translateY(-6px); opacity: 1; } }
+
+/* 模型配置：供应商接入 + 模型清单 */
+.portal-vue-block-head { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 10px; }
+.portal-vue-block-head > strong { font-size: 14px; color: #1f2733; }
+.portal-vue-block-head + .portal-vue-table { margin-bottom: 18px; }
+.portal-vue-provider-alert { margin-bottom: 12px; }
+.portal-vue-key-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #4b5b73; }
+.portal-vue-key-state i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.portal-vue-key-state.ok i { background: #16a34a; }
+.portal-vue-key-state.miss i { background: #cbd5e1; }
+.portal-vue-provider-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.portal-vue-provider-test-result { font-size: 12.5px; line-height: 1.5; }
+.portal-vue-provider-test-result.ok { color: #16a34a; }
+.portal-vue-provider-test-result.bad { color: #d93026; }

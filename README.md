@@ -87,3 +87,15 @@ docker compose up -d --build        # 网关跑在 8787，页面与 API 同源�
 ```
 
 访问 `http://<服务器IP>:8787/` 即可，功能与域名部署一致（无 HTTPS）。
+
+## 模型配置：自配供应商接入
+
+「模型配置」除了列内置中转站的模型，还支持接入自己的供应商（参考 CC Switch / DeepSeek Harness 的配置方式）：
+
+- **预设模板 + 自定义**：DeepSeek / Kimi / 智谱 GLM / 百炼 Qwen / 火山方舟 ARK / OpenAI / Anthropic / Gemini / Azure OpenAI / 本地 Ollama / 自定义。
+- **常见 Key 类型**：`Authorization: Bearer`、`x-api-key`（自动补 `anthropic-version`）、`x-goog-api-key`、`api-key`（Azure，可填 api-version）、URL 查询参数、自定义 Header。
+- **拉取模型 + 连通性测试**：按协议请求 `{base}/models`（Anthropic 走 `/v1/models?limit=1000`、Gemini 走 `/v1beta/models`），失败原因按 401/403、404/405、429、5xx 分别提示，不会把「鉴权失败」误报成「没有模型」。
+- **Key 只写不读**：`DATA_DIR/providers.json`（权限 0600）保存，接口只回显掩码（如 `sk-••••7890`），页面不再显示明文。
+- **分析路由**：模型按「自配供应商优先」路由——同名模型命中已启用供应商时走该供应商的 Base URL 与 Key；OpenAI 兼容 / ARK / 自定义 / Azure 可参与调用，Anthropic、Gemini 等原生协议只登记与测试，模型不会进入灵犀智析下拉框。
+
+接口：`GET/POST /v1/providers`、`PUT/DELETE /v1/providers/:id`、`POST /v1/providers/test`、`POST /v1/providers/:id/refresh`。
