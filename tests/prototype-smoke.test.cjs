@@ -188,6 +188,15 @@ assert(html.includes('id="dimensionView"') && html.includes('id="dictionaryView"
 assert(portalBridge.includes('group: "灵犀智析"') && portalBridge.includes('group: "灵犀智析"') < portalBridge.indexOf('group: "数据看板"'), "灵犀智析应作为首个导航分组");
 assert(portalVue.includes('visible() { return !["灵犀智析"') && !portalVue.includes("portal-vue-ai-bot-btn") && !html.includes("feishuBotAddBtn"), "灵犀智析页应去掉顶部标题区，并不再提供添加飞书机器人入口");
 assert(exists("assets/portal-shell.css") && read("assets/portal-shell.css").includes(".portal-vue-page-head { max-width: none; width: 100%; }"), "页面头部应解除 760px 宽度限制占满内容宽度");
+
+// 灵犀智析顶部标题区（标题 + 副标题 + 添加飞书机器人按钮）去掉的硬约束：
+// 只有壳层规则能保证整屏工作台不再露出标题区，Vue 的 visible() 列表属于第二道防线。
+const shellCss = read("assets/portal-shell.css");
+const lingxiHeadHideRule = shellCss.match(/\.main:has\(#analysisWorkbenchView:not\(\.hidden\)\)\s*\.page-head\s*\{([^}]*)\}/);
+assert(lingxiHeadHideRule && /display:\s*none/.test(lingxiHeadHideRule[1]), "灵犀智析的顶部标题区必须由壳层规则硬隐藏（.main:has(#analysisWorkbenchView:not(.hidden)) .page-head { display: none }），不能只靠 Vue 的 visible() 列表");
+assert(!/添加机器人|添加飞书机器人|portal-vue-ai-bot-btn|feishuBotAddBtn/.test(html + portalVue + portalBridge), "本轮决定：门户内不再出现任何「添加机器人」入口（顶栏个人名字左侧也暂不新增），后续版本再考虑");
+const topbarAppSource = portalVue.slice(portalVue.indexOf("const TopbarApp"), portalVue.indexOf("\n  const ", portalVue.indexOf("const TopbarApp") + 1));
+assert(topbarAppSource.includes('class="portal-vue-user"') && !/机器人|bot/i.test(topbarAppSource), "顶栏只保留「首页 + 页签 + 用户名」结构，个人名字左侧不得出现机器人入口");
 assert(html.includes('id="analysisWorkbenchView"') && portalVue.includes("mount(\"#analysisWorkbenchView\""), "灵犀智析应挂载独立视图");
 assert(portalVue.includes("AnalysisWorkbenchApp") && portalVue.includes("飞书机器人"), "灵犀智析应提供飞书机器人沟通入口");
 assert(portalVue.includes("会话记录") && portalVue.includes("含飞书机器人") && portalVue.includes("分析资产"), "灵犀智析应包含资产菜单与会话记录（含飞书机器人会话）");
