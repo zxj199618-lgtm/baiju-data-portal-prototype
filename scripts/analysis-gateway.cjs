@@ -1028,6 +1028,51 @@ function contextLimitFor(modelId) {
   return rule ? rule.limit : 1000000;
 }
 
+/* ================= 模型能力：上下文上限 + 思考深度档位 =================
+ * 「能选什么」由模型配置页按模型声明（覆盖值存在 model-config.json 的 models 里，
+ * 和 disabled 一样属于「按模型」的配置，不挂在供应商记录上）；没声明的按模型名推断。
+ * 灵犀智析输入框只渲染当前模型支持的档位，不支持的模型干脆不显示这一项。 */
+
+const REASONING_LEVELS = ["low", "medium", "high"];
+const REASONING_LABELS = { low: "快速", medium: "标准", high: "深度" };
+const MODEL_REASONING_RULES = [
+  { match: /^(gpt-5|o[134])/i, levels: ["low", "medium", "high"], default: "high" },
+  { match: /^deepseek-(r1|reasoner)/i, levels: ["low", "medium", "high"], default: "high" },
+  { match: /^(glm-4\.[56]|kimi-k2|qwen3-max)/i, levels: ["low", "medium", "high"], default: "medium" }
+];
+
+function reasoningCapabilityFor(modelId) {
+  const rule = MODEL_REASONING_RULES.find(item => item.match.test(String(modelId || "")));
+  return rule ? { levels: [...rule.levels], default: rule.default } : { levels: [], default: "" };
+}
+
+/** 归一化：只认 low/medium/high，默认档必须落在已选档位里；非法值回退到推断值 */
+function normalizeReasoning(input, fallback) {
+  if (!input || typeof input !== "object") return fallback;
+  if (!Array.isArray(input.levels)) return fallback;
+  const levels = REASONING_LEVELS.filter(level => input.levels.includes(level));
+  const preferred = levels.includes(input.default) ? input.default : "";
+  return { levels, default: preferred || levels[levels.length - 1] || "" };
+}
+
+function normalizeContextLimit(value, fallback) {
+  const limit = Number(value);
+  if (!Number.isFinite(limit) || limit < 1024) return fallback;
+  return Math.min(Math.floor(limit), 2000000);
+}
+
+/** 单个模型的有效能力：模型配置页的覆盖 > 按模型名推断。overrides 传进来避免逐行读盘 */
+function modelCapabilityFor(modelId, overrides) {
+  const source = overrides && typeof overrides === "object" ? overrides : (loadModelConfig().models || {});
+  const override = source[modelId] && typeof source[modelId] === "object" ? source[modelId] : {};
+  return {
+    id: modelId,
+    contextLimit: normalizeContextLimit(override.contextLimit, contextLimitFor(modelId)),
+    reasoning: normalizeReasoning(override.reasoning, reasoningCapabilityFor(modelId)),
+    configured: override.contextLimit !== undefined || override.reasoning !== undefined
+  };
+}
+
 function loadPermissionOverrides() {
   try { return JSON.parse(fs.readFileSync(PERMISSIONS_FILE, "utf8")); } catch { return {}; }
 }
@@ -1364,7 +1409,9 @@ async function syncBuiltinRelayModels() {
  *  否则页面会一边显示「供应商已停用」一边把模型算进可用数，用户看到的就是「停用了列表却没关」。
  *  被藏起来的供应商单独回给前端（hiddenProviders），用来渲染空态与提示。 */
 async function collectModels() {
-  const disabled = loadModelConfig().disabled || {};
+  const modelConfig = loadModelConfig();
+  const disabled = modelConfig.disabled || {};
+  const capabilityOverrides = modelConfig.models || {};
   const providers = loadProviders();
   const rows = [];
   const hiddenProviders = [];
@@ -1376,13 +1423,17 @@ async function collectModels() {
       if (count) hiddenProviders.push({ id: provider.id, name: provider.name, count });
       return;
     }
-    (provider.models || []).forEach(id => rows.push({
-      id, source: provider.name, sourceType: "provider", providerId: provider.id,
-      builtin: provider.id === RELAY_PROVIDER_ID,
-      protocol: provider.protocol, protocolLabel: PROVIDER_PROTOCOLS[provider.protocol]?.label || provider.protocol,
-      callable: protocolCallable, adaptable: protocolCallable,
-      enabled: !disabled[id], reason: disabled[id]?.reason || "", disabledAt: disabled[id]?.disabledAt || ""
-    }));
+    (provider.models || []).forEach(id => {
+      const capability = modelCapabilityFor(id, capabilityOverrides);
+      rows.push({
+        id, source: provider.name, sourceType: "provider", providerId: provider.id,
+        builtin: provider.id === RELAY_PROVIDER_ID,
+        protocol: provider.protocol, protocolLabel: PROVIDER_PROTOCOLS[provider.protocol]?.label || provider.protocol,
+        callable: protocolCallable, adaptable: protocolCallable,
+        contextLimit: capability.contextLimit, reasoning: capability.reasoning, capabilityConfigured: capability.configured,
+        enabled: !disabled[id], reason: disabled[id]?.reason || "", disabledAt: disabled[id]?.disabledAt || ""
+      });
+    });
   });
   // 稳定排序：同 id 保持供应商列表顺序（第一个就是路由实际命中的那家）
   rows.sort((a, b) => a.id.localeCompare(b.id));
@@ -1675,13 +1726,19 @@ async function handleRequest(req, res) {
     const { rows, notice } = await collectModels();
     const callable = rows.filter(row => row.callable);
     const usable = [...new Set(callable.map(row => row.id))];
-    const disabled = loadModelConfig().disabled || {};
+    const modelConfig = loadModelConfig();
+    const disabled = modelConfig.disabled || {};
+    const capabilityOverrides = modelConfig.models || {};
     const enabledModels = usable.filter(id => !disabled[id]).sort();
     const defaultModel = enabledModels.includes(DEFAULT_MODEL) ? DEFAULT_MODEL : enabledModels[0] || DEFAULT_MODEL;
     return sendJson(res, 200, {
       models: enabledModels,
       allModels: usable.sort().map(id => ({ id, enabled: !disabled[id], reason: disabled[id]?.reason || "", source: callable.find(row => row.id === id)?.source || "" })),
-      details: enabledModels.map(id => ({ id, contextLimit: contextLimitFor(id) })),
+      // details 带上下文上限与思考档位：灵犀智析输入框按它渲染「深度」chip（不支持的模型不给选）
+      details: enabledModels.map(id => {
+        const capability = modelCapabilityFor(id, capabilityOverrides);
+        return { id, contextLimit: capability.contextLimit, reasoning: capability.reasoning, capabilityConfigured: capability.configured };
+      }),
       default: defaultModel,
       notice
     });
@@ -1923,11 +1980,30 @@ async function handleRequest(req, res) {
     const modelId = decodeURIComponent(modelConfigMatch[1]);
     const config = loadModelConfig();
     config.disabled = config.disabled || {};
+    config.models = config.models || {};
     const body = await readBody(req);
-    if (body.enabled) delete config.disabled[modelId];
-    else config.disabled[modelId] = { reason: String(body.reason || "").slice(0, 200), disabledAt: new Date().toISOString() };
+    // enabled 只在显式传入时改启停：能力覆盖（上下文 / 思考档位）也走这个接口，
+    // 不能因为请求里没有 enabled 就把模型顺手停掉
+    if (body.enabled !== undefined) {
+      if (body.enabled) delete config.disabled[modelId];
+      else config.disabled[modelId] = { reason: String(body.reason || "").slice(0, 200), disabledAt: new Date().toISOString() };
+    }
+    if (body.contextLimit !== undefined || body.reasoning !== undefined) {
+      const current = config.models[modelId] && typeof config.models[modelId] === "object" ? config.models[modelId] : {};
+      const next = { ...current };
+      if (body.contextLimit !== undefined) next.contextLimit = normalizeContextLimit(body.contextLimit, contextLimitFor(modelId));
+      if (body.reasoning !== undefined) next.reasoning = normalizeReasoning(body.reasoning, reasoningCapabilityFor(modelId));
+      config.models[modelId] = next;
+    }
     saveModelConfig(config);
-    return sendJson(res, 200, { model: modelId, enabled: !config.disabled[modelId] });
+    const capability = modelCapabilityFor(modelId, config.models);
+    return sendJson(res, 200, {
+      model: modelId,
+      enabled: !config.disabled[modelId],
+      contextLimit: capability.contextLimit,
+      reasoning: capability.reasoning,
+      capabilityConfigured: capability.configured
+    });
   }
 
   if (req.method === "GET" && url.pathname === "/v1/catalog") {
@@ -2063,7 +2139,9 @@ async function handleRequest(req, res) {
       const heartbeat = setInterval(() => res.write(": hb\n\n"), 5000);
       send({ started: true, scenario: scene.label, model });
       const reasoningOptions = {};
-      if (["low", "medium", "high"].includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
+      // 只在该模型声明支持的档位里透传 reasoning_effort：不支持的模型直接不带这个参数
+      const modelReasoning = modelCapabilityFor(model).reasoning;
+      if (REASONING_LEVELS.includes(reasoningEffort) && modelReasoning.levels.includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
       if (Number.isFinite(maxTokens) && maxTokens >= 256) reasoningOptions.max_completion_tokens = Math.floor(maxTokens);
       let result = await relayChatStream(model, { messages, ...reasoningOptions }, evt => {
         if (evt.delta) send({ delta: evt.delta });
@@ -2095,7 +2173,8 @@ async function handleRequest(req, res) {
     }
 
     const reasoningOptions = {};
-    if (["low", "medium", "high"].includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
+    const modelReasoning = modelCapabilityFor(model).reasoning;
+    if (REASONING_LEVELS.includes(reasoningEffort) && modelReasoning.levels.includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
     if (Number.isFinite(maxTokens) && maxTokens >= 256) reasoningOptions.max_completion_tokens = Math.floor(maxTokens);
     const hasReasoningOptions = Object.keys(reasoningOptions).length > 0;
     try {

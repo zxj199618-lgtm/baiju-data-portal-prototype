@@ -515,6 +515,12 @@
 .portal-vue-ai-chip-model-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; }
 .portal-vue-ai-chip-model-select .el-select__wrapper::before { content: "模型"; margin-right: 5px; color: #1677ff; font-size: 12px; font-weight: 600; }
 .portal-vue-ai-chip-model-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }
+/* 思考深度 chip：只在该模型声明支持思考时出现（快速 / 标准 / 深度） */
+.portal-vue-ai-chip-reasoning-select { width: 150px; }
+.portal-vue-ai-chip-reasoning-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; }
+.portal-vue-ai-chip-reasoning-select .el-select__wrapper::before { content: "深度"; margin-right: 5px; color: #1677ff; font-size: 12px; font-weight: 600; }
+.portal-vue-ai-chip-reasoning-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }
+.portal-vue-ai-composer-limit { color: #98a2b3; font-size: 12px; white-space: nowrap; }
 .el-select-group__title { color: #8a94a6 !important; font-size: 12px !important; font-weight: 600 !important; }
 .portal-vue-ai-chip-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; min-height: 30px; }
 .portal-vue-ai-chip-select .el-select__wrapper.is-hovering, .portal-vue-ai-chip-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }

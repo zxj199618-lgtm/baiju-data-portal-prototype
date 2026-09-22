@@ -112,5 +112,13 @@ docker compose up -d --build        # 网关跑在 8787，页面与 API 同源�
   与灵犀智析下拉框，抬头计数只统计启用中的供应商；清单空了会说明是哪些供应商停用、隐藏了多少个模型、
   去哪里恢复（`GET /v1/model-config` 的 `hiddenProviders` 驱动空态与提示）。行内启停只提交 `{ enabled }`，
   不会被「模型清单为空」的校验挡住。
+- **模型能力（上下文 + 思考深度）**：「能选什么」按模型声明，「这次用哪档」由用户在灵犀智析输入框选。
+  列表页每行有「上下文」「思考深度」两列（`已配` / `推断` 标出值是手配还是按模型名推断），行内「能力」
+  可改上下文上限（32K…1M 或自定义）与思考档位（快速/标准/深度，一个都不勾 = 不支持思考）。
+  覆盖值存在 `DATA_DIR/model-config.json` 的 `models` 里，走 `PUT /v1/model-config/:id`（带 `enabled`
+  才改启停，只存能力不会把模型停掉）；`GET /v1/models` 的 `details` 会带上 `contextLimit` 与 `reasoning`。
+  灵犀智析只渲染该模型支持的档位（不支持的模型不显示「深度」），换模型时沿用用户上次的选择
+  （`localStorage.portalReasoningPref`），窗口大小只读显示、不摆 token 滑杆；网关侧还会按声明过滤
+  `reasoning_effort`（流式与非流式两条路径都过滤）。
 
 接口：`GET/POST /v1/providers`、`PUT/DELETE /v1/providers/:id`、`POST /v1/providers/test`、`POST /v1/providers/:id/refresh`。

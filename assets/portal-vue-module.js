@@ -1904,6 +1904,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                     <el-select v-model="model" size="small" filterable class="portal-vue-ai-chip-model-select" :loading="modelsLoading" :disabled="!models.length" placeholder="请选择" popper-class="portal-vue-ai-select-popper" @change="applyMaxModelSettings">
                       <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
                     </el-select>
+                    <el-select v-if="reasoningSupported" v-model="reasoning" size="small" class="portal-vue-ai-chip-reasoning-select" placeholder="思考深度" popper-class="portal-vue-ai-select-popper" @change="changeReasoning">
+                      <el-option v-for="item in reasoningChoices" :key="item.value" :label="item.label" :value="item.value"></el-option>
+                    </el-select>
+                    <span v-if="contextWindowLabel" class="portal-vue-ai-composer-limit">窗口 {{ contextWindowLabel }}</span>
                     <el-button type="primary" size="small" class="portal-vue-ai-composer-send" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
                   </div>
                 </div>
@@ -1971,9 +1975,12 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       sessions: analysisSessionsSeed.map(session => createAnalysisSession(session)),
       gatewayTables: [],
       reasoning: "high",
+      /** 用户上次手动选的思考档位（跨模型、跨刷新记住）；模型不支持时自动落到该模型默认档 */
+      reasoningPref: "",
       maxTokens: 1000000,
       defaultModel: "",
       modelLimits: {},
+      modelCaps: {},
       historyTimer: null,
       historyLastAt: 0,
       reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
@@ -2035,6 +2042,15 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           .map(item=>({key:item.key,label:(item.label||item.question)+"："+this.clarifyAnswers[item.key]}));
       },
       currentContextLimit(){return this.modelLimits[this.model]||1000000;},
+      /** 当前模型的思考档位：空数组 = 该模型不支持思考，输入框里不出现「深度」这一项 */
+      reasoningChoices(){
+        const cap=this.modelCaps[this.model];
+        const levels=(cap&&cap.reasoning&&cap.reasoning.levels)||[];
+        return MODEL_REASONING_CHOICES.filter(item=>levels.includes(item.value));
+      },
+      reasoningSupported(){return this.reasoningChoices.length>0;},
+      /** 上下文只读展示：模型窗口多大说清楚，但不给用户摆 token 滑杆 */
+      contextWindowLabel(){const limit=Number(this.currentContextLimit)||0;return limit?this.formatContextLimit(limit):"";},
       ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
       historySessions(){return this.sessions.filter(item=>item.status!=="进行中");},
       archivedReports(){refreshTick.value;return this.reports;},
@@ -2125,13 +2141,45 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.modelsLoading=true;
         try{
           const response=await fetch(`${analysisGatewayBase}/v1/models`);
-          if(response.ok){const data=await response.json();this.models=data.models||[];this.defaultModel=data.default||this.models[0]||"";if(!this.models.includes(this.model))this.model=this.defaultModel;this.modelLimits={};(data.details||[]).forEach(item=>{this.modelLimits[item.id]=item.contextLimit;});this.applyMaxModelSettings();}
+          if(response.ok){
+            const data=await response.json();
+            this.models=data.models||[];
+            this.defaultModel=data.default||this.models[0]||"";
+            if(!this.models.includes(this.model))this.model=this.defaultModel;
+            this.modelLimits={};
+            this.modelCaps={};
+            (data.details||[]).forEach(item=>{
+              this.modelLimits[item.id]=item.contextLimit;
+              this.modelCaps[item.id]={contextLimit:item.contextLimit,reasoning:item.reasoning||{levels:[],default:""},capabilityConfigured:Boolean(item.capabilityConfigured)};
+            });
+            this.applyMaxModelSettings();
+          }
         }catch(error){/* 网关未启动时保持空列表，界面显示提示 */}
         this.modelsLoading=false;
       },
+      /** 模型换了只改「默认」：上下文按该模型上限自动装填，思考档位沿用用户上次选的（不支持就落到该模型默认档） */
       applyMaxModelSettings(){
-        this.reasoning="high";
+        const cap=this.modelCaps[this.model]||{};
+        const levels=(cap.reasoning&&cap.reasoning.levels)||[];
+        const preferred=this.reasoningPref||this.readReasoningPref();
+        if(levels.length&&levels.includes(preferred))this.reasoning=preferred;
+        else this.reasoning=(cap.reasoning&&cap.reasoning.default)||levels[levels.length-1]||"";
         this.maxTokens=this.currentContextLimit;
+      },
+      readReasoningPref(){
+        try{return localStorage.getItem("portalReasoningPref")||"";}catch(error){return "";}
+      },
+      /** 用户手动选档：记住选择，下次提问 / 换回这个模型时都用它 */
+      changeReasoning(level){
+        if(!this.reasoningChoices.some(item=>item.value===level))return;
+        this.reasoning=level;
+        this.reasoningPref=level;
+        try{localStorage.setItem("portalReasoningPref",level);}catch(error){/* 隐私模式忽略 */}
+      },
+      formatContextLimit(limit){
+        const value=Number(limit)||0;
+        if(value>=1000000)return (value/1000000).toFixed(value%1000000?1:0)+"M";
+        return Math.round(value/1000)+"K";
       },
       changeTablePath(path){
         this.activeTable=Array.isArray(path)?path[1]||"":"";
@@ -2774,6 +2822,23 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   ];
   const MODEL_AUTH_LABELS = { bearer: "Bearer Token", "x-api-key": "x-api-key 头", "x-goog-api-key": "x-goog-api-key 头", "api-key-header": "api-key 头", query: "URL 查询参数", "custom-header": "自定义 Header" };
   const MODEL_AUTH_KEY_DEFAULTS = { "x-api-key": "x-api-key", "x-goog-api-key": "x-goog-api-key", "api-key-header": "api-key", query: "key", "custom-header": "X-Api-Key" };
+  /* 模型能力：上下文上限 + 思考深度档位。跟网关的 REASONING_LEVELS / MODEL_REASONING_RULES 对齐，
+     配置页按模型覆盖，没配置的用网关推断值（行里标「推断」）。 */
+  const MODEL_CONTEXT_CHOICES = [
+    { value: 32000, label: "32K" },
+    { value: 64000, label: "64K" },
+    { value: 128000, label: "128K" },
+    { value: 200000, label: "200K" },
+    { value: 256000, label: "256K" },
+    { value: 400000, label: "400K" },
+    { value: 1000000, label: "1M" }
+  ];
+  const MODEL_REASONING_CHOICES = [
+    { value: "low", label: "快速" },
+    { value: "medium", label: "标准" },
+    { value: "high", label: "深度" }
+  ];
+  const MODEL_REASONING_LABELS = MODEL_REASONING_CHOICES.reduce((map, item) => Object.assign(map, { [item.value]: item.label }), {});
 
   const ModelConfigApp = {
     template: `
@@ -2807,11 +2872,38 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </el-table-column>
             <el-table-column label="协议" width="150"><template #default="scope">{{ scope.row.protocolLabel }}</template></el-table-column>
             <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="scope.row.enabled ? 'success' : 'info'" effect="light">{{ scope.row.enabled ? "可用" : "已禁用" }}</el-tag></template></el-table-column>
+            <el-table-column label="上下文" width="120"><template #default="scope"><span>{{ contextLabel(scope.row.contextLimit) }}</span><el-tag v-if="scope.row.capabilityConfigured" size="small" type="success" effect="plain" style="margin-left:6px">已配</el-tag><el-tag v-else size="small" type="info" effect="plain" style="margin-left:6px">推断</el-tag></template></el-table-column>
+            <el-table-column label="思考深度" min-width="180"><template #default="scope"><span v-if="scope.row.reasoning && scope.row.reasoning.levels.length">{{ reasoningText(scope.row.reasoning) }}</span><span v-else class="portal-vue-muted">不支持</span></template></el-table-column>
             <el-table-column label="禁用时间" width="180"><template #default="scope">{{ scope.row.disabledAt ? scope.row.disabledAt.slice(0, 16).replace("T", " ") : "—" }}</template></el-table-column>
-            <el-table-column label="操作" width="130" fixed="right"><template #default="scope"><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch></template></el-table-column>
+            <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" :disabled="!canEdit('模型配置')" @click="openCapability(scope.row)">能力</el-button><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch></div></template></el-table-column>
           </el-table>
-          <div class="portal-vue-muted" style="margin-top:12px">模型按「供应商优先」路由：同名模型按供应商列表顺序取第一个；供应商（含内置中转站）统一在「供应商配置」里维护，随改随生效。</div>
+          <div class="portal-vue-muted" style="margin-top:12px">模型按「供应商优先」路由：同名模型按供应商列表顺序取第一个；供应商（含内置中转站）统一在「供应商配置」里维护，随改随生效。「上下文」与「思考深度」是每个模型的可用能力，点行内「能力」按模型调；灵犀智析只让用户选该模型声明支持的思考档位。</div>
         </section>
+
+        <el-dialog v-model="capabilityVisible" :title="'模型能力 · ' + (capabilityModel?.id || '')" width="560px">
+          <el-form class="portal-vue-dialog-form" label-position="top">
+            <el-form-item label="上下文上限">
+              <el-select v-model="capabilityForm.contextLimit" filterable allow-create default-first-option style="width:100%">
+                <el-option v-for="item in contextOptions" :key="item.value" :label="item.label" :value="item.value"></el-option>
+              </el-select>
+              <span class="portal-vue-muted" style="font-size:12px">灵犀智析按这个上限自动装填证据，不给用户摆 token 滑杆；正常按厂商公开规格填即可</span>
+            </el-form-item>
+            <el-form-item label="支持的思考深度">
+              <el-checkbox-group v-model="capabilityForm.levels">
+                <el-checkbox v-for="item in reasoningChoices" :key="item.value" :value="item.value">{{ item.label }}</el-checkbox>
+              </el-checkbox-group>
+              <span class="portal-vue-muted" style="font-size:12px">一个都不勾 = 不支持思考，灵犀智析输入框里不会出现「深度」这一项</span>
+            </el-form-item>
+            <el-form-item label="默认档位">
+              <el-select v-model="capabilityForm.default" :disabled="!capabilityForm.levels.length" style="width:100%">
+                <el-option v-for="item in reasoningChoices.filter(entry => capabilityForm.levels.includes(entry.value))" :key="item.value" :label="item.label" :value="item.value"></el-option>
+              </el-select>
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="capabilityVisible=false">取消</el-button><el-button type="primary" :loading="capabilitySaving" :disabled="!canEdit('模型配置')" @click="saveCapability">保存</el-button></div>
+          </template>
+        </el-dialog>
 
         <el-drawer v-model="providerDrawer" :title="viewMode === 'form' ? (editingId ? '编辑供应商 · ' + form.name : '接入供应商') : '供应商配置'" :size="viewMode === 'form' ? '620px' : 'min(1200px, 94vw)'" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
           <div v-if="viewMode === 'list'" class="portal-vue-provider-list">
@@ -2915,7 +3007,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         </el-drawer>
       </el-config-provider>
     `,
-    data:()=>({rows:[],providers:[],hiddenProviders:[],protocols:MODEL_PROTOCOL_FALLBACK,notice:"",keyword:"",statusFilter:"all",loading:false,providerDrawer:false,viewMode:"list",editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",keysText:"",advancedOpen:false,form:{}}),
+    data:()=>({rows:[],providers:[],hiddenProviders:[],protocols:MODEL_PROTOCOL_FALLBACK,notice:"",keyword:"",statusFilter:"all",loading:false,providerDrawer:false,viewMode:"list",editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",keysText:"",advancedOpen:false,form:{},capabilityVisible:false,capabilityModel:null,capabilitySaving:false,capabilityForm:{contextLimit:128000,levels:[],default:""},contextOptions:MODEL_CONTEXT_CHOICES,reasoningChoices:MODEL_REASONING_CHOICES}),
     computed:{
       /** 停用供应商的模型不进 rows（网关已过滤）：可用清单只统计启用中的供应商 */
       enabledProviders(){return this.providers.filter(item=>item.enabled!==false);},
@@ -3104,6 +3196,46 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         row.enabled=value;
         row.disabledAt=value?"":new Date().toISOString();
         notify(`模型「${row.id}」已${value?"启用":"禁用"}`);
+      },
+      /** 上下文上限：按 K 展示，满 100 万用 M */
+      contextLabel(limit){
+        const value=Number(limit)||0;
+        if(!value)return "—";
+        if(value>=1000000)return (value/1000000).toFixed(value%1000000?1:0)+"M";
+        return Math.round(value/1000)+"K";
+      },
+      reasoningText(reasoning){
+        const levels=(reasoning&&reasoning.levels)||[];
+        if(!levels.length)return "不支持";
+        return levels.map(level=>MODEL_REASONING_LABELS[level]||level).join(" / ")+(reasoning.default?`　默认${MODEL_REASONING_LABELS[reasoning.default]||reasoning.default}`:"");
+      },
+      openCapability(row){
+        this.capabilityModel=row;
+        const levels=[...((row.reasoning&&row.reasoning.levels)||[])];
+        this.capabilityForm={contextLimit:row.contextLimit||128000,levels,default:(row.reasoning&&row.reasoning.default)||levels[levels.length-1]||""};
+        this.capabilityVisible=true;
+      },
+      /** 按模型写回上下文上限 + 思考档位：存 model-config.json，灵犀智析按它渲染「深度」选项 */
+      async saveCapability(){
+        const row=this.capabilityModel;
+        if(!row)return;
+        const form=this.capabilityForm;
+        const levels=MODEL_REASONING_CHOICES.map(item=>item.value).filter(level=>form.levels.includes(level));
+        const contextLimit=Number(form.contextLimit);
+        if(!Number.isFinite(contextLimit)||contextLimit<1024)return ep.ElMessage.warning("上下文上限请填不小于 1024 的数字（如 128000）");
+        this.capabilitySaving=true;
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/model-config/${encodeURIComponent(row.id)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({contextLimit,reasoning:{levels,default:levels.includes(form.default)?form.default:(levels[levels.length-1]||"")}})});
+          const data=await response.json().catch(()=>({}));
+          if(!response.ok){ep.ElMessage.error(data.error||"保存失败，请确认网关已启动");return;}
+          row.contextLimit=data.contextLimit;
+          row.reasoning=data.reasoning;
+          row.capabilityConfigured=true;
+          this.capabilityVisible=false;
+          const names=(data.reasoning?.levels||[]).map(level=>MODEL_REASONING_LABELS[level]||level);
+          notify(`模型「${row.id}」能力已更新：上下文 ${this.contextLabel(data.contextLimit)}${names.length?` · 思考深度 ${names.join("/")}`:" · 不支持思考深度"}`);
+        }catch(error){ep.ElMessage.error("保存失败，请确认网关已启动");}
+        this.capabilitySaving=false;
       },
       async putConfig(modelId,body){
         try{

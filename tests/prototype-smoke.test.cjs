@@ -311,7 +311,10 @@ assert(portalVue.includes("SkillManagementApp") && portalVue.includes("提示词
 assert(portalVue.includes("grayUsers") && portalVue.includes("灰度用户") && portalVue.includes("toggleEnabled") && portalVue.includes("skillStatus"), "Skill 灰度应按系统内用户配置（不再按流量），并支持上下线开关");
 assert("testVisible" in portalVue.match(/SkillManagementApp[\s\S]{0,200}/g) === false || !portalVue.includes("沙箱试跑"), "Skill 配置不应再包含沙箱试跑");
 assert(portalVue.includes("skillScenarios") && portalVue.includes("工作台展示") && portalVue.includes("openEdit") && portalVue.includes("saveAll"), "工作台场景卡片应由 Skill 配置驱动（icon/标题/描述/排序），操作列只保留单个编辑按钮");
-assert(!portalVue.includes("openCapability(") && !portalVue.includes("openDisplay(") && !portalVue.includes("openPrompt(") && !portalVue.includes("openGray(") && !portalVue.includes("openVersions("), "Skill 配置不应保留旧的五个独立入口按钮");
+// 旧入口断言只针对 Skill 组件：模型配置新增的「能力」抽屉也用了 openCapability 这个名字，
+// 全文件字符串匹配会误伤，因此收敛到 SkillManagementApp 组件块内。
+const skillComponentBlock = (portalVue.match(/const SkillManagementApp = \{[\s\S]*?\n  \};\n/) || [""])[0];
+assert(skillComponentBlock && !skillComponentBlock.includes("openCapability(") && !skillComponentBlock.includes("openDisplay(") && !skillComponentBlock.includes("openPrompt(") && !skillComponentBlock.includes("openGray(") && !skillComponentBlock.includes("openVersions("), "Skill 配置不应保留旧的五个独立入口按钮");
 assert(portalVue.includes('id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100') === false || portalVue.includes('scenarioKey: "single"'), "Skill 注册表应包含工作台展示元数据");
 assert(!portalVue.includes('label="来源包"') && !portalVue.includes("搜索 Skill 名称、来源"), "Skill 列表应去掉「来源包」列，搜索也不再按来源匹配（此断言防止回退）");
 assert(portalVue.includes('@click="openCreate">＋ 新增 Skill') && !portalVue.includes("上传 Skill</el-button>") && !portalVue.includes("onUploadFile") && !portalVue.includes("Skill 以 ZIP 包"), "右上角应改为「新增 Skill」手动新增，移除 ZIP 上传按钮与上传说明");
@@ -377,6 +380,21 @@ assert(gatewaySource.includes("if (!updated.models.length && body.models !== und
 assert(!portalVue.includes("供应商已停用") && !portalVue.includes("providerEnabled"), "停用供应商的模型不显示在清单里，不应再保留「供应商已停用」行内标签（此断言防止回退成只打标签不隐藏）");
 assert(portalVue.includes("enabledProviders(){return this.providers.filter(item=>item.enabled!==false);}") && portalVue.includes("共 {{ modelRows.length }} 个模型，来自 {{ enabledProviders.length }} 个启用中的供应商"), "模型清单抬头只能统计启用中的供应商：停用后要变成「共 0 个模型，来自 0 个启用中的供应商」");
 assert(portalVue.includes(':empty-text="emptyText"') && portalVue.includes("emptyText(){") && portalVue.includes("个模型已隐藏：到右上角「供应商配置」重新启用即恢复") && portalVue.includes("this.hiddenProviders=Array.isArray(data.hiddenProviders)?data.hiddenProviders:[];"), "清单空了要说明白：被停用供应商的模型已隐藏 + 去哪里恢复，空态文案由网关的 hiddenProviders 驱动");
+/* 第十五轮：模型能力（上下文上限 + 思考深度档位）——「能选什么」在配置侧按模型声明，
+ * 「这次用哪档」在灵犀智析输入框选；上下文只读展示，不给 token 滑杆。
+ * 用户需求原文：「这些模型 上下文长度，思考深度我希望给用户选择，你看是放在灵犀智析输入框，还是在配置的时候就确定下来」（经确认：两侧一起做）。 */
+assert(gatewaySource.includes('const REASONING_LEVELS = ["low", "medium", "high"]') && gatewaySource.includes("const MODEL_REASONING_RULES") && gatewaySource.includes("function reasoningCapabilityFor(") && gatewaySource.includes("function modelCapabilityFor("), "网关要提供模型能力：思考档位枚举 + 按模型名推断 + 可覆盖的单一入口");
+assert(gatewaySource.includes("contextLimit: capability.contextLimit, reasoning: capability.reasoning, capabilityConfigured: capability.configured") && gatewaySource.includes("return { id, contextLimit: capability.contextLimit, reasoning: capability.reasoning, capabilityConfigured: capability.configured };"), "模型清单与 /v1/models details 都要带上上下文上限与思考档位（灵犀智析按它渲染选项）");
+assert(gatewaySource.includes("if (body.enabled !== undefined)") && gatewaySource.includes("if (body.contextLimit !== undefined || body.reasoning !== undefined)") && gatewaySource.includes("不能因为请求里没有 enabled 就把模型顺手停掉"), "能力覆盖走同一个 PUT：只在显式传 enabled 时才改启停，不能因为保存能力把模型停掉");
+assert((gatewaySource.match(/modelReasoning.levels.includes\(reasoningEffort\)/g) || []).length === 2 && gatewaySource.includes("只在该模型声明支持的档位里透传 reasoning_effort"), "流式与非流式两条调用都要按模型声明的档位过滤 reasoning_effort");
+assert(gatewaySource.includes("capabilityOverrides") && gatewaySource.includes("const capability = modelCapabilityFor(id, capabilityOverrides);"), "按模型覆盖值要一次性读出后逐行使用，不能每行读盘");
+assert(portalVue.includes("contextLabel(limit){") && portalVue.includes("reasoningText(reasoning){") && portalVue.includes('label="上下文" width="120"') && portalVue.includes('label="思考深度" min-width="180"'), "模型总表要按模型展示「上下文」「思考深度」两列（支持档位 + 默认档）");
+assert(portalVue.includes('@click="openCapability(scope.row)">能力</el-button>') && portalVue.includes("async saveCapability(){") && portalVue.includes("v1/model-config/${encodeURIComponent(row.id)}") && portalVue.includes("MODEL_CONTEXT_CHOICES") && portalVue.includes("MODEL_REASONING_CHOICES"), "行内「能力」要能按模型改上下文上限与思考档位并写回网关");
+assert(portalVue.includes("this.modelCaps[item.id]={contextLimit:item.contextLimit,reasoning:item.reasoning||{levels:[],default:\"\"}") && portalVue.includes("reasoningSupported(){return this.reasoningChoices.length>0;}"), "灵犀智析要按 /v1/models details 存下模型能力，并据此决定是否显示「深度」");
+assert(portalVue.includes("reasoningChoices(){") && portalVue.includes("changeReasoning(level){") && portalVue.includes("localStorage.setItem(\"portalReasoningPref\",level)") && portalVue.includes("readReasoningPref(){"), "思考深度 chip 的档位只来自当前模型声明，并记住用户上次选择");
+assert(portalVue.includes('class="portal-vue-ai-chip-reasoning-select"') && portalVue.includes("contextWindowLabel(){") && portalVue.includes("窗口 {{ contextWindowLabel }}"), "输入框要有「深度」chip 与只读的窗口提示（不摆 token 滑杆）");
+assert(!portalVue.includes('this.reasoning="high";') && !portalVue.includes("applyMaxModelSettings(){\n        this.reasoning=\"high\";"), "思考档位不能再硬编码为 high（此断言防止回退：档位要来自模型能力与用户选择）");
+assert(portalCss.includes(".portal-vue-ai-chip-reasoning-select") && portalCss.includes('content: "深度"'), "「深度」chip 沿用输入框胶囊样式（::before 前缀「深度」）");
 assert(portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商配置入口");
 assert(portalBridge.includes("内置中转站 + 自配供应商") || portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商接入与模型开关");
 assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCascadeOptions") && portalVue.includes("activeTablePath") && portalVue.includes("changeTablePath") && portalVue.includes("<el-cascader"), "数据表选择应使用单个业务线到数据表的级联下拉");
@@ -452,7 +470,7 @@ assert(portalVue.includes("clarifyAnswers") && portalVue.includes("msg.confirms"
 assert(portalVue.includes('questions: [') && portalVue.includes("timeRange") && portalVue.includes("granularity"), "澄清题目应支持配置多问");
 assert(portalVue.includes("存量") && portalVue.includes("权益") && portalVue.includes("保险") && portalVue.includes("短剧") && portalVue.includes("其他"), "业务线咨询应提供完整选项");
 assert(portalVue.includes("assetCandidates") && portalVue.includes("businessLine") && gatewaySource.includes("assetCandidates") && gatewaySource.includes("业务线范围"), "选择业务线后应把候选数据资产范围交给 Skill");
-assert(portalVue.includes("ability") === false || (portalVue.includes("自动向用户追问") && !portalVue.includes("资产检索范围") && !portalVue.includes("回答契约")), "Skill 编辑页应精简为标题/图标/描述/排序/提示词/上线状态，澄清改为模型自动追问");
+assert(skillComponentBlock.includes("ability") === false || (skillComponentBlock.includes("自动向用户追问") && !skillComponentBlock.includes("资产检索范围") && !skillComponentBlock.includes("回答契约")), "Skill 编辑页应精简为标题/图标/描述/排序/提示词/上线状态，澄清改为模型自动追问");
 assert(portalVue.includes("openVersionManage") && portalVue.includes("openNewVersion") && portalVue.includes("saveGrayDraft") && portalVue.includes("publishVersion") && portalVue.includes("versionStatusName") && portalVue.includes("回滚到此版本"), "Skill 版本管理应支持新增/未发布编辑/灰度/发版/查看历史/回滚全流程");
 /* 第十二轮：「新增版本」从版本管理里搬到列表行；表单样式与「新增 Skill」统一，抽屉不再叠抽屉 */
 assert(portalVue.includes('@click="openNewVersion(scope.row)">新增版本') && portalVue.includes('label="操作" width="170"'), "Skill 列表行应直接提供「新增版本」入口");
