@@ -1064,6 +1064,8 @@ function saveModelConfig(config) {
  */
 const PROVIDERS_FILE = path.join(DATA_DIR, "providers.json");
 const RELAY_PROVIDER_ID = "prov-relay";
+/** 单个供应商最多保存多少个模型：中转站上游有 200+ 个模型，上限不能卡在 200，否则会静默丢模型 */
+const MAX_PROVIDER_MODELS = 1000;
 const PROVIDER_PROTOCOLS = {
   "openai-compatible": { label: "OpenAI 兼容", callable: true },
   "ark": { label: "火山方舟 ARK", callable: true },
@@ -1142,7 +1144,7 @@ function normalizeProvider(input, base = {}) {
     defaultModel: String(pick("defaultModel")).trim(),
     note: String(pick("note")).trim(),
     enabled: input.enabled === undefined ? base.enabled !== false : input.enabled !== false,
-    models: (Array.isArray(input.models) ? input.models : base.models || []).map(id => String(id).trim()).filter(Boolean).slice(0, 200),
+    models: (Array.isArray(input.models) ? input.models : base.models || []).map(id => String(id).trim()).filter(Boolean).slice(0, MAX_PROVIDER_MODELS),
     extraHeaders: (Array.isArray(input.extraHeaders) ? input.extraHeaders : base.extraHeaders || [])
       .map(item => ({ name: String(item?.name || "").trim(), value: String(item?.value ?? "") }))
       .filter(item => item.name).slice(0, 20),
@@ -1306,7 +1308,7 @@ async function ensureRelayProvider() {
     const list = loadProviders();
     const target = list.find(item => item.id === RELAY_PROVIDER_ID);
     if (target) {
-      target.models = result.models.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id)).slice(0, 200);
+      target.models = result.models.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id)).slice(0, MAX_PROVIDER_MODELS);
       target.health = { ok: true, status: 200, message: result.message, at: new Date().toISOString(), latencyMs: result.latencyMs };
       saveProviders(list);
     }
@@ -1328,10 +1330,28 @@ function scheduleProviderAutoRefresh() {
     const list = loadProviders();
     const target = list.find(item => item.id === provider.id);
     if (!target) return;
-    target.models = result.models.slice(0, 200);
+    target.models = result.models.slice(0, MAX_PROVIDER_MODELS);
     target.health = { ok: true, status: 200, message: result.message, at: new Date().toISOString(), latencyMs: result.latencyMs };
     saveProviders(list);
   })).catch(() => { /* 后台补拉失败不影响主流程 */ });
+}
+
+/** 启动时把内置中转站的模型清单同步一次：上游增删模型、或历史版本截断过清单，都能自愈 */
+async function syncBuiltinRelayModels() {
+  const provider = loadProviders().find(item => item.id === RELAY_PROVIDER_ID);
+  if (!provider || provider.enabled === false) return;
+  const result = await probeProvider(provider).catch(() => null);
+  if (!result?.ok) return;
+  const models = result.models.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id)).slice(0, MAX_PROVIDER_MODELS);
+  const list = loadProviders();
+  const target = list.find(item => item.id === RELAY_PROVIDER_ID);
+  if (!target) return;
+  const changed = models.length !== (target.models || []).length;
+  target.models = models;
+  target.health = { ok: true, status: 200, message: result.message, at: new Date().toISOString(), latencyMs: result.latencyMs };
+  target.updatedAt = new Date().toISOString();
+  saveProviders(list);
+  console.log(`[providers] 内置中转站模型清单已同步：${models.length} 个${changed ? "（数量有变化）" : ""}`);
 }
 
 /** 汇总所有供应商的模型清单（含来源、可调用性与启停状态） */
@@ -2125,4 +2145,6 @@ loadSampleData();
 installBuiltinPackages();
 server.listen(PORT, () => console.log(`观星台分析网关已启动: http://localhost:${PORT}（数据目录 ${DATA_DIR}，skill 运行时已就绪）`));
 // 首次启动把环境变量里的中转站迁移成普通供应商记录；之后一切都走「供应商配置」
-ensureRelayProvider().catch(error => console.warn("[providers] 内置中转站迁移失败：", error && error.message ? error.message : error));
+ensureRelayProvider()
+  .then(() => syncBuiltinRelayModels())
+  .catch(error => console.warn("[providers] 内置中转站初始化失败：", error && error.message ? error.message : error));
