@@ -842,3 +842,48 @@
 .portal-vue-provider-advanced { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; }
 .portal-vue-provider-advanced > span { font-size: 12px; line-height: 1.5; }
 .portal-vue-provider-hints { display: grid; gap: 2px; font-size: 12px; color: #8a94a6; line-height: 1.6; }
+.portal-vue-split-list { display: grid; gap: 10px; margin-top: 14px; }
+.portal-vue-split-row { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 10px; }
+
+/* ===== 大数据工具箱：工具总览卡片 + 工具页标识 ===== */
+.portal-vue-toolbox { padding: 18px 22px 24px; }
+.portal-vue-toolbox-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.portal-vue-tool-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.portal-vue-tool-card { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.portal-vue-tool-card:hover, .portal-vue-tool-card:focus-visible { border-color: var(--blue, #0066FF); box-shadow: 0 6px 18px rgba(0, 102, 255, .12); transform: translateY(-1px); outline: none; }
+.portal-vue-tool-card-icon { width: 34px; height: 34px; flex: 0 0 34px; }
+.portal-vue-tool-card-main { flex: 1 1 auto; min-width: 0; }
+.portal-vue-tool-card-main strong { display: block; font-size: 15px; color: #1f2937; }
+.portal-vue-tool-card-main p { margin: 6px 0 0; font-size: 12px; line-height: 1.6; color: #8a94a6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.portal-vue-tool-card-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: 0 0 auto; }
+.portal-vue-tool-card-go { font-size: 12px; color: #0066FF; }
+.portal-vue-tool-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 16px 20px 0; }
+
+/* ===== 站内通知：顶栏铃铛 + 右侧抽屉列表 ===== */
+.portal-vue-notice { position: relative; flex: 0 0 auto; width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; cursor: pointer; }
+.portal-vue-notice:hover { background: #f1f6ff; }
+.portal-vue-notice-icon { font-size: 17px; line-height: 1; }
+.portal-vue-notice-badge { position: absolute; top: 1px; right: 0; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #f5222d; color: #fff; font-size: 11px; line-height: 16px; text-align: center; }
+.portal-vue-notice-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid #eef1f6; }
+.portal-vue-notice-list { display: grid; gap: 10px; margin-top: 12px; }
+.portal-vue-notice-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid #eef1f6; border-radius: 10px; background: #fbfcfe; cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease; }
+.portal-vue-notice-item:hover { border-color: #cfe0ff; box-shadow: 0 4px 12px rgba(0, 102, 255, .08); }
+.portal-vue-notice-item.unread { background: #f4f8ff; border-color: #d6e6ff; }
+.portal-vue-notice-main { flex: 1 1 auto; min-width: 0; }
+.portal-vue-notice-main strong { display: block; font-size: 13px; color: #1f2937; }
+.portal-vue-notice-main p { margin: 5px 0 0; font-size: 12px; line-height: 1.6; color: #667085; }
+.portal-vue-notice-time { display: block; margin-top: 6px; font-size: 11px; color: #98a2b3; }
+.portal-vue-notice-go { flex: 0 0 auto; font-size: 12px; color: #0066FF; white-space: nowrap; }
+
+/* ===== 业务工具箱：工具分步区块 / 校验报告 / 待拉取批次 ===== */
+.portal-vue-tool-section { padding: 14px 0 18px; border-top: 1px solid #eef1f6; }
+.portal-vue-tool-section:first-child { border-top: 0; padding-top: 4px; }
+.portal-vue-tool-section-head { margin-bottom: 12px; font-size: 14px; font-weight: 650; color: #1f2937; }
+.portal-vue-tool-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.portal-vue-form-row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.portal-vue-preview { margin-top: 14px; max-height: 240px; overflow: auto; white-space: pre; background: #f6f7f9; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; font-size: 12px; line-height: 1.7; color: #475467; }
+.portal-vue-pending-panel { border: 1px solid #ffe0b2; background: #fffaf0; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+.portal-vue-pending-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.portal-vue-pending-head > div { display: flex; align-items: baseline; gap: 10px; }
+.portal-vue-diff-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.portal-vue-diff-tag { margin-right: 4px; }

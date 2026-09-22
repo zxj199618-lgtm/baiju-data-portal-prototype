@@ -28,6 +28,16 @@ const imagePaths = [
   "assets/nav-system-active.svg",
   "assets/nav-ai-default.svg",
   "assets/nav-ai-active.svg",
+  // 大数据工具箱：一级图标 + 每个工具卡片/页签用的区分图标
+  "assets/nav-toolbox-default.svg",
+  "assets/nav-toolbox-active.svg",
+  "assets/tool-backfill.svg",
+  "assets/tool-compare.svg",
+  "assets/tool-env.svg",
+  "assets/nav-toolbox-biz-default.svg",
+  "assets/nav-toolbox-biz-active.svg",
+  "assets/tool-audience.svg",
+  "assets/tool-drama-account.svg",
   "assets/home-hero.png"
 ];
 

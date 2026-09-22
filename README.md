@@ -101,7 +101,12 @@ docker compose up -d --build        # 网关跑在 8787，页面与 API 同源�
   自建网关要特殊 header 时到「高级设置」里覆盖。
 - **常见 Key 类型**：`Authorization: Bearer`、`x-api-key`（自动补 `anthropic-version`）、`x-goog-api-key`、
   `api-key`（Azure，可填 api-version）、URL 查询参数、自定义 Header。
-- **多 Key 轮换**：API Key 每行一个，最多 10 个；按「该模型上次成功的 Key」优先重试。
+- **一个 Key 一条供应商**：环境变量里多个 `RELAY_API_KEY` 时，首次迁移会按 Key 拆成多条记录
+  （「内置中转站 · 1/2/3」），每条只带自己的 Key 与自己的模型清单——公司中转站的多个 Key 往往对应
+  不同厂商（DeepSeek / GPT / 百炼），合成一条会把不同厂商的模型混在一起、也没法分别命名与停用。
+- **一键拆分**：已经是一条多 Key 的供应商，在「供应商配置」列表里点「拆分 Key」，
+  逐个 Key 命名后即拆成多条，各自拉取模型清单与连通性；模型开关按模型名保留。
+- **多 Key 轮换**（同一账号的备用 Key）：API Key 每行一个，最多 10 个；按「该模型上次成功的 Key」优先重试。
 - **拉取模型 + 连通性测试**：按协议请求 `{base}/models`（Anthropic 走 `/v1/models?limit=1000`、Gemini 走 `/v1beta/models`），
   失败原因按 401/403、404/405、429、5xx 分别提示，不会把「鉴权失败」误报成「没有模型」；
   模型清单为空的供应商会在后台自动补拉一次。
