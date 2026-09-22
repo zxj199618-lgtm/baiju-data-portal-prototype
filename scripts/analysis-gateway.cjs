@@ -1156,7 +1156,7 @@ function maskSecret(value) {
 
 /** 上游（中转站/供应商）会返回图像、语音、蒸馏等不该出现在分析工作台的模型：
  *  只在「自动拉取」的路径统一过滤，用户手填的模型 ID 不受影响。 */
-const UNUSABLE_MODEL_RE = /image|audio|realtime|vision|-distill-|codex-auto/;
+const UNUSABLE_MODEL_RE = /image|audio|realtime|vision|-distill-|codex-auto|embedding|seedance|seedream|wan2|hitem3d|hyper3d|tts|asr|ocr|rerank|moderation/;
 function filterUsableModels(models) {
   return (Array.isArray(models) ? models : []).filter(id => !UNUSABLE_MODEL_RE.test(String(id))).slice(0, MAX_PROVIDER_MODELS);
 }
