@@ -1410,8 +1410,9 @@ function scheduleProviderAutoRefresh() {
 async function syncBuiltinRelayModels() {
   const builtins = loadProviders().filter(item => isBuiltinProvider(item) && item.enabled !== false);
   for (const provider of builtins) {
-    const key = providerKeys(provider)[0];
-    const result = await probeProviderKey(provider, key).catch(() => null);
+    // 还没拆分的记录可能有多个 Key（同一中转站的多个账号/厂商），必须合并探测，
+    // 否则同步一次就把其它 Key 的模型冲掉（线上实测：265 → 9）。
+    const result = await probeProvider(provider).catch(() => null);
     if (!result?.ok) continue;
     const models = filterUsableModels(result.models);
     const list = loadProviders();
