@@ -833,3 +833,6 @@
 .portal-vue-provider-list-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .portal-vue-provider-list-bar > span { font-size: 12.5px; line-height: 1.6; }
 .portal-vue-key-state em { margin-left: 6px; font-style: normal; color: #8a94a6; font-size: 12px; }
+.portal-vue-provider-advanced { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; }
+.portal-vue-provider-advanced > span { font-size: 12px; line-height: 1.5; }
+.portal-vue-provider-hints { display: grid; gap: 2px; font-size: 12px; color: #8a94a6; line-height: 1.6; }

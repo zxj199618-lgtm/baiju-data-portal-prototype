@@ -342,7 +342,17 @@ assert(gatewaySource.includes("headers[name || \"X-Api-Key\"] = key") && gateway
 assert(gatewaySource.includes("function routeForModel(") && (gatewaySource.match(/const route = routeForModel\(model\);/g) || []).length === 2 && gatewaySource.includes("for (const target of route.targets)") && gatewaySource.includes("if (!route) return { ok: false, status: 404"), "分析调用应按模型路由到对应供应商（relayChat / relayChatStream 都走 route.targets）");
 assert(gatewaySource.includes("Boolean(PROVIDER_PROTOCOLS[provider.protocol]?.callable)") && gatewaySource.includes("adaptable") && gatewaySource.includes('"gemini": { label: "Google Gemini", callable: false }'), "非 OpenAI 兼容协议只登记不参与分析，并在清单里标注");
 assert(gatewaySource.includes('"Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"'), "CORS 需放行 DELETE，否则浏览器里删不掉供应商");
-assert(portalVue.includes("MODEL_PROVIDER_PRESETS") && portalVue.includes('id: "deepseek"') && portalVue.includes('id: "ark"') && portalVue.includes('id: "anthropic"') && portalVue.includes('id: "gemini"') && portalVue.includes('id: "azure"') && portalVue.includes('id: "custom"'), "模型配置应提供 DeepSeek / ARK / Anthropic / Gemini / Azure / 自定义等预设模板");
+assert(portalVue.includes("MODEL_PROVIDER_PRESETS") && ["deepseek","kimi","glm","qwen","ark","openai","ollama","anthropic","custom"].every(id => portalVue.includes(`id: "${id}"`)), "模型配置应提供 DeepSeek / Kimi / GLM / 百炼 Qwen / ARK / OpenAI / 本地 Ollama / Anthropic / 自定义 预设模板");
+/* 第十三轮：协议只暴露「OpenAI 兼容 + Anthropic 原生」两类，Key 类型不再让用户选（按协议自动推断，收进高级设置） */
+assert(portalVue.includes('const MODEL_PROTOCOL_OPTIONS = ["openai-compatible", "anthropic"]') && portalVue.includes("protocolOptions()") && portalVue.includes("（沿用当前配置）"), "协议下拉只应暴露 OpenAI 兼容 / Anthropic 原生 两类，历史取值仍可编辑");
+assert(portalVue.includes('defaultAuthFor(protocol){return protocol==="anthropic"||protocol==="anthropic-compatible"?"x-api-key":protocol==="gemini"?"x-goog-api-key":protocol==="azure-openai"?"api-key-header":"bearer";}') && portalVue.includes("onProtocolChange(protocol)") && portalVue.includes("高级设置（鉴权方式 / Header 名）"), "鉴权方式应按协议自动推断，只在「高级设置」里提供覆盖入口");
+assert(!portalVue.includes('label="Key 类型（鉴权方式）" required'), "主表单不应再出现「Key 类型」字段（此断言防止回退）");
+/* 第十四轮：API Key 必填（本地地址除外），前后端都要校验 */
+assert(portalVue.includes('<el-form-item label="API Key" required>') && portalVue.includes("isLocalBaseUrl(url)") && portalVue.includes('return ep.ElMessage.warning("请填写 API Key（本地地址可不填）")'), "API Key 应是必填项，保存时校验，且只在本地地址放行");
+assert(portalVue.includes('return ep.ElMessage.warning("请先填 API Key 再测试连通性")'), "没填 Key 时应先提示再测试连通性");
+assert(gatewaySource.includes("function isLocalBaseUrl(url)") && gatewaySource.includes('return sendJson(res, 400, { error: "请填写 API Key（本地地址可不填）" })') && (gatewaySource.match(/请填写 API Key（本地地址可不填）/g) || []).length === 2, "网关侧新增/修改供应商也要校验 API Key 必填（新增与修改各一处）");
+const presetSource = portalVue.slice(portalVue.indexOf("const MODEL_PROVIDER_PRESETS = ["), portalVue.indexOf("const MODEL_PROTOCOL_OPTIONS"));
+assert(!presetSource.includes('id: "gemini"') && !presetSource.includes('id: "azure"') && !presetSource.includes('id: "anthropic-relay"') && !presetSource.includes('protocol: "ark"') && !presetSource.includes('protocol: "azure-openai"') && !presetSource.includes('protocol: "custom"'), "预设模板只保留实际会用到的来源（OpenAI 兼容一族 + Anthropic 原生），不再提供 Gemini / Azure / 兼容中转");
 assert(portalVue.includes("MODEL_AUTH_LABELS") && portalVue.includes('query: "URL 查询参数"'), "Key 类型下拉应覆盖常见鉴权方式");
 assert(portalVue.includes('v-model="providerDrawer"') && portalVue.includes("class=\"portal-vue-edit-drawer\"") && portalVue.includes('@click="openProvider(null)">＋ 接入供应商') && portalVue.includes("viewMode === 'form'"), "「供应商配置」抽屉（列表 + 表单两态）应承载供应商的增删改与测试");
 assert(portalVue.includes("async saveProvider(") && portalVue.includes("async testForm(") && portalVue.includes("async rowRefresh(") && portalVue.includes("async removeProvider(") && portalVue.includes("async toggleProvider("), "供应商抽屉应支持保存 / 测试连通性 / 拉取模型 / 启停 / 删除");
@@ -358,6 +368,15 @@ assert(gatewaySource.includes("async function syncBuiltinRelayModels()") && gate
 assert(portalVue.includes("openProviderDrawer") && portalVue.includes("viewMode === 'list'") && portalVue.includes(">供应商配置</el-button>"), "供应商列表应放在「供应商配置」抽屉里，页面只留入口按钮");
 assert(portalVue.includes("全部可用模型") && !portalVue.includes("还没有接入外部供应商"), "模型配置页主区域应是「全部可用模型」总表（不再有页面级供应商接入区块）");
 assert(portalVue.includes("modelRows()") && portalVue.includes("sources:[row.source]") && portalVue.includes("v-model=\"statusFilter\""), "模型总表应按模型去重展示（同名模型合并为一行并标注多来源），并支持状态筛选");
+/* 第十四轮：停用供应商后它下面的模型必须整块从「全部可用模型」消失，不是只在行里挂个「供应商已停用」标签。
+ * 用户反馈截图（模型配置页：供应商配置抽屉里停用了「内置中转站」，左边 265 个模型照样列着）+ 原文「我这里停用了，左边模型列表还是没有关闭」。 */
+assert(gatewaySource.includes("const providerOn = provider.enabled !== false;") && gatewaySource.includes("if (!providerOn) {") && gatewaySource.includes("hiddenProviders.push({ id: provider.id, name: provider.name, count })"), "停用（enabled === false）的供应商必须整条跳过，不得把它的模型放进清单");
+assert(gatewaySource.includes("else if (!rows.length && hiddenProviders.length) notices.push") && gatewaySource.includes("个模型已从清单隐藏：到「供应商配置」重新启用即恢复"), "全部供应商都停用时，清单要空并说清原因（哪些供应商停用、多少个模型被隐藏、去哪里恢复）");
+assert(gatewaySource.includes("{ models: rows, providers, protocols, hiddenProviders, notice }") && !gatewaySource.includes("providerEnabled"), "模型清单接口必须把 hiddenProviders 透出给前端（只写在 collectModels 里会被路由层丢掉）；行里不再需要恒为 true 的 providerEnabled");
+assert(gatewaySource.includes("if (!updated.models.length && body.models !== undefined) return sendJson(res, 400") && gatewaySource.includes("行内启停（PUT { enabled }）不该被模型清单为空卡住"), "供应商行内启停不能被「模型清单为空」挡住：只有表单保存（带 models）才校验模型 ID");
+assert(!portalVue.includes("供应商已停用") && !portalVue.includes("providerEnabled"), "停用供应商的模型不显示在清单里，不应再保留「供应商已停用」行内标签（此断言防止回退成只打标签不隐藏）");
+assert(portalVue.includes("enabledProviders(){return this.providers.filter(item=>item.enabled!==false);}") && portalVue.includes("共 {{ modelRows.length }} 个模型，来自 {{ enabledProviders.length }} 个启用中的供应商"), "模型清单抬头只能统计启用中的供应商：停用后要变成「共 0 个模型，来自 0 个启用中的供应商」");
+assert(portalVue.includes(':empty-text="emptyText"') && portalVue.includes("emptyText(){") && portalVue.includes("个模型已隐藏：到右上角「供应商配置」重新启用即恢复") && portalVue.includes("this.hiddenProviders=Array.isArray(data.hiddenProviders)?data.hiddenProviders:[];"), "清单空了要说明白：被停用供应商的模型已隐藏 + 去哪里恢复，空态文案由网关的 hiddenProviders 驱动");
 assert(portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商配置入口");
 assert(portalBridge.includes("内置中转站 + 自配供应商") || portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商接入与模型开关");
 assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCascadeOptions") && portalVue.includes("activeTablePath") && portalVue.includes("changeTablePath") && portalVue.includes("<el-cascader"), "数据表选择应使用单个业务线到数据表的级联下拉");
@@ -435,6 +454,15 @@ assert(portalVue.includes("存量") && portalVue.includes("权益") && portalVue
 assert(portalVue.includes("assetCandidates") && portalVue.includes("businessLine") && gatewaySource.includes("assetCandidates") && gatewaySource.includes("业务线范围"), "选择业务线后应把候选数据资产范围交给 Skill");
 assert(portalVue.includes("ability") === false || (portalVue.includes("自动向用户追问") && !portalVue.includes("资产检索范围") && !portalVue.includes("回答契约")), "Skill 编辑页应精简为标题/图标/描述/排序/提示词/上线状态，澄清改为模型自动追问");
 assert(portalVue.includes("openVersionManage") && portalVue.includes("openNewVersion") && portalVue.includes("saveGrayDraft") && portalVue.includes("publishVersion") && portalVue.includes("versionStatusName") && portalVue.includes("回滚到此版本"), "Skill 版本管理应支持新增/未发布编辑/灰度/发版/查看历史/回滚全流程");
+/* 第十二轮：「新增版本」从版本管理里搬到列表行；表单样式与「新增 Skill」统一，抽屉不再叠抽屉 */
+assert(portalVue.includes('@click="openNewVersion(scope.row)">新增版本') && portalVue.includes('label="操作" width="170"'), "Skill 列表行应直接提供「新增版本」入口");
+const versionListSource = portalVue.slice(portalVue.indexOf('<el-drawer v-model="publishVisible"'), portalVue.indexOf('<el-drawer v-model="viewVisible"'));
+assert(!versionListSource.includes("openNewVersion") && !versionListSource.includes("openEditVersion") && !versionListSource.includes("＋ 新增版本"), "版本管理不应再有新增/编辑入口（它们会叠出第二层抽屉）");
+assert(versionListSource.includes("openViewVersion") && versionListSource.includes("openGrayDraft") && versionListSource.includes("publishVersion") && versionListSource.includes("rollback("), "版本管理只保留 查看 / 灰度 / 发版 / 回滚 这些版本操作");
+const versionFormSource = portalVue.slice(portalVue.indexOf("<el-drawer v-model=\"editVisible\" :title=\"'新增版本 · '"), portalVue.indexOf('<el-drawer v-model="publishVisible"'));
+assert(versionFormSource.includes('class="portal-vue-dialog-form" label-position="top"') && !versionFormSource.includes("portal-vue-skill-section"), "「新增版本」表单要与「新增 Skill」同一套样式（portal-vue-dialog-form + 顶部标签）");
+assert(!portalVue.includes("openEditVersion") && !portalVue.includes("addMode") && !portalVue.includes("editingVersion"), "版本表单只用于新增版本，编辑态相关代码应清掉（此断言防止回退）");
+assert(portalVue.includes('desc:skill.desc||""') && portalVue.includes("desc:item.snapshot.desc") && gatewaySource.includes('["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt"'), "版本快照要覆盖 描述/提示词，回滚与网关持久化都要带上");
 assert(portalVue.includes("iconInput") && portalVue.includes("onIconUpload") && portalVue.includes("isImageIcon"), "Skill 图标应支持上传图片（列表与工作台卡片均可展示）");
 
 const deployScript = read("scripts/deploy.sh");

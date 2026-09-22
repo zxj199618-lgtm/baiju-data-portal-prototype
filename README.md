@@ -95,8 +95,10 @@ docker compose up -d --build        # 网关跑在 8787，页面与 API 同源�
 - **中转站也是供应商**：首次启动时按环境变量 `RELAY_BASE_URL` / `RELAY_API_KEY`（多个 Key 用逗号分隔）
   自动迁移成一条普通供应商记录 `prov-relay`（名称「内置中转站」，带 `内置` 标签），
   之后与自配供应商共用同一套表单、接口与路由，不再有特例通道；迁移只做一次，删掉后重启不会复活。
-- **预设模板 + 自定义**：DeepSeek / Kimi / 智谱 GLM / 百炼 Qwen / 火山方舟 ARK / OpenAI / Anthropic /
-  Anthropic 兼容中转 / Gemini / Azure OpenAI / 本地 Ollama / 自定义。
+- **预设模板 + 自定义**：DeepSeek / 月之暗面 Kimi / 智谱 GLM / 阿里百炼 Qwen / 火山方舟 ARK /
+  OpenAI 官方 / 本地 Ollama·vLLM / Anthropic 原生 / 自定义（OpenAI 兼容）。
+  协议下拉只暴露 **OpenAI 兼容 / Anthropic 原生** 两类，鉴权方式按协议自动推断，
+  自建网关要特殊 header 时到「高级设置」里覆盖。
 - **常见 Key 类型**：`Authorization: Bearer`、`x-api-key`（自动补 `anthropic-version`）、`x-goog-api-key`、
   `api-key`（Azure，可填 api-version）、URL 查询参数、自定义 Header。
 - **多 Key 轮换**：API Key 每行一个，最多 10 个；按「该模型上次成功的 Key」优先重试。
@@ -106,5 +108,9 @@ docker compose up -d --build        # 网关跑在 8787，页面与 API 同源�
 - **Key 只写不读**：`DATA_DIR/providers.json`（权限 0600）保存，接口只回显掩码与 Key 个数（如 `sk-••••7890 等 2 个 Key`）。
 - **路由规则**：模型按「供应商列表顺序优先」路由——同名模型取列表里第一个声明它的供应商；
   OpenAI 兼容 / ARK / 自定义 / Azure 可参与调用，Anthropic、Gemini 等原生协议只登记与测试，模型不会进入灵犀智析下拉框。
+- **停用供应商 = 它的模型一起消失**：供应商「启用」关闭后，它下面的模型整条退出「全部可用模型」
+  与灵犀智析下拉框，抬头计数只统计启用中的供应商；清单空了会说明是哪些供应商停用、隐藏了多少个模型、
+  去哪里恢复（`GET /v1/model-config` 的 `hiddenProviders` 驱动空态与提示）。行内启停只提交 `{ enabled }`，
+  不会被「模型清单为空」的校验挡住。
 
 接口：`GET/POST /v1/providers`、`PUT/DELETE /v1/providers/:id`、`POST /v1/providers/test`、`POST /v1/providers/:id/refresh`。

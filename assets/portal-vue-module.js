@@ -2751,19 +2751,18 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   /* 模型配置 → 供应商接入：字段与交互参考 CC Switch / DeepSeek Harness 的 provider 配置
      （预设模板带出端点与鉴权、Key 只写不读、连通性语义化、模型能力挂在模型上） */
   const MODEL_PROVIDER_PRESETS = [
-    { id: "deepseek", label: "DeepSeek 官方", protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", authType: "bearer", models: ["deepseek-chat", "deepseek-reasoner"], note: "OpenAI 兼容 + Bearer Token" },
-    { id: "kimi", label: "月之暗面 Kimi", protocol: "openai-compatible", baseUrl: "https://api.moonshot.cn/v1", authType: "bearer", models: ["kimi-k2-0905-preview"], note: "OpenAI 兼容 + Bearer Token" },
-    { id: "glm", label: "智谱 GLM", protocol: "openai-compatible", baseUrl: "https://open.bigmodel.cn/api/paas/v4", authType: "bearer", models: ["glm-4.6"], note: "OpenAI 兼容 + Bearer Token" },
+    { id: "deepseek", label: "DeepSeek 官方", protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", authType: "bearer", models: ["deepseek-chat", "deepseek-reasoner"], note: "OpenAI 兼容端点 + Bearer Token" },
+    { id: "kimi", label: "月之暗面 Kimi", protocol: "openai-compatible", baseUrl: "https://api.moonshot.cn/v1", authType: "bearer", models: ["kimi-k2-0905-preview"], note: "OpenAI 兼容端点 + Bearer Token" },
+    { id: "glm", label: "智谱 GLM", protocol: "openai-compatible", baseUrl: "https://open.bigmodel.cn/api/paas/v4", authType: "bearer", models: ["glm-4.6"], note: "OpenAI 兼容端点 + Bearer Token" },
     { id: "qwen", label: "阿里百炼 Qwen", protocol: "openai-compatible", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", authType: "bearer", models: ["qwen3-max"], note: "兼容模式端点 + Bearer Token" },
-    { id: "ark", label: "火山方舟 ARK", protocol: "ark", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", authType: "bearer", models: [], note: "模型填接入点 ID（ep-xxxxxxxx）或模型名" },
-    { id: "openai", label: "OpenAI 官方", protocol: "openai-compatible", baseUrl: "https://api.openai.com/v1", authType: "bearer", models: ["gpt-4o-mini"], note: "OpenAI 兼容 + Bearer Token" },
-    { id: "anthropic", label: "Anthropic 原生", protocol: "anthropic", baseUrl: "https://api.anthropic.com", authType: "x-api-key", models: ["claude-sonnet-4-5"], note: "x-api-key 头 + anthropic-version；协议待适配，暂不参与分析调用" },
-    { id: "anthropic-relay", label: "Anthropic 兼容中转", protocol: "anthropic-compatible", baseUrl: "", authType: "bearer", models: [], note: "DeepSeek / GLM / Kimi 等 /anthropic 端点；协议待适配，暂不参与分析调用" },
-    { id: "gemini", label: "Google Gemini", protocol: "gemini", baseUrl: "https://generativelanguage.googleapis.com", authType: "x-goog-api-key", models: ["gemini-2.5-pro"], note: "x-goog-api-key 头；协议待适配，暂不参与分析调用" },
-    { id: "azure", label: "Azure OpenAI", protocol: "azure-openai", baseUrl: "https://<资源名>.openai.azure.com", authType: "api-key-header", models: [], note: "api-key 头，模型填 deployment 名，另需填 api-version" },
+    { id: "ark", label: "火山方舟 ARK", protocol: "openai-compatible", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", authType: "bearer", models: [], note: "OpenAI 兼容端点；模型填接入点 ID（ep-xxxxxxxx）或模型名" },
+    { id: "openai", label: "OpenAI 官方", protocol: "openai-compatible", baseUrl: "https://api.openai.com/v1", authType: "bearer", models: ["gpt-4o-mini"], note: "OpenAI 兼容端点 + Bearer Token" },
     { id: "ollama", label: "本地 Ollama / vLLM", protocol: "openai-compatible", baseUrl: "http://127.0.0.1:11434/v1", authType: "bearer", models: [], note: "本地服务通常不校验 Key，可留空" },
-    { id: "custom", label: "自定义（OpenAI 兼容）", protocol: "custom", baseUrl: "", authType: "bearer", models: [], note: "手填 Base URL、鉴权方式与模型 ID" }
+    { id: "anthropic", label: "Anthropic 原生", protocol: "anthropic", baseUrl: "https://api.anthropic.com", authType: "x-api-key", models: ["claude-sonnet-4-5"], note: "x-api-key 头 + anthropic-version；协议待适配，暂不参与分析调用" },
+    { id: "custom", label: "自定义（OpenAI 兼容）", protocol: "openai-compatible", baseUrl: "", authType: "bearer", models: [], note: "手填 Base URL 与模型 ID，鉴权默认 Bearer" }
   ];
+  /** 协议下拉只暴露实际会用到的两类；其余历史取值（ARK/Azure/Gemini 等）仍可编辑但不新选 */
+  const MODEL_PROTOCOL_OPTIONS = ["openai-compatible", "anthropic"];
   const MODEL_PROTOCOL_FALLBACK = [
     { id: "openai-compatible", label: "OpenAI 兼容", callable: true },
     { id: "ark", label: "火山方舟 ARK", callable: true },
@@ -2796,15 +2795,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           </div>
           <el-alert v-if="notice" class="portal-vue-provider-alert" type="warning" :closable="false" show-icon :title="notice"></el-alert>
 
-          <div class="portal-vue-block-head"><strong>全部可用模型</strong><span class="portal-vue-muted">共 {{ modelRows.length }} 个模型，来自 {{ providers.length }} 个供应商；开关即改即生效，关掉立即从灵犀智析下拉框隐藏</span></div>
-          <el-table :data="filteredRows" class="portal-vue-table" border empty-text="还没有可用模型：点右上角「供应商配置」接入">
+          <div class="portal-vue-block-head"><strong>全部可用模型</strong><span class="portal-vue-muted">共 {{ modelRows.length }} 个模型，来自 {{ enabledProviders.length }} 个启用中的供应商；开关即改即生效，供应商一停用它的模型立即从这里和灵犀智析下拉框一起消失</span></div>
+          <el-table :data="filteredRows" class="portal-vue-table" border :empty-text="emptyText">
             <el-table-column prop="id" label="模型" min-width="240"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
             <el-table-column label="供应商" min-width="210">
               <template #default="scope">
                 <el-tag size="small" :type="scope.row.builtin ? 'info' : 'primary'" effect="plain">{{ scope.row.source }}</el-tag>
                 <el-tooltip v-if="scope.row.sources.length > 1" :content="'同模型还来自：' + scope.row.sources.slice(1).join('、')" placement="top"><el-tag size="small" effect="plain" style="margin-left:4px">+{{ scope.row.sources.length - 1 }}</el-tag></el-tooltip>
                 <el-tag v-if="scope.row.adaptable === false" size="small" type="warning" effect="light" style="margin-left:4px">协议待适配</el-tag>
-                <el-tag v-else-if="scope.row.providerEnabled === false" size="small" type="info" effect="light" style="margin-left:4px">供应商已停用</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="协议" width="150"><template #default="scope">{{ scope.row.protocolLabel }}</template></el-table-column>
@@ -2859,31 +2857,40 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
           <el-form v-else class="portal-vue-dialog-form" label-position="top">
             <el-form-item label="预设模板">
-              <el-select v-model="presetId" placeholder="选常见供应商，自动带出 Base URL 与 Key 类型" @change="applyPreset">
+              <el-select v-model="presetId" placeholder="选常见供应商，自动带出 Base URL 与模型" @change="applyPreset">
                 <el-option v-for="item in presets" :key="item.id" :label="item.label" :value="item.id"></el-option>
               </el-select>
               <span v-if="presetNote" class="portal-vue-muted" style="font-size:12px">{{ presetNote }}</span>
             </el-form-item>
             <el-form-item label="供应商名称" required><el-input v-model="form.name" placeholder="如：DeepSeek 官方"></el-input></el-form-item>
             <el-form-item label="协议类型" required>
-              <el-select v-model="form.protocol">
-                <el-option v-for="item in protocols" :key="item.id" :label="item.label + (item.callable ? '' : '（协议待适配）')" :value="item.id"></el-option>
+              <el-select v-model="form.protocol" @change="onProtocolChange">
+                <el-option v-for="item in protocolOptions" :key="item.id" :label="item.label + (item.callable ? '' : '（协议待适配）')" :value="item.id"></el-option>
               </el-select>
             </el-form-item>
             <el-form-item label="Base URL" required><el-input v-model="form.baseUrl" placeholder="如：https://api.deepseek.com/v1"></el-input></el-form-item>
-            <el-form-item label="Key 类型（鉴权方式）" required>
-              <el-select v-model="form.authType" @change="onAuthTypeChange">
-                <el-option v-for="item in authOptions" :key="item.id" :label="item.label" :value="item.id"></el-option>
-              </el-select>
-            </el-form-item>
-            <el-form-item v-if="form.authType !== 'bearer'" :label="authKeyNameLabel">
-              <el-input v-model="form.authKeyName" :placeholder="authKeyPlaceholder"></el-input>
-            </el-form-item>
-            <el-form-item label="API Key">
+            <el-form-item label="API Key" required>
               <el-input v-model="keysText" type="textarea" :rows="2" resize="none" autocomplete="new-password" :placeholder="keyPlaceholder"></el-input>
-              <span class="portal-vue-muted" style="font-size:12px">{{ keyHint }}</span>
+              <div class="portal-vue-provider-hints">
+                <span>{{ keyHint }}</span>
+                <span>按「{{ form.protocol ? protocolLabelOf(form.protocol) : "OpenAI 兼容" }}」自动用 {{ authLabel(form.authType) }} 发送，无需选择；特殊网关可在高级设置里覆盖</span>
+              </div>
             </el-form-item>
             <el-form-item v-if="form.protocol === 'azure-openai'" label="api-version" required><el-input v-model="form.apiVersion" placeholder="如：2024-10-21"></el-input></el-form-item>
+            <div class="portal-vue-provider-advanced">
+              <el-button link type="primary" @click="advancedOpen = !advancedOpen">{{ advancedOpen ? "收起高级设置" : "高级设置（鉴权方式 / Header 名）" }}</el-button>
+              <span class="portal-vue-muted">默认按协议自动推断，除自建网关要求特殊头之外都不用改</span>
+            </div>
+            <template v-if="advancedOpen">
+              <el-form-item label="鉴权方式">
+                <el-select v-model="form.authType" @change="onAuthTypeChange">
+                  <el-option v-for="item in authOptions" :key="item.id" :label="item.label" :value="item.id"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item v-if="form.authType !== 'bearer'" :label="authKeyNameLabel">
+                <el-input v-model="form.authKeyName" :placeholder="authKeyPlaceholder"></el-input>
+              </el-form-item>
+            </template>
             <el-form-item label="模型 ID" required>
               <el-input v-model="modelsText" type="textarea" :rows="4" resize="none" placeholder="每行或逗号分隔，如：deepseek-chat, deepseek-reasoner"></el-input>
               <div class="portal-vue-provider-actions">
@@ -2908,8 +2915,18 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         </el-drawer>
       </el-config-provider>
     `,
-    data:()=>({rows:[],providers:[],protocols:MODEL_PROTOCOL_FALLBACK,notice:"",keyword:"",statusFilter:"all",loading:false,providerDrawer:false,viewMode:"list",editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",keysText:"",form:{}}),
+    data:()=>({rows:[],providers:[],hiddenProviders:[],protocols:MODEL_PROTOCOL_FALLBACK,notice:"",keyword:"",statusFilter:"all",loading:false,providerDrawer:false,viewMode:"list",editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",keysText:"",advancedOpen:false,form:{}}),
     computed:{
+      /** 停用供应商的模型不进 rows（网关已过滤）：可用清单只统计启用中的供应商 */
+      enabledProviders(){return this.providers.filter(item=>item.enabled!==false);},
+      hiddenModelCount(){return this.hiddenProviders.reduce((sum,item)=>sum+(item.count||0),0);},
+      emptyText(){
+        const names=this.hiddenProviders.map(item=>item.name).join("、");
+        if(names)return `${names}已停用，其 ${this.hiddenModelCount} 个模型已隐藏：到右上角「供应商配置」重新启用即恢复`;
+        if(!this.providers.length)return "还没有可用模型：点右上角「供应商配置」接入";
+        if(this.keyword.trim()||this.statusFilter!=="all")return "没有符合当前搜索 / 筛选条件的模型";
+        return "还没有可用模型：供应商的模型清单为空，去「供应商配置」点「拉取模型」同步";
+      },
       modelRows(){
         // 一个模型一行：同 id 的其它供应商收进 sources（路由按供应商列表顺序取第一个）
         const map=new Map();
@@ -2929,13 +2946,22 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         });
       },
       authOptions(){return Object.keys(MODEL_AUTH_LABELS).map(id=>({id,label:MODEL_AUTH_LABELS[id]}));},
+      protocolOptions(){
+        const main=this.protocols.filter(item=>MODEL_PROTOCOL_OPTIONS.includes(item.id));
+        const current=this.form&&this.form.protocol;
+        if(current&&!MODEL_PROTOCOL_OPTIONS.includes(current)){
+          const found=this.protocols.find(item=>item.id===current);
+          return [...main,{id:current,label:(found?found.label:current)+"（沿用当前配置）",callable:Boolean(found&&found.callable)}];
+        }
+        return main;
+      },
       parsedModels(){return this.modelsText.split(/[\n,，;；]/).map(item=>item.trim()).filter(Boolean);},
       parsedKeys(){return this.keysText.split(/[\n,;；]/).map(item=>item.trim()).filter(Boolean);},
       presetNote(){const preset=this.presets.find(item=>item.id===this.presetId);return preset?preset.note:"";},
       authKeyNameLabel(){return this.form.authType==="query"?"查询参数名":"Header 名称";},
       authKeyPlaceholder(){return MODEL_AUTH_KEY_DEFAULTS[this.form.authType]||"X-Api-Key";},
       keyPlaceholder(){return this.form.hasKey?"已保存 "+this.form.keyMasked+(this.form.keyCount>1?"（共 "+this.form.keyCount+" 个）":"")+"，留空表示不修改":"粘贴 API Key；多个 Key 每行一个，轮换重试";},
-      keyHint(){return this.form.hasKey?"Key 只写不读，页面不会再回显明文；要更换就直接粘贴新 Key":"Key 只写入网关数据卷，页面不回显明文"}
+      keyHint(){return this.form.hasKey?"已保存的 Key 只写不读，页面不回显明文；留空表示不修改，要更换就直接粘贴新 Key":"必填：Key 只写入网关数据卷（0600），页面不回显明文；本地地址（localhost / 127.0.0.1）可不填"}
     },
     mounted(){this.pageHandler=event=>{if(event.detail?.page==="模型配置")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
@@ -2950,10 +2976,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             const data=await response.json();
             this.rows=data.models||[];
             this.providers=data.providers||[];
+            this.hiddenProviders=Array.isArray(data.hiddenProviders)?data.hiddenProviders:[];
             if(Array.isArray(data.protocols)&&data.protocols.length)this.protocols=data.protocols;
             this.notice=data.notice||"";
           }
-        }catch(error){this.rows=[];this.providers=[];this.notice="";}
+        }catch(error){this.rows=[];this.providers=[];this.hiddenProviders=[];this.notice="";}
         this.loading=false;
       },
       openProviderDrawer(){this.viewMode="list";this.providerDrawer=true;this.load();},
@@ -2968,6 +2995,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         }else{
           this.editingId="";
           this.form={name:"",protocol:"openai-compatible",baseUrl:"",authType:"bearer",authKeyName:"",apiVersion:"",defaultModel:"",note:"",enabled:true,hasKey:false,keyMasked:"",keyCount:0};
+          this.advancedOpen=false;
           this.modelsText="";
           this.applyPreset("deepseek");
         }
@@ -2977,16 +3005,24 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const preset=this.presets.find(item=>item.id===(id||this.presetId));
         if(!preset)return;
         this.presetId=preset.id;
+        const authType=preset.authType||this.defaultAuthFor(preset.protocol);
         this.form=Object.assign({},this.form,{
           name:this.editingId?this.form.name||preset.label:preset.label,
-          protocol:preset.protocol,baseUrl:preset.baseUrl,authType:preset.authType,
-          authKeyName:MODEL_AUTH_KEY_DEFAULTS[preset.authType]||"",note:preset.note
+          protocol:preset.protocol,baseUrl:preset.baseUrl,authType,
+          authKeyName:MODEL_AUTH_KEY_DEFAULTS[authType]||"",note:preset.note
         });
         this.modelsText=(preset.models||[]).join("\n");
       },
       onAuthTypeChange(value){if(!this.form.authKeyName||Object.values(MODEL_AUTH_KEY_DEFAULTS).includes(this.form.authKeyName))this.form.authKeyName=MODEL_AUTH_KEY_DEFAULTS[value]||"";},
+      /** 本地/内网地址通常不校验 Key（Ollama、vLLM、内网网关） */
+      isLocalBaseUrl(url){return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|[\w.-]+\.local)([:/]|$)/i.test(String(url||"").trim());},
+      protocolLabelOf(id){const item=this.protocols.find(entry=>entry.id===id);return item?item.label:id;},
+      /** 鉴权方式按协议自动推断：用户不用选，只有自建网关要特殊头时才去「高级设置」覆盖 */
+      defaultAuthFor(protocol){return protocol==="anthropic"||protocol==="anthropic-compatible"?"x-api-key":protocol==="gemini"?"x-goog-api-key":protocol==="azure-openai"?"api-key-header":"bearer";},
+      onProtocolChange(protocol){const next=this.defaultAuthFor(protocol);this.form.authType=next;this.form.authKeyName=MODEL_AUTH_KEY_DEFAULTS[next]||"";},
       async testForm(pullModels){
         if(!this.form.baseUrl||!this.form.baseUrl.trim())return ep.ElMessage.warning("先填 Base URL");
+        if(!this.parsedKeys.length&&!this.form.hasKey&&!this.isLocalBaseUrl(this.form.baseUrl))return ep.ElMessage.warning("请先填 API Key 再测试连通性");
         this.testing=true;this.testResult="";this.testOk=null;
         try{
           const payload=Object.assign({},this.form,{id:this.editingId||undefined,apiKeys:this.parsedKeys});
@@ -3008,6 +3044,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if(!this.form.baseUrl||!this.form.baseUrl.trim())return ep.ElMessage.warning("请填写 Base URL");
         const models=this.parsedModels;
         if(!models.length)return ep.ElMessage.warning("至少填一个模型 ID，可先点「拉取模型列表」");
+        const savedKey=this.form.hasKey===true&&this.form.clearKeys!==true;
+        if(!this.parsedKeys.length&&!savedKey&&!this.isLocalBaseUrl(this.form.baseUrl))return ep.ElMessage.warning("请填写 API Key（本地地址可不填）");
         this.saving=true;
         try{
           const payload=Object.assign({},this.form,{models});
@@ -3228,7 +3266,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-table-column label="状态" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:6px"><el-switch :disabled="!canEdit('Skill 配置')" v-model="scope.row.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch><el-tag v-if="scope.row.enabled!==false && skillStatus(scope.row)!=='已发布'" size="small" :type="skillStatus(scope.row)==='未发布' ? 'info' : 'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></div></template></el-table-column>
             <el-table-column label="灰度用户" min-width="170"><template #default="scope"><div v-if="scope.row.grayUsers.length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.grayUsers.slice(0,3)" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="scope.row.grayUsers.length>3" class="portal-vue-muted">+{{ scope.row.grayUsers.length-3 }}</span></div><span v-else class="portal-vue-muted">全量发布</span></template></el-table-column>
             <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
-            <el-table-column label="操作" width="100" fixed="right"><template #default="scope"><el-button v-if="canEdit('Skill 配置')" link type="primary" @click="openVersionManage(scope.row)">版本管理</el-button></template></el-table-column>
+            <el-table-column label="操作" width="170" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('Skill 配置')" link type="primary" @click="openVersionManage(scope.row)">版本管理</el-button><el-button v-if="canEdit('Skill 配置')" link type="primary" @click="openNewVersion(scope.row)">新增版本</el-button></div></template></el-table-column>
           </el-table>
           <div class="portal-vue-muted" style="margin-top:12px">Skill 在门户手动维护（名称 / 图标 / 描述 / 排序 / 提示词 / 上线状态），新增与修改即时生效；版本、灰度与回滚在「版本管理」中操作，无需发版。</div>
         </section>
@@ -3256,38 +3294,37 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('Skill 配置')" type="primary" @click="saveCreate">新增 Skill</el-button></div>
           </template>
         </el-drawer>
-        <el-drawer v-model="editVisible" :title="(addMode ? '新增版本' : '编辑版本') + ' · ' + (activeSkill?.name || '')" size="620px" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
-          <div v-if="activeSkill" class="portal-vue-skill-drawer">
-            <div class="portal-vue-skill-section"><el-form-item label="标题" required><el-input v-model="editForm.title" placeholder="如：数据查询与指标解答"></el-input></el-form-item></div>
-            <div class="portal-vue-skill-section"><el-form-item label="图标">
+        <el-drawer v-model="editVisible" :title="'新增版本 · ' + (activeSkill?.name || '')" size="620px" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
+          <el-form v-if="activeSkill" class="portal-vue-dialog-form" label-position="top">
+            <el-form-item label="工作台展示标题" required><el-input v-model="editForm.title" placeholder="如：数据查询与指标解答"></el-input></el-form-item>
+            <el-form-item label="图标">
               <div class="portal-vue-skill-icon-upload" @click="openIconPicker">
                 <span class="portal-vue-skill-icon-preview"><img v-if="isImageIcon(editForm.icon)" :src="editForm.icon" alt="图标" /><span v-else>{{ editForm.icon || "✦" }}</span></span>
-                <span class="portal-vue-skill-icon-tips"><strong>点击上传图标</strong><small>支持 png / jpg / gif / svg，不超过 300KB</small></span>
+                <span class="portal-vue-skill-icon-tips"><strong>点击上传图标</strong><small>支持 png / jpg / gif / svg，不超过 300KB；不传沿用当前图标</small></span>
               </div>
               <input ref="iconInput" type="file" accept="image/*" style="display:none" @change="onIconUpload"></input>
-            </el-form-item></div>
-            <div class="portal-vue-skill-section"><el-form-item label="描述"><el-input v-model="editForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item></div>
-            <div class="portal-vue-skill-section"><el-form-item label="排序（越小越靠前）"><el-input-number v-model="editForm.sort" :min="1" :max="999"></el-input-number></el-form-item></div>
-            <div class="portal-vue-skill-section"><el-form-item label="提示词"><el-input v-model="editForm.prompt" type="textarea" :rows="9" resize="none"></el-input></el-form-item></div>
-            <div class="portal-vue-skill-section"><el-form-item label="上线状态"><el-switch :disabled="!canEdit('Skill 配置')" v-model="editForm.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">下线后该 Skill 立即从灵犀智析隐藏</span></el-form-item></div>
-            <div class="portal-vue-skill-section">
-              <el-form-item label="版本号" required><el-input v-model="editForm.version" placeholder="如：v1.4" :disabled="!addMode"></el-input><span v-if="!addMode" class="portal-vue-muted" style="margin-left:8px;font-size:12px">编辑未发布版本不可改版本号</span></el-form-item>
-              <el-form-item label="版本内容说明"><el-input v-model="editForm.versionNote" type="textarea" :rows="2" resize="none" placeholder="如：新增自动澄清、修复口径问题"></el-input></el-form-item>
-            </div>
-          </div>
+            </el-form-item>
+            <el-form-item label="描述"><el-input v-model="editForm.desc" type="textarea" :rows="2" resize="none" placeholder="列表里展示的一句话说明"></el-input></el-form-item>
+            <el-form-item label="工作台展示描述"><el-input v-model="editForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item>
+            <el-form-item label="排序（越小越靠前）"><el-input-number v-model="editForm.sort" :min="1" :max="999"></el-input-number></el-form-item>
+            <el-form-item label="提示词"><el-input v-model="editForm.prompt" type="textarea" :rows="6" resize="none" placeholder="该版本的分析指令，保存后即时生效"></el-input></el-form-item>
+            <el-form-item label="版本号" required><el-input v-model="editForm.version" placeholder="如：v1.4"></el-input></el-form-item>
+            <el-form-item label="版本内容说明"><el-input v-model="editForm.versionNote" type="textarea" :rows="2" resize="none" placeholder="如：新增自动澄清、修复口径问题"></el-input></el-form-item>
+            <el-form-item label="上线状态"><el-switch :disabled="!canEdit('Skill 配置')" v-model="editForm.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">新版本先保存为「未发布」，到版本管理灰度 / 发版</span></el-form-item>
+          </el-form>
           <template #footer>
-            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="editVisible=false">取消</el-button><el-button v-if="canEdit('Skill 配置')" type="primary" @click="saveAll">{{ addMode ? "保存为新版本" : "保存修改" }}</el-button></div>
+            <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="editVisible=false">取消</el-button><el-button v-if="canEdit('Skill 配置')" type="primary" @click="saveAll">保存为新版本</el-button></div>
           </template>
         </el-drawer>
         <el-drawer v-model="publishVisible" size="640px" :close-on-click-modal="true">
           <template #header>
             <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
               <span style="font-size:16px;font-weight:600">{{ publishSkill?.name || "" }} · 版本管理</span>
-              <el-button v-if="canEdit('Skill 配置')" type="primary" size="small" @click="openNewVersion">＋ 新增版本</el-button>
+              <span class="portal-vue-muted" style="font-size:12px">共 {{ (publishSkill?.versions || []).length }} 个版本 · 新增版本请到列表页对应行操作</span>
             </div>
           </template>
           <div class="portal-vue-skill-drawer">
-            <el-alert type="info" :closable="false" title="新增/编辑生成的是未发布版本：可编辑、可选灰度用户测试，验证没问题后「发版」成为正式版本；历史版本可查看，正式版本可回滚。" :show-icon="true"></el-alert>
+            <el-alert type="info" :closable="false" title="版本管理只做版本操作：未发布可选灰度用户测试，灰度中可调整灰度或「发版」成为正式版本；历史版本可查看，正式版本可回滚。新增版本请到列表页对应行点「新增版本」。" :show-icon="true"></el-alert>
             <div v-for="item in publishSkill?.versions || []" :key="item.version" class="portal-vue-skill-version" :class="{ current: item.current }">
               <div class="portal-vue-skill-version-head">
                 <strong>{{ item.version }}</strong><el-tag v-if="item.current" size="small" type="success" effect="light">当前</el-tag><el-tag size="small" :type="versionStatusType(item)" effect="light">{{ versionStatusName(item) }}</el-tag><time>{{ item.time }}</time>
@@ -3297,7 +3334,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <div class="portal-vue-muted">操作人：{{ item.operator }}</div>
               <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
                 <template v-if="versionStatusName(item) !== '已发布'">
-                  <el-button v-if="canEdit('Skill 配置')" size="small" @click="openEditVersion(item)">编辑</el-button>
                   <el-button v-if="(versionStatusName(item) === '未发布') && canEdit('Skill 配置')" size="small" @click="openGrayDraft(item)">灰度</el-button>
                   <el-button v-if="(versionStatusName(item) === '灰度中') && canEdit('Skill 配置')" size="small" @click="openGrayDraft(item)">调整灰度</el-button>
                   <el-button v-if="(versionStatusName(item) === '灰度中') && canEdit('Skill 配置')" size="small" type="primary" @click="publishVersion(item)">发版</el-button>
@@ -3308,7 +3344,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 </template>
               </div>
             </div>
-            <p v-if="!publishSkill?.versions?.length" class="portal-vue-muted">暂无版本，点右上角「新增版本」创建</p>
+            <p v-if="!publishSkill?.versions?.length" class="portal-vue-muted">暂无版本：到列表页对应行点「新增版本」创建</p>
           </div>
         </el-drawer>
         <el-drawer v-model="viewVisible" :title="(publishSkill?.name || '') + ' · ' + (viewVersion?.version || '') + ' 版本详情'" size="560px" :close-on-click-modal="true">
@@ -3318,6 +3354,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <div style="display:grid;gap:2px"><strong style="font-size:14px">{{ viewVersion.snapshot?.title || publishSkill?.title || "—" }}</strong><span class="portal-vue-muted" style="font-size:12px">{{ viewVersion.snapshot?.displayDesc || "（无描述）" }}</span></div>
               <el-tag style="margin-left:auto" size="small" :type="versionStatusType(viewVersion)" effect="light">{{ versionStatusName(viewVersion) }}</el-tag>
             </div>
+            <div class="portal-vue-alert-field"><label>描述</label><span>{{ viewVersion.snapshot?.desc || publishSkill?.desc || "—" }}</span></div>
             <div class="portal-vue-alert-field"><label>排序</label><span>{{ viewVersion.snapshot?.sort ?? publishSkill?.sort ?? "—" }}</span></div>
             <div class="portal-vue-alert-field"><label>上线状态</label><span>{{ viewVersion.snapshot?.enabled === false ? "下线" : "上线" }}</span></div>
             <div class="portal-vue-alert-field"><label>版本内容说明</label><span>{{ viewVersion.note || "—" }}</span></div>
@@ -3337,7 +3374,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({keyword:"",createVisible:false,createForm:{},editVisible:false,editForm:{},addMode:true,editingVersion:null,activeSkill:null,publishVisible:false,publishSkill:null,viewVisible:false,viewVersion:null,grayDialogVisible:false,grayVersion:null,grayDraft:[]}),
+    data:()=>({keyword:"",createVisible:false,createForm:{},editVisible:false,editForm:{},activeSkill:null,publishVisible:false,publishSkill:null,viewVisible:false,viewVersion:null,grayDialogVisible:false,grayVersion:null,grayDraft:[]}),
     computed:{
       skills(){refreshTick.value;return (state.skills||[]).filter(item=>item.id!=="numa-warehouse");},
       filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.title||""} ${item.desc||""}`.toLowerCase().includes(keyword));},
@@ -3388,44 +3425,30 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         }catch(error){/* 网关未启动时保留内置注册表 */}
       },
       openVersionManage(row){this.publishSkill=row;this.publishVisible=true;},
-      openNewVersion(){
-        const row=this.publishSkill;
-        this.activeSkill=row;
-        this.addMode=true;
-        this.editingVersion=null;
-        this.editForm={icon:row.icon||"✦",title:row.title||"",displayDesc:row.displayDesc||"",sort:row.sort||50,enabled:row.enabled!==false,prompt:row.prompt||"",version:this.nextVersion(),versionNote:""};
-        this.editVisible=true;
-      },
-      openEditVersion(item){
-        const row=this.publishSkill;
-        this.activeSkill=row;
-        this.addMode=false;
-        this.editingVersion=item;
-        this.editForm={icon:item.snapshot?.icon||row.icon||"✦",title:item.snapshot?.title??row.title,displayDesc:item.snapshot?.displayDesc??row.displayDesc,sort:item.snapshot?.sort??row.sort,enabled:(item.snapshot?.enabled!==undefined?item.snapshot.enabled:row.enabled)!==false,prompt:item.snapshot?.prompt??row.prompt,version:item.version,versionNote:item.note||""};
+      /** 新增版本只从 Skill 列表行进入：表单不再嵌在版本管理里，避免抽屉叠抽屉 */
+      openNewVersion(row){
+        const skill=row||this.publishSkill;
+        if(!skill)return;
+        this.activeSkill=skill;
+        this.editForm={icon:skill.icon||"✦",title:skill.title||"",desc:skill.desc||"",displayDesc:skill.displayDesc||"",sort:skill.sort||50,enabled:skill.enabled!==false,prompt:skill.prompt||"",version:this.nextVersion(),versionNote:""};
         this.editVisible=true;
       },
       openViewVersion(item){this.viewVersion=item;this.viewVisible=true;},
       async saveAll(){
         const form=this.editForm;
-        if(!String(form.title||"").trim())return ep.ElMessage.warning("请输入标题");
+        const skill=this.activeSkill;
+        if(!skill)return;
+        if(!String(form.title||"").trim())return ep.ElMessage.warning("请输入工作台展示标题");
         const note=String(form.versionNote||"").trim()||"更新配置";
-        const snapshot={icon:form.icon||"✦",title:form.title.trim(),displayDesc:form.displayDesc.trim(),sort:form.sort,enabled:form.enabled,prompt:form.prompt};
-        Object.assign(this.activeSkill,snapshot);
-        if(this.addMode){
-          const version=String(form.version||"").trim()||this.nextVersion();
-          this.activeSkill.versions=(this.activeSkill.versions||[]).map(item=>({...item,current:false}));
-          this.activeSkill.versions.unshift({version,time:new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-"),operator:this.currentUser?.name||"曾祥竞",note,current:true,status:"未发布",grayUsers:[],snapshot});
-          this.activeSkill.version=version;
-          try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(this.activeSkill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:snapshot.icon,title:snapshot.title,displayDesc:snapshot.displayDesc,sort:snapshot.sort,enabled:snapshot.enabled,prompt:snapshot.prompt,latestVersion:{version,note,status:"未发布",grayUsers:[]}})});}catch(error){/* 网关未连接时保留原型状态 */}
-          this.editVisible=false;
-          notify(`「${this.activeSkill.name}」已保存为 ${version}（未发布，可到「版本管理」灰度/发布）`);
-        }else{
-          const item=this.editingVersion;
-          if(item){item.note=note;item.snapshot={...snapshot};}
-          try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(this.activeSkill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:snapshot.icon,title:snapshot.title,displayDesc:snapshot.displayDesc,sort:snapshot.sort,enabled:snapshot.enabled,prompt:snapshot.prompt,latestVersion:{version:item?.version||this.activeSkill.version,note,status:item?.status||"未发布",grayUsers:item?.grayUsers||[]}})});}catch(error){/* 网关未连接时保留原型状态 */}
-          this.editVisible=false;
-          notify(`「${this.activeSkill.name}」${item?.version||""} 已更新`);
-        }
+        const snapshot={icon:form.icon||"✦",title:form.title.trim(),desc:String(form.desc||"").trim(),displayDesc:String(form.displayDesc||"").trim(),sort:form.sort,enabled:form.enabled,prompt:form.prompt};
+        Object.assign(skill,snapshot);
+        const version=String(form.version||"").trim()||this.nextVersion();
+        skill.versions=(skill.versions||[]).map(item=>({...item,current:false}));
+        skill.versions.unshift({version,time:new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-"),operator:this.currentUser?.name||"曾祥竞",note,current:true,status:"未发布",grayUsers:[],snapshot});
+        skill.version=version;
+        try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(skill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:snapshot.icon,title:snapshot.title,desc:snapshot.desc,displayDesc:snapshot.displayDesc,sort:snapshot.sort,enabled:snapshot.enabled,prompt:snapshot.prompt,latestVersion:{version,note,status:"未发布",grayUsers:[]}})});}catch(error){/* 网关未连接时保留原型状态 */}
+        this.editVisible=false;
+        notify(`「${skill.name}」已保存为 ${version}（未发布，可到「版本管理」灰度 / 发版）`);
       },
       nextVersion(){
         const current=String(this.activeSkill?.version||"v1.0");
@@ -3473,8 +3496,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       rollback(item){
         const skill=this.publishSkill||this.activeSkill;
         if(item.snapshot){
-          Object.assign(skill,{icon:item.snapshot.icon,title:item.snapshot.title,displayDesc:item.snapshot.displayDesc,sort:item.snapshot.sort,enabled:item.snapshot.enabled,prompt:item.snapshot.prompt});
-          try{fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(skill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:item.snapshot.icon,title:item.snapshot.title,displayDesc:item.snapshot.displayDesc,sort:item.snapshot.sort,enabled:item.snapshot.enabled,prompt:item.snapshot.prompt})});}catch(error){}
+          Object.assign(skill,{icon:item.snapshot.icon,title:item.snapshot.title,desc:item.snapshot.desc,displayDesc:item.snapshot.displayDesc,sort:item.snapshot.sort,enabled:item.snapshot.enabled,prompt:item.snapshot.prompt});
+          try{fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(skill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:item.snapshot.icon,title:item.snapshot.title,desc:item.snapshot.desc,displayDesc:item.snapshot.displayDesc,sort:item.snapshot.sort,enabled:item.snapshot.enabled,prompt:item.snapshot.prompt})});}catch(error){}
         }
         skill.versions.forEach(version=>version.current=version===item);
         skill.version=item.version;

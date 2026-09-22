@@ -1109,6 +1109,11 @@ function maskSecret(value) {
   return `${secret.slice(0, 3)}••••${secret.slice(-4)}`;
 }
 
+/** 本地/内网地址通常不校验 Key（Ollama、vLLM、内网网关） */
+function isLocalBaseUrl(url) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|[\w.-]+\.local)([:/]|$)/i.test(String(url || "").trim());
+}
+
 function providerKeys(provider) {
   const keys = Array.isArray(provider?.apiKeys) ? provider.apiKeys.filter(Boolean) : [];
   return keys.length ? keys : [""];
@@ -1354,32 +1359,47 @@ async function syncBuiltinRelayModels() {
   console.log(`[providers] 内置中转站模型清单已同步：${models.length} 个${changed ? "（数量有变化）" : ""}`);
 }
 
-/** 汇总所有供应商的模型清单（含来源、可调用性与启停状态） */
+/** 汇总所有供应商的模型清单（含来源、可调用性与启停状态）
+ *  停用（enabled === false）的供应商不进入清单：它下面的模型一个都不该出现在「全部可用模型」里，
+ *  否则页面会一边显示「供应商已停用」一边把模型算进可用数，用户看到的就是「停用了列表却没关」。
+ *  被藏起来的供应商单独回给前端（hiddenProviders），用来渲染空态与提示。 */
 async function collectModels() {
   const disabled = loadModelConfig().disabled || {};
   const providers = loadProviders();
   const rows = [];
+  const hiddenProviders = [];
   providers.forEach(provider => {
     const protocolCallable = Boolean(PROVIDER_PROTOCOLS[provider.protocol]?.callable);
+    const providerOn = provider.enabled !== false;
+    if (!providerOn) {
+      const count = (provider.models || []).length;
+      if (count) hiddenProviders.push({ id: provider.id, name: provider.name, count });
+      return;
+    }
     (provider.models || []).forEach(id => rows.push({
-      id, source: provider.name, sourceType: "provider", providerId: provider.id, providerEnabled: provider.enabled !== false,
+      id, source: provider.name, sourceType: "provider", providerId: provider.id,
       builtin: provider.id === RELAY_PROVIDER_ID,
       protocol: provider.protocol, protocolLabel: PROVIDER_PROTOCOLS[provider.protocol]?.label || provider.protocol,
-      callable: protocolCallable && provider.enabled !== false, adaptable: protocolCallable,
+      callable: protocolCallable, adaptable: protocolCallable,
       enabled: !disabled[id], reason: disabled[id]?.reason || "", disabledAt: disabled[id]?.disabledAt || ""
     }));
   });
   // 稳定排序：同 id 保持供应商列表顺序（第一个就是路由实际命中的那家）
   rows.sort((a, b) => a.id.localeCompare(b.id));
   const notices = [];
+  const hiddenNames = hiddenProviders.map(item => item.name).join("、");
+  const hiddenCount = hiddenProviders.reduce((sum, item) => sum + item.count, 0);
   if (!providers.length) notices.push("还没有配置供应商：点右上角「供应商配置」接入（内置中转站会按环境变量自动迁移）");
+  else if (!rows.length && hiddenProviders.length) notices.push(`${hiddenNames}已停用，其 ${hiddenCount} 个模型已从清单隐藏：到「供应商配置」重新启用即恢复`);
   else if (!rows.length) notices.push("供应商已接入但模型清单为空：在「供应商配置」里点「拉取模型」同步");
+  else if (hiddenProviders.length) notices.push(`${hiddenNames}已停用，其 ${hiddenCount} 个模型不在上方清单里`);
   const stale = providers.filter(item => item.enabled !== false && !(item.models || []).length);
   if (rows.length && stale.length) notices.push(`${stale.map(item => item.name).join("、")} 的模型清单为空，正在自动同步`);
   if (stale.length) scheduleProviderAutoRefresh();
   return {
     rows,
     notice: notices.join("；"),
+    hiddenProviders,
     providers: providers.map(publicProvider),
     protocols: Object.entries(PROVIDER_PROTOCOLS).map(([id, meta]) => ({ id, ...meta }))
   };
@@ -1668,8 +1688,8 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/v1/model-config") {
-    const { rows, notice, providers, protocols } = await collectModels();
-    return sendJson(res, 200, { models: rows, providers, protocols, notice });
+    const { rows, notice, providers, protocols, hiddenProviders } = await collectModels();
+    return sendJson(res, 200, { models: rows, providers, protocols, hiddenProviders, notice });
   }
 
   /* ---------- 自配供应商：列表 / 新增 / 修改 / 删除 / 连通性测试 / 拉取模型 ---------- */
@@ -1694,6 +1714,7 @@ async function handleRequest(req, res) {
     if (providers.some(item => item.name === name)) return sendJson(res, 409, { error: `供应商「${name}」已存在` });
     const provider = normalizeProvider(body, { id: `prov-${crypto.randomBytes(4).toString("hex")}` });
     if (!provider.models.length) return sendJson(res, 400, { error: "至少填写一个模型 ID（可先用「拉取模型」获取）" });
+    if (!provider.apiKeys.length && !isLocalBaseUrl(provider.baseUrl)) return sendJson(res, 400, { error: "请填写 API Key（本地地址可不填）" });
     providers.push(provider);
     saveProviders(providers);
     return sendJson(res, 200, { provider: publicProvider(provider) });
@@ -1712,7 +1733,11 @@ async function handleRequest(req, res) {
     if (!baseUrl) return sendJson(res, 400, { error: "Base URL 不能为空" });
     if (providers.some(item => item.id !== providerId && item.name === name)) return sendJson(res, 409, { error: `供应商「${name}」已存在` });
     const updated = normalizeProvider(body, providers[index]);
-    if (!updated.models.length) return sendJson(res, 400, { error: "至少填写一个模型 ID（可先用「拉取模型」获取）" });
+    // 只有「保存供应商表单」这条路径必须带模型 ID；行内启停（PUT { enabled }）不该被模型清单为空卡住，
+    // 否则迁移/拉取失败导致 models 为空的供应商连停用都点不动。
+    if (!updated.models.length && body.models !== undefined) return sendJson(res, 400, { error: "至少填写一个模型 ID（可先用「拉取模型」获取）" });
+    // API Key 同样是必填（本地地址除外）：只在「保存供应商表单」这条路径校验，行内启停不受影响
+    if (!updated.apiKeys.length && !isLocalBaseUrl(updated.baseUrl)) return sendJson(res, 400, { error: "请填写 API Key（本地地址可不填）" });
     providers[index] = updated;
     saveProviders(providers);
     return sendJson(res, 200, { provider: publicProvider(updated) });
@@ -1837,7 +1862,7 @@ async function handleRequest(req, res) {
     const entry = registry.find(item => item.id === id);
     if (!entry) return sendJson(res, 404, { error: `Skill 不存在：${id}` });
     const body = await readBody(req);
-    ["icon", "title", "displayDesc", "sort", "enabled", "scenarioKey", "clarification", "assetScope", "responseContract"].forEach(key => {
+    ["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt", "scenarioKey", "clarification", "assetScope", "responseContract"].forEach(key => {
       if (body[key] !== undefined) entry[key] = body[key];
     });
     if (Array.isArray(body.grayUsers)) entry.grayUsers = body.grayUsers.slice(0, 50);
