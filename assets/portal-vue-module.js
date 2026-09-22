@@ -2781,69 +2781,83 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
-            <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索模型名称或供应商"></el-input></div>
+            <div class="portal-vue-toolbar-left">
+              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索模型或供应商"></el-input>
+              <el-select v-model="statusFilter" class="portal-vue-filter" style="width:132px">
+                <el-option label="全部模型" value="all"></el-option>
+                <el-option label="仅可用" value="enabled"></el-option>
+                <el-option label="仅禁用" value="disabled"></el-option>
+              </el-select>
+            </div>
             <div>
               <el-button :loading="loading" @click="load">刷新</el-button>
-              <el-button v-if="canEdit('模型配置')" type="primary" @click="openProvider(null)">＋ 接入供应商</el-button>
+              <el-button v-if="canEdit('模型配置')" type="primary" @click="openProviderDrawer">供应商配置</el-button>
             </div>
           </div>
-          <el-alert v-if="relayError" class="portal-vue-provider-alert" type="warning" :closable="false" show-icon :title="'内置中转站：' + relayError"></el-alert>
+          <el-alert v-if="notice" class="portal-vue-provider-alert" type="warning" :closable="false" show-icon :title="notice"></el-alert>
 
-          <div class="portal-vue-block-head"><strong>供应商接入</strong><span class="portal-vue-muted">填 Base URL、Key 类型与 API Key，点「拉取模型列表」自动带出可用模型；Key 只写入网关，页面只显示掩码</span></div>
-          <el-table :data="providers" class="portal-vue-table" border empty-text="还没有接入外部供应商，点右上角「接入供应商」添加">
+          <div class="portal-vue-block-head"><strong>全部可用模型</strong><span class="portal-vue-muted">共 {{ modelRows.length }} 个模型，来自 {{ providers.length }} 个供应商；开关即改即生效，关掉立即从灵犀智析下拉框隐藏</span></div>
+          <el-table :data="filteredRows" class="portal-vue-table" border empty-text="还没有可用模型：点右上角「供应商配置」接入">
+            <el-table-column prop="id" label="模型" min-width="240"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
             <el-table-column label="供应商" min-width="210">
               <template #default="scope">
-                <div><span class="portal-vue-name">{{ scope.row.name }}</span><el-tag size="small" effect="plain" style="margin-left:6px">{{ scope.row.protocolLabel }}</el-tag><el-tag v-if="!scope.row.callable" size="small" type="warning" effect="light" style="margin-left:4px">协议待适配</el-tag></div>
-                <div v-if="scope.row.note" class="portal-vue-muted" style="margin-top:2px">{{ scope.row.note }}</div>
+                <el-tag size="small" :type="scope.row.builtin ? 'info' : 'primary'" effect="plain">{{ scope.row.source }}</el-tag>
+                <el-tooltip v-if="scope.row.sources.length > 1" :content="'同模型还来自：' + scope.row.sources.slice(1).join('、')" placement="top"><el-tag size="small" effect="plain" style="margin-left:4px">+{{ scope.row.sources.length - 1 }}</el-tag></el-tooltip>
+                <el-tag v-if="scope.row.adaptable === false" size="small" type="warning" effect="light" style="margin-left:4px">协议待适配</el-tag>
+                <el-tag v-else-if="scope.row.providerEnabled === false" size="small" type="info" effect="light" style="margin-left:4px">供应商已停用</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="Base URL" min-width="230"><template #default="scope"><code class="portal-vue-code">{{ scope.row.baseUrl }}</code></template></el-table-column>
-            <el-table-column label="Key 类型" width="130"><template #default="scope">{{ authLabel(scope.row.authType) }}</template></el-table-column>
-            <el-table-column label="API Key" width="175">
-              <template #default="scope">
-                <span v-if="scope.row.hasKey" class="portal-vue-key-state ok"><i></i>{{ scope.row.keyMasked }}</span>
-                <span v-else class="portal-vue-key-state miss"><i></i>{{ scope.row.callable ? "未配置" : "无需 Key" }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="模型" width="80" align="right"><template #default="scope">{{ scope.row.models.length }}</template></el-table-column>
-            <el-table-column label="连通性" width="140">
-              <template #default="scope">
-                <el-tooltip v-if="scope.row.health" :content="scope.row.health.message + '（' + healthTime(scope.row.health.at) + '）'" placement="top">
-                  <el-tag size="small" :type="scope.row.health.ok ? 'success' : 'danger'" effect="light">{{ scope.row.health.ok ? "正常" : "异常" }}</el-tag>
-                </el-tooltip>
-                <span v-else class="portal-vue-muted">未测试</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="启用" width="90"><template #default="scope"><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled !== false" inline-prompt active-text="启用" inactive-text="停用" @change="value=>toggleProvider(scope.row, value)"></el-switch></template></el-table-column>
-            <el-table-column label="操作" width="230" fixed="right">
-              <template #default="scope">
-                <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="rowTest(scope.row)">测试</el-button>
-                <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="rowRefresh(scope.row)">拉取模型</el-button>
-                <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="openProvider(scope.row)">编辑</el-button>
-                <el-button link type="danger" :disabled="!canEdit('模型配置')" @click="removeProvider(scope.row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="portal-vue-block-head"><strong>模型清单</strong><span class="portal-vue-muted">禁用后立即从灵犀智析下拉框隐藏；「协议待适配」的模型只登记、不参与分析</span></div>
-          <el-table :data="filteredRows" class="portal-vue-table" border empty-text="网关未连接，或还没有可用模型">
-            <el-table-column prop="id" label="模型" min-width="220"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
-            <el-table-column label="来源" min-width="180">
-              <template #default="scope">
-                <el-tag size="small" :type="scope.row.sourceType === 'provider' ? 'primary' : 'info'" effect="plain">{{ scope.row.source }}</el-tag>
-                <el-tag v-if="scope.row.sourceType === 'provider' && scope.row.adaptable === false" size="small" type="warning" effect="light" style="margin-left:4px">协议待适配</el-tag>
-                <el-tag v-else-if="scope.row.sourceType === 'provider' && scope.row.providerEnabled === false" size="small" type="info" effect="light" style="margin-left:4px">供应商已停用</el-tag>
-              </template>
-            </el-table-column>
+            <el-table-column label="协议" width="150"><template #default="scope">{{ scope.row.protocolLabel }}</template></el-table-column>
             <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="scope.row.enabled ? 'success' : 'info'" effect="light">{{ scope.row.enabled ? "可用" : "已禁用" }}</el-tag></template></el-table-column>
             <el-table-column label="禁用时间" width="180"><template #default="scope">{{ scope.row.disabledAt ? scope.row.disabledAt.slice(0, 16).replace("T", " ") : "—" }}</template></el-table-column>
             <el-table-column label="操作" width="130" fixed="right"><template #default="scope"><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch></template></el-table-column>
           </el-table>
-          <div class="portal-vue-muted" style="margin-top:12px">模型按「自配供应商优先」路由：同名模型命中已启用供应商时走该供应商的 Base URL 与 Key；配置保存在网关数据卷（providers.json，权限 600），重启不丢失。</div>
+          <div class="portal-vue-muted" style="margin-top:12px">模型按「供应商优先」路由：同名模型按供应商列表顺序取第一个；供应商（含内置中转站）统一在「供应商配置」里维护，随改随生效。</div>
         </section>
 
-        <el-drawer v-model="drawerVisible" :title="editingId ? '编辑供应商 · ' + form.name : '接入供应商'" size="620px" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true" destroy-on-close>
-          <el-form class="portal-vue-dialog-form" label-position="top">
+        <el-drawer v-model="providerDrawer" :title="viewMode === 'form' ? (editingId ? '编辑供应商 · ' + form.name : '接入供应商') : '供应商配置'" :size="viewMode === 'form' ? '620px' : 'min(1200px, 94vw)'" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
+          <div v-if="viewMode === 'list'" class="portal-vue-provider-list">
+            <div class="portal-vue-provider-list-bar">
+              <span class="portal-vue-muted">所有模型来源都在这里维护：内置中转站由环境变量 RELAY_BASE_URL / RELAY_API_KEY 首次迁移而来，之后可直接改 Base URL、Key 与模型</span>
+              <el-button v-if="canEdit('模型配置')" type="primary" size="small" @click="openProvider(null)">＋ 接入供应商</el-button>
+            </div>
+            <el-table :data="providers" class="portal-vue-table" border empty-text="还没有供应商，点「接入供应商」添加">
+              <el-table-column label="供应商" min-width="190">
+                <template #default="scope">
+                  <div><span class="portal-vue-name">{{ scope.row.name }}</span><el-tag v-if="scope.row.builtin" size="small" type="info" effect="plain" style="margin-left:6px">内置</el-tag></div>
+                  <div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.protocolLabel }}<span v-if="scope.row.note"> · {{ scope.row.note }}</span></div>
+                </template>
+              </el-table-column>
+              <el-table-column label="Base URL" min-width="200"><template #default="scope"><code class="portal-vue-code">{{ scope.row.baseUrl }}</code></template></el-table-column>
+              <el-table-column label="Key 类型" width="120"><template #default="scope">{{ authLabel(scope.row.authType) }}</template></el-table-column>
+              <el-table-column label="API Key" width="170">
+                <template #default="scope">
+                  <span v-if="scope.row.hasKey" class="portal-vue-key-state ok"><i></i>{{ scope.row.keyMasked }}<em v-if="scope.row.keyCount > 1">等 {{ scope.row.keyCount }} 个 Key</em></span>
+                  <span v-else class="portal-vue-key-state miss"><i></i>{{ scope.row.callable ? "未配置" : "无需 Key" }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="模型" width="70" align="right"><template #default="scope">{{ scope.row.models.length }}</template></el-table-column>
+              <el-table-column label="连通性" width="110">
+                <template #default="scope">
+                  <el-tooltip v-if="scope.row.health" :content="scope.row.health.message + '（' + healthTime(scope.row.health.at) + '）'" placement="top">
+                    <el-tag size="small" :type="scope.row.health.ok ? 'success' : 'danger'" effect="light">{{ scope.row.health.ok ? "正常" : "异常" }}</el-tag>
+                  </el-tooltip>
+                  <span v-else class="portal-vue-muted">未测试</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="启用" width="80"><template #default="scope"><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled !== false" inline-prompt active-text="启用" inactive-text="停用" @change="value=>toggleProvider(scope.row, value)"></el-switch></template></el-table-column>
+              <el-table-column label="操作" width="200" fixed="right">
+                <template #default="scope">
+                  <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="rowTest(scope.row)">测试</el-button>
+                  <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="rowRefresh(scope.row)">拉取模型</el-button>
+                  <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="openProvider(scope.row)">编辑</el-button>
+                  <el-button link type="danger" :disabled="!canEdit('模型配置')" @click="removeProvider(scope.row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+          <el-form v-else class="portal-vue-dialog-form" label-position="top">
             <el-form-item label="预设模板">
               <el-select v-model="presetId" placeholder="选常见供应商，自动带出 Base URL 与 Key 类型" @change="applyPreset">
                 <el-option v-for="item in presets" :key="item.id" :label="item.label" :value="item.id"></el-option>
@@ -2866,7 +2880,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               <el-input v-model="form.authKeyName" :placeholder="authKeyPlaceholder"></el-input>
             </el-form-item>
             <el-form-item label="API Key">
-              <el-input v-model="form.apiKey" type="password" show-password autocomplete="new-password" :placeholder="keyPlaceholder"></el-input>
+              <el-input v-model="keysText" type="textarea" :rows="2" resize="none" autocomplete="new-password" :placeholder="keyPlaceholder"></el-input>
               <span class="portal-vue-muted" style="font-size:12px">{{ keyHint }}</span>
             </el-form-item>
             <el-form-item v-if="form.protocol === 'azure-openai'" label="api-version" required><el-input v-model="form.apiVersion" placeholder="如：2024-10-21"></el-input></el-form-item>
@@ -2881,26 +2895,46 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-form-item label="默认模型（可选）"><el-select v-model="form.defaultModel" clearable placeholder="不填则用模型清单里的第一个"><el-option v-for="item in parsedModels" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
             <el-form-item label="备注"><el-input v-model="form.note" placeholder="如：给归因分析用的备用通道"></el-input></el-form-item>
             <el-form-item label="启用"><el-switch v-model="form.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">停用后该供应商的模型立即从灵犀智析隐藏</span></el-form-item>
-            <el-form-item v-if="editingId && form.hasKey" label="已保存的 Key"><el-button size="small" @click="clearKey">清除已保存的 Key</el-button></el-form-item>
+            <el-form-item v-if="editingId && form.hasKey" label="已保存的 Key"><el-button size="small" @click="clearKeys">清除已保存的 Key</el-button></el-form-item>
           </el-form>
+
           <template #footer>
-            <div style="display:flex;justify-content:flex-end;gap:10px">
-              <el-button @click="drawerVisible=false">取消</el-button>
+            <div v-if="viewMode === 'list'" style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="providerDrawer=false">关闭</el-button></div>
+            <div v-else style="display:flex;justify-content:flex-end;gap:10px">
+              <el-button @click="backToList">返回列表</el-button>
               <el-button type="primary" :loading="saving" :disabled="!canEdit('模型配置')" @click="saveProvider">保存</el-button>
             </div>
           </template>
         </el-drawer>
       </el-config-provider>
     `,
-    data:()=>({models:[],providers:[],protocols:MODEL_PROTOCOL_FALLBACK,keyword:"",loading:false,relayError:"",drawerVisible:false,editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",form:{}}),
+    data:()=>({rows:[],providers:[],protocols:MODEL_PROTOCOL_FALLBACK,notice:"",keyword:"",statusFilter:"all",loading:false,providerDrawer:false,viewMode:"list",editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",keysText:"",form:{}}),
     computed:{
-      filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.models.filter(item=>!keyword||item.id.toLowerCase().includes(keyword)||String(item.source||"").toLowerCase().includes(keyword));},
+      modelRows(){
+        // 一个模型一行：同 id 的其它供应商收进 sources（路由按供应商列表顺序取第一个）
+        const map=new Map();
+        this.rows.forEach(row=>{
+          const existing=map.get(row.id);
+          if(existing){existing.sources.push(row.source);}
+          else map.set(row.id,Object.assign({},row,{sources:[row.source]}));
+        });
+        return [...map.values()];
+      },
+      filteredRows(){
+        const keyword=this.keyword.trim().toLowerCase();
+        return this.modelRows.filter(item=>{
+          if(this.statusFilter==="enabled"&&!item.enabled)return false;
+          if(this.statusFilter==="disabled"&&item.enabled)return false;
+          return !keyword||item.id.toLowerCase().includes(keyword)||String(item.source||"").toLowerCase().includes(keyword);
+        });
+      },
       authOptions(){return Object.keys(MODEL_AUTH_LABELS).map(id=>({id,label:MODEL_AUTH_LABELS[id]}));},
       parsedModels(){return this.modelsText.split(/[\n,，;；]/).map(item=>item.trim()).filter(Boolean);},
+      parsedKeys(){return this.keysText.split(/[\n,;；]/).map(item=>item.trim()).filter(Boolean);},
       presetNote(){const preset=this.presets.find(item=>item.id===this.presetId);return preset?preset.note:"";},
       authKeyNameLabel(){return this.form.authType==="query"?"查询参数名":"Header 名称";},
       authKeyPlaceholder(){return MODEL_AUTH_KEY_DEFAULTS[this.form.authType]||"X-Api-Key";},
-      keyPlaceholder(){return this.form.hasKey?"已保存 "+this.form.keyMasked+"，留空表示不修改":"粘贴 API Key（只需密钥本身）";},
+      keyPlaceholder(){return this.form.hasKey?"已保存 "+this.form.keyMasked+(this.form.keyCount>1?"（共 "+this.form.keyCount+" 个）":"")+"，留空表示不修改":"粘贴 API Key；多个 Key 每行一个，轮换重试";},
       keyHint(){return this.form.hasKey?"Key 只写不读，页面不会再回显明文；要更换就直接粘贴新 Key":"Key 只写入网关数据卷，页面不回显明文"}
     },
     mounted(){this.pageHandler=event=>{if(event.detail?.page==="模型配置")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
@@ -2914,28 +2948,30 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           const response=await fetch(`${analysisGatewayBase}/v1/model-config`);
           if(response.ok){
             const data=await response.json();
-            this.models=data.models||[];
+            this.rows=data.models||[];
             this.providers=data.providers||[];
             if(Array.isArray(data.protocols)&&data.protocols.length)this.protocols=data.protocols;
-            this.relayError=data.relay&&data.relay.ok===false?(data.relay.error||""):"";
+            this.notice=data.notice||"";
           }
-        }catch(error){this.models=[];this.providers=[];this.relayError="";}
+        }catch(error){this.rows=[];this.providers=[];this.notice="";}
         this.loading=false;
       },
+      openProviderDrawer(){this.viewMode="list";this.providerDrawer=true;this.load();},
+      backToList(){this.viewMode="list";this.load();},
       openProvider(row){
-        this.testResult="";this.testOk=null;
+        this.testResult="";this.testOk=null;this.keysText="";
         if(row){
           this.editingId=row.id;
           this.presetId="";
-          this.form={name:row.name,protocol:row.protocol,baseUrl:row.baseUrl,authType:row.authType||"bearer",authKeyName:row.authKeyName||"",apiVersion:row.apiVersion||"",defaultModel:row.defaultModel||"",note:row.note||"",enabled:row.enabled!==false,apiKey:"",hasKey:row.hasKey,keyMasked:row.keyMasked};
+          this.form={name:row.name,protocol:row.protocol,baseUrl:row.baseUrl,authType:row.authType||"bearer",authKeyName:row.authKeyName||"",apiVersion:row.apiVersion||"",defaultModel:row.defaultModel||"",note:row.note||"",enabled:row.enabled!==false,hasKey:row.hasKey,keyMasked:row.keyMasked,keyCount:row.keyCount||0};
           this.modelsText=(row.models||[]).join("\n");
         }else{
           this.editingId="";
-          this.form={name:"",protocol:"openai-compatible",baseUrl:"",authType:"bearer",authKeyName:"",apiVersion:"",defaultModel:"",note:"",enabled:true,apiKey:"",hasKey:false,keyMasked:""};
+          this.form={name:"",protocol:"openai-compatible",baseUrl:"",authType:"bearer",authKeyName:"",apiVersion:"",defaultModel:"",note:"",enabled:true,hasKey:false,keyMasked:"",keyCount:0};
           this.modelsText="";
           this.applyPreset("deepseek");
         }
-        this.drawerVisible=true;
+        this.viewMode="form";
       },
       applyPreset(id){
         const preset=this.presets.find(item=>item.id===(id||this.presetId));
@@ -2953,7 +2989,9 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if(!this.form.baseUrl||!this.form.baseUrl.trim())return ep.ElMessage.warning("先填 Base URL");
         this.testing=true;this.testResult="";this.testOk=null;
         try{
-          const payload=Object.assign({},this.form,{id:this.editingId||undefined});
+          const payload=Object.assign({},this.form,{id:this.editingId||undefined,apiKeys:this.parsedKeys});
+          if(!payload.apiKeys.length)delete payload.apiKeys;
+          delete payload.hasKey;delete payload.keyMasked;delete payload.keyCount;
           const response=await fetch(`${analysisGatewayBase}/v1/providers/test`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
           const data=await response.json().catch(()=>({}));
           this.testOk=Boolean(data.ok);
@@ -2973,25 +3011,26 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.saving=true;
         try{
           const payload=Object.assign({},this.form,{models});
-          delete payload.hasKey;delete payload.keyMasked;
-          if(!payload.apiKey)delete payload.apiKey;
-          payload.clearKey=this.form.clearKey===true&&!payload.apiKey;
+          delete payload.hasKey;delete payload.keyMasked;delete payload.keyCount;
+          const keys=this.parsedKeys;
+          if(keys.length)payload.apiKeys=keys;else delete payload.apiKeys;
+          payload.clearKeys=this.form.clearKeys===true&&!keys.length;
           const url=this.editingId?`${analysisGatewayBase}/v1/providers/${encodeURIComponent(this.editingId)}`:`${analysisGatewayBase}/v1/providers`;
           const response=await fetch(url,{method:this.editingId?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
           const data=await response.json().catch(()=>({}));
           if(!response.ok)return ep.ElMessage.error(data.error||"保存失败，请确认网关已启动");
-          this.drawerVisible=false;
           notify(this.editingId?`供应商「${payload.name}」已更新`:`供应商「${payload.name}」已接入，模型清单已刷新`);
+          this.viewMode="list";
           await this.load();
         }catch(error){ep.ElMessage.error("保存失败，请确认网关已启动");}
         this.saving=false;
       },
-      clearKey(){this.form.apiKey="";this.form.hasKey=false;this.form.keyMasked="";this.form.clearKey=true;ep.ElMessage.info("保存后清除网关里已存的 Key");},
+      clearKeys(){this.keysText="";this.form.hasKey=false;this.form.keyMasked="";this.form.keyCount=0;this.form.clearKeys=true;ep.ElMessage.info("保存后清除网关里已存的 Key");},
       async toggleProvider(row,value){
         try{
           const response=await fetch(`${analysisGatewayBase}/v1/providers/${encodeURIComponent(row.id)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:value})});
           if(!response.ok){const data=await response.json().catch(()=>({}));return ep.ElMessage.error(data.error||"保存失败，请确认网关已启动");}
-          notify(`供应商「${row.name}」已${value?"启用":"停用"}`);
+          notify(`供应商「${row.name}」已${value?"启用":"停用"}，模型清单已刷新`);
           await this.load();
         }catch(error){ep.ElMessage.error("保存失败，请确认网关已启动");}
       },

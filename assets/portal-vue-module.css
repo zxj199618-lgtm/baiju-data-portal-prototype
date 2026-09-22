@@ -830,3 +830,6 @@
 .portal-vue-provider-test-result { font-size: 12.5px; line-height: 1.5; }
 .portal-vue-provider-test-result.ok { color: #16a34a; }
 .portal-vue-provider-test-result.bad { color: #d93026; }
+.portal-vue-provider-list-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.portal-vue-provider-list-bar > span { font-size: 12.5px; line-height: 1.6; }
+.portal-vue-key-state em { margin-left: 6px; font-style: normal; color: #8a94a6; font-size: 12px; }

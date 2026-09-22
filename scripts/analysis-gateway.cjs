@@ -1050,17 +1050,20 @@ function saveModelConfig(config) {
   fs.renameSync(tmp, MODEL_CONFIG_FILE);
 }
 
-/* ================= 自配供应商（模型配置 → 供应商接入） =================
- * 字段设计参考 CC Switch / DeepSeek Harness 的 provider 配置：
- *   - 预设模板（前端）带出 Base URL 与鉴权方式，自定义路径强制「协议 + Base URL + 至少一个模型」；
+/* ================= 模型供应商（模型配置 → 供应商配置） =================
+ * 设计参考 CC Switch / DeepSeek Harness 的 provider 配置：
+ *   - 所有模型来源统一是「供应商」：内置中转站首次启动按环境变量 RELAY_BASE_URL / RELAY_API_KEY
+ *     迁移成一条普通供应商记录（prov-relay），之后与自配供应商共用同一套表单、接口与路由，不再有特例通道；
+ *   - 一个供应商可配多个 API Key（每行一个），按「上次成功的 Key」优先重试，保留中转站原有的多 Key 轮换；
  *   - API Key 只写不读：写盘 chmod 600，接口只回显掩码，任何日志/响应都不带明文；
  *   - 「模型」是能力载体，挂在模型条目上而不是供应商上；
  *   - 只有 OpenAI 兼容类协议参与分析调用路由：openai-compatible / ark / custom / azure-openai；
  *     anthropic、anthropic-compatible、gemini 允许登记与连通性测试，但模型不进入工作台可调用列表
  *     （避免把「协议没适配」误当成「模型坏了」）。
- * 同名模型的路由规则：供应商优先于内置中转站；多个供应商声明同一模型时按供应商列表顺序取第一个。
+ * 同名模型由多个供应商声明时按供应商列表顺序取第一个（内置中转站排在最前）。
  */
 const PROVIDERS_FILE = path.join(DATA_DIR, "providers.json");
+const RELAY_PROVIDER_ID = "prov-relay";
 const PROVIDER_PROTOCOLS = {
   "openai-compatible": { label: "OpenAI 兼容", callable: true },
   "ark": { label: "火山方舟 ARK", callable: true },
@@ -1073,20 +1076,28 @@ const PROVIDER_PROTOCOLS = {
 const PROVIDER_AUTH_TYPES = ["bearer", "x-api-key", "x-goog-api-key", "api-key-header", "query", "custom-header"];
 const DEFAULT_AUTH_KEY_NAME = { "x-api-key": "x-api-key", "x-goog-api-key": "x-goog-api-key", "api-key-header": "api-key", query: "key", "custom-header": "X-Api-Key" };
 
-function loadProviders() {
+/** 记住每个模型上次成功的 Key：多 Key 供应商重试时优先用它 */
+const modelKeyCache = new Map();
+
+function loadProviderState() {
   try {
     const data = JSON.parse(fs.readFileSync(PROVIDERS_FILE, "utf8"));
-    return Array.isArray(data.providers) ? data.providers : [];
-  } catch { return []; }
+    return { providers: Array.isArray(data.providers) ? data.providers : [], relayMigrated: data.relayMigrated === true };
+  } catch { return { providers: [], relayMigrated: false }; }
 }
 
-function saveProviders(providers) {
+function saveProviderState(state) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const tmp = `${PROVIDERS_FILE}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ providers }, null, 2), { mode: 0o600 });
+  fs.writeFileSync(tmp, JSON.stringify({ providers: state.providers || [], relayMigrated: state.relayMigrated === true }, null, 2), { mode: 0o600 });
   try { fs.chmodSync(tmp, 0o600); } catch { /* 文件系统不支持时忽略 */ }
   fs.renameSync(tmp, PROVIDERS_FILE);
 }
+
+function loadProviders() { return loadProviderState().providers; }
+
+/** 任何一次增删改都视为「已迁移」，避免删掉内置中转站后重启又被自动建回来 */
+function saveProviders(providers) { saveProviderState({ providers, relayMigrated: true }); }
 
 /** 掩码只用于「已配置」的视觉提示，绝不回传明文 */
 function maskSecret(value) {
@@ -1096,9 +1107,24 @@ function maskSecret(value) {
   return `${secret.slice(0, 3)}••••${secret.slice(-4)}`;
 }
 
+function providerKeys(provider) {
+  const keys = Array.isArray(provider?.apiKeys) ? provider.apiKeys.filter(Boolean) : [];
+  return keys.length ? keys : [""];
+}
+
 function publicProvider(provider) {
-  const { apiKey, ...rest } = provider;
-  return { ...rest, hasKey: Boolean(apiKey), keyMasked: maskSecret(apiKey), protocolLabel: PROVIDER_PROTOCOLS[provider.protocol]?.label || provider.protocol, callable: Boolean(PROVIDER_PROTOCOLS[provider.protocol]?.callable) };
+  const { apiKeys, ...rest } = provider;
+  const keys = providerKeys(provider).filter(Boolean);
+  return {
+    ...rest,
+    hasKey: keys.length > 0,
+    keyCount: keys.length,
+    keyMasked: keys.length ? maskSecret(keys[0]) : "",
+    keyMasks: keys.map(maskSecret),
+    protocolLabel: PROVIDER_PROTOCOLS[provider.protocol]?.label || provider.protocol,
+    callable: Boolean(PROVIDER_PROTOCOLS[provider.protocol]?.callable),
+    builtin: provider.id === RELAY_PROVIDER_ID
+  };
 }
 
 function normalizeProvider(input, base = {}) {
@@ -1123,10 +1149,14 @@ function normalizeProvider(input, base = {}) {
     createdAt: base.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
-  // apiKey：非空字符串即覆盖；null / undefined / 空串表示「不修改」；clearKey: true 显式清除
-  const incoming = input.apiKey;
-  record.apiKey = typeof incoming === "string" && incoming.trim() ? sanitizeApiKey(incoming) : (base.apiKey || "");
-  if (input.clearKey === true) record.apiKey = "";
+  // apiKeys：数组或换行/逗号分隔字符串都接受；apiKey 单值等价；都不传表示「不修改」；clearKeys: true 显式清空
+  let keys;
+  if (input.clearKeys === true) keys = [];
+  else if (Array.isArray(input.apiKeys)) keys = input.apiKeys;
+  else if (typeof input.apiKeys === "string" && input.apiKeys.trim()) keys = input.apiKeys.split(/[\n,;]/);
+  else if (typeof input.apiKey === "string" && input.apiKey.trim()) keys = [input.apiKey];
+  else keys = Array.isArray(base.apiKeys) ? base.apiKeys : [];
+  record.apiKeys = [...new Set(keys.map(sanitizeApiKey).filter(Boolean))].slice(0, 10);
   return record;
 }
 
@@ -1141,10 +1171,9 @@ function sanitizeApiKey(raw) {
   return value;
 }
 
-function providerHeaders(provider) {
+function providerHeaders(provider, key = "") {
   const headers = { "Content-Type": "application/json" };
   const authType = provider.authType || "bearer";
-  const key = provider.apiKey || "";
   const name = String(provider.authKeyName || "").trim() || DEFAULT_AUTH_KEY_NAME[authType] || "";
   if (authType === "bearer") headers.Authorization = `Bearer ${key}`;
   else if (authType !== "query") headers[name || "X-Api-Key"] = key;
@@ -1156,11 +1185,12 @@ function providerHeaders(provider) {
   return headers;
 }
 
-function withAuthQuery(target, provider) {
+function withAuthQuery(target, provider, key = "") {
   if ((provider.authType || "") !== "query") return target;
   try {
     const url = new URL(target);
-    url.searchParams.set(String(provider.authKeyName || "").trim() || "key", provider.apiKey || "");
+    const paramName = String(provider.authKeyName || "").trim() || "key";
+    if (key) url.searchParams.set(paramName, key);
     return url.toString();
   } catch { return target; }
 }
@@ -1169,22 +1199,21 @@ function joinBase(baseUrl, suffix) {
   return `${String(baseUrl || "").trim().replace(/\/+$/, "")}${suffix}`;
 }
 
-function providerChatUrl(provider, model) {
-  if (provider.protocol === "azure-openai") {
-    const version = provider.apiVersion || "2024-10-21";
-    return withAuthQuery(`${joinBase(provider.baseUrl, "")}/openai/deployments/${encodeURIComponent(model)}/chat/completions?api-version=${encodeURIComponent(version)}`, provider);
-  }
-  return withAuthQuery(joinBase(provider.baseUrl, "/chat/completions"), provider);
+function providerChatTarget(provider, model, key = "") {
+  const endpoint = provider.protocol === "azure-openai"
+    ? `${joinBase(provider.baseUrl, "")}/openai/deployments/${encodeURIComponent(model)}/chat/completions?api-version=${encodeURIComponent(provider.apiVersion || "2024-10-21")}`
+    : joinBase(provider.baseUrl, "/chat/completions");
+  return { key, url: withAuthQuery(endpoint, provider, key), headers: providerHeaders(provider, key) };
 }
 
-function providerModelsUrl(provider) {
+function providerModelsUrl(provider, key = "") {
   const base = String(provider.baseUrl || "").trim().replace(/\/+$/, "");
-  if (provider.protocol === "gemini") return withAuthQuery(joinBase(base.replace(/\/v1beta$/, ""), "/v1beta/models"), provider);
-  if (provider.protocol === "anthropic") return withAuthQuery(joinBase(base.replace(/\/v1$/, ""), "/v1/models?limit=1000"), provider);
-  return withAuthQuery(joinBase(base, "/models"), provider);
+  if (provider.protocol === "gemini") return withAuthQuery(joinBase(base.replace(/\/v1beta$/, ""), "/v1beta/models"), provider, key);
+  if (provider.protocol === "anthropic") return withAuthQuery(joinBase(base.replace(/\/v1$/, ""), "/v1/models?limit=1000"), provider, key);
+  return withAuthQuery(joinBase(base, "/models"), provider, key);
 }
 
-/** 模型 → 供应商路由；未命中返回 null（回落到内置中转站） */
+/** 模型 → 供应商调用目标（一个 Key 一个目标，按上次成功的 Key 优先）；未命中返回 null */
 function routeForModel(modelId) {
   const provider = loadProviders().find(item =>
     item.enabled !== false
@@ -1192,7 +1221,15 @@ function routeForModel(modelId) {
     && Array.isArray(item.models)
     && item.models.includes(modelId)
   );
-  return provider ? { provider, providerId: provider.id, providerName: provider.name, url: providerChatUrl(provider, modelId), headers: providerHeaders(provider) } : null;
+  if (!provider) return null;
+  const keys = providerKeys(provider);
+  const ordered = [...keys].sort((a, b) => (modelKeyCache.get(modelId) === b ? -1 : modelKeyCache.get(modelId) === a ? 1 : 0));
+  return {
+    provider,
+    providerId: provider.id,
+    providerName: provider.name,
+    targets: ordered.map(key => ({ ...providerChatTarget(provider, modelId, key), label: `provider:${provider.id}` }))
+  };
 }
 
 /** 语义化连通性结果：鉴权失败 / 端点无此能力 / 限流 / 网络 分开报，不把错误都写成「没有模型」 */
@@ -1205,60 +1242,124 @@ function providerProbeMessage(status, models) {
   return `连接成功，返回 ${models.length} 个模型`;
 }
 
-/** 拉取供应商模型列表（只读探测，不改配置） */
+/** 拉取供应商模型列表（只读探测，不改配置）：多 Key 时逐个探测并合并结果 */
 async function probeProvider(provider) {
-  const target = providerModelsUrl(provider);
-  const started = Date.now();
-  try {
-    const response = await fetch(target, { headers: providerHeaders(provider) });
-    const text = await response.text();
-    let data; try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 300) }; }
-    const source = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [];
-    const models = [...new Set(source.map(item => String(item?.id || item?.name || "").trim()).filter(Boolean))];
-    return { ok: response.ok, status: response.status, models, count: models.length, latencyMs: Date.now() - started, message: providerProbeMessage(response.status, models), endpoint: target };
-  } catch (error) {
-    return { ok: false, status: 0, models: [], count: 0, latencyMs: Date.now() - started, message: `网络不可达：${error.message}`, endpoint: target };
+  const keys = providerKeys(provider).slice(0, 3);
+  const merged = new Set();
+  let okAny = false, lastFail = null, endpoint = "";
+  for (const key of keys) {
+    const target = providerModelsUrl(provider, key);
+    endpoint = endpoint || target;
+    const started = Date.now();
+    try {
+      const response = await fetch(target, { headers: providerHeaders(provider, key) });
+      const text = await response.text();
+      let data; try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 300) }; }
+      const source = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [];
+      source.map(item => String(item?.id || item?.name || "").trim()).filter(Boolean).forEach(id => merged.add(id));
+      if (response.ok) okAny = true;
+      else lastFail = { ok: false, status: response.status, latencyMs: Date.now() - started, message: providerProbeMessage(response.status, []) };
+    } catch (error) {
+      lastFail = { ok: false, status: 0, latencyMs: Date.now() - started, message: `网络不可达：${error.message}` };
+    }
   }
+  const models = [...merged];
+  if (okAny) {
+    return { ok: true, status: 200, models, count: models.length, keyCount: keys.length, message: providerProbeMessage(200, models), endpoint };
+  }
+  return { ...(lastFail || { ok: false, status: 0, message: "没有可用的 API Key" }), models: [], count: 0, keyCount: keys.length, endpoint };
 }
 
 /** 通过供应商调用 chat/completions（OpenAI 兼容路径） */
-async function providerChat(route, model, payload) {
+async function providerChat(target, model, payload) {
   try {
-    const response = await fetch(route.url, { method: "POST", headers: route.headers, body: JSON.stringify({ model, ...payload }) });
+    const response = await fetch(target.url, { method: "POST", headers: target.headers, body: JSON.stringify({ model, ...payload }) });
     const text = await response.text();
     let data; try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 400) }; }
-    return { ok: response.ok, status: response.status, data, keyUsed: `provider:${route.providerId}`, provider: route.providerName, providerId: route.providerId };
+    return { ok: response.ok, status: response.status, data, keyUsed: target.label };
   } catch (error) {
-    return { ok: false, status: 502, data: { error: String(error) }, provider: route.providerName, providerId: route.providerId };
+    return { ok: false, status: 502, data: { error: String(error) } };
   }
 }
 
-/** 汇总「内置中转站 + 自配供应商」的模型清单（含来源、可调用性与启停状态） */
+/** 首次启动把环境变量里的中转站迁移成一条普通供应商记录（只在从未迁移过时执行一次） */
+async function ensureRelayProvider() {
+  const state = loadProviderState();
+  if (state.relayMigrated || state.providers.some(item => item.id === RELAY_PROVIDER_ID)) return;
+  if (!RELAY_API_KEYS.length) {
+    saveProviderState({ providers: state.providers, relayMigrated: true });
+    console.log("[providers] 未配置 RELAY_API_KEY，跳过内置中转站迁移");
+    return;
+  }
+  const provider = normalizeProvider({
+    name: "内置中转站",
+    protocol: "openai-compatible",
+    baseUrl: RELAY_BASE_URL,
+    authType: "bearer",
+    apiKeys: RELAY_API_KEYS,
+    models: [],
+    note: "由环境变量 RELAY_BASE_URL / RELAY_API_KEY 自动迁移，之后可直接在这里改"
+  }, { id: RELAY_PROVIDER_ID });
+  saveProviderState({ providers: [provider, ...state.providers], relayMigrated: true });
+  const result = await probeProvider(provider).catch(() => null);
+  if (result?.ok && result.models.length) {
+    const list = loadProviders();
+    const target = list.find(item => item.id === RELAY_PROVIDER_ID);
+    if (target) {
+      target.models = result.models.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id)).slice(0, 200);
+      target.health = { ok: true, status: 200, message: result.message, at: new Date().toISOString(), latencyMs: result.latencyMs };
+      saveProviders(list);
+    }
+  }
+  console.log(`[providers] 已把环境变量中的中转站迁移为供应商「内置中转站」（${result?.count || 0} 个模型）`);
+}
+
+/** 模型清单为空的自配供应商做一次限频的后台补拉，避免首次配置后要手动点「拉取模型」 */
+let providerAutoRefreshAt = 0;
+function scheduleProviderAutoRefresh() {
+  const now = Date.now();
+  if (now - providerAutoRefreshAt < 60000) return;
+  providerAutoRefreshAt = now;
+  const stale = loadProviders().filter(item => item.enabled !== false && !(item.models || []).length);
+  if (!stale.length) return;
+  Promise.allSettled(stale.slice(0, 3).map(async provider => {
+    const result = await probeProvider(provider);
+    if (!result.ok || !result.models.length) return;
+    const list = loadProviders();
+    const target = list.find(item => item.id === provider.id);
+    if (!target) return;
+    target.models = result.models.slice(0, 200);
+    target.health = { ok: true, status: 200, message: result.message, at: new Date().toISOString(), latencyMs: result.latencyMs };
+    saveProviders(list);
+  })).catch(() => { /* 后台补拉失败不影响主流程 */ });
+}
+
+/** 汇总所有供应商的模型清单（含来源、可调用性与启停状态） */
 async function collectModels() {
   const disabled = loadModelConfig().disabled || {};
   const providers = loadProviders();
-  let relayIds = [], relayError = "";
-  try {
-    relayIds = (await relayAllModels()).filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id));
-    if (!relayIds.length) relayError = RELAY_API_KEYS.length ? "中转站没有返回任何模型（检查网络或 Key）" : "未配置内置中转站 Key（RELAY_API_KEY）";
-  } catch (error) { relayError = `中转站不可达：${error.message}`; }
-  const rows = relayIds.sort().map(id => ({
-    id, source: "内置中转站", sourceType: "relay", providerId: "", providerEnabled: true,
-    protocol: "openai-compatible", protocolLabel: "OpenAI 兼容", callable: true, adaptable: true,
-    enabled: !disabled[id], reason: disabled[id]?.reason || "", disabledAt: disabled[id]?.disabledAt || ""
-  }));
+  const rows = [];
   providers.forEach(provider => {
-    const callable = Boolean(PROVIDER_PROTOCOLS[provider.protocol]?.callable);
+    const protocolCallable = Boolean(PROVIDER_PROTOCOLS[provider.protocol]?.callable);
     (provider.models || []).forEach(id => rows.push({
       id, source: provider.name, sourceType: "provider", providerId: provider.id, providerEnabled: provider.enabled !== false,
+      builtin: provider.id === RELAY_PROVIDER_ID,
       protocol: provider.protocol, protocolLabel: PROVIDER_PROTOCOLS[provider.protocol]?.label || provider.protocol,
-      callable: callable && provider.enabled !== false, adaptable: callable,
+      callable: protocolCallable && provider.enabled !== false, adaptable: protocolCallable,
       enabled: !disabled[id], reason: disabled[id]?.reason || "", disabledAt: disabled[id]?.disabledAt || ""
     }));
   });
+  // 稳定排序：同 id 保持供应商列表顺序（第一个就是路由实际命中的那家）
+  rows.sort((a, b) => a.id.localeCompare(b.id));
+  const notices = [];
+  if (!providers.length) notices.push("还没有配置供应商：点右上角「供应商配置」接入（内置中转站会按环境变量自动迁移）");
+  else if (!rows.length) notices.push("供应商已接入但模型清单为空：在「供应商配置」里点「拉取模型」同步");
+  const stale = providers.filter(item => item.enabled !== false && !(item.models || []).length);
+  if (rows.length && stale.length) notices.push(`${stale.map(item => item.name).join("、")} 的模型清单为空，正在自动同步`);
+  if (stale.length) scheduleProviderAutoRefresh();
   return {
     rows,
-    relayError,
+    notice: notices.join("；"),
     providers: providers.map(publicProvider),
     protocols: Object.entries(PROVIDER_PROTOCOLS).map(([id, meta]) => ({ id, ...meta }))
   };
@@ -1427,65 +1528,35 @@ function readBody(req, maxSize = 2e6) {
   });
 }
 
-async function relayWithKey(path, key, options = {}) {
-  const response = await fetch(`${RELAY_BASE_URL}${path}`, {
-    ...options,
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...(options.headers || {}) }
-  });
-  const text = await response.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
-  return { status: response.status, data };
-}
-
-/** 聚合全部 key 的模型列表（去重） */
-async function relayAllModels() {
-  const results = await Promise.allSettled(RELAY_API_KEYS.map(key => relayWithKey("/v1/models", key)));
-  const ids = new Set();
-  results.forEach(result => {
-    if (result.status === "fulfilled") (result.value.data?.data || []).forEach(item => ids.add(item.id));
-  });
-  return [...ids];
-}
-
 /**
- * 按模型调用 chat/completions：
- * 先用记住的成功 key，失败（401/403/404/模型不存在）时遍历其余 key 重试。
+ * 按模型调用 chat/completions：模型归属哪个供应商就走哪个供应商，多 Key 时按「上次成功的 Key」
+ * 优先重试（401/403/404/模型不存在视为该 Key 不可用，换下一个）。
  * 返回 { ok, status, data, keyUsed }。
  */
 async function relayChat(model, payload) {
-  // 自配供应商优先：模型归属某个已启用供应商时，直接走它的 Base URL 与鉴权头，不再遍历中转站 Key
   const route = routeForModel(model);
-  if (route) return providerChat(route, model, payload);
-  const order = [...RELAY_API_KEYS].sort((a, b) => (modelKeyCache.get(model) === b ? -1 : modelKeyCache.get(model) === a ? 1 : 0));
+  if (!route) return { ok: false, status: 404, data: { error: `模型「${model}」没有对应的供应商：请到「模型配置 → 供应商配置」接入并勾选该模型` } };
   let lastResult = null;
-  for (const key of order) {
-    const result = await relayWithKey("/v1/chat/completions", key, {
-      method: "POST",
-      body: JSON.stringify({ model, ...payload })
-    });
-    lastResult = { ...result, keyUsed: key };
+  for (const target of route.targets) {
+    const result = await providerChat(target, model, payload);
+    lastResult = result;
+    if (result.ok) {
+      modelKeyCache.set(model, target.key);
+      return result;
+    }
     const failed = result.status === 401 || result.status === 403 || result.status === 404
       || (typeof result.data?.error?.message === "string" && /model names|does not exist|not found|invalid.*model/i.test(result.data.error.message));
-    if (!failed) {
-      modelKeyCache.set(model, key);
-      return lastResult;
-    }
+    if (!failed) return result;
   }
   return lastResult;
 }
-const modelKeyCache = new Map();
 
 /** 流式调用：成功时通过 onEvent({delta}) 逐段回调，返回 {ok, content, usage} 或 {ok:false, lastResult} */
 async function relayChatStream(model, payload, onEvent) {
-  // 自配供应商优先：命中供应商时只尝试它一个目标；否则按记住的成功 Key 顺序遍历中转站
+  // 模型归属哪个供应商就走哪个供应商；多 Key 时一个 Key 一个目标依次重试
   const route = routeForModel(model);
-  const targets = route
-    ? [{ label: `provider:${route.providerId}`, url: route.url, headers: route.headers }]
-    : [...RELAY_API_KEYS]
-      .sort((a, b) => (modelKeyCache.get(model) === b ? -1 : modelKeyCache.get(model) === a ? 1 : 0))
-      .map(key => ({ label: key, url: `${RELAY_BASE_URL}/v1/chat/completions`, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" } }));
-  let lastResult = null;
+  const targets = route ? route.targets : [];
+  let lastResult = route ? null : { status: 404, data: { error: `模型「${model}」没有对应的供应商：请到「模型配置 → 供应商配置」接入并勾选该模型` } };
   for (const target of targets) {
     let response;
     try {
@@ -1542,13 +1613,13 @@ async function relayChatStream(model, payload, onEvent) {
         break;
       }
     }
-    if (!route) modelKeyCache.set(model, target.label);
+    modelKeyCache.set(model, target.key);
     if (stalled) {
       // 已有部分内容：把已生成部分交还前端（中断信息随 meta 返回）；无内容则尝试下一个目标
       if (content) return { ok: true, content, usage, keyUsed: target.label, stalled };
       return { ok: false, lastResult: { status: 504, data: { error: stalled } }, stalled };
     }
-    return { ok: true, content, usage, keyUsed: target.label };
+    return { ok: true, content, usage, keyUsed: target.label, provider: route.providerName, providerId: route.providerId };
   }
   return { ok: false, lastResult };
 }
@@ -1560,8 +1631,8 @@ async function handleRequest(req, res) {
   const url = new URL(req.url, "http://localhost");
 
   if (req.method === "GET" && url.pathname === "/v1/models") {
-    // 内置中转站 + 自配供应商合并；中转站不可达时仍返回可用的供应商模型，工作台不至于整体不可用
-    const { rows, relayError } = await collectModels();
+    // 所有模型都来自供应商记录（内置中转站也是其中一条）；某个供应商挂了不影响其他供应商的模型
+    const { rows, notice } = await collectModels();
     const callable = rows.filter(row => row.callable);
     const usable = [...new Set(callable.map(row => row.id))];
     const disabled = loadModelConfig().disabled || {};
@@ -1572,18 +1643,13 @@ async function handleRequest(req, res) {
       allModels: usable.sort().map(id => ({ id, enabled: !disabled[id], reason: disabled[id]?.reason || "", source: callable.find(row => row.id === id)?.source || "" })),
       details: enabledModels.map(id => ({ id, contextLimit: contextLimitFor(id) })),
       default: defaultModel,
-      relay: { ok: !relayError, error: relayError }
+      notice
     });
   }
 
   if (req.method === "GET" && url.pathname === "/v1/model-config") {
-    const { rows, relayError, providers, protocols } = await collectModels();
-    return sendJson(res, 200, {
-      models: rows,
-      providers,
-      protocols,
-      relay: { ok: !relayError, error: relayError }
-    });
+    const { rows, notice, providers, protocols } = await collectModels();
+    return sendJson(res, 200, { models: rows, providers, protocols, notice });
   }
 
   /* ---------- 自配供应商：列表 / 新增 / 修改 / 删除 / 连通性测试 / 拉取模型 ---------- */
@@ -1646,8 +1712,8 @@ async function handleRequest(req, res) {
     const stored = body.id ? loadProviders().find(item => item.id === body.id) : null;
     const baseUrl = String(body.baseUrl ?? stored?.baseUrl ?? "").trim();
     if (!baseUrl) return sendJson(res, 400, { error: "缺少 Base URL" });
-    // 未保存的表单直接测：apiKey 为空时沿用已保存的 Key（只写不读，前端也拿不到明文）
-    const provider = normalizeProvider({ ...body, baseUrl, apiKey: body.apiKey ? body.apiKey : (stored?.apiKey || "") }, stored || {});
+    // 未保存的表单直接测：Key 留空时沿用已保存的 Key（只写不读，前端也拿不到明文）
+    const provider = normalizeProvider({ ...body, baseUrl }, stored || {});
     const result = await probeProvider(provider);
     // 已保存的供应商：把这次探测结果记为连通性健康状态，列表里直接能看到「正常 / 异常」
     if (stored) {
@@ -2058,3 +2124,5 @@ const server = http.createServer((req, res) => {
 loadSampleData();
 installBuiltinPackages();
 server.listen(PORT, () => console.log(`观星台分析网关已启动: http://localhost:${PORT}（数据目录 ${DATA_DIR}，skill 运行时已就绪）`));
+// 首次启动把环境变量里的中转站迁移成普通供应商记录；之后一切都走「供应商配置」
+ensureRelayProvider().catch(error => console.warn("[providers] 内置中转站迁移失败：", error && error.message ? error.message : error));

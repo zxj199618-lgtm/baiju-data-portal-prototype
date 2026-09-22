@@ -88,14 +88,23 @@ docker compose up -d --build        # 网关跑在 8787，页面与 API 同源�
 
 访问 `http://<服务器IP>:8787/` 即可，功能与域名部署一致（无 HTTPS）。
 
-## 模型配置：自配供应商接入
+## 模型配置：供应商接入 + 模型总表
 
-「模型配置」除了列内置中转站的模型，还支持接入自己的供应商（参考 CC Switch / DeepSeek Harness 的配置方式）：
+「模型配置」页只做两件事：**看全部可用模型、开关模型**；所有模型来源都在右上角「供应商配置」抽屉里维护。
 
-- **预设模板 + 自定义**：DeepSeek / Kimi / 智谱 GLM / 百炼 Qwen / 火山方舟 ARK / OpenAI / Anthropic / Gemini / Azure OpenAI / 本地 Ollama / 自定义。
-- **常见 Key 类型**：`Authorization: Bearer`、`x-api-key`（自动补 `anthropic-version`）、`x-goog-api-key`、`api-key`（Azure，可填 api-version）、URL 查询参数、自定义 Header。
-- **拉取模型 + 连通性测试**：按协议请求 `{base}/models`（Anthropic 走 `/v1/models?limit=1000`、Gemini 走 `/v1beta/models`），失败原因按 401/403、404/405、429、5xx 分别提示，不会把「鉴权失败」误报成「没有模型」。
-- **Key 只写不读**：`DATA_DIR/providers.json`（权限 0600）保存，接口只回显掩码（如 `sk-••••7890`），页面不再显示明文。
-- **分析路由**：模型按「自配供应商优先」路由——同名模型命中已启用供应商时走该供应商的 Base URL 与 Key；OpenAI 兼容 / ARK / 自定义 / Azure 可参与调用，Anthropic、Gemini 等原生协议只登记与测试，模型不会进入灵犀智析下拉框。
+- **中转站也是供应商**：首次启动时按环境变量 `RELAY_BASE_URL` / `RELAY_API_KEY`（多个 Key 用逗号分隔）
+  自动迁移成一条普通供应商记录 `prov-relay`（名称「内置中转站」，带 `内置` 标签），
+  之后与自配供应商共用同一套表单、接口与路由，不再有特例通道；迁移只做一次，删掉后重启不会复活。
+- **预设模板 + 自定义**：DeepSeek / Kimi / 智谱 GLM / 百炼 Qwen / 火山方舟 ARK / OpenAI / Anthropic /
+  Anthropic 兼容中转 / Gemini / Azure OpenAI / 本地 Ollama / 自定义。
+- **常见 Key 类型**：`Authorization: Bearer`、`x-api-key`（自动补 `anthropic-version`）、`x-goog-api-key`、
+  `api-key`（Azure，可填 api-version）、URL 查询参数、自定义 Header。
+- **多 Key 轮换**：API Key 每行一个，最多 10 个；按「该模型上次成功的 Key」优先重试。
+- **拉取模型 + 连通性测试**：按协议请求 `{base}/models`（Anthropic 走 `/v1/models?limit=1000`、Gemini 走 `/v1beta/models`），
+  失败原因按 401/403、404/405、429、5xx 分别提示，不会把「鉴权失败」误报成「没有模型」；
+  模型清单为空的供应商会在后台自动补拉一次。
+- **Key 只写不读**：`DATA_DIR/providers.json`（权限 0600）保存，接口只回显掩码与 Key 个数（如 `sk-••••7890 等 2 个 Key`）。
+- **路由规则**：模型按「供应商列表顺序优先」路由——同名模型取列表里第一个声明它的供应商；
+  OpenAI 兼容 / ARK / 自定义 / Azure 可参与调用，Anthropic、Gemini 等原生协议只登记与测试，模型不会进入灵犀智析下拉框。
 
 接口：`GET/POST /v1/providers`、`PUT/DELETE /v1/providers/:id`、`POST /v1/providers/test`、`POST /v1/providers/:id/refresh`。
