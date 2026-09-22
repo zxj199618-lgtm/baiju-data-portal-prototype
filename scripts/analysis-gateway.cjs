@@ -1154,6 +1154,13 @@ function maskSecret(value) {
   return `${secret.slice(0, 3)}••••${secret.slice(-4)}`;
 }
 
+/** 上游（中转站/供应商）会返回图像、语音、蒸馏等不该出现在分析工作台的模型：
+ *  只在「自动拉取」的路径统一过滤，用户手填的模型 ID 不受影响。 */
+const UNUSABLE_MODEL_RE = /image|audio|realtime|vision|-distill-|codex-auto/;
+function filterUsableModels(models) {
+  return (Array.isArray(models) ? models : []).filter(id => !UNUSABLE_MODEL_RE.test(String(id))).slice(0, MAX_PROVIDER_MODELS);
+}
+
 /** 本地/内网地址通常不校验 Key（Ollama、vLLM、内网网关） */
 function isLocalBaseUrl(url) {
   return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|[\w.-]+\.local)([:/]|$)/i.test(String(url || "").trim());
@@ -1371,7 +1378,7 @@ async function ensureRelayProvider() {
     const list = loadProviders();
     const target = list.find(item => item.id === provider.id);
     if (!target) continue;
-    target.models = result.models.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id)).slice(0, MAX_PROVIDER_MODELS);
+    target.models = filterUsableModels(result.models);
     target.health = { ok: true, status: 200, message: result.message, at: new Date().toISOString(), latencyMs: result.latencyMs };
     total += target.models.length;
     saveProviders(list);
@@ -1393,7 +1400,7 @@ function scheduleProviderAutoRefresh() {
     const list = loadProviders();
     const target = list.find(item => item.id === provider.id);
     if (!target) return;
-    target.models = result.models.slice(0, MAX_PROVIDER_MODELS);
+    target.models = filterUsableModels(result.models);
     target.health = { ok: true, status: 200, message: result.message, at: new Date().toISOString(), latencyMs: result.latencyMs };
     saveProviders(list);
   })).catch(() => { /* 后台补拉失败不影响主流程 */ });
@@ -1406,7 +1413,7 @@ async function syncBuiltinRelayModels() {
     const key = providerKeys(provider)[0];
     const result = await probeProviderKey(provider, key).catch(() => null);
     if (!result?.ok) continue;
-    const models = result.models.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id)).slice(0, MAX_PROVIDER_MODELS);
+    const models = filterUsableModels(result.models);
     const list = loadProviders();
     const target = list.find(item => item.id === provider.id);
     if (!target) continue;
@@ -1867,7 +1874,7 @@ async function handleRequest(req, res) {
       });
       const result = await probeProviderKey(single, keys[i]).catch(() => null);
       if (result?.ok) {
-        single.models = result.models.filter(id => !/image|audio|realtime|vision|-distill-|codex-auto/.test(id)).slice(0, MAX_PROVIDER_MODELS);
+        single.models = filterUsableModels(result.models);
         single.health = { ok: true, status: 200, message: result.message, at: new Date().toISOString(), latencyMs: result.latencyMs };
       } else if (result) {
         single.models = [];
@@ -1898,7 +1905,7 @@ async function handleRequest(req, res) {
     const result = await probeProvider(provider);
     provider.health = { ok: result.ok, status: result.status, message: result.message, at: new Date().toISOString(), latencyMs: result.latencyMs };
     if (result.ok && result.models.length) {
-      provider.models = result.models;
+      provider.models = filterUsableModels(result.models);
       provider.updatedAt = new Date().toISOString();
     }
     saveProviders(providers);
