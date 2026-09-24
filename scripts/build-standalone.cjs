@@ -38,6 +38,12 @@ const imagePaths = [
   "assets/nav-toolbox-biz-active.svg",
   "assets/tool-audience.svg",
   "assets/tool-drama-account.svg",
+  // AI 中心 · Skill 图标：Skill 配置列表与工作台场景卡片共用，漏配会让分享出去的单文件版缺图
+  "assets/skill-query.svg",
+  "assets/skill-asset.svg",
+  "assets/skill-lineage.svg",
+  "assets/skill-attribution.svg",
+  "assets/skill-single-table.svg",
   "assets/home-hero.png"
 ];
 

@@ -282,6 +282,12 @@ assert(portalBridge.includes('group: "AI 中心", icon: "ai"'), "AI 中心应有
 assert(systemGroup.includes('name: "操作日志"') && systemGroup.includes('name: "菜单管理"') && !systemGroup.includes('name: "任务运维"') && !systemGroup.includes('name: "环境域名"'), "系统管理只应保留操作日志 / 菜单管理；任务运维与环境域名必须已迁入大数据工具箱（此断言防止回退）");
 assert(!systemGroup.includes("Skill 配置") && !systemGroup.includes("模型配置"), "系统管理不应再包含 Skill 配置与模型配置（此断言防止回退）");
 assert(portalBridge.includes('if (page === "Skill 配置" || page === "模型配置") return "ai";'), "AI 中心两个页面的顶部页签应使用 ai 图标");
+/* Skill 图标：内置四个 Skill 用随原型分发的 SVG，不再用 emoji；上传图 / emoji 仍按原逻辑渲染 */
+assert(portalVue.includes('icon: "assets/skill-query.svg"') && portalVue.includes('icon: "assets/skill-asset.svg"') && portalVue.includes('icon: "assets/skill-lineage.svg"') && portalVue.includes('icon: "assets/skill-attribution.svg"'), "四个内置 Skill 要用设计好的 SVG 图标");
+assert(portalVue.includes('icon: "assets/skill-single-table.svg"'), "网关未连接时的兜底场景「单表分析」也要用同一套 SVG 图标");
+assert(portalVue.includes("function isImageIconValue(icon)") && !portalVue.includes('/^(data:image|https?:|blob:)/i.test(String'), "图标判定要共用一个 helper 并认本地 assets/ 路径（此断言防止两处实现漂移）");
+assert(portalVue.includes("portal-vue-skill-cell-icon") && portalCss.includes(".portal-vue-skill-cell-icon img"), "Skill 列表的图标要进固定图标格，SVG 与 emoji 混排才对齐");
+assert(["skill-query", "skill-asset", "skill-lineage", "skill-attribution", "skill-single-table"].every(name => standaloneBuild.includes(`"assets/${name}.svg"`)), "单文件构建白名单要带上 Skill 图标，否则分享出去缺图");
 assert(portalBridge.includes('ai: { default: "assets/nav-ai-default.svg", active: "assets/nav-ai-active.svg" }'), "ai 图标应指向独立的默认/选中态资源");
 const adminGroup = (portalBridge.match(/\{ name: "门户管理员"[\s\S]*?status: "启用" \}/) || [""])[0];
 assert(adminGroup.includes('"AI 中心"') && adminGroup.includes('"模型配置"') && adminGroup.includes('"Skill 配置"') && adminGroup.includes('"操作日志"'), "门户管理员权限组应同时给出 AI 中心分组名与两个菜单名（保存权限后分组名会被拍平成菜单名，不能只依赖分组授权），并显式包含操作日志");
@@ -292,8 +298,12 @@ assert(portalVue.includes('ai:"◈"'), "菜单管理图标字典应包含 ai 字
    工具 = 菜单 = 权限项：每个工具一个「查看」位 + 一个「编辑」位，工具之间不串。 */
 const toolboxGroup = (portalBridge.match(/\{ group: "大数据工具箱"[\s\S]*?\}\] \}/) || [""])[0];
 assert(portalBridge.includes('group: "大数据工具箱", icon: "toolbox"') && portalBridge.indexOf('group: "大数据工具箱"') > portalBridge.indexOf('group: "数据推送"') && portalBridge.indexOf('group: "大数据工具箱"') < portalBridge.indexOf('group: "权限管理"'), "大数据工具箱应作为一级菜单，排在数据推送之后、权限管理之前");
-assert(toolboxGroup.includes('{ name: "工具总览", overview: true }') && toolboxGroup.includes('{ name: "补数据" }') && toolboxGroup.includes('{ name: "消耗对比" }') && toolboxGroup.includes('{ name: "环境域名" }'), "大数据工具箱应包含 工具总览 / 补数据 / 消耗对比 / 环境域名");
-assert(toolboxGroup.indexOf('name: "工具总览"') < toolboxGroup.indexOf('name: "补数据"') && toolboxGroup.indexOf('name: "补数据"') < toolboxGroup.indexOf('name: "消耗对比"') && toolboxGroup.indexOf('name: "消耗对比"') < toolboxGroup.indexOf('name: "环境域名"'), "箱内顺序应为 工具总览 → 补数据 → 消耗对比 → 环境域名");
+assert(toolboxGroup.includes('{ name: "大数据工具箱", overview: true }') && toolboxGroup.includes('{ name: "补数据" }') && toolboxGroup.includes('{ name: "消耗对比" }') && toolboxGroup.includes('{ name: "环境域名" }'), "大数据工具箱应包含总览项（与箱同名）+ 补数据 / 消耗对比 / 环境域名");
+assert(toolboxGroup.indexOf('name: "大数据工具箱", overview') < toolboxGroup.indexOf('name: "补数据"') && toolboxGroup.indexOf('name: "补数据"') < toolboxGroup.indexOf('name: "消耗对比"') && toolboxGroup.indexOf('name: "消耗对比"') < toolboxGroup.indexOf('name: "环境域名"'), "箱内顺序应为 总览 → 补数据 → 消耗对比 → 环境域名");
+assert(portalBridge.includes('icon: "toolbox", leaf: true') && portalBridge.includes('icon: "toolboxBiz", leaf: true'), "两个工具箱都应标 leaf：侧栏只出一级入口，箱内工具不在左栏展开");
+assert(portalVue.includes('v-if="section.leaf || (section.items.length === 1 && section.items[0].name === section.group)"'), "侧栏应把 leaf 箱渲染成一级菜单项，点击直接进该箱的工具总览");
+assert(!portalBridge.includes('"工具总览"'), "总览页名应改为与箱同名（大数据工具箱 / 业务工具箱），不再用「工具总览」（此断言防止回退）");
+assert(portalBridge.includes('"大数据工具箱": ["大数据工具箱"') && portalBridge.includes('"业务工具箱": ["业务工具箱"'), "两个箱的总览页各自要有标题与说明");
 assert(!portalBridge.includes('{ name: "任务运维" }'), "侧栏不应再出现「任务运维」合并菜单（此断言防止回退）");
 assert(portalBridge.includes('"补数据": ["补数据"') && portalBridge.includes('"消耗对比": ["消耗对比"'), "补数据 / 消耗对比 各自要有页面标题与说明");
 assert(portalBridge.includes('if (page === "菜单管理") return "system";') && portalBridge.includes('page === "补数据" || page === "消耗对比" || page === "环境域名") return "toolbox"'), "工具箱页面走 toolbox 图标，菜单管理仍走 system 图标");
@@ -302,7 +312,7 @@ assert(portalBridge.includes('"补数据": "assets/tool-backfill.svg"') && porta
 assert(html.includes('id="toolboxOverviewView"') && html.includes('id="toolBackfillView"') && html.includes('id="toolCompareView"'), "工具箱三个页面容器应存在");
 assert(!html.includes('id="opsTaskView"') && !portalBridge.includes("opsTaskView") && !portalVue.includes("OpsTaskApp"), "任务运维的合并页应被拆除，改为独立工具页（此断言防止回退）");
 assert(portalVue.includes('mount("#toolboxOverviewView", ToolboxOverviewApp, "toolbox-overview")') && portalVue.includes('mount("#toolBackfillView", ToolBackfillApp, "tool-backfill")') && portalVue.includes('mount("#toolCompareView", ToolCompareApp, "tool-compare")'), "工具箱三个页面应各自挂载独立组件");
-assert(portalVue.includes('toolboxToolsOf("大数据工具箱")') && portalVue.includes("v-for=\"tool in tools\"") && !portalVue.includes("TOOL_CARD_SEED"), "工具总览卡片必须由导航 + 权限派生，不得手写第二份工具清单");
+assert(portalVue.includes("toolboxToolsOf(this.box)") && portalVue.includes('box() { return currentPage.value === "业务工具箱" ? "业务工具箱" : "大数据工具箱"; }') && !portalVue.includes("TOOL_CARD_SEED"), "工具总览卡片必须由导航 + 权限派生并按当前箱切换，不得手写第二份工具清单");
 assert(portalVue.includes("canEdit('补数据')") && portalVue.includes("canEdit('消耗对比')") && !portalVue.includes("canEdit('任务运维')"), "两个工具各自检查自己的编辑权限，不得再共用「任务运维」（否则编辑权限会互相串）");
 assert(portalVue.includes("const MENU_ALIASES = {") && portalVue.includes('"任务运维": ["补数据", "消耗对比"]'), "旧的「任务运维」菜单名要做别名兼容，存量权限组不丢权限");
 assert(portalVue.includes("function menuGrantItems(section)") && portalVue.includes("function canViewToolbox(groupName)") && portalVue.includes("permItems(section)"), "工具总览不是权限项：授权渲染跳过它，可见性跟箱内已授权工具走");
@@ -312,12 +322,20 @@ assert(portalVue.includes('name: "大数据工具箱", icon: "toolbox"') && port
 assert(portalVue.includes('toolbox:"🧰"') && portalVue.includes('toolboxBiz:"📦"') && portalVue.includes('"ai", "toolbox", "toolboxBiz"]'), "菜单管理图标字典与下拉都要包含 toolbox / toolboxBiz");
 assert(adminGroup.includes('"大数据工具箱"') && adminGroup.includes('"补数据"') && adminGroup.includes('"消耗对比"'), "门户管理员权限组应给出工具箱分组名与两个新工具名");
 assert(portalCss.includes(".portal-vue-tool-card") && portalCss.includes(".portal-vue-tool-cards"), "工具总览卡片需要有样式（网格 + 悬停态）");
-/* 第十七轮：业务工具箱（生成人群包 / 短剧投放账户上报）+ 站内通知 + 「待拉取消耗」闭环 */
+/* 工具详情页左上角要有返回所属箱的入口（侧栏已不列工具，返回只能靠页内入口） */
+assert(portalVue.includes("backToBox: box => bridge.setPage(box)"), "返回所属箱要走全局 mixin，供各工具组件共用");
+assert(portalVue.includes('@click="backToBox(\'${box}\')"'), "统一工具头部要渲染返回所属箱按钮，目标箱随参数走");
+assert(portalVue.includes("backToBox('大数据工具箱')"), "环境域名页不用统一头部，需单独补返回入口");
+/* 环境域名的编辑入口要与「表管理」同款：primary plain + 退出编辑，且不做成与分类标题同级的伪标题 */
+assert(portalVue.includes('type="primary" plain @click="envEditing=true">✎ 编辑') && portalVue.includes(">退出编辑<"), "环境域名编辑入口应与表管理一致（primary plain + 退出编辑），不再用灰色按钮和抢眼的「完成」");
+assert(!portalVue.includes('portal-vue-env-head') && !portalCss.includes(".portal-vue-env-head"), "「🌐 服务域名」伪标题应移除（此断言防止回退）");
+assert(portalCss.includes(".portal-vue-tool-back"), "返回入口要有样式");
+/* 第十七轮：业务工具箱（生成人群包 / 短剧投放账户上报）；站内通知与「待拉取消耗」中间态已在第十八轮移除 */
 const bizGroup = (portalBridge.match(/\{ group: "业务工具箱"[\s\S]*?\}\] \}/) || [""])[0];
 assert(portalBridge.includes('group: "业务工具箱", icon: "toolboxBiz"') && portalBridge.indexOf('group: "业务工具箱"') > portalBridge.indexOf('group: "大数据工具箱"') && portalBridge.indexOf('group: "业务工具箱"') < portalBridge.indexOf('group: "权限管理"'), "业务工具箱应作为一级菜单，排在大数据工具箱之后、权限管理之前");
 assert(bizGroup.includes('{ name: "生成人群包" }') && bizGroup.includes('{ name: "短剧投放账户上报" }'), "业务工具箱应包含 生成人群包 / 短剧投放账户上报");
 assert(portalBridge.includes('"生成人群包": ["生成人群包"') && portalBridge.includes('"短剧投放账户上报": ["短剧投放账户上报"'), "两个业务工具各自要有页面标题与说明");
-assert(portalBridge.includes('if (page === "生成人群包" || page === "短剧投放账户上报") return "toolboxBiz";') && portalBridge.includes('toolboxBiz: { default: "assets/nav-toolbox-biz-default.svg", active: "assets/nav-toolbox-biz-active.svg" }'), "业务工具箱要有独立的侧栏图标（默认/选中态）");
+assert(portalBridge.includes('if (page === "业务工具箱" || page === "生成人群包" || page === "短剧投放账户上报") return "toolboxBiz";') && portalBridge.includes('toolboxBiz: { default: "assets/nav-toolbox-biz-default.svg", active: "assets/nav-toolbox-biz-active.svg" }'), "业务工具箱要有独立的侧栏图标（默认/选中态），总览页也走该图标");
 assert(portalBridge.includes('"生成人群包": "assets/tool-audience.svg"') && portalBridge.includes('"短剧投放账户上报": "assets/tool-drama-account.svg"'), "两个业务工具各要一张区分图标");
 assert(html.includes('id="audiencePackageView"') && html.includes('id="dramaReportView"'), "业务工具箱两个页面容器应存在");
 assert(portalVue.includes('mount("#audiencePackageView", AudiencePackageApp, "audience-package")') && portalVue.includes('mount("#dramaReportView", DramaReportApp, "drama-report")'), "业务工具箱两个页面应各自挂载独立组件");
@@ -329,27 +347,26 @@ assert(portalVue.includes("const PACKAGE_PLATFORMS = {") && portalVue.includes('
 assert(portalVue.includes("const IDENTITY_SPECS = {") && portalVue.includes('"手机号"') && portalVue.includes('"OAID"') && portalVue.includes("invalidSamples"), "要支持手机号 / OAID 等标识类型校验，并给出无效行明细");
 assert(portalVue.includes("不写入「人群包管理」") && portalVue.includes("生成批次（仅本工具留档，不进「人群包管理」）"), "生成人群包只留自己的生成批次，不写入「人群包管理」");
 
-/* 短剧投放账户上报 → 待拉取消耗 → 消耗对比 */
-assert(portalBridge.includes("const accountReportBatches = [") && portalBridge.includes('status: "待拉取消耗"'), "上报批次要有「待拉取消耗」状态与种子数据");
-assert(portalBridge.includes("function addReportBatch(batch)") && portalBridge.includes("function markReportBatchPulled(id)"), "批次要能新增与标记已拉取");
+/* 短剧投放账户上报 → 消耗对比：校验通过即生成批次，本批消耗由系统自动拉取 */
+assert(portalBridge.includes("const accountReportBatches = [") && portalBridge.includes("function addReportBatch(batch)"), "上报批次要有种子数据与新增能力");
 assert(portalVue.includes("ACCOUNT_DIMENSION_SEED") && portalVue.includes("账户维度表里查不到该账户"), "上报要做一次校验：账户是否存在");
-assert(portalVue.includes("pendingBatches()") && portalVue.includes("待拉取消耗批次") && portalVue.includes("markBatchPulled(scope.row)"), "「消耗对比」要能看到待拉取消耗批次并标记已核对");
+assert(portalVue.includes("reportBatchList()") && portalVue.includes("最近上报批次") && portalVue.includes("bringBatch(scope.row)"), "「消耗对比」要能按批次带入账户");
 assert(portalVue.includes("cmpAccountIds") && portalVue.includes("this.cmpAccountIds.some(id => acc.id.includes(id))"), "带入的账户 ID 列表要支持多个（原实现只按单个子串匹配）");
 assert(!portalVue.includes("this.cmpAccount ? acc.id.includes(this.cmpAccount.trim())"), "旧的单账户匹配写法应被替换（此断言防止回退）");
 
-/* 站内通知：不单独设权限位，按「对 targetPage 有无查看权限」派发 */
-assert(portalBridge.includes("const notifications = [") && portalBridge.includes("function pushNotification(payload)") && portalBridge.includes("function markNotificationRead(id)") && portalBridge.includes("function markAllNotificationsRead(ids)"), "站内通知要有推送与已读能力");
-assert(portalVue.includes("portal-vue-notice") && portalVue.includes("unreadCount") && portalVue.includes("visibleNotifications") && portalVue.includes("readAllNotifications"), "顶栏要有铃铛 + 未读角标 + 通知列表 + 全部已读");
-assert(portalVue.includes("return state.notifications.filter(item => !item.targetPage || canViewMenu(item.targetPage))"), "通知可见性 = 对通知指向的工具有没有「查看」权限（不单独设通知权限位）");
-assert(portalVue.includes("bridge.pushNotification({") && portalVue.includes('targetPage: "消耗对比"') && portalVue.includes('type: "account_report_pending_pull"'), "上报提交后要发「待拉取消耗」通知，并指向「消耗对比」");
-assert(portalVue.includes("已拉取消耗的批次不允许撤回"), "已拉取的批次不允许撤回，只能补报新批次");
+/* 业务上不存在「待拉取消耗」等待态与站内通知：校验通过即自动拉数，此组断言防止回退 */
+assert(!portalBridge.includes("notifications") && !portalVue.includes("notification"), "站内通知（铃铛 + 抽屉 + 数据层）应整体移除");
+assert(!portalVue.includes("待拉取消耗") && !portalBridge.includes("待拉取消耗"), "批次不应有「待拉取消耗」中间状态");
+assert(!portalVue.includes("markBatchPulled") && !portalBridge.includes("markReportBatchPulled"), "不应有「标记已核对」回写动作");
+assert(!portalCss.includes(".portal-vue-notice") && !shellCss.includes(".notice-icon"), "通知铃铛样式（含壳层遗留画法）应一并清除");
+assert(portalVue.includes("不支持撤回"), "批次提交后不支持撤回，只能补报新批次");
 
 /* 权限：业务工具箱同样按「一个工具一对查看/编辑位」授权 */
 assert(adminGroup.includes('"业务工具箱"') && adminGroup.includes('"生成人群包"') && adminGroup.includes('"短剧投放账户上报"'), "门户管理员权限组应包含业务工具箱与两个工具");
 assert(portalBridge.includes('{ name: "短剧投放运营"') && portalBridge.includes('menuEdits: ["生成人群包", "短剧投放账户上报"]'), "应提供「短剧投放运营」预设：两个业务工具可写、消耗对比只读");
 assert(portalBridge.includes('{ name: "人群运营"') && portalBridge.includes('menus: ["生成人群包"]'), "应提供「人群运营」预设：只给人群包工具");
 assert(portalVue.includes('name: "业务工具箱", icon: "toolboxBiz"') && portalVue.includes('permission: "toolbox_biz"') && portalVue.includes('permission: "toolbox_biz_audience"') && portalVue.includes('permission: "toolbox_biz_drama_accounts"'), "菜单管理树应同步业务工具箱与两个工具");
-assert(portalCss.includes(".portal-vue-notice-badge") && portalCss.includes(".portal-vue-tool-section") && portalCss.includes(".portal-vue-pending-panel") && portalCss.includes(".portal-vue-diff-row"), "通知铃铛 / 工具分步区块 / 待拉取批次面板 / 差异行都要有样式");
+assert(portalCss.includes(".portal-vue-tool-section") && portalCss.includes(".portal-vue-batch-panel") && portalCss.includes(".portal-vue-diff-row"), "工具分步区块 / 上报批次面板 / 差异行都要有样式");
 assert(standaloneBuild.includes('"assets/nav-toolbox-biz-default.svg"') && standaloneBuild.includes('"assets/nav-toolbox-biz-active.svg"') && standaloneBuild.includes('"assets/tool-audience.svg"') && standaloneBuild.includes('"assets/tool-drama-account.svg"'), "单文件构建白名单要带上业务工具箱图标");
 assert(standaloneBuild.includes('"assets/nav-toolbox-default.svg"') && standaloneBuild.includes('"assets/nav-toolbox-active.svg"') && standaloneBuild.includes('"assets/tool-backfill.svg"') && standaloneBuild.includes('"assets/tool-compare.svg"') && standaloneBuild.includes('"assets/tool-env.svg"'), "单文件构建白名单要带上工具箱图标，否则分享出去会缺图");
 assert(html.includes('id="operationLogView"') && portalVue.includes('mount("#operationLogView"'), "操作日志应挂载独立视图");

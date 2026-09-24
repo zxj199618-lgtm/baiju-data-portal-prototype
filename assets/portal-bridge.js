@@ -7,8 +7,8 @@
         { group: "数据告警", icon: "alert", badge: "3.1", items: [{ name: "数据告警", badge: "3.1" }] },
         { group: "数据资产", icon: "asset", items: [{ name: "看板管理" }, { name: "表管理", badge: "4.0" }, { name: "标签管理" }, { name: "维表管理", badge: "4.0" }, { name: "字典管理", badge: "4.0" }] },
         { group: "数据推送", icon: "push", items: [{ name: "人群包推送渠道" }] },
-        { group: "大数据工具箱", icon: "toolbox", items: [{ name: "工具总览", overview: true }, { name: "补数据" }, { name: "消耗对比" }, { name: "环境域名" }] },
-        { group: "业务工具箱", icon: "toolboxBiz", items: [{ name: "生成人群包" }, { name: "短剧投放账户上报" }] },
+        { group: "大数据工具箱", icon: "toolbox", leaf: true, items: [{ name: "大数据工具箱", overview: true }, { name: "补数据" }, { name: "消耗对比" }, { name: "环境域名" }] },
+        { group: "业务工具箱", icon: "toolboxBiz", leaf: true, items: [{ name: "业务工具箱", overview: true }, { name: "生成人群包" }, { name: "短剧投放账户上报" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },
         { group: "AI 中心", icon: "ai", items: [{ name: "Skill 配置", badge: "5.0" }, { name: "模型配置", badge: "5.0" }] },
         { group: "系统管理", icon: "system", items: [{ name: "操作日志" }, { name: "菜单管理" }] }
@@ -1217,73 +1217,22 @@
       ];
 
       /* ===== 业务工具箱 ↔ 大数据工具箱 的联动数据 =====
-         上报批次带「待拉取消耗」状态，「消耗对比」按批次拉数并回写「已拉取」；
-         站内通知只做一种 type（account_report_pending_pull），谁能看见由「对 targetPage 有无查看权限」决定。 */
-
-      function nowStamp() {
-        const now = new Date();
-        const pad = value => String(value).padStart(2, "0");
-        return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-      }
+         上报批次校验通过即入库，本批账户的消耗数据由系统自动拉取；
+         「消耗对比」按批次带入账户做核对。 */
 
       const accountReportBatches = [
-        { id: "DR20260907001", submittedAt: "2026-09-07 18:42", submitter: "谭嘉颖", media: "巨量 / 广点通", accounts: 3, checked: "通过", status: "已拉取", note: "首轮账户清单，消耗数据已核对", accountIds: ["20894512", "20894513", "20894514"] },
-        { id: "DR20260921002", submittedAt: "2026-09-21 10:06", submitter: "黄佩贤", media: "巨量 / 广点通", accounts: 4, checked: "通过", status: "待拉取消耗", note: "本期新上 3 个短剧账户，等大数据侧拉取消耗", accountIds: ["20894517", "20894518", "20894519", "20894520"] }
-      ];
-
-      const notifications = [
-        { id: "N-seed-1", type: "account_report_pending_pull", title: "短剧投放账户上报 · 待拉取消耗", body: "批次 DR20260921002 上报 4 个账户，等待拉取消耗数据核对。", targetPage: "消耗对比", batchId: "DR20260921002", createdAt: "2026-09-21 10:07", readAt: "" }
+        { id: "DR20260907001", submittedAt: "2026-09-07 18:42", submitter: "谭嘉颖", media: "巨量 / 广点通", accounts: 3, checked: "通过", note: "首轮账户清单，消耗数据已核对", accountIds: ["20894512", "20894513", "20894514"] },
+        { id: "DR20260921002", submittedAt: "2026-09-21 10:06", submitter: "黄佩贤", media: "巨量 / 广点通", accounts: 4, checked: "通过", note: "本期新上 3 个短剧账户，消耗数据已自动拉取", accountIds: ["20894517", "20894518", "20894519", "20894520"] }
       ];
 
       function notifyChange() {
         window.dispatchEvent(new CustomEvent("portal:data-change"));
       }
 
-      function pushNotification(payload) {
-        const item = {
-          id: "N" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          type: payload.type || "system",
-          title: payload.title || "通知",
-          body: payload.body || "",
-          targetPage: payload.targetPage || "",
-          batchId: payload.batchId || "",
-          createdAt: nowStamp(),
-          readAt: ""
-        };
-        notifications.unshift(item);
-        notifyChange();
-        return item;
-      }
-
-      function markNotificationRead(id) {
-        const item = notifications.find(entry => entry.id === id);
-        if (item && !item.readAt) { item.readAt = nowStamp(); notifyChange(); }
-        return item || null;
-      }
-
-      function markAllNotificationsRead(ids) {
-        const scope = Array.isArray(ids) ? new Set(ids) : null;
-        let count = 0;
-        notifications.forEach(item => {
-          if (item.readAt) return;
-          if (scope && !scope.has(item.id)) return;
-          item.readAt = nowStamp();
-          count += 1;
-        });
-        if (count) notifyChange();
-        return count;
-      }
-
       function addReportBatch(batch) {
         accountReportBatches.unshift(batch);
         notifyChange();
         return batch;
-      }
-
-      function markReportBatchPulled(id) {
-        const item = accountReportBatches.find(entry => entry.id === id);
-        if (item && item.status !== "已拉取") { item.status = "已拉取"; item.pulledAt = nowStamp(); notifyChange(); }
-        return item || null;
       }
 
       const dataAssets = [
@@ -1589,12 +1538,13 @@
         "菜单管理": ["菜单管理", "维护门户侧边导航结构：层级、图标、排序、组件路径与权限标识。", "添加"],
         "操作日志": ["操作日志", "基于前端埋点记录「查看看板」明细（页面访问等其他埋点暂未开放），支持按用户、终端与时间范围筛选。", ""],
         "模型配置": ["模型配置", "管理灵犀智析可用的模型：所有来源（含内置中转站）统一在「供应商配置」里接入，这一页直接开关模型。", ""],
-        "工具总览": ["大数据工具箱", "按工具箱汇总现有工具：卡片即箱内全部工具，点卡片直接进入；只列出你已授权的工具。", ""],
+        "大数据工具箱": ["大数据工具箱", "按工具箱汇总现有工具：卡片即箱内全部工具，点卡片直接进入；只列出你已授权的工具。", ""],
+        "业务工具箱": ["业务工具箱", "按工具箱汇总现有工具：卡片即箱内全部工具，点卡片直接进入；只列出你已授权的工具。", ""],
         "补数据": ["补数据", "媒体报表数据运维：按广告主账户补拉分时数据，异步执行并可跟踪执行日志。", ""],
         "消耗对比": ["消耗对比", "以账户分时表为基准，与二级计划分时表或创意分时表对比消耗差异，定位异常账户。", ""],
         "环境域名": ["环境域名", "服务域名、日志与监控入口速查；敏感凭据密文存储，仅后端可见。", ""],
         "生成人群包": ["生成人群包", "上传手机号 / OAID 等标识，按头条（dmp）或广点通（txt）规范生成人群包文件；一次性自助生成，不写入「人群包管理」。", ""],
-        "短剧投放账户上报": ["短剧投放账户上报", "上报本期要投的短剧广告账户，先做一次格式与重复校验，再提醒大数据侧拉取消耗数据。", ""],
+        "短剧投放账户上报": ["短剧投放账户上报", "上报本期要投的短剧广告账户，先做一次格式与重复校验，校验通过后提交即生成批次，本批账户的消耗数据由系统自动拉取。", ""],
         "表详情": ["表详情", "", ""],
         "数据看板": ["数据看板", "", "新增看板入口"],
         "看板管理": ["看板管理", "", "新增看板"],
@@ -1778,8 +1728,8 @@
         if (page === "用户管理" || page === "权限组") return "permission";
         if (page === "Skill 配置" || page === "模型配置") return "ai";
         if (page === "菜单管理") return "system";
-        if (page === "工具总览" || page === "补数据" || page === "消耗对比" || page === "环境域名") return "toolbox";
-        if (page === "生成人群包" || page === "短剧投放账户上报") return "toolboxBiz";
+        if (page === "大数据工具箱" || page === "补数据" || page === "消耗对比" || page === "环境域名") return "toolbox";
+        if (page === "业务工具箱" || page === "生成人群包" || page === "短剧投放账户上报") return "toolboxBiz";
         if (page === "表详情") return "asset";
         return "asset";
       }
@@ -1890,15 +1840,18 @@
       function renderSimpleNav() {
         nav.innerHTML = simpleNav.map(section => {
           const isActive = pageIcon(activePage) === section.icon;
+          // leaf：整箱收进一级入口（点箱名直接进工具总览），箱内工具只作为卡片与权限项存在
+          const expandable = !section.leaf && section.items.length > 1;
+          const entryPage = section.items[0].name;
           return `
           <div class="nav-group">
-            <button class="nav-head ${isActive ? "active" : ""}" data-title="${safeText(section.group)}" ${section.items.length === 1 ? `data-simple-page="${section.items[0].name}"` : `data-simple-group="${section.group}"`}>
+            <button class="nav-head ${isActive ? "active" : ""}" data-title="${safeText(section.group)}" ${expandable ? `data-simple-group="${section.group}"` : `data-simple-page="${entryPage}"`}>
               <img class="nav-icon ${section.icon}" src="${navIconPath(section.icon, isActive)}" alt="" aria-hidden="true" />
               <span class="nav-title">${section.group}</span>
               ${navBadgeHtml(section)}
-              ${section.items.length > 1 ? `<span class="nav-arrow">⌄</span>` : ""}
+              ${expandable ? `<span class="nav-arrow">⌄</span>` : ""}
             </button>
-            ${section.items.length > 1 ? `<div class="subnav" data-title="${section.group}">
+            ${expandable ? `<div class="subnav" data-title="${section.group}">
               ${section.items.map(item => `
                 <button class="${item.name === activePage ? "active" : ""}" data-simple-page="${item.name}">
                   <span>${item.name}</span>
@@ -3132,7 +3085,7 @@
         document.getElementById("menuManagementView")?.classList.toggle("hidden", page !== "菜单管理");
         document.getElementById("modelConfigView")?.classList.toggle("hidden", page !== "模型配置");
         document.getElementById("operationLogView")?.classList.toggle("hidden", page !== "操作日志");
-        document.getElementById("toolboxOverviewView")?.classList.toggle("hidden", page !== "工具总览");
+        document.getElementById("toolboxOverviewView")?.classList.toggle("hidden", page !== "大数据工具箱" && page !== "业务工具箱");
         document.getElementById("toolBackfillView")?.classList.toggle("hidden", page !== "补数据");
         document.getElementById("toolCompareView")?.classList.toggle("hidden", page !== "消耗对比");
         document.getElementById("audiencePackageView")?.classList.toggle("hidden", page !== "生成人群包");
@@ -3757,13 +3710,7 @@
         users: simpleUsers,
         groups: permissionGroups,
         reportBatches: accountReportBatches,
-        notifications,
-        pushNotification,
-        markNotificationRead,
-        markAllNotificationsRead,
         addReportBatch,
-        markReportBatchPulled,
-        nowStamp,
         menuTree: getMenuPermissionTree,
         pageIcon,
         navIconPath,

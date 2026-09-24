@@ -25,15 +25,20 @@
     tables: cpBridge.tables,
     targets: cpBridge.targets,
     dictionaries: bridge.dictionaries,
-    reportBatches: bridge.reportBatches,
-    notifications: bridge.notifications
+    reportBatches: bridge.reportBatches
   });
+
+  /* Skill 图标既可以是上传的图片（data URL / 远程地址），也可以是随原型分发的内置 SVG 资源 */
+  function isImageIconValue(icon) {
+    const value = String(icon || "");
+    return /^(data:image|https?:|blob:|\/?assets\/)/i.test(value) || /\.(svg|png|jpe?g|gif|webp)$/i.test(value);
+  }
 
   function mount(selector, component, name) {
     const root = document.querySelector(selector);
     if (!root) return null;
     const app = createApp(component);
-    app.mixin({ data: () => ({ locale }), methods: { canEdit: canEditMenu, canView: canViewMenu } });
+    app.mixin({ data: () => ({ locale }), methods: { canEdit: canEditMenu, canView: canViewMenu, backToBox: box => bridge.setPage(box) } });
     app.use(ep);
     const vm = app.mount(root);
     root.dataset.elementComponent = name;
@@ -174,7 +179,7 @@
     return MENU_OF_PAGE[page] || page;
   }
 
-  /* ===== 工具箱：箱内第一个子项是「工具总览」，它不是权限项，随箱可见 ===== */
+  /* ===== 工具箱：箱内第一个子项是该箱的总览页（与箱同名），它不是权限项，随箱可见；侧栏只出这一级 ===== */
 
   function isOverviewItem(item) {
     return Boolean(item && item.overview);
@@ -373,7 +378,7 @@
           <el-scrollbar class="portal-vue-nav-scroll">
             <el-menu class="portal-vue-menu" :collapse="collapsed" :default-active="menuActive" :default-openeds="openGroups" @select="selectPage">
               <template v-for="section in sections" :key="section.group">
-                <el-menu-item v-if="section.items.length === 1 && section.items[0].name === section.group" :index="section.items[0].name">
+                <el-menu-item v-if="section.leaf || (section.items.length === 1 && section.items[0].name === section.group)" :index="section.items[0].name">
                   <img class="portal-nav-icon" :class="section.icon" :src="iconPath(section)" alt="" />
                   <template #title><span>{{ section.group }}</span><span v-if="navBadges(section).length" class="portal-nav-badges"><el-tag v-for="badge in navBadges(section)" :key="badge" class="portal-nav-new" :class="badgeClass(badge)" size="small">{{ badge }}</el-tag></span></template>
                 </el-menu-item>
@@ -403,6 +408,9 @@
         if (this.page === "Quick BI 展示") return "数据看板";
         if (this.page === "配置权限") return "用户管理";
         if (this.page === "表详情") return "表管理";
+        /* leaf 箱的工具页不在侧栏里出现，改为点亮所属箱的一级入口 */
+        const owner = this.sections.find(section => section.leaf && section.items.some(item => item.name === this.page));
+        if (owner) return owner.items[0].name;
         return this.page;
       },
       openGroups() { return this.sections.filter(section => section.items.length > 1).map(section => section.group); }
@@ -431,54 +439,20 @@
               <span v-if="tab.closable" class="portal-vue-tab-close" title="关闭" @click.stop="closeTab(tab)">×</span>
             </button>
           </div>
-          <button class="portal-vue-notice" type="button" :title="unreadCount ? unreadCount + ' 条未读通知' : '站内通知'" @click="noticeOpen = true">
-            <span class="portal-vue-notice-icon" aria-hidden="true">🔔</span>
-            <span v-if="unreadCount" class="portal-vue-notice-badge">{{ unreadCount > 99 ? "99+" : unreadCount }}</span>
-          </button>
           <el-dropdown trigger="click" @command="handleUserCommand">
             <span class="portal-vue-user"><el-avatar :size="34" style="background:#1677ff">曾</el-avatar><span>曾祥竞</span></span>
             <template #dropdown><el-dropdown-menu><el-dropdown-item command="logout">退出系统</el-dropdown-item></el-dropdown-menu></template>
           </el-dropdown>
         </div>
-        <el-drawer v-model="noticeOpen" title="站内通知" size="420px" class="portal-vue-notice-drawer" :close-on-click-modal="true">
-          <div class="portal-vue-notice-toolbar">
-            <span class="portal-vue-muted">共 {{ visibleNotifications.length }} 条 · {{ unreadCount }} 条未读</span>
-            <el-button link type="primary" :disabled="!unreadCount" @click="readAllNotifications">全部已读</el-button>
-          </div>
-          <div class="portal-vue-notice-list">
-            <article v-for="item in visibleNotifications" :key="item.id" class="portal-vue-notice-item" :class="{unread: !item.readAt}" @click="openNotification(item)">
-              <div class="portal-vue-notice-main">
-                <strong>{{ item.title }}</strong>
-                <p>{{ item.body }}</p>
-                <span class="portal-vue-notice-time">{{ item.createdAt }}<template v-if="item.batchId"> · 批次 {{ item.batchId }}</template></span>
-              </div>
-              <span v-if="item.targetPage" class="portal-vue-notice-go">去处理 ›</span>
-            </article>
-            <el-empty v-if="!visibleNotifications.length" :image-size="70" description="暂无通知" />
-          </div>
-        </el-drawer>
       </el-config-provider>
     `,
-    data: () => ({ bridge, noticeOpen: false }),
+    data: () => ({ bridge }),
     computed: {
       tabs() { refreshTick.value; return state.tabs; },
       page() { return currentPage.value; },
-      activeBoard() { refreshTick.value; return bridge.getActiveBoard(); },
-      /* 通知可见性 = 你对通知指向的工具是否有「查看」权限（不单独设通知权限位） */
-      visibleNotifications() { refreshTick.value; return state.notifications.filter(item => !item.targetPage || canViewMenu(item.targetPage)); },
-      unreadCount() { return this.visibleNotifications.filter(item => !item.readAt).length; }
+      activeBoard() { refreshTick.value; return bridge.getActiveBoard(); }
     },
     methods: {
-      openNotification(item) {
-        bridge.markNotificationRead(item.id);
-        this.noticeOpen = false;
-        if (item.targetPage) bridge.setPage(item.targetPage);
-      },
-      readAllNotifications() {
-        const ids = this.visibleNotifications.filter(item => !item.readAt).map(item => item.id);
-        const count = bridge.markAllNotificationsRead(ids);
-        if (count) ep.ElMessage.success(`已把 ${count} 条通知标记为已读`);
-      },
       tabIcon(tab) { return bridge.toolIconPath(tab.page) || bridge.navIconPath(tab.icon, this.isActive(tab)); },
       isActive(tab) { return (tab.page === this.page || (tab.page === "维表管理" && this.page === "维表数据维护")) && (tab.boardIndex === undefined || tab.name === this.activeBoard?.name); },
       openTab(tab) { tab.boardIndex === undefined ? bridge.setPage(tab.page) : bridge.openQuickBi(tab.boardIndex); },
@@ -1747,7 +1721,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
   // 工作台场景卡片由「Skill 配置」驱动：icon/标题/描述/排序均来自 skill 注册表
   const skillScenarioFallback = [
-    { id: "single", icon: "📊", title: "单表分析", displayDesc: "趋势、分布与异常", sort: 10 }
+    { id: "single", icon: "assets/skill-single-table.svg", title: "单表分析", displayDesc: "趋势、分布与异常", sort: 10 }
   ];
 
   let analysisSeq = 100;
@@ -1905,7 +1879,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </div>
               <div v-else class="portal-vue-ai-scenarios">
                 <button v-for="scene in scenarios" :key="scene.key" type="button" class="portal-vue-ai-scenario" :class="{ active: scenario === scene.key }" @click="setScenario(scene.key)">
-                  <span class="portal-vue-ai-scene-icon"><img v-if="isImageIcon(scene.icon)" :src="scene.icon" alt="" style="width:17px;height:17px;object-fit:contain" /><span v-else>{{ scene.icon }}</span></span>
+                  <span class="portal-vue-ai-scene-icon"><img v-if="isImageIcon(scene.icon)" :src="scene.icon" alt="" /><span v-else>{{ scene.icon }}</span></span>
                   <span><strong>{{ scene.name }}</strong><small>{{ scene.desc }}</small></span>
                 </button>
               </div>
@@ -2287,7 +2261,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const session=this.activeSession;
         if(session&&!session.messages.length&&!session.suggested)session.scenario=this.scenarioName;
       },
-      isImageIcon(icon){return /^(data:image|https?:|blob:)/i.test(String(icon||""));},
+      isImageIcon(icon){return isImageIconValue(icon);},
       async removeReport(report){
         if(!await confirmAction("删除报告",`确认从分析资产中删除「${report.title}」？`))return;
         this.reports=this.reports.filter(item=>item.id!==report.id);
@@ -2869,7 +2843,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     {
       id: "M1060", name: "大数据工具箱", icon: "toolbox", sort: 600, path: "/toolbox/bigdata", cache: true, permission: "toolbox_bigdata",
       children: [
-        { id: "M1070", name: "工具总览", icon: "--", sort: 10, path: "/toolbox/bigdata/index", cache: true, permission: "toolbox_bigdata_overview", children: [] },
         { id: "M1080", name: "补数据", icon: "--", sort: 20, path: "/toolbox/bigdata/backfill/index", cache: true, permission: "toolbox_bigdata_backfill", children: [] },
         { id: "M1090", name: "消耗对比", icon: "--", sort: 30, path: "/toolbox/bigdata/compare/index", cache: true, permission: "toolbox_bigdata_compare", children: [] },
         { id: "M1100", name: "环境域名", icon: "--", sort: 40, path: "/toolbox/bigdata/env-domains/index", cache: true, permission: "toolbox_bigdata_env_domains", children: [] }
@@ -3453,7 +3426,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
   const skillRegistrySeed = [
     {
       id: "warehouse-analyst", name: "数据查询与指标解答 Skill", source: "maxcompute-warehouse-analyst", version: "v1.3-portal", grayUsers: [],
-      icon: "📊", title: "数据查询与指标解答", displayDesc: "先选业务线，再检索表与字段", sort: 10, scenarioKey: "data-query", enabled: true,
+      icon: "assets/skill-query.svg", title: "数据查询与指标解答", displayDesc: "先选业务线，再检索表与字段", sort: 10, scenarioKey: "data-query", enabled: true,
       desc: "未指定数据表时先咨询业务线，再在授权资产中检索指标口径、表和字段。",
       scenarios: "指标查询 / 数据解答 / 口径说明",
       clarification: {
@@ -3477,7 +3450,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     {
       id: "asset-qa", name: "数据资产问答 Skill", source: "asset-qa", version: "v0.9", grayUsers: ["曾祥竞"],
-      icon: "📚", title: "数据资产问答", displayDesc: "有哪些表、口径、负责人", sort: 30, scenarioKey: "asset", enabled: true,
+      icon: "assets/skill-asset.svg", title: "数据资产问答", displayDesc: "有哪些表、口径、负责人", sort: 30, scenarioKey: "asset", enabled: true,
       desc: "基于表资产元数据回答有哪些表、口径是什么、负责人是谁。",
       scenarios: "资产检索 / 口径问答",
       clarification: { enabled:false, question:"", options:[] }, assetScope: "全部已授权数据资产", responseContract: ["推荐表","关键字段","负责人"],
@@ -3490,7 +3463,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     {
       id: "lineage-analyst", name: "数据血缘与变更影响 Skill", source: "maxcompute-warehouse-analyst", version: "v1.3-portal", grayUsers: [],
-      icon: "🔗", title: "数据血缘与变更影响", displayDesc: "上下游依赖与影响面", sort: 20, scenarioKey: "lineage", enabled: true,
+      icon: "assets/skill-lineage.svg", title: "数据血缘与变更影响", displayDesc: "上下游依赖与影响面", sort: 20, scenarioKey: "lineage", enabled: true,
       desc: "基于 SQL 语料与 AST 解析输出表/字段的上下游血缘与变更影响面。",
       scenarios: "血缘上下游 / 变更影响分析",
       clarification: { enabled:false, question:"", options:[] }, assetScope: "引用表、字段与下游依赖", responseContract: ["直接影响","间接影响","待核对项"],
@@ -3500,7 +3473,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     {
       id: "attribution-analyst", name: "指标异动诊断 Skill", source: "attribution-analyst", version: "v0.5", grayUsers: [],
-      icon: "🎯", title: "指标异动诊断", displayDesc: "指标异动拆解与定位", sort: 40, scenarioKey: "attribution", enabled: true,
+      icon: "assets/skill-attribution.svg", title: "指标异动诊断", displayDesc: "指标异动拆解与定位", sort: 40, scenarioKey: "attribution", enabled: true,
       desc: "对指标异动做维度拆解（媒体/产品/计划），定位贡献度与原因。",
       scenarios: "指标异动 / 维度拆解",
       clarification: { enabled:false, question:"", options:[] }, assetScope: "引用指标表与可拆解维度", responseContract: ["异动幅度","维度贡献","证据限制"],
@@ -3522,7 +3495,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           </div>
           <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无 Skill">
             <el-table-column label="Skill" min-width="280"><template #default="scope"><div><span class="portal-vue-name">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.desc }}</div></div></template></el-table-column>
-            <el-table-column label="工作台展示" min-width="280"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:6px"><img v-if="isImageIcon(scope.row.icon)" :src="scope.row.icon" alt="" style="width:17px;height:17px;object-fit:contain" /><span v-else>{{ scope.row.icon }}</span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">已下线</span></template></el-table-column>
+            <el-table-column label="工作台展示" min-width="280"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:8px"><span class="portal-vue-skill-cell-icon"><img v-if="isImageIcon(scope.row.icon)" :src="scope.row.icon" alt="" /><span v-else>{{ scope.row.icon }}</span></span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">已下线</span></template></el-table-column>
             <el-table-column prop="version" label="当前版本" width="120"></el-table-column>
             <el-table-column label="状态" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:6px"><el-switch :disabled="!canEdit('Skill 配置')" v-model="scope.row.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch><el-tag v-if="scope.row.enabled!==false && skillStatus(scope.row)!=='已发布'" size="small" :type="skillStatus(scope.row)==='未发布' ? 'info' : 'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></div></template></el-table-column>
             <el-table-column label="灰度用户" min-width="170"><template #default="scope"><div v-if="scope.row.grayUsers.length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.grayUsers.slice(0,3)" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="scope.row.grayUsers.length>3" class="portal-vue-muted">+{{ scope.row.grayUsers.length-3 }}</span></div><span v-else class="portal-vue-muted">全量发布</span></template></el-table-column>
@@ -3721,7 +3694,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(row.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled})});}catch(error){/* 网关未连接时保留原型状态 */}
         notify(`「${row.name}」已${enabled?"上线，灵犀智析恢复展示":"下线，灵犀智析立即隐藏"}`);
       },
-      isImageIcon(icon){return /^(data:image|https?:|blob:)/i.test(String(icon||""));},
+      isImageIcon(icon){return isImageIconValue(icon);},
       openIconPicker(){this.$refs.iconInput?.click();},
       onIconUpload(event){this.applyIcon(event,this.editForm);},
       onCreateIconUpload(event){this.applyIcon(event,this.createForm);},
@@ -5345,17 +5318,21 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               </div>
             </article>
           </div>
-          <el-empty v-if="!tools.length" description="还没有已授权的工具，请联系管理员开通「大数据工具箱」" />
+          <el-empty v-if="!tools.length" :description="'还没有已授权的工具，请联系管理员开通「' + box + '」内的工具'" />
         </section>
       </el-config-provider>
     `,
     data: () => ({ bridge }),
-    computed: { tools() { refreshTick.value; return toolboxToolsOf("大数据工具箱"); } },
+    computed: {
+      box() { return currentPage.value === "业务工具箱" ? "业务工具箱" : "大数据工具箱"; },
+      tools() { refreshTick.value; return toolboxToolsOf(this.box); }
+    },
     methods: { open(tool) { bridge.setPage(tool.name); } }
   };
 
-  /* 工具页统一的「所属箱 + 可写」标识与只读提示 */
+  /* 工具页统一的「返回所属箱 + 所属箱 + 可写」标识与只读提示 */
   const TOOL_META_TEMPLATE = (tool, note, box = "大数据工具箱") => `
+        <div class="portal-vue-tool-back-row"><button class="portal-vue-tool-back" type="button" @click="backToBox('${box}')">‹ 返回${box}</button></div>
         <div class="portal-vue-tool-meta">
           <el-tag size="small" effect="plain" type="info">${box}</el-tag>
           <el-tag size="small" effect="plain" :type="canEdit('${tool}') ? 'primary' : 'warning'">{{ canEdit('${tool}') ? '可写' : '只读' }}</el-tag>
@@ -5638,23 +5615,20 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         <section class="portal-vue-panel">
           ${TOOL_META_TEMPLATE("消耗对比", "以账户分时表 (hour_data) 为基准，与二级计划分时表 (ad_hour_data) 或创意分时表 (new_creative_hour_data_v2) 两两对比。")}
           <div style="padding:14px 20px 20px">
-            <div v-if="pendingBatches.length" class="portal-vue-pending-panel">
-              <div class="portal-vue-pending-head">
-                <div><strong>待拉取消耗批次</strong><span class="portal-vue-muted">业务侧上报、还没拉消耗数据核对的批次</span></div>
-                <el-tag size="small" effect="plain" type="warning">{{ pendingBatches.length }} 个批次待处理</el-tag>
+            <div v-if="reportBatchList.length" class="portal-vue-batch-panel">
+              <div class="portal-vue-batch-head">
+                <div><strong>最近上报批次</strong><span class="portal-vue-muted">业务侧上报的账户批次，消耗数据由系统自动拉取</span></div>
+                <el-tag size="small" effect="plain">{{ reportBatchList.length }} 个批次</el-tag>
               </div>
-              <el-table :data="pendingBatches" class="portal-vue-table" border>
+              <el-table :data="reportBatchList" class="portal-vue-table" border>
                 <el-table-column prop="id" label="批次号" width="160"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
                 <el-table-column prop="submitter" label="上报人" width="100"></el-table-column>
                 <el-table-column prop="submittedAt" label="上报时间" width="150"></el-table-column>
                 <el-table-column label="账户数" width="90" align="center"><template #default="scope">{{ scope.row.accounts }}</template></el-table-column>
                 <el-table-column prop="note" label="说明" min-width="220" show-overflow-tooltip></el-table-column>
-                <el-table-column label="操作" width="210" align="center">
+                <el-table-column label="操作" width="110" align="center">
                   <template #default="scope">
                     <el-button link type="primary" @click="bringBatch(scope.row)">带入账户</el-button>
-                    <el-tooltip :disabled="canEdit('消耗对比')" content="需要「消耗对比」的编辑权限，请联系管理员开通" placement="top">
-                      <span><el-button link type="primary" :disabled="!canEdit('消耗对比')" @click="markBatchPulled(scope.row)">标记已核对</el-button></span>
-                    </el-tooltip>
                   </template>
                 </el-table-column>
               </el-table>
@@ -5741,7 +5715,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     computed: {
       compareTable() { return this.cmpMode === "二级计划分时" ? "ad_hour_data" : "new_creative_hour_data_v2"; },
-      pendingBatches() { refreshTick.value; return state.reportBatches.filter(item => item.status === "待拉取消耗"); },
+      reportBatchList() { refreshTick.value; return [...state.reportBatches].slice(0, 5); },
       cmpAccountIds() { return this.cmpAccount.split(/[,，\s]+/).map(item => item.trim()).filter(Boolean); },
       cmpSpanText() {
         const pad = value => String(value).padStart(2, "0");
@@ -5779,12 +5753,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.cmpAccount = ids.join(", ");
         this.broughtBatchId = batch.id;
         ep.ElMessage.success(`已带入批次 ${batch.id} 的 ${ids.length} 个账户，点「查询对比」查看差异`);
-      },
-      async markBatchPulled(batch) {
-        if (!canEditMenu("消耗对比")) return denyEdit();
-        if (!await confirmAction("标记已核对", `确认批次 ${batch.id}（${batch.accounts} 个账户）的消耗数据已拉取并核对完成？`)) return;
-        bridge.markReportBatchPulled(batch.id);
-        notify(`批次 ${batch.id} 已标记为「已拉取」`);
       },
       fmt2(value) { return Number(value || 0).toFixed(2); },
       fmtMoney(value) { return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
@@ -6176,13 +6144,14 @@ function injectStyle(id, css) {
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel" style="padding:18px 22px 24px">
-          <div class="portal-vue-env-head">
-            <h3>🌐 服务域名</h3>
+          <div class="portal-vue-tool-back-row" style="margin:0 0 8px"><button class="portal-vue-tool-back" type="button" @click="backToBox('大数据工具箱')">‹ 返回大数据工具箱</button></div>
+          <div class="portal-vue-toolbar" style="padding:0 0 14px">
+            <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">{{ envEditing ? "编辑中：各分类均可新增 / 修改 / 删除条目，改动即时保存" : "当前为只读展示，点击右上角「✎ 编辑」后可维护" }}</span></div>
             <div class="portal-vue-actions">
-              <el-button v-if="(!envEditing) && canEdit('环境域名')" plain @click="envEditing=true">✎ 编辑</el-button>
+              <el-button v-if="(!envEditing) && canEdit('环境域名')" type="primary" plain @click="envEditing=true">✎ 编辑</el-button>
               <template v-else>
-                <el-button v-if="canEdit('环境域名')" type="primary" plain @click="openGroupDialog(null)">＋ 新增分类</el-button>
-                <el-button v-if="canEdit('环境域名')" type="primary" @click="envEditing=false">完成</el-button>
+                <el-button v-if="canEdit('环境域名')" type="primary" @click="openGroupDialog(null)">＋ 新增分类</el-button>
+                <el-button v-if="canEdit('环境域名')" @click="envEditing=false">退出编辑</el-button>
               </template>
             </div>
           </div>
@@ -6197,13 +6166,13 @@ function injectStyle(id, css) {
                 </el-popconfirm>
               </div>
             </div>
-            <el-table :data="group.rows" class="portal-vue-table" border empty-text="暂无条目，点击右上角「新增条目」添加">
+            <el-table :data="group.rows" class="portal-vue-table" border empty-text="暂无条目，点本分类右上角「＋ 新增条目」添加">
               <el-table-column :label="group.cols[0]" width="220"><template #default="scope"><span>{{ scope.row.a }}</span></template></el-table-column>
               <el-table-column :label="group.cols[1]" min-width="300"><template #default="scope"><code class="portal-vue-code portal-vue-env-addr">{{ scope.row.b }}</code></template></el-table-column>
               <el-table-column label="操作" v-if="envEditing" width="130" align="center"><template #default="scope"><el-button v-if="canEdit('环境域名')" link type="primary" @click="openEntryDialog(group, scope.$index)">编辑</el-button><el-popconfirm title="确定删除该条目吗？" @confirm="removeEntry(group, scope.$index)"><template #reference><el-button link type="danger">删除</el-button></template></el-popconfirm></template></el-table-column>
             </el-table>
           </div>
-          <el-empty v-if="!envGroups.length" description="暂无分类，点击右上角「新增分类」开始维护" />
+          <el-empty v-if="!envGroups.length" description="暂无分类，点上方「✎ 编辑」后再「＋ 新增分类」" />
           <el-dialog v-model="groupDialogVisible" :title="editingGroupId ? '编辑分类' : '新增分类'" width="520px" :close-on-click-modal="true">
             <el-form label-position="top" class="portal-vue-dialog-form">
               <el-form-item label="分类名称" required><el-input v-model="groupForm.title" placeholder="例如：投放助手域名"></el-input></el-form-item>
@@ -6657,15 +6626,15 @@ function injectStyle(id, css) {
     }
   };
 
-  /* ===== 业务工具箱 · 工具 B：短剧投放账户上报（校验 + 提醒拉取消耗） ===== */
+  /* ===== 业务工具箱 · 工具 B：短剧投放账户上报（校验 + 提交生成批次） ===== */
 
   const DramaReportApp = {
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
-          ${TOOL_META_TEMPLATE("短剧投放账户上报", "上报本期要投的短剧广告账户；校验通过后生成「待拉取消耗」批次并通知大数据侧。", "业务工具箱")}
+          ${TOOL_META_TEMPLATE("短剧投放账户上报", "上报本期要投的短剧广告账户；校验通过后提交即生成批次，本批账户的消耗数据由系统自动拉取。", "业务工具箱")}
           <div style="padding:14px 20px 20px">
-            <el-alert v-if="lastNotice" type="success" :closable="false" show-icon :title="lastNotice.title" :description="lastNotice.body" style="margin-bottom:16px" />
+            <el-alert v-if="submitReceipt" type="success" :closable="false" show-icon :title="submitReceipt.title" :description="submitReceipt.body" style="margin-bottom:16px" />
             <div class="portal-vue-tool-section">
               <div class="portal-vue-tool-section-head">1 · 输入账户清单</div>
               <div class="form-field">
@@ -6728,9 +6697,9 @@ function injectStyle(id, css) {
               </div>
               <div class="portal-vue-tool-actions">
                 <el-tooltip :disabled="canEdit('短剧投放账户上报')" content="需要「短剧投放账户上报」的编辑权限，请联系管理员开通" placement="top">
-                  <span><el-button type="primary" :disabled="!canEdit('短剧投放账户上报') || !report.valid || report.errors.length > 0" :loading="submitting" @click="submit">提交并提醒拉取消耗</el-button></span>
+                  <span><el-button type="primary" :disabled="!canEdit('短剧投放账户上报') || !report.valid || report.errors.length > 0" :loading="submitting" @click="submit">提交上报批次</el-button></span>
                 </el-tooltip>
-                <span class="portal-vue-muted">提交后会生成「待拉取消耗」批次，并给有「消耗对比」查看权限的同事发站内通知。</span>
+                <span class="portal-vue-muted">校验通过后提交即生成批次，本批账户的消耗数据由系统自动拉取；大数据侧在「消耗对比」里按批次带入账户核对。</span>
               </div>
             </div>
 
@@ -6743,17 +6712,13 @@ function injectStyle(id, css) {
                 <el-table-column prop="media" label="媒体" width="140"></el-table-column>
                 <el-table-column prop="accounts" label="账户数" width="90" align="center"></el-table-column>
                 <el-table-column prop="checked" label="校验" width="150"></el-table-column>
-                <el-table-column label="消耗状态" width="130"><template #default="scope"><el-tag size="small" :type="scope.row.status === '已拉取' ? 'success' : 'warning'" effect="light">{{ scope.row.status }}</el-tag></template></el-table-column>
-                <el-table-column label="操作" width="170" align="center">
+                <el-table-column label="操作" width="130" align="center">
                   <template #default="scope">
                     <el-button link type="primary" @click="gotoCompare">查看消耗对比</el-button>
-                    <el-popconfirm v-if="scope.row.status !== '已拉取'" title="确认撤回该批次？" @confirm="withdraw(scope.row)">
-                      <template #reference><el-button link type="danger" :disabled="!canEdit('短剧投放账户上报')">撤回</el-button></template>
-                    </el-popconfirm>
                   </template>
                 </el-table-column>
               </el-table>
-              <p class="portal-vue-muted" style="margin:10px 0 0">已拉取消耗的批次不允许撤回，只能补报新批次。</p>
+              <p class="portal-vue-muted" style="margin:10px 0 0">批次提交后消耗数据由系统自动拉取，不支持撤回；如需修正请补报新批次。</p>
             </div>
           </div>
         </section>
@@ -6766,10 +6731,10 @@ function injectStyle(id, css) {
       mediaColumn: -1,
       report: null,
       submitting: false,
-      lastNotice: null
+      submitReceipt: null
     }),
     computed: {
-      /* 桥接层对批次数组做的是原地 unshift/splice，若直接把同一个数组引用交给 el-table，
+      /* 桥接层对批次数组做的是原地 unshift，若直接把同一个数组引用交给 el-table，
          表格不会重渲染（新增批次看不见）；这里返回副本强制刷新。 */
       batches() { refreshTick.value; return [...state.reportBatches]; },
       previousBatch() { return this.batches[1] || null; },
@@ -6792,7 +6757,7 @@ function injectStyle(id, css) {
       }
     },
     methods: {
-      reset() { this.report = null; this.parsed = null; this.lastNotice = null; this.idColumn = 0; this.mediaColumn = -1; },
+      reset() { this.report = null; this.parsed = null; this.submitReceipt = null; this.idColumn = 0; this.mediaColumn = -1; },
       loadSample() {
         this.rawText = "账户ID,媒体\n20894517,巨量\n20894518,广点通\n20894519,巨量\n20894521,巨量\n20894599,巨量\n20894517,巨量";
         this.reset();
@@ -6881,30 +6846,15 @@ function injectStyle(id, css) {
           media: this.report.mediaText || "未知",
           accounts: this.report.values.length,
           checked: `通过（${this.report.warnings.length} 条警告）`,
-          status: "待拉取消耗",
-          note: `本期上报 ${this.report.values.length} 个短剧投放账户，等待拉取消耗数据核对`,
+          note: `本期上报 ${this.report.values.length} 个短剧投放账户，消耗数据由系统自动拉取`,
           accountIds: [...this.report.values]
         };
         bridge.addReportBatch(batch);
-        const recipients = state.users.filter(user => effectiveViewMenus(user).has("消耗对比")).map(user => user.name);
-        bridge.pushNotification({
-          type: "account_report_pending_pull",
-          title: "短剧投放账户上报 · 待拉取消耗",
-          body: `批次 ${id} 上报 ${batch.accounts} 个账户（${batch.media}），等待拉取消耗数据核对。`,
-          targetPage: "消耗对比",
-          batchId: id
-        });
-        this.lastNotice = { title: `批次 ${id} 已提交`, body: `已通知 ${recipients.length} 名有「消耗对比」查看权限的同事（${recipients.slice(0, 4).join("、")}${recipients.length > 4 ? " 等" : ""}），大数据侧可在「消耗对比」里拉取并标记已核对。` };
+        this.submitReceipt = { title: `批次 ${id} 已提交`, body: `共 ${batch.accounts} 个账户（${batch.media}），系统已开始拉取本批账户的消耗数据；大数据侧可在「消耗对比」里带入该批账户核对差异。` };
         this.submitting = false;
         this.report = null;
         this.rawText = "";
-        ep.ElMessage.success(`已提交批次 ${id}，并发出「待拉取消耗」站内通知`);
-      },
-      withdraw(batch) {
-        if (!canEditMenu("短剧投放账户上报")) return denyEdit();
-        state.reportBatches.splice(state.reportBatches.indexOf(batch), 1);
-        bridge.notifyDataChange();
-        notify(`批次 ${batch.id} 已撤回`);
+        ep.ElMessage.success(`已提交批次 ${id}，本批账户的消耗数据由系统自动拉取`);
       },
       gotoCompare() { bridge.setPage("消耗对比"); }
     }

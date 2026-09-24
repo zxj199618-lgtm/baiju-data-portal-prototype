@@ -634,26 +634,6 @@
       place-items: center;
     }
 
-    .notice-icon {
-      width: 16px;
-      height: 18px;
-      border: 2px solid currentColor;
-      border-radius: 9px 9px 6px 6px;
-      border-bottom-width: 3px;
-      position: relative;
-    }
-
-    .notice-icon::before {
-      content: "";
-      position: absolute;
-      width: 6px;
-      height: 3px;
-      border-radius: 0 0 6px 6px;
-      background: currentColor;
-      left: 3px;
-      bottom: -7px;
-    }
-
     .icon-btn .badge {
       position: absolute;
       top: -5px;
