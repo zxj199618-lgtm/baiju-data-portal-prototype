@@ -2875,7 +2875,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     { id: "ark", label: "火山方舟 ARK", protocol: "openai-compatible", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", authType: "bearer", models: [], note: "OpenAI 兼容端点；模型填接入点 ID（ep-xxxxxxxx）或模型名" },
     { id: "openai", label: "OpenAI 官方", protocol: "openai-compatible", baseUrl: "https://api.openai.com/v1", authType: "bearer", models: ["gpt-4o-mini"], note: "OpenAI 兼容端点 + Bearer Token" },
     { id: "ollama", label: "本地 Ollama / vLLM", protocol: "openai-compatible", baseUrl: "http://127.0.0.1:11434/v1", authType: "bearer", models: [], note: "本地服务通常不校验 Key，可留空" },
-    { id: "anthropic", label: "Anthropic 原生", protocol: "anthropic", baseUrl: "https://api.anthropic.com", authType: "x-api-key", models: ["claude-sonnet-4-5"], note: "x-api-key 头 + anthropic-version；协议待适配，暂不参与分析调用" },
+    { id: "anthropic", label: "Anthropic 原生", protocol: "anthropic", baseUrl: "https://api.anthropic.com", authType: "x-api-key", models: ["claude-sonnet-4-5"], note: "x-api-key 头 + anthropic-version；走 /v1/messages，可直接在灵犀智析里用" },
     { id: "custom", label: "自定义（OpenAI 兼容）", protocol: "openai-compatible", baseUrl: "", authType: "bearer", models: [], note: "手填 Base URL 与模型 ID，鉴权默认 Bearer" }
   ];
   /** 协议下拉只暴露实际会用到的两类；其余历史取值（ARK/Azure/Gemini 等）仍可编辑但不新选 */

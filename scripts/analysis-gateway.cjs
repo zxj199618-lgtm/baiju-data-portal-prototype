@@ -1116,8 +1116,8 @@ const PROVIDER_PROTOCOLS = {
   "ark": { label: "火山方舟 ARK", callable: true },
   "custom": { label: "自定义兼容端点", callable: true },
   "azure-openai": { label: "Azure OpenAI", callable: true },
-  "anthropic": { label: "Anthropic 原生", callable: false },
-  "anthropic-compatible": { label: "Anthropic 兼容中转", callable: false },
+  "anthropic": { label: "Anthropic 原生", callable: true },
+  "anthropic-compatible": { label: "Anthropic 兼容中转", callable: true },
   "gemini": { label: "Google Gemini", callable: false }
 };
 const PROVIDER_AUTH_TYPES = ["bearer", "x-api-key", "x-goog-api-key", "api-key-header", "query", "custom-header"];
@@ -1258,17 +1258,67 @@ function joinBase(baseUrl, suffix) {
   return `${String(baseUrl || "").trim().replace(/\/+$/, "")}${suffix}`;
 }
 
+/** Anthropic 系协议：走 Messages API（/v1/messages），请求/响应都要翻译 */
+const ANTHROPIC_PROTOCOLS = new Set(["anthropic", "anthropic-compatible"]);
+function isAnthropicProtocol(protocol) { return ANTHROPIC_PROTOCOLS.has(String(protocol || "")); }
+
+function anthropicBaseUrl(baseUrl) {
+  return String(baseUrl || "").trim().replace(/\/+$/, "").replace(/\/v1$/, "");
+}
+
 function providerChatTarget(provider, model, key = "") {
+  if (isAnthropicProtocol(provider.protocol)) {
+    return { key, protocol: provider.protocol, url: withAuthQuery(joinBase(anthropicBaseUrl(provider.baseUrl), "/v1/messages"), provider, key), headers: providerHeaders(provider, key) };
+  }
   const endpoint = provider.protocol === "azure-openai"
     ? `${joinBase(provider.baseUrl, "")}/openai/deployments/${encodeURIComponent(model)}/chat/completions?api-version=${encodeURIComponent(provider.apiVersion || "2024-10-21")}`
     : joinBase(provider.baseUrl, "/chat/completions");
-  return { key, url: withAuthQuery(endpoint, provider, key), headers: providerHeaders(provider, key) };
+  return { key, protocol: provider.protocol, url: withAuthQuery(endpoint, provider, key), headers: providerHeaders(provider, key) };
+}
+
+/** OpenAI 形状请求体 → Anthropic Messages API 形状：system 要提到顶层，max_tokens 必填 */
+function anthropicRequestBody(model, payload = {}) {
+  const source = Array.isArray(payload.messages) ? payload.messages : [];
+  const systemParts = [];
+  const messages = [];
+  source.forEach(item => {
+    const content = typeof item?.content === "string"
+      ? item.content
+      : Array.isArray(item?.content) ? item.content.map(part => (typeof part === "string" ? part : part?.text || "")).join("") : "";
+    if (!content) return;
+    if (item.role === "system" || item.role === "developer") { systemParts.push(content); return; }
+    messages.push({ role: item.role === "assistant" ? "assistant" : "user", content });
+  });
+  const body = {
+    model,
+    messages: messages.length ? messages : [{ role: "user", content: "（空请求）" }],
+    max_tokens: Math.max(256, Math.floor(payload.max_completion_tokens || payload.max_tokens || 4096))
+  };
+  if (systemParts.length) body.system = systemParts.join("\n\n");
+  if (Number.isFinite(payload.temperature)) body.temperature = payload.temperature;
+  if (payload.stream) body.stream = true;
+  return body;
+}
+
+/** Anthropic Messages 响应 → OpenAI 形状：消费方读 choices[0].message.content 与 usage */
+function anthropicToOpenAI(data) {
+  const blocks = Array.isArray(data?.content) ? data.content : [];
+  const text = blocks.filter(block => block?.type === "text").map(block => String(block.text || "")).join("");
+  const thinking = blocks.filter(block => block?.type === "thinking").map(block => String(block.thinking || "")).join("");
+  const usage = data?.usage
+    ? { prompt_tokens: data.usage.input_tokens ?? null, completion_tokens: data.usage.output_tokens ?? null, total_tokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0) }
+    : null;
+  return {
+    ...data,
+    choices: [{ index: 0, message: { role: "assistant", content: text, ...(thinking ? { reasoning_content: thinking } : {}) }, finish_reason: data?.stop_reason || "stop" }],
+    usage
+  };
 }
 
 function providerModelsUrl(provider, key = "") {
   const base = String(provider.baseUrl || "").trim().replace(/\/+$/, "");
   if (provider.protocol === "gemini") return withAuthQuery(joinBase(base.replace(/\/v1beta$/, ""), "/v1beta/models"), provider, key);
-  if (provider.protocol === "anthropic") return withAuthQuery(joinBase(base.replace(/\/v1$/, ""), "/v1/models?limit=1000"), provider, key);
+  if (isAnthropicProtocol(provider.protocol)) return withAuthQuery(joinBase(anthropicBaseUrl(base), "/v1/models?limit=1000"), provider, key);
   return withAuthQuery(joinBase(base, "/models"), provider, key);
 }
 
@@ -1339,10 +1389,13 @@ function isBuiltinProvider(provider) { return provider?.builtin === true || prov
 
 /** 通过供应商调用 chat/completions（OpenAI 兼容路径） */
 async function providerChat(target, model, payload) {
+  const anthropic = isAnthropicProtocol(target.protocol);
+  const body = anthropic ? anthropicRequestBody(model, payload) : { model, ...payload };
   try {
-    const response = await fetch(target.url, { method: "POST", headers: target.headers, body: JSON.stringify({ model, ...payload }) });
+    const response = await fetch(target.url, { method: "POST", headers: target.headers, body: JSON.stringify(body) });
     const text = await response.text();
     let data; try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 400) }; }
+    if (anthropic && response.ok) data = anthropicToOpenAI(data);
     return { ok: response.ok, status: response.status, data, keyUsed: target.label };
   } catch (error) {
     return { ok: false, status: 502, data: { error: String(error) } };
@@ -1672,12 +1725,15 @@ async function relayChatStream(model, payload, onEvent) {
   const targets = route ? route.targets : [];
   let lastResult = route ? null : { status: 404, data: { error: `模型「${model}」没有对应的供应商：请到「模型配置 → 供应商配置」接入并勾选该模型` } };
   for (const target of targets) {
+    const anthropic = isAnthropicProtocol(target.protocol);
     let response;
     try {
       response = await fetch(target.url, {
         method: "POST",
         headers: target.headers,
-        body: JSON.stringify({ model, stream: true, stream_options: { include_usage: true }, ...payload })
+        body: JSON.stringify(anthropic
+          ? anthropicRequestBody(model, { ...payload, stream: true })
+          : { model, stream: true, stream_options: { include_usage: true }, ...payload })
       });
     } catch (error) { lastResult = { status: 502, data: { error: String(error) } }; continue; }
     if (!response.ok || !response.body) {
@@ -1713,11 +1769,27 @@ async function relayChatStream(model, payload, onEvent) {
         if (data === "[DONE]") continue;
         try {
           const obj = JSON.parse(data);
-          if (obj.usage) usage = obj.usage;
-          const delta = obj.choices?.[0]?.delta?.content || "";
-          if (delta) { content += delta; lastTextAt = Date.now(); onEvent({ delta }); }
-          const reasoning = obj.choices?.[0]?.delta?.reasoning_content || "";
-          if (reasoning) { lastTextAt = Date.now(); onEvent({ reasoning }); }
+          if (anthropic) {
+            // Anthropic SSE：content_block_delta 带文本 / thinking，message_delta 带用量
+            if (obj.type === "content_block_delta") {
+              const piece = obj.delta?.text || "";
+              if (piece) { content += piece; lastTextAt = Date.now(); onEvent({ delta: piece }); }
+              const think = obj.delta?.thinking || "";
+              if (think) { lastTextAt = Date.now(); onEvent({ reasoning: think }); }
+            } else if (obj.type === "message_start") {
+              const input = obj.message?.usage?.input_tokens;
+              if (Number.isFinite(input)) usage = { prompt_tokens: input, completion_tokens: null, total_tokens: null };
+            } else if (obj.type === "message_delta") {
+              const output = obj.usage?.output_tokens;
+              if (Number.isFinite(output)) usage = { prompt_tokens: usage?.prompt_tokens ?? null, completion_tokens: output, total_tokens: Number.isFinite(usage?.prompt_tokens) ? usage.prompt_tokens + output : null };
+            }
+          } else {
+            if (obj.usage) usage = obj.usage;
+            const delta = obj.choices?.[0]?.delta?.content || "";
+            if (delta) { content += delta; lastTextAt = Date.now(); onEvent({ delta }); }
+            const reasoning = obj.choices?.[0]?.delta?.reasoning_content || "";
+            if (reasoning) { lastTextAt = Date.now(); onEvent({ reasoning }); }
+          }
         } catch { /* 忽略心跳等非 JSON 行 */ }
       }
       if (stalled) break;
