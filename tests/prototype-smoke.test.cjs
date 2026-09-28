@@ -463,6 +463,7 @@ const providerCols = (() => {
 })();
 const providerColsTotal = providerCols.reduce((a, b) => a + b, 0);
 assert(providerCols.length === 8 && providerColsTotal <= 1080, `供应商表格列宽合计 ${providerColsTotal}px，必须 ≤1080px，否则小窗口下「启用」列被「操作」列遮挡`);
+assert(!portalVue.includes('label="默认模型（可选）"') && !portalVue.includes("form.defaultModel"), "供应商表单不应再有「默认模型」字段：网关只存不读，路由按模型 ID 走，工作台默认模型来自全局启用清单");
 const keyHintBlock = portalVue.slice(portalVue.indexOf('<span v-if="form.keyCount > 1">'), portalVue.indexOf("</div>", portalVue.indexOf('<span v-if="form.keyCount > 1">')));
 assert(keyHintBlock.includes("当前记录里存了 {{ form.keyCount }} 个 Key") && keyHintBlock.includes("「拆分 Key」拆成多条，或直接粘贴一个新 Key 覆盖"), "历史多 Key 记录仍要给出「拆分 / 覆盖」提示，但表单本身只收一个 Key");
 assert(portalVue.includes("发送，无需选择</span>") && !/高级设置/.test(portalVue), "说明文案里不能再引导用户去「高级设置」覆盖鉴权");

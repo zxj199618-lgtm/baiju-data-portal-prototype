@@ -3048,7 +3048,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 <span v-if="testResult" class="portal-vue-provider-test-result" :class="testOk ? 'ok' : 'bad'">{{ testResult }}</span>
               </div>
             </el-form-item>
-            <el-form-item label="默认模型（可选）"><el-select v-model="form.defaultModel" clearable placeholder="不填则用模型清单里的第一个"><el-option v-for="item in parsedModels" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
             <el-form-item label="备注"><el-input v-model="form.note" placeholder="如：给归因分析用的备用通道"></el-input></el-form-item>
             <el-form-item label="启用"><el-switch v-model="form.enabled" inline-prompt active-text="启用" inactive-text="停用" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">停用后该供应商的模型立即从灵犀智析隐藏</span></el-form-item>
             <el-form-item v-if="editingId && form.hasKey" label="已保存的 Key"><el-button size="small" @click="clearKeys">清除已保存的 Key</el-button></el-form-item>
@@ -3150,11 +3149,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if(row){
           this.editingId=row.id;
           this.presetId="";
-          this.form={name:row.name,protocol:row.protocol,baseUrl:row.baseUrl,authType:row.authType||"bearer",authKeyName:row.authKeyName||"",apiVersion:row.apiVersion||"",defaultModel:row.defaultModel||"",note:row.note||"",enabled:row.enabled!==false,hasKey:row.hasKey,keyMasked:row.keyMasked,keyCount:row.keyCount||0};
+          this.form={name:row.name,protocol:row.protocol,baseUrl:row.baseUrl,authType:row.authType||"bearer",authKeyName:row.authKeyName||"",apiVersion:row.apiVersion||"",note:row.note||"",enabled:row.enabled!==false,hasKey:row.hasKey,keyMasked:row.keyMasked,keyCount:row.keyCount||0};
           this.modelsText=(row.models||[]).join("\n");
         }else{
           this.editingId="";
-          this.form={name:"",protocol:"openai-compatible",baseUrl:"",authType:"bearer",authKeyName:"",apiVersion:"",defaultModel:"",note:"",enabled:true,hasKey:false,keyMasked:"",keyCount:0};
+          this.form={name:"",protocol:"openai-compatible",baseUrl:"",authType:"bearer",authKeyName:"",apiVersion:"",note:"",enabled:true,hasKey:false,keyMasked:"",keyCount:0};
           this.modelsText="";
           this.applyPreset("deepseek");
         }
