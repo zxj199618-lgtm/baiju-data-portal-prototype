@@ -3032,28 +3032,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             </el-form-item>
             <el-form-item label="Base URL" required><el-input v-model="form.baseUrl" placeholder="如：https://api.deepseek.com/v1"></el-input></el-form-item>
             <el-form-item label="API Key" required>
-              <el-input v-model="keysText" type="textarea" :rows="2" resize="none" autocomplete="new-password" :placeholder="keyPlaceholder"></el-input>
+              <el-input v-model="keysText" autocomplete="new-password" :placeholder="keyPlaceholder"></el-input>
               <div class="portal-vue-provider-hints">
                 <span>{{ keyHint }}</span>
-                <span>按「{{ form.protocol ? protocolLabelOf(form.protocol) : "OpenAI 兼容" }}」自动用 {{ authLabel(form.authType) }} 发送，无需选择；特殊网关可在高级设置里覆盖</span>
-                <span v-if="form.keyCount > 1">多个 Key 会按「上次成功的那个」轮换重试；如果它们其实对应不同厂商（DeepSeek / GPT / 百炼…），建议到列表里用「拆分 Key」拆成多条，各自维护模型清单</span>
+                <span>按「{{ form.protocol ? protocolLabelOf(form.protocol) : "OpenAI 兼容" }}」自动用 {{ authLabel(form.authType) }} 发送，无需选择</span>
+                <span v-if="form.keyCount > 1">当前记录里存了 {{ form.keyCount }} 个 Key（历史数据）：可到列表里用「拆分 Key」拆成多条，或直接粘贴一个新 Key 覆盖</span>
               </div>
             </el-form-item>
             <el-form-item v-if="form.protocol === 'azure-openai'" label="api-version" required><el-input v-model="form.apiVersion" placeholder="如：2024-10-21"></el-input></el-form-item>
-            <div class="portal-vue-provider-advanced">
-              <el-button link type="primary" @click="advancedOpen = !advancedOpen">{{ advancedOpen ? "收起高级设置" : "高级设置（鉴权方式 / Header 名）" }}</el-button>
-              <span class="portal-vue-muted">默认按协议自动推断，除自建网关要求特殊头之外都不用改</span>
-            </div>
-            <template v-if="advancedOpen">
-              <el-form-item label="鉴权方式">
-                <el-select v-model="form.authType" @change="onAuthTypeChange">
-                  <el-option v-for="item in authOptions" :key="item.id" :label="item.label" :value="item.id"></el-option>
-                </el-select>
-              </el-form-item>
-              <el-form-item v-if="form.authType !== 'bearer'" :label="authKeyNameLabel">
-                <el-input v-model="form.authKeyName" :placeholder="authKeyPlaceholder"></el-input>
-              </el-form-item>
-            </template>
             <el-form-item label="模型 ID" required>
               <el-input v-model="modelsText" type="textarea" :rows="4" resize="none" placeholder="每行或逗号分隔，如：deepseek-chat, deepseek-reasoner"></el-input>
               <div class="portal-vue-provider-actions">
@@ -3091,7 +3077,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({rows:[],providers:[],hiddenProviders:[],protocols:MODEL_PROTOCOL_FALLBACK,notice:"",keyword:"",statusFilter:"all",loading:false,providerDrawer:false,viewMode:"list",editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",keysText:"",advancedOpen:false,form:{},splitVisible:false,splitSource:null,splitForm:[],splitting:false,capabilityVisible:false,capabilityModel:null,capabilitySaving:false,capabilityForm:{contextLimit:128000,levels:[],default:""},contextOptions:MODEL_CONTEXT_CHOICES,reasoningChoices:MODEL_REASONING_CHOICES}),
+    data:()=>({rows:[],providers:[],hiddenProviders:[],protocols:MODEL_PROTOCOL_FALLBACK,notice:"",keyword:"",statusFilter:"all",loading:false,providerDrawer:false,viewMode:"list",editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",keysText:"",form:{},splitVisible:false,splitSource:null,splitForm:[],splitting:false,capabilityVisible:false,capabilityModel:null,capabilitySaving:false,capabilityForm:{contextLimit:128000,levels:[],default:""},contextOptions:MODEL_CONTEXT_CHOICES,reasoningChoices:MODEL_REASONING_CHOICES}),
     computed:{
       /** 停用供应商的模型不进 rows（网关已过滤）：可用清单只统计启用中的供应商 */
       enabledProviders(){return this.providers.filter(item=>item.enabled!==false);},
@@ -3121,7 +3107,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           return !keyword||item.id.toLowerCase().includes(keyword)||String(item.source||"").toLowerCase().includes(keyword);
         });
       },
-      authOptions(){return Object.keys(MODEL_AUTH_LABELS).map(id=>({id,label:MODEL_AUTH_LABELS[id]}));},
       protocolOptions(){
         const main=this.protocols.filter(item=>MODEL_PROTOCOL_OPTIONS.includes(item.id));
         const current=this.form&&this.form.protocol;
@@ -3132,12 +3117,11 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         return main;
       },
       parsedModels(){return this.modelsText.split(/[\n,，;；]/).map(item=>item.trim()).filter(Boolean);},
-      parsedKeys(){return this.keysText.split(/[\n,;；]/).map(item=>item.trim()).filter(Boolean);},
+      /** 一个供应商只配一个 Key：粘贴多行时只取第一个，避免误把多个厂商的 Key 塞进一条 */
+      parsedKeys(){const first=this.keysText.split(/[\n,;；]/).map(item=>item.trim()).filter(Boolean)[0];return first?[first]:[];},
       presetNote(){const preset=this.presets.find(item=>item.id===this.presetId);return preset?preset.note:"";},
-      authKeyNameLabel(){return this.form.authType==="query"?"查询参数名":"Header 名称";},
-      authKeyPlaceholder(){return MODEL_AUTH_KEY_DEFAULTS[this.form.authType]||"X-Api-Key";},
       keyPlaceholder(){return this.form.hasKey?"已保存 "+this.form.keyMasked+(this.form.keyCount>1?"（共 "+this.form.keyCount+" 个）":"")+"，留空表示不修改":"粘贴 API Key；多个 Key 每行一个，轮换重试";},
-      keyHint(){return this.form.hasKey?"已保存的 Key 只写不读，页面不回显明文；留空表示不修改，要更换就直接粘贴新 Key":"必填：Key 只写入网关数据卷（0600），页面不回显明文；本地地址（localhost / 127.0.0.1）可不填"}
+      keyHint(){return this.form.hasKey?"已保存的 Key 只写不读，页面不回显明文；留空表示不修改，要更换就直接粘贴新 Key":"必填：Key 只写入网关数据卷（0600），页面不回显明文；本地地址（localhost / 127.0.0.1）可不填，只需一个 Key"}
     },
     mounted(){this.pageHandler=event=>{if(event.detail?.page==="模型配置")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
@@ -3171,7 +3155,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         }else{
           this.editingId="";
           this.form={name:"",protocol:"openai-compatible",baseUrl:"",authType:"bearer",authKeyName:"",apiVersion:"",defaultModel:"",note:"",enabled:true,hasKey:false,keyMasked:"",keyCount:0};
-          this.advancedOpen=false;
           this.modelsText="";
           this.applyPreset("deepseek");
         }
@@ -3189,11 +3172,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         });
         this.modelsText=(preset.models||[]).join("\n");
       },
-      onAuthTypeChange(value){if(!this.form.authKeyName||Object.values(MODEL_AUTH_KEY_DEFAULTS).includes(this.form.authKeyName))this.form.authKeyName=MODEL_AUTH_KEY_DEFAULTS[value]||"";},
       /** 本地/内网地址通常不校验 Key（Ollama、vLLM、内网网关） */
       isLocalBaseUrl(url){return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|[\w.-]+\.local)([:/]|$)/i.test(String(url||"").trim());},
       protocolLabelOf(id){const item=this.protocols.find(entry=>entry.id===id);return item?item.label:id;},
-      /** 鉴权方式按协议自动推断：用户不用选，只有自建网关要特殊头时才去「高级设置」覆盖 */
+      /** 鉴权方式按协议自动推断：用户不用选，也不提供覆盖入口 */
       defaultAuthFor(protocol){return protocol==="anthropic"||protocol==="anthropic-compatible"?"x-api-key":protocol==="gemini"?"x-goog-api-key":protocol==="azure-openai"?"api-key-header":"bearer";},
       onProtocolChange(protocol){const next=this.defaultAuthFor(protocol);this.form.authType=next;this.form.authKeyName=MODEL_AUTH_KEY_DEFAULTS[next]||"";},
       async testForm(pullModels){

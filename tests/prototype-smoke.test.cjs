@@ -436,7 +436,7 @@ assert(gatewaySource.includes('"Access-Control-Allow-Methods": "GET,POST,PUT,DEL
 assert(portalVue.includes("MODEL_PROVIDER_PRESETS") && ["deepseek","kimi","glm","qwen","ark","openai","ollama","anthropic","custom"].every(id => portalVue.includes(`id: "${id}"`)), "模型配置应提供 DeepSeek / Kimi / GLM / 百炼 Qwen / ARK / OpenAI / 本地 Ollama / Anthropic / 自定义 预设模板");
 /* 第十三轮：协议只暴露「OpenAI 兼容 + Anthropic 原生」两类，Key 类型不再让用户选（按协议自动推断，收进高级设置） */
 assert(portalVue.includes('const MODEL_PROTOCOL_OPTIONS = ["openai-compatible", "anthropic"]') && portalVue.includes("protocolOptions()") && portalVue.includes("（沿用当前配置）"), "协议下拉只应暴露 OpenAI 兼容 / Anthropic 原生 两类，历史取值仍可编辑");
-assert(portalVue.includes('defaultAuthFor(protocol){return protocol==="anthropic"||protocol==="anthropic-compatible"?"x-api-key":protocol==="gemini"?"x-goog-api-key":protocol==="azure-openai"?"api-key-header":"bearer";}') && portalVue.includes("onProtocolChange(protocol)") && portalVue.includes("高级设置（鉴权方式 / Header 名）"), "鉴权方式应按协议自动推断，只在「高级设置」里提供覆盖入口");
+assert(portalVue.includes('defaultAuthFor(protocol){return protocol==="anthropic"||protocol==="anthropic-compatible"?"x-api-key":protocol==="gemini"?"x-goog-api-key":protocol==="azure-openai"?"api-key-header":"bearer";}') && portalVue.includes("onProtocolChange(protocol)") && !portalVue.includes("高级设置"), "鉴权方式按协议自动推断，且不再提供覆盖入口（用户要求删掉高级设置）");
 assert(!portalVue.includes('label="Key 类型（鉴权方式）" required'), "主表单不应再出现「Key 类型」字段（此断言防止回退）");
 /* 第十四轮：API Key 必填（本地地址除外），前后端都要校验 */
 assert(portalVue.includes('<el-form-item label="API Key" required>') && portalVue.includes("isLocalBaseUrl(url)") && portalVue.includes('return ep.ElMessage.warning("请填写 API Key（本地地址可不填）")'), "API Key 应是必填项，保存时校验，且只在本地地址放行");
@@ -447,7 +447,7 @@ assert(!presetSource.includes('id: "gemini"') && !presetSource.includes('id: "az
 assert(portalVue.includes("MODEL_AUTH_LABELS") && portalVue.includes('query: "URL 查询参数"'), "Key 类型下拉应覆盖常见鉴权方式");
 assert(portalVue.includes('v-model="providerDrawer"') && portalVue.includes("class=\"portal-vue-edit-drawer\"") && portalVue.includes('@click="openProvider(null)">＋ 接入供应商') && portalVue.includes("viewMode === 'form'"), "「供应商配置」抽屉（列表 + 表单两态）应承载供应商的增删改与测试");
 assert(portalVue.includes("async saveProvider(") && portalVue.includes("async testForm(") && portalVue.includes("async rowRefresh(") && portalVue.includes("async removeProvider(") && portalVue.includes("async toggleProvider("), "供应商抽屉应支持保存 / 测试连通性 / 拉取模型 / 启停 / 删除");
-assert(portalVue.includes('v-model="keysText" type="textarea"') && portalVue.includes('autocomplete="new-password"') && portalVue.includes("keyMasked") && !portalVue.includes("response.apiKey") && !portalVue.includes("form.apiKeys ="), "API Key 只写不读：多行输入（支持多 Key 轮换），页面只展示掩码");
+assert(portalVue.includes('v-model="keysText" autocomplete="new-password"') && portalVue.includes("keyMasked") && !portalVue.includes("response.apiKey") && !portalVue.includes("form.apiKeys ="), "API Key 只写不读：单个输入框，页面只展示掩码");
 assert(portalVue.includes('{{ scope.row.source }}') && portalVue.includes("portal-vue-key-state ok"), "模型清单应展示来源与 Key 配置状态点");
 /* 第十一轮：中转站也变成普通供应商配置；模型配置页主区域=全部可用模型+开关，供应商收进「供应商配置」抽屉 */
 assert(gatewaySource.includes('const RELAY_PROVIDER_ID = "prov-relay"') && gatewaySource.includes("async function ensureRelayProvider()") && gatewaySource.includes("relayMigrated") && gatewaySource.includes("RELAY_API_KEYS.slice(0, 10).map((key, index)") && gatewaySource.includes("apiKeys: [key]"), "内置中转站应按环境变量的每个 Key 迁移成一条普通供应商记录（只迁移一次）");
@@ -463,7 +463,9 @@ const providerCols = (() => {
 })();
 const providerColsTotal = providerCols.reduce((a, b) => a + b, 0);
 assert(providerCols.length === 8 && providerColsTotal <= 1080, `供应商表格列宽合计 ${providerColsTotal}px，必须 ≤1080px，否则小窗口下「启用」列被「操作」列遮挡`);
-assert(portalVue.includes("如果它们其实对应不同厂商") && portalVue.includes("建议到列表里用「拆分 Key」拆成多条"), "多 Key 供应商的编辑抽屉里要提示「不同厂商建议拆分」");
+const keyHintBlock = portalVue.slice(portalVue.indexOf('<span v-if="form.keyCount > 1">'), portalVue.indexOf("</div>", portalVue.indexOf('<span v-if="form.keyCount > 1">')));
+assert(keyHintBlock.includes("当前记录里存了 {{ form.keyCount }} 个 Key") && keyHintBlock.includes("「拆分 Key」拆成多条，或直接粘贴一个新 Key 覆盖"), "历史多 Key 记录仍要给出「拆分 / 覆盖」提示，但表单本身只收一个 Key");
+assert(portalVue.includes("发送，无需选择</span>") && !/高级设置/.test(portalVue), "说明文案里不能再引导用户去「高级设置」覆盖鉴权");
 assert(!gatewaySource.includes("function relayWithKey(") && !gatewaySource.includes("function relayAllModels(") && !gatewaySource.includes("RELAY_API_KEYS].sort"), "中转站不应再保留特例通道：relayWithKey / relayAllModels 与 RELAY_* 回退都必须删掉");
 assert(gatewaySource.includes("function providerKeys(") && gatewaySource.includes("keyCount") && gatewaySource.includes("keyMasks") && gatewaySource.includes("record.apiKeys = [...new Set(keys.map(sanitizeApiKey).filter(Boolean))].slice(0, 10)"), "一个供应商应支持多个 API Key（每行一个，轮换重试），且只回显掩码与个数");
 assert(gatewaySource.includes("if (!providers.length) notices.push") && gatewaySource.includes("scheduleProviderAutoRefresh"), "没有供应商/模型清单为空时要有提示，并自动补拉一次模型列表");
