@@ -2974,29 +2974,29 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           </template>
         </el-dialog>
 
-        <el-drawer v-model="providerDrawer" :title="viewMode === 'form' ? (editingId ? '编辑供应商 · ' + form.name : '接入供应商') : '供应商配置'" :size="viewMode === 'form' ? '620px' : 'min(1200px, 94vw)'" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
+        <el-drawer v-model="providerDrawer" :title="viewMode === 'form' ? (editingId ? '编辑供应商 · ' + form.name : '接入供应商') : '供应商配置'" :size="viewMode === 'form' ? '620px' : 'min(1260px, 96vw)'" direction="rtl" class="portal-vue-edit-drawer" :close-on-click-modal="true">
           <div v-if="viewMode === 'list'" class="portal-vue-provider-list">
             <div class="portal-vue-provider-list-bar">
               <span class="portal-vue-muted">所有模型来源都在这里维护：内置中转站由环境变量 RELAY_BASE_URL / RELAY_API_KEY 首次迁移而来，之后可直接改 Base URL、Key 与模型</span>
               <el-button v-if="canEdit('模型配置')" type="primary" size="small" @click="openProvider(null)">＋ 接入供应商</el-button>
             </div>
             <el-table :data="providers" class="portal-vue-table" border empty-text="还没有供应商，点「接入供应商」添加">
-              <el-table-column label="供应商" min-width="190">
+              <el-table-column label="供应商" min-width="170">
                 <template #default="scope">
                   <div><span class="portal-vue-name">{{ scope.row.name }}</span><el-tag v-if="scope.row.builtin" size="small" type="info" effect="plain" style="margin-left:6px">内置</el-tag></div>
                   <div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.protocolLabel }}<span v-if="scope.row.note"> · {{ scope.row.note }}</span></div>
                 </template>
               </el-table-column>
-              <el-table-column label="Base URL" min-width="200"><template #default="scope"><code class="portal-vue-code">{{ scope.row.baseUrl }}</code></template></el-table-column>
-              <el-table-column label="Key 类型" width="120"><template #default="scope">{{ authLabel(scope.row.authType) }}</template></el-table-column>
-              <el-table-column label="API Key" width="170">
+              <el-table-column label="Base URL" min-width="168"><template #default="scope"><code class="portal-vue-code">{{ scope.row.baseUrl }}</code></template></el-table-column>
+              <el-table-column label="Key 类型" width="106"><template #default="scope">{{ authLabel(scope.row.authType) }}</template></el-table-column>
+              <el-table-column label="API Key" width="150">
                 <template #default="scope">
                   <span v-if="scope.row.hasKey" class="portal-vue-key-state ok"><i></i>{{ scope.row.keyMasked }}<em v-if="scope.row.keyCount > 1">等 {{ scope.row.keyCount }} 个 Key</em></span>
                   <span v-else class="portal-vue-key-state miss"><i></i>{{ scope.row.callable ? "未配置" : "无需 Key" }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="模型" width="70" align="right"><template #default="scope">{{ scope.row.models.length }}</template></el-table-column>
-              <el-table-column label="连通性" width="110">
+              <el-table-column label="模型" width="58" align="right"><template #default="scope">{{ scope.row.models.length }}</template></el-table-column>
+              <el-table-column label="连通性" width="98">
                 <template #default="scope">
                   <el-tooltip v-if="scope.row.health" :content="scope.row.health.message + '（' + healthTime(scope.row.health.at) + '）'" placement="top">
                     <el-tag size="small" :type="scope.row.health.ok ? 'success' : 'danger'" effect="light">{{ scope.row.health.ok ? "正常" : "异常" }}</el-tag>
@@ -3004,14 +3004,14 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <span v-else class="portal-vue-muted">未测试</span>
                 </template>
               </el-table-column>
-              <el-table-column label="启用" width="80"><template #default="scope"><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled !== false" inline-prompt active-text="启用" inactive-text="停用" @change="value=>toggleProvider(scope.row, value)"></el-switch></template></el-table-column>
-              <el-table-column label="操作" width="280" fixed="right">
+              <el-table-column label="启用" width="76"><template #default="scope"><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled !== false" inline-prompt active-text="启用" inactive-text="停用" @change="value=>toggleProvider(scope.row, value)"></el-switch></template></el-table-column>
+              <el-table-column label="操作" width="230" fixed="right">
                 <template #default="scope">
-                  <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="rowTest(scope.row)">测试</el-button>
-                  <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="rowRefresh(scope.row)">拉取模型</el-button>
-                  <el-button v-if="scope.row.keyCount > 1" link type="primary" :disabled="!canEdit('模型配置')" @click="openSplit(scope.row)">拆分 Key</el-button>
-                  <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="openProvider(scope.row)">编辑</el-button>
-                  <el-button link type="danger" :disabled="!canEdit('模型配置')" @click="removeProvider(scope.row)">删除</el-button>
+                  <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="rowTest(scope.row)" title="测试连通性">测试</el-button>
+                  <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="rowRefresh(scope.row)" title="按当前 Key 重新拉取模型列表">拉取</el-button>
+                  <el-button v-if="scope.row.keyCount > 1" link type="primary" :disabled="!canEdit('模型配置')" @click="openSplit(scope.row)" title="把这个供应商按 Key 拆成多条">拆分</el-button>
+                  <el-button link type="primary" :disabled="!canEdit('模型配置')" @click="openProvider(scope.row)" title="编辑 Base URL / Key / 模型">编辑</el-button>
+                  <el-button link type="danger" :disabled="!canEdit('模型配置')" @click="removeProvider(scope.row)" title="删除这条供应商">删除</el-button>
                 </template>
               </el-table-column>
             </el-table>

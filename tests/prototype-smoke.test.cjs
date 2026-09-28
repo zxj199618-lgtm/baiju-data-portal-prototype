@@ -447,7 +447,15 @@ assert(gatewaySource.includes('const RELAY_PROVIDER_ID = "prov-relay"') && gatew
 /* 第十五轮：一个 Key 一条供应商；多 Key 可一键拆分 */
 assert(gatewaySource.includes("async function probeProviderKey(provider, key)") && gatewaySource.includes("async function syncBuiltinRelayModels()") && gatewaySource.includes("isBuiltinProvider(item) && item.enabled !== false"), "按 Key 探测要抽成独立函数，内置中转站（可能多条）启动时都要同步模型");
 assert(gatewaySource.includes('/^\\/v1\\/providers\\/([^/]+)\\/split$/') && gatewaySource.includes('if (keys.length < 2) return sendJson(res, 400, { error: "该供应商只有 1 个 API Key，无需拆分" })') && gatewaySource.includes("providers.splice(index, 1, ...created)"), "网关应提供按 Key 拆分的接口：多 Key 拆成多条，原有那条被替换掉");
-assert(portalVue.includes('v-if="scope.row.keyCount > 1"') && portalVue.includes("@click=\"openSplit(scope.row)\">拆分 Key") && portalVue.includes("v-model=\"splitVisible\"") && portalVue.includes("async confirmSplit()"), "供应商列表应提供「拆分 Key」入口与命名弹窗");
+assert(portalVue.includes('v-if="scope.row.keyCount > 1"') && portalVue.includes('@click="openSplit(scope.row)" title="把这个供应商按 Key 拆成多条">拆分</el-button>') && portalVue.includes('v-model="splitVisible"') && portalVue.includes("async confirmSplit()"), "供应商列表应提供「拆分 Key」入口与命名弹窗");
+/* 供应商表格列宽必须收在抽屉最小宽度内，否则「启用」列会被固定的「操作」列盖住 */
+const providerCols = (() => {
+  const start = portalVue.indexOf("portal-vue-provider-list-bar");
+  const seg = portalVue.slice(start, portalVue.indexOf("</el-table>", start));
+  return [...seg.matchAll(/<el-table-column[^>]*?(?:min-)?width="(\d+)"/g)].map(m => Number(m[1]));
+})();
+const providerColsTotal = providerCols.reduce((a, b) => a + b, 0);
+assert(providerCols.length === 8 && providerColsTotal <= 1080, `供应商表格列宽合计 ${providerColsTotal}px，必须 ≤1080px，否则小窗口下「启用」列被「操作」列遮挡`);
 assert(portalVue.includes("如果它们其实对应不同厂商") && portalVue.includes("建议到列表里用「拆分 Key」拆成多条"), "多 Key 供应商的编辑抽屉里要提示「不同厂商建议拆分」");
 assert(!gatewaySource.includes("function relayWithKey(") && !gatewaySource.includes("function relayAllModels(") && !gatewaySource.includes("RELAY_API_KEYS].sort"), "中转站不应再保留特例通道：relayWithKey / relayAllModels 与 RELAY_* 回退都必须删掉");
 assert(gatewaySource.includes("function providerKeys(") && gatewaySource.includes("keyCount") && gatewaySource.includes("keyMasks") && gatewaySource.includes("record.apiKeys = [...new Set(keys.map(sanitizeApiKey).filter(Boolean))].slice(0, 10)"), "一个供应商应支持多个 API Key（每行一个，轮换重试），且只回显掩码与个数");
