@@ -5814,6 +5814,54 @@ function injectStyle(id, css) {
      第一版只提供一个 Markdown 输入框，角色、指标口径、特殊规则都写在正文里。
      当前仅「广告计划日报表」有示例内容，其余表显示空态。 ===== */
   const knowledgeNow = () => new Date().toLocaleString("zh-CN", { hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(/\//g, "-");
+  /* 轻量 Markdown 渲染（预览用）：标题、加粗、行内代码、有序/无序列表、段落。先转义再套标签，不执行 HTML */
+  const escapeHtml = text => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const renderInlineMd = text => escapeHtml(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  const renderKnowledgeMarkdown = markdown => {
+    const html = [];
+    let list = null;
+    const closeList = () => { if (list) { html.push(`</${list}>`); list = null; } };
+    const openList = type => { if (list !== type) { closeList(); html.push(`<${type}>`); list = type; } };
+    String(markdown || "").split(/\r?\n/).forEach(line => {
+      const heading = line.match(/^(#{1,3})\s+(.*)$/);
+      const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+      const ordered = line.match(/^\s*\d+\.\s+(.*)$/);
+      if (heading) { closeList(); const level = { 1: "h2", 2: "h3", 3: "h4" }[heading[1].length]; html.push(`<${level}>${renderInlineMd(heading[2])}</${level}>`); }
+      else if (bullet) { openList("ul"); html.push(`<li>${renderInlineMd(bullet[1])}</li>`); }
+      else if (ordered) { openList("ol"); html.push(`<li>${renderInlineMd(ordered[1])}</li>`); }
+      else if (!line.trim()) closeList();
+      else { closeList(); html.push(`<p>${renderInlineMd(line)}</p>`); }
+    });
+    closeList();
+    return html.join("");
+  };
+  /* 把随手填写的文本规范成 Markdown：项目符号统一为 "- "，编号统一为 "1. "，
+     【标题】/ 一、标题 / 单独一行的「标题：」或短标题（其后紧跟列表）转为二级标题，「键：值」转为列表项，标题前补空行 */
+  const normalizeToMarkdown = raw => {
+    const lines = String(raw || "").replace(/\r\n?/g, "\n").split("\n").map(line => line.trim());
+    const isListLike = line => /^([•·●○▪■◆*+-]\s*|\d+[.、)）]\s*|[^：:\s]{1,20}[：:]\s*\S)/.test(line);
+    const nextContent = index => { for (let i = index + 1; i < lines.length; i++) if (lines[i]) return lines[i]; return ""; };
+    const out = [];
+    lines.forEach((t, index) => {
+      let m;
+      if (!t) { out.push(""); return; }
+      if (/^#{1,6}\s/.test(t)) { out.push(t); return; }
+      if ((m = t.match(/^[•·●○▪■◆*+-]\s*(.*)$/))) { out.push(`- ${m[1]}`); return; }
+      if ((m = t.match(/^(\d+)(?:\.\s+|[、)）]\s*)(.*)$/))) { out.push(`${m[1]}. ${m[2]}`); return; }
+      if ((m = t.match(/^[一二三四五六七八九十]+[、.）)]\s*(.+)$/))) { out.push(`## ${m[1]}`); return; }
+      if ((m = t.match(/^【(.+?)】\s*(.*)$/))) { out.push(`## ${m[1]}`); if (m[2]) out.push(m[2]); return; }
+      if (/^[^：:]{1,12}[：:]$/.test(t)) { out.push(`## ${t.slice(0, -1)}`); return; }
+      if (/^[^：:。，,.；;！!？?]{1,15}$/.test(t) && isListLike(nextContent(index)) && !isListLike(t)) { out.push(`## ${t}`); return; }
+      if (/^[^：:\s]{1,20}[：:]\s*\S/.test(t)) { out.push(`- ${t}`); return; }
+      out.push(t);
+    });
+    const result = [];
+    out.forEach(line => {
+      if (/^#{1,6}\s/.test(line) && result.length && result[result.length - 1] !== "") result.push("");
+      result.push(line);
+    });
+    return result.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  };
   const knowledgeTemplate = name => `# ${name}
 
 ## 表说明
@@ -5967,12 +6015,26 @@ function injectStyle(id, css) {
                   <el-button v-if="!knowledgeEditing && canEdit('表管理')" type="primary" round class="portal-vue-knowledge-edit" @click="startKnowledgeEdit">编辑知识库</el-button>
                   <el-button v-if="knowledgeEditing" round @click="cancelKnowledgeEdit">取消编辑</el-button>
                 </div>
-                <template v-if="knowledgeEditing">
-                  <el-input v-model="knowledgeText" type="textarea" :rows="28" class="portal-vue-knowledge-editor" placeholder="在这里用 Markdown 填写本表的知识库"></el-input>
-                  <div class="portal-vue-knowledge-actions"><el-button type="primary" round @click="saveKnowledge">保存知识库</el-button></div>
-                </template>
-                <template v-else>
-                  <pre v-if="knowledge" class="portal-vue-knowledge-preview">{{ knowledge.markdown }}</pre>
+                <div v-if="knowledgeEditing" class="portal-vue-md-editor">
+            <div class="portal-vue-md-toolbar">
+              <el-button size="small" text @click="mdWrap('**', '**', '加粗文字')"><strong>B</strong>&nbsp;加粗</el-button>
+              <el-button size="small" text @click="mdLinePrefix('## ')">标题</el-button>
+              <el-button size="small" text @click="mdLinePrefix('- ')">无序列表</el-button>
+              <el-button size="small" text @click="mdLinePrefix('1. ')">有序列表</el-button>
+              <el-button size="small" text @click="mdLinePrefix('> ')">引用</el-button>
+              <el-button size="small" text @click="mdInlineCode">行内代码</el-button>
+              <el-button size="small" text @click="mdCodeBlock">代码块</el-button>
+              <el-button size="small" text @click="mdWrap('\n---\n', '', '')">分隔线</el-button>
+              <span class="portal-vue-md-tip">左边编辑，右边预览；保存时自动转换为 Markdown 格式</span>
+            </div>
+            <div class="portal-vue-md-split">
+              <textarea ref="mdArea" v-model="knowledgeText" class="portal-vue-md-textarea" spellcheck="false" placeholder="在这里填写本表的知识库，支持 Markdown：# 标题、**加粗**、- 列表"></textarea>
+              <div class="portal-vue-knowledge-doc" v-html="renderedDraft"></div>
+            </div>
+            <div class="portal-vue-knowledge-actions"><el-button round @click="cancelKnowledgeEdit">取消</el-button><el-button type="primary" round @click="saveKnowledge">保存知识库</el-button></div>
+          </div>
+          <template v-else>
+                  <div v-if="knowledge" class="portal-vue-knowledge-doc" v-html="renderedKnowledge"></div>
                   <el-empty v-else description="该表还没有知识库。灵犀智析只能依据字段注释回答，指标口径可能不准确。"><el-button v-if="canEdit('表管理')" type="primary" round @click="startKnowledgeEdit">新建知识库</el-button></el-empty>
                 </template>
               </el-tab-pane>
@@ -6083,6 +6145,8 @@ function injectStyle(id, css) {
     }),
     computed: {
       knowledge() { if (!this.detail) return null; return tableKnowledgeStore[this.detail.table] || null; },
+      renderedDraft() { return renderKnowledgeMarkdown(normalizeToMarkdown(this.knowledgeText)); },
+      renderedKnowledge() { return this.knowledge ? renderKnowledgeMarkdown(this.knowledge.markdown) : ""; },
       headerTitle() { return this.detail ? (this.detail.cnName || this.detail.table) + " · 表详情" : "表详情"; },
       activeUsers() { return state.users.filter(user => user.status !== "已停用"); },
       enabledDicts() { refreshTick.value; return state.dictionaries.filter(item => item.status === "启用"); },
@@ -6097,11 +6161,31 @@ function injectStyle(id, css) {
       startKnowledgeEdit() { this.knowledgeText = this.knowledge?.markdown || knowledgeTemplate(this.detail.cnName || this.detail.table); this.knowledgeEditing = true; },
       cancelKnowledgeEdit() { this.knowledgeEditing = false; this.knowledgeText = ""; },
       saveKnowledge() {
-        const markdown = this.knowledgeText.trim();
-        if (!markdown) return ep.ElMessage.warning("知识库内容不能为空");
+        const raw = this.knowledgeText.trim();
+        if (!raw) return ep.ElMessage.warning("知识库内容不能为空");
+        const markdown = normalizeToMarkdown(raw);
         tableKnowledgeStore[this.detail.table] = { markdown, updatedBy: loginUser()?.name || "", updatedAt: knowledgeNow() };
         this.knowledgeEditing = false;
-        notify(`「${this.detail.cnName || this.detail.table}」知识库已保存`);
+        notify(`「${this.detail.cnName || this.detail.table}」知识库已保存${markdown !== raw ? "，已自动转换为 Markdown 格式" : ""}`);
+      },
+      mdWrap(prefix, suffix, placeholder) {
+        const el = this.$refs.mdArea; if (!el) return;
+        const { selectionStart: start, selectionEnd: end } = el;
+        const text = this.knowledgeText;
+        const selected = text.slice(start, end) || placeholder;
+        this.knowledgeText = text.slice(0, start) + prefix + selected + suffix + text.slice(end);
+        this.$nextTick(() => { el.focus(); el.setSelectionRange(start + prefix.length, start + prefix.length + selected.length); });
+      },
+      mdInlineCode() { this.mdWrap(String.fromCharCode(96), String.fromCharCode(96), "代码"); },
+      mdCodeBlock() { const fence = String.fromCharCode(96).repeat(3); this.mdWrap("\n" + fence + "\n", "\n" + fence + "\n", "代码内容"); },
+      mdLinePrefix(prefix) {
+        const el = this.$refs.mdArea; if (!el) return;
+        const text = this.knowledgeText;
+        const lineStart = text.lastIndexOf("\n", el.selectionStart - 1) + 1;
+        let lineEnd = text.indexOf("\n", el.selectionEnd); if (lineEnd < 0) lineEnd = text.length;
+        const block = text.slice(lineStart, lineEnd).split("\n").map(line => prefix + line.replace(/^(#{1,6}\s|[-*]\s|\d+\.\s|>\s)/, "")).join("\n");
+        this.knowledgeText = text.slice(0, lineStart) + block + text.slice(lineEnd);
+        this.$nextTick(() => { el.focus(); el.setSelectionRange(lineStart, lineStart + block.length); });
       },
       back() { bridge.setPage("表管理"); },
       loadDetail() {

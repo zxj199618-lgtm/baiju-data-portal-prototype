@@ -880,3 +880,19 @@
 .portal-vue-knowledge-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }
 .portal-vue-knowledge-edit { padding: 9px 20px; font-weight: 500; box-shadow: 0 4px 12px rgba(64, 128, 255, 0.22); }
 .portal-vue-knowledge-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+.portal-vue-knowledge-doc { padding: 20px 24px; background: #fff; border: 1px solid #ebeef5; border-radius: 8px; font-size: 14px; line-height: 1.8; color: #303133; overflow-x: auto; }
+.portal-vue-knowledge-doc h2 { margin: 0 0 12px; font-size: 20px; font-weight: 600; }
+.portal-vue-knowledge-doc h3 { margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #ebeef5; font-size: 16px; font-weight: 600; }
+.portal-vue-knowledge-doc h4 { margin: 16px 0 6px; font-size: 14px; font-weight: 600; color: #1f2d3d; }
+.portal-vue-knowledge-doc p { margin: 4px 0; }
+.portal-vue-knowledge-doc ul, .portal-vue-knowledge-doc ol { margin: 4px 0; padding-left: 22px; }
+.portal-vue-knowledge-doc li { margin: 2px 0; }
+.portal-vue-knowledge-doc strong { font-weight: 600; color: #1f2d3d; }
+.portal-vue-knowledge-doc code { padding: 1px 6px; border-radius: 4px; background: #f2f4f7; font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: #c7254e; }
+.portal-vue-md-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 6px 8px; border: 1px solid #dcdfe6; border-bottom: none; border-radius: 6px 6px 0 0; background: #fafbfc; }
+.portal-vue-md-tip { margin-left: auto; padding-right: 6px; font-size: 12px; color: #909399; }
+.portal-vue-md-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border: 1px solid #dcdfe6; border-radius: 0 0 6px 6px; overflow: hidden; }
+.portal-vue-md-textarea { display: block; width: 100%; min-height: 560px; box-sizing: border-box; border: none; border-right: 1px solid #ebeef5; outline: none; resize: vertical; padding: 14px 16px; font: 13px/1.75 ui-monospace, SFMono-Regular, Menlo, monospace; color: #303133; background: #fff; }
+.portal-vue-md-textarea:focus { background: #fcfdff; }
+.portal-vue-md-split .portal-vue-knowledge-doc { border: none; border-radius: 0; min-height: 560px; overflow: auto; }
+@media (max-width: 900px) { .portal-vue-md-split { grid-template-columns: minmax(0, 1fr); } .portal-vue-md-textarea { min-height: 300px; border-right: none; border-bottom: 1px solid #ebeef5; } }
