@@ -5839,19 +5839,19 @@ function injectStyle(id, css) {
      【标题】/ 一、标题 / 单独一行的「标题：」或短标题（其后紧跟列表）转为二级标题，「键：值」转为列表项，标题前补空行 */
   const normalizeToMarkdown = raw => {
     const lines = String(raw || "").replace(/\r\n?/g, "\n").split("\n").map(line => line.trim());
-    const isListLike = line => /^([•·●○▪■◆*+-]\s*|\d+[.、)）]\s*|[^：:\s]{1,20}[：:]\s*\S)/.test(line);
+    const isListLike = line => /^((?:[•·●○▪■◆]\s*|[*+-]\s+)|\d+[.、)）]\s*|[^：:\s]{1,20}[：:]\s*\S)/.test(line);
     const nextContent = index => { for (let i = index + 1; i < lines.length; i++) if (lines[i]) return lines[i]; return ""; };
     const out = [];
     lines.forEach((t, index) => {
       let m;
       if (!t) { out.push(""); return; }
       if (/^#{1,6}\s/.test(t)) { out.push(t); return; }
-      if ((m = t.match(/^[•·●○▪■◆*+-]\s*(.*)$/))) { out.push(`- ${m[1]}`); return; }
+      if ((m = t.match(/^(?:[•·●○▪■◆]\s*|[*+-]\s+)(.*)$/))) { out.push(`- ${m[1]}`); return; }
       if ((m = t.match(/^(\d+)(?:\.\s+|[、)）]\s*)(.*)$/))) { out.push(`${m[1]}. ${m[2]}`); return; }
       if ((m = t.match(/^[一二三四五六七八九十]+[、.）)]\s*(.+)$/))) { out.push(`## ${m[1]}`); return; }
       if ((m = t.match(/^【(.+?)】\s*(.*)$/))) { out.push(`## ${m[1]}`); if (m[2]) out.push(m[2]); return; }
       if (/^[^：:]{1,12}[：:]$/.test(t)) { out.push(`## ${t.slice(0, -1)}`); return; }
-      if (/^[^：:。，,.；;！!？?]{1,15}$/.test(t) && isListLike(nextContent(index)) && !isListLike(t)) { out.push(`## ${t}`); return; }
+      if (/^[^：:。，,.；;！!？?*_`>]{1,15}$/.test(t) && isListLike(nextContent(index)) && !isListLike(t)) { out.push(`## ${t}`); return; }
       if (/^[^：:\s]{1,20}[：:]\s*\S/.test(t)) { out.push(`- ${t}`); return; }
       out.push(t);
     });
