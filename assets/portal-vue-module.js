@@ -5810,6 +5810,43 @@ function injectStyle(id, css) {
     document.head.appendChild(el);
   }
 
+  /* ===== 表知识库：每张表一份，解释表含义、指标计算逻辑、特殊规则，并区分不同角色的指标口径。
+     灵犀智析回答本表问题时读取这里的内容；口径按提问人的角色取值（roleRules 未配置则沿用 defaultRule）。
+     当前为原型数据：仅「广告计划日报表」补充了示例内容，其余表显示「未配置」空态。 ===== */
+  const KNOWLEDGE_ROLES = ["投放组长", "优化师", "数据分析师", "只读访客", "门户管理员"];
+  const KNOWLEDGE_DEFAULT_VIEW = "默认口径";
+  const emptyRoleRules = () => Object.fromEntries(KNOWLEDGE_ROLES.map(role => [role, ""]));
+  const knowledgeNow = () => new Date().toLocaleString("zh-CN", { hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(/\//g, "-");
+  const tableKnowledgeStore = reactive({
+    "dm_ad_plan_daily_media_account_product_performance_detail": {
+      status: "待确认",
+      updatedBy: "曾祥竞",
+      updatedAt: "2026-10-09 18:20",
+      summary: {
+        purpose: "媒体 × 账户 × 计划 × 产品粒度的日投放绩效明细，是对外投放日报、灵犀智析投放类问题的主要数据源。",
+        grain: "一行 = 一天 × 一个媒体来源 × 一个计划。stat_date + media_source + plan_id 唯一（已用样例核对，无重复）。",
+        primaryKey: "stat_date + media_source + plan_id",
+        timeliness: "stat_date 为媒体侧自然日（北京时间）。每日 02:30 同步前一日数据，当日数据不完整，不能作为「当日」结论。",
+        scope: "巨量、广点通、快手、OPPO、VIVO 五个媒体来源，仅包含同步成功的广告账户。"
+      },
+      metrics: [
+        { name: "消耗", formula: "SUM(cost)", fields: "cost", defaultRule: "直接汇总 cost 字段，单位元，展示保留两位小数。", roleRules: { "投放组长": "组内合计 = 组内各优化师负责账户的 cost 之和，不另行重算。", "优化师": "只汇总 account_id 属于本人负责账户的 cost。", "只读访客": "只能看到媒体维度的汇总消耗，不下钻到计划与账户。" } },
+        { name: "点击率 CTR", formula: "SUM(click_cnt) ÷ SUM(show_cnt)", fields: "click_cnt、show_cnt", defaultRule: "分子分母分别汇总后相除。禁止对计划级 CTR 直接求平均。", roleRules: {} },
+        { name: "激活成本 CPA", formula: "SUM(cost) ÷ SUM(activate_cnt)", fields: "cost、activate_cnt", defaultRule: "与字段 cpa 的单行口径一致（cost ÷ activate_cnt）。汇总时必须用分子分母重算，不能对 cpa 字段求和或取平均。", roleRules: { "投放组长": "组内 CPA = 组内 SUM(cost) ÷ 组内 SUM(activate_cnt)，不取优化师 CPA 的算术平均。", "优化师": "只统计本人计划的 cost 与 activate_cnt，按当日归因数据计算，不回补后续归因。", "数据分析师": "使用 T+7 回溯归因口径（以 dwd_campaign_conversion_daily 为准）。与日报 CPA 口径不同，对比时必须注明。", "只读访客": "只展示媒体维度的 CPA，不展示计划明细。" } },
+        { name: "注册成本", formula: "SUM(cost) ÷ SUM(register_cnt)", fields: "cost、register_cnt", defaultRule: "分子分母分别汇总后相除。register_cnt 为 0 时结果置空，不显示为 0。", roleRules: {} },
+        { name: "ROI", formula: "SUM(收入) ÷ SUM(cost)", fields: "roi（预计算）、cost", defaultRule: "roi 字段是单行预计算值，跨行不能加总或平均。汇总 ROI 需按收入重算，收入来源待数据团队确认。", roleRules: { "投放组长": "按组内 SUM(收入) ÷ SUM(cost) 重算，不使用 roi 字段的均值。", "数据分析师": "按 SUM(收入) ÷ SUM(cost) 重算，收入口径需与订单明细对齐后再对外使用。" } }
+      ],
+      rules: [
+        { title: "归因回补", body: "激活、注册、订单数按归因口径统计，历史日期可能随归因窗口回补而变化。同一天在不同时间查询，结果可能不同，回答时需注明查询时间。" },
+        { title: "比率禁止直接加总", body: "CTR、CPA、ROI 等比率指标，跨日、跨计划汇总时必须先分别求分子与分母的和，再相除。" },
+        { title: "按 plan_id 聚合", body: "plan_name 可能随计划改名而变化，也存在同名计划。分组与去重一律按 plan_id，展示时再取 plan_name。" },
+        { title: "媒体来源枚举", body: "media_source 仅取 巨量、广点通、快手、OPPO、VIVO。其他来源的数据不在本表，需使用对应的渠道表。" },
+        { title: "数据时效", body: "T-1 的 02:30 之后可查询。查询当天数据时，回答需标注「数据不完整」。" },
+        { title: "角色口径", body: "提问人的角色决定可见的账户范围与指标口径。回答中必须注明所用口径（如「投放组长口径」），不能混用不同角色的口径。" }
+      ]
+    }
+  });
+
   const TableDetailApp = {
     template: `
       <el-config-provider :locale="locale">
@@ -5867,6 +5904,50 @@ function injectStyle(id, css) {
                   <el-table-column label="操作" width="110" align="center"><template #default="scope"><template v-if="fieldDirty(scope.row)"><el-button v-if="canEdit('表管理')" link @click="revertField(scope.row)">取消</el-button><el-button v-if="canEdit('表管理')" link type="primary" @click="confirmField(scope.row)">保存</el-button></template></template></el-table-column>
                 </el-table>
               </el-tab-pane>
+              <el-tab-pane label="知识库" name="knowledge">
+                <div class="portal-vue-toolbar" style="padding:0 0 14px">
+                  <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">灵犀智析回答本表问题时读取此知识库。同一指标在不同角色下的计算口径可能不同，按提问人的角色取口径。</span></div>
+                  <div class="portal-vue-actions"><el-button v-if="knowledge && canEdit('表管理')" type="primary" plain @click="openKnowledgeEditor">✎ 编辑知识库</el-button><el-button v-if="!knowledge && canEdit('表管理')" type="primary" @click="openKnowledgeEditor">＋ 新建知识库</el-button></div>
+                </div>
+                <template v-if="knowledge">
+                  <div class="portal-vue-dim-meta">
+                    <div><span>知识库状态</span><strong>{{ knowledge.status }}</strong></div>
+                    <div><span>最近编辑</span><strong>{{ knowledge.updatedBy }} · {{ knowledge.updatedAt }}</strong></div>
+                    <div><span>指标数量</span><strong>{{ knowledge.metrics.length }}</strong></div>
+                    <div><span>特殊规则</span><strong>{{ knowledge.rules.length }} 条</strong></div>
+                  </div>
+                  <div class="portal-vue-section-line">
+                    <h3>表说明</h3>
+                    <el-descriptions :column="1" border size="small">
+                      <el-descriptions-item v-for="item in knowledgeSummaryItems" :key="item.label" :label="item.label" label-class-name="portal-vue-knowledge-label"><span style="white-space:pre-wrap">{{ item.value || "—" }}</span></el-descriptions-item>
+                    </el-descriptions>
+                  </div>
+                  <div class="portal-vue-section-line">
+                    <h3>指标口径</h3>
+                    <div class="portal-vue-knowledge-role">
+                      <span class="portal-vue-muted">口径视角</span>
+                      <el-radio-group v-model="knowledgeRole" size="small"><el-radio-button v-for="view in knowledgeViews" :key="view" :label="view">{{ view }}</el-radio-button></el-radio-group>
+                      <span class="portal-vue-muted">默认视角为你的角色：{{ defaultKnowledgeRole }}</span>
+                    </div>
+                    <el-table :data="knowledge.metrics" class="portal-vue-table" border empty-text="暂无指标">
+                      <el-table-column prop="name" label="指标" width="130"></el-table-column>
+                      <el-table-column label="计算公式" min-width="200"><template #default="scope"><code class="portal-vue-code">{{ scope.row.formula }}</code></template></el-table-column>
+                      <el-table-column prop="fields" label="依赖字段" width="170"></el-table-column>
+                      <el-table-column :label="'「' + knowledgeRole + '」口径'" min-width="320"><template #default="scope"><div class="portal-vue-knowledge-caliber"><el-tag v-if="metricOverridden(scope.row)" size="small" type="warning" effect="plain">角色专属</el-tag><span style="white-space:pre-wrap">{{ metricCaliber(scope.row) }}</span></div></template></el-table-column>
+                    </el-table>
+                  </div>
+                  <div class="portal-vue-section-line">
+                    <h3>特殊规则</h3>
+                    <ol class="portal-vue-knowledge-rules"><li v-for="rule in knowledge.rules" :key="rule.title"><strong>{{ rule.title }}</strong><span>{{ rule.body }}</span></li></ol>
+                  </div>
+                  <div class="portal-vue-section-line">
+                    <h3>灵犀取数预览</h3>
+                    <p class="portal-vue-muted" style="margin:0 0 10px">提问人为「{{ knowledgeRole }}」时，灵犀注入给模型的知识片段如下。网关侧按同一规则组装。</p>
+                    <pre class="portal-vue-knowledge-preview">{{ knowledgePreview }}</pre>
+                  </div>
+                </template>
+                <el-empty v-else description="该表还没有知识库。灵犀智析只能依据字段注释回答，指标口径可能不准确。"></el-empty>
+              </el-tab-pane>
               <el-tab-pane label="血缘查询" name="lineage">
                 <div class="portal-vue-lineage-bar">
                   <el-checkbox v-model="isPro" @change="runQuery">增强模式 (is_pro)</el-checkbox>
@@ -5916,6 +5997,45 @@ function injectStyle(id, css) {
                 <el-empty v-else description="查询当前表的下游使用情况，或切换示例表查看其他表的血缘" />
               </el-tab-pane>
             </el-tabs>
+            <el-drawer v-model="knowledgeVisible" :title="(detail.cnName || detail.table) + ' · 编辑知识库'" size="880px" destroy-on-close :close-on-click-modal="true">
+              <el-form v-if="knowledgeDraft" label-position="top" class="portal-vue-dialog-form">
+                <div class="portal-vue-section-line">
+                  <h3>表说明</h3>
+                  <el-form-item label="用途"><el-input v-model="knowledgeDraft.summary.purpose" type="textarea" :rows="2" placeholder="这张表是什么、给谁用"></el-input></el-form-item>
+                  <el-form-item label="粒度"><el-input v-model="knowledgeDraft.summary.grain" type="textarea" :rows="2" placeholder="一行代表什么"></el-input></el-form-item>
+                  <el-form-item label="主键"><el-input v-model="knowledgeDraft.summary.primaryKey" placeholder="如 stat_date + plan_id"></el-input></el-form-item>
+                  <el-form-item label="数据时效"><el-input v-model="knowledgeDraft.summary.timeliness" type="textarea" :rows="2" placeholder="日期口径、同步时间、数据延迟"></el-input></el-form-item>
+                  <el-form-item label="数据范围"><el-input v-model="knowledgeDraft.summary.scope" type="textarea" :rows="2" placeholder="包含哪些媒体、账户、业务线"></el-input></el-form-item>
+                </div>
+                <div class="portal-vue-section-line">
+                  <h3>指标口径</h3>
+                  <div v-for="(metric, index) in knowledgeDraft.metrics" :key="index" class="portal-vue-knowledge-metric-block">
+                    <div class="portal-vue-knowledge-metric-head"><strong>指标 {{ index + 1 }}</strong><el-button link type="danger" @click="removeMetric(index)">删除指标</el-button></div>
+                    <el-form-item label="指标名称"><el-input v-model="metric.name" placeholder="如 激活成本 CPA"></el-input></el-form-item>
+                    <el-form-item label="计算公式"><el-input v-model="metric.formula" placeholder="如 SUM(cost) ÷ SUM(activate_cnt)"></el-input></el-form-item>
+                    <el-form-item label="依赖字段"><el-input v-model="metric.fields" placeholder="如 cost、activate_cnt"></el-input></el-form-item>
+                    <el-form-item label="默认口径"><el-input v-model="metric.defaultRule" type="textarea" :rows="2" placeholder="未区分角色时的口径与注意事项"></el-input></el-form-item>
+                    <el-form-item v-for="role in knowledgeRoleList" :key="role" :label="role + '专属口径（留空则沿用默认口径）'"><el-input v-model="metric.roleRules[role]" type="textarea" :rows="2"></el-input></el-form-item>
+                  </div>
+                  <el-button @click="addMetric">＋ 新增指标</el-button>
+                </div>
+                <div class="portal-vue-section-line">
+                  <h3>特殊规则</h3>
+                  <div v-for="(rule, index) in knowledgeDraft.rules" :key="index" class="portal-vue-knowledge-metric-block">
+                    <div class="portal-vue-knowledge-metric-head"><strong>规则 {{ index + 1 }}</strong><el-button link type="danger" @click="removeRule(index)">删除规则</el-button></div>
+                    <el-form-item label="规则名称"><el-input v-model="rule.title" placeholder="如 归因回补"></el-input></el-form-item>
+                    <el-form-item label="说明"><el-input v-model="rule.body" type="textarea" :rows="2"></el-input></el-form-item>
+                  </div>
+                  <el-button @click="addRule">＋ 新增规则</el-button>
+                </div>
+                <div class="portal-vue-section-line">
+                  <h3>发布状态</h3>
+                  <el-radio-group v-model="knowledgeDraft.status"><el-radio-button label="已发布">已发布</el-radio-button><el-radio-button label="待确认">待确认</el-radio-button></el-radio-group>
+                  <p class="portal-vue-muted">「待确认」表示口径尚未经业务方确认，灵犀回答时会注明口径待确认。</p>
+                </div>
+              </el-form>
+              <template #footer><el-button @click="knowledgeVisible=false">取消</el-button><el-button type="primary" @click="saveKnowledge">保存知识库</el-button></template>
+            </el-drawer>
             <div v-if="editingBasic" class="api-create-footer">
               <el-button v-if="canEdit('表管理')" @click="cancelBasic">取消</el-button>
               <el-button v-if="canEdit('表管理')" type="primary" @click="saveBasic">保存配置</el-button>
@@ -5926,6 +6046,9 @@ function injectStyle(id, css) {
     `,
     data: () => ({
       tab: "basic",
+      knowledgeRole: KNOWLEDGE_DEFAULT_VIEW,
+      knowledgeVisible: false,
+      knowledgeDraft: null,
       editingBasic: false,
       detail: null,
       detailDraft: {},
@@ -5971,6 +6094,21 @@ function injectStyle(id, css) {
       }
     }),
     computed: {
+      knowledge() { if (!this.detail) return null; return tableKnowledgeStore[this.detail.table] || null; },
+      knowledgeViews() { return [KNOWLEDGE_DEFAULT_VIEW, ...KNOWLEDGE_ROLES]; },
+      knowledgeRoleList() { return KNOWLEDGE_ROLES; },
+      defaultKnowledgeRole() { const role = loginUser()?.group; return KNOWLEDGE_ROLES.includes(role) ? role : KNOWLEDGE_DEFAULT_VIEW; },
+      knowledgeSummaryItems() { const summary = this.knowledge?.summary || {}; return [{ label: "用途", value: summary.purpose }, { label: "粒度", value: summary.grain }, { label: "主键", value: summary.primaryKey }, { label: "数据时效", value: summary.timeliness }, { label: "数据范围", value: summary.scope }]; },
+      knowledgePreview() {
+        const knowledge = this.knowledge;
+        if (!knowledge) return "";
+        const viewer = this.knowledgeRole === KNOWLEDGE_DEFAULT_VIEW ? "未指定角色（默认口径）" : this.knowledgeRole;
+        const lines = [`【表知识库】${this.detail.cnName || this.detail.table}（${this.detail.table}）`, `知识库状态：${knowledge.status}`, `提问人角色：${viewer}`, `用途：${knowledge.summary.purpose}`, `粒度：${knowledge.summary.grain}`, `主键：${knowledge.summary.primaryKey}`, `数据时效：${knowledge.summary.timeliness}`, `数据范围：${knowledge.summary.scope}`, "指标口径："];
+        knowledge.metrics.forEach(metric => lines.push(`- ${metric.name} = ${metric.formula}；口径：${this.metricCaliber(metric)}`));
+        lines.push("特殊规则：");
+        knowledge.rules.forEach((rule, index) => lines.push(`${index + 1}. ${rule.title}：${rule.body}`));
+        return lines.join("\n");
+      },
       headerTitle() { return this.detail ? (this.detail.cnName || this.detail.table) + " · 表详情" : "表详情"; },
       activeUsers() { return state.users.filter(user => user.status !== "已停用"); },
       enabledDicts() { refreshTick.value; return state.dictionaries.filter(item => item.status === "启用"); },
@@ -5982,6 +6120,36 @@ function injectStyle(id, css) {
       total() { return this.result ? this.result.qb.length + this.result.api.length + this.result.dx.length : 0; }
     },
     methods: {
+      metricOverridden(metric) { return this.knowledgeRole !== KNOWLEDGE_DEFAULT_VIEW && Boolean(metric.roleRules?.[this.knowledgeRole]); },
+      metricCaliber(metric) { return this.metricOverridden(metric) ? metric.roleRules[this.knowledgeRole] : metric.defaultRule; },
+      openKnowledgeEditor() {
+        const base = tableKnowledgeStore[this.detail.table];
+        const draft = base ? JSON.parse(JSON.stringify(base)) : { status: "待确认", summary: { purpose: "", grain: "", primaryKey: "", timeliness: "", scope: "" }, metrics: [], rules: [] };
+        draft.metrics.forEach(metric => { metric.roleRules = { ...emptyRoleRules(), ...(metric.roleRules || {}) }; });
+        this.knowledgeDraft = draft;
+        this.knowledgeVisible = true;
+      },
+      addMetric() { this.knowledgeDraft.metrics.push({ name: "", formula: "", fields: "", defaultRule: "", roleRules: emptyRoleRules() }); },
+      removeMetric(index) { this.knowledgeDraft.metrics.splice(index, 1); },
+      addRule() { this.knowledgeDraft.rules.push({ title: "", body: "" }); },
+      removeRule(index) { this.knowledgeDraft.rules.splice(index, 1); },
+      saveKnowledge() {
+        const draft = this.knowledgeDraft;
+        if (!draft.summary.purpose.trim()) return ep.ElMessage.warning("请填写表的用途");
+        if (draft.metrics.some(metric => !metric.name.trim() || !metric.formula.trim())) return ep.ElMessage.warning("每个指标都需要填写名称和计算公式");
+        if (draft.rules.some(rule => !rule.title.trim() || !rule.body.trim())) return ep.ElMessage.warning("每条特殊规则都需要填写名称和说明");
+        const trimmed = value => String(value || "").trim();
+        tableKnowledgeStore[this.detail.table] = {
+          status: draft.status,
+          updatedBy: loginUser()?.name || "",
+          updatedAt: knowledgeNow(),
+          summary: Object.fromEntries(Object.entries(draft.summary).map(([key, value]) => [key, trimmed(value)])),
+          metrics: draft.metrics.map(metric => ({ name: trimmed(metric.name), formula: trimmed(metric.formula), fields: trimmed(metric.fields), defaultRule: trimmed(metric.defaultRule), roleRules: Object.fromEntries(KNOWLEDGE_ROLES.map(role => [role, trimmed(metric.roleRules?.[role])]).filter(([, text]) => text)) })),
+          rules: draft.rules.map(rule => ({ title: trimmed(rule.title), body: trimmed(rule.body) }))
+        };
+        this.knowledgeVisible = false;
+        notify(`「${this.detail.cnName || this.detail.table}」知识库已保存`);
+      },
       back() { bridge.setPage("表管理"); },
       loadDetail() {
         const asset = bridge.getTableDetailAsset();
@@ -5999,6 +6167,8 @@ function injectStyle(id, css) {
         this.tab = "basic";
         this.cat = "qb";
         this.editingBasic = false;
+        this.knowledgeRole = this.defaultKnowledgeRole;
+        this.knowledgeVisible = false;
       },
       rebuildDraft() {
         const tag = state.tables.find(table => table.name === this.detail.table);

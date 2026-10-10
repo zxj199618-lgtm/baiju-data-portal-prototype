@@ -872,3 +872,15 @@
 .portal-vue-batch-head > div { display: flex; align-items: baseline; gap: 10px; }
 .portal-vue-diff-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .portal-vue-diff-tag { margin-right: 4px; }
+
+/* 表详情 · 知识库 */
+.portal-vue-knowledge-role { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 10px 0 12px; }
+.portal-vue-knowledge-caliber { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px 8px; line-height: 1.7; }
+.portal-vue-knowledge-rules { margin: 0; padding-left: 20px; }
+.portal-vue-knowledge-rules li { margin-bottom: 10px; line-height: 1.7; }
+.portal-vue-knowledge-rules li strong { display: block; margin-bottom: 2px; }
+.portal-vue-knowledge-rules li span { color: #606266; }
+.portal-vue-knowledge-preview { margin: 0; padding: 12px 14px; background: #f5f7fa; border: 1px solid #e4e7ed; border-radius: 6px; font-size: 12px; line-height: 1.7; white-space: pre-wrap; overflow-x: auto; }
+.portal-vue-knowledge-metric-block { border: 1px solid #ebeef5; border-radius: 8px; padding: 12px 14px 2px; margin-bottom: 12px; }
+.portal-vue-knowledge-metric-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.portal-vue-knowledge-label { width: 110px; }
