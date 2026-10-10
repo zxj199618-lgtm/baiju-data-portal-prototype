@@ -6016,7 +6016,7 @@ function injectStyle(id, css) {
                   <el-button v-if="knowledgeEditing" round @click="cancelKnowledgeEdit">取消编辑</el-button>
                 </div>
                 <div v-if="knowledgeEditing" class="portal-vue-md-editor">
-            <div class="portal-vue-md-toolbar">
+            <div class="portal-vue-md-toolbar" @mousedown.prevent>
               <el-button size="small" text @click="mdWrap('**', '**', '加粗文字')"><strong>B</strong>&nbsp;加粗</el-button>
               <el-button size="small" text @click="mdLinePrefix('## ')">标题</el-button>
               <el-button size="small" text @click="mdLinePrefix('- ')">无序列表</el-button>
