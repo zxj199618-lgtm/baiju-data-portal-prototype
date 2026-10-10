@@ -3073,7 +3073,10 @@
         // 记住当前页面并同步地址（#page=xxx）：刷新回到同一页面，固定地址可直接发给同事
         try {
           localStorage.setItem("portalLastPage", page);
-          history.replaceState(null, "", "#page=" + encodeURIComponent(page));
+          // 表详情页把库名与表名写进地址（&db=…&table=…），复制链接给同事可直接打开同一张表
+          const detailAsset = page === "表详情" ? window.portalTableDetailAsset : null;
+          const tableQuery = detailAsset ? `&db=${encodeURIComponent(detailAsset.database)}&table=${encodeURIComponent(detailAsset.table)}` : "";
+          history.replaceState(null, "", "#page=" + encodeURIComponent(page) + tableQuery);
         } catch (error) { /* 隐私模式忽略 */ }
         setHeader(page);
         document.getElementById("boardTitleSearch")?.classList.add("hidden");
@@ -3452,9 +3455,19 @@
       // 演示环境无账号体系：记住登录态与所在页面，刷新直接回到原页面；
       // 访问 #page=xxx 固定地址（如分享给同事）时自动进入对应页面。
       try {
-        const hashPage = location.hash.startsWith("#page=") ? decodeURIComponent(location.hash.slice(6)) : "";
+        const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
+        const hashPage = location.hash.startsWith("#page=") ? hashParams.get("page") || "" : "";
         let savedPage = hashPage || localStorage.getItem("portalLastPage") || "";
         if (!/^[\u4e00-\u9fa5A-Za-z0-9 ·\-\[\]（）()]+$/.test(savedPage) || savedPage.length > 24) savedPage = "灵犀智析";
+        let bootNotice = "";
+        if (savedPage === "表详情") {
+          // 表详情必须带上表；找不到（或链接里没有表）时回到表管理，不打开空白详情页
+          const db = hashParams.get("db") || "";
+          const table = hashParams.get("table") || "";
+          const asset = (window.dataAssets || []).find(item => item.database === db && item.table === table);
+          if (asset) window.portalTableDetailAsset = asset;
+          else { savedPage = "表管理"; bootNotice = db || table ? "链接中的数据表不存在或已删除，已回到表管理" : "该页面需要指定数据表，已回到表管理"; }
+        }
         if (savedPage && localStorage.getItem("portalDemoUser") !== "1") localStorage.setItem("portalDemoUser", "1");
         if (localStorage.getItem("portalDemoUser") === "1") {
           document.getElementById("loginView").classList.add("hidden");
@@ -3462,6 +3475,7 @@
           document.getElementById("sidebar").classList.remove("hidden");
           setSimplePage(savedPage || "灵犀智析");
           window.__portalBootPage = savedPage || "灵犀智析";
+          if (bootNotice) setTimeout(() => showToast(bootNotice), 300);
         }
       } catch (error) { /* 隐私模式忽略 */ }
       document.getElementById("noPermissionLoginBtn").addEventListener("click", () => {

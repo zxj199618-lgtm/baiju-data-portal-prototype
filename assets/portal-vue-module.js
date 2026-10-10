@@ -6024,7 +6024,7 @@ function injectStyle(id, css) {
               <el-button size="small" text @click="mdLinePrefix('> ')">引用</el-button>
               <el-button size="small" text @click="mdInlineCode">行内代码</el-button>
               <el-button size="small" text @click="mdCodeBlock">代码块</el-button>
-              <el-button size="small" text @click="mdWrap('\n---\n', '', '')">分隔线</el-button>
+              <el-button size="small" text @click="mdWrap('\\n---\\n', '', '')">分隔线</el-button>
               <span class="portal-vue-md-tip">左边编辑，右边预览；保存时自动转换为 Markdown 格式</span>
             </div>
             <div class="portal-vue-md-split">
@@ -6269,7 +6269,7 @@ function injectStyle(id, css) {
         }, 900);
       }
     },
-    mounted() { injectStyle("ops-center-tabs-style", ".ops-center-tabs > .el-tabs__header { display:flex; justify-content:center; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap { width:auto; flex:none; } .ops-center-tabs > .el-tabs__header .el-tabs__nav { float:none; display:inline-flex; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap::after { left:0; right:0; } .op-full-line > .el-tabs__header { width:100%; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap { width:100% !important; flex:auto !important; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap::after { display:none; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll { width:100%; position:relative; display:flex; justify-content:center; text-align:center; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll::after { content:''; position:absolute; left:0; right:0; bottom:0; height:2px; background-color:var(--el-border-color-light); }"); this.pageHandler = event => { if (event.detail?.page === "表详情") this.loadDetail(); }; window.addEventListener("portal:page-change", this.pageHandler); },
+    mounted() { injectStyle("ops-center-tabs-style", ".ops-center-tabs > .el-tabs__header { display:flex; justify-content:center; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap { width:auto; flex:none; } .ops-center-tabs > .el-tabs__header .el-tabs__nav { float:none; display:inline-flex; } .ops-center-tabs > .el-tabs__header .el-tabs__nav-wrap::after { left:0; right:0; } .op-full-line > .el-tabs__header { width:100%; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap { width:100% !important; flex:auto !important; } .op-full-line > .el-tabs__header .el-tabs__nav-wrap::after { display:none; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll { width:100%; position:relative; display:flex; justify-content:center; text-align:center; } .op-full-line > .el-tabs__header .el-tabs__nav-scroll::after { content:''; position:absolute; left:0; right:0; bottom:0; height:2px; background-color:var(--el-border-color-light); }"); this.pageHandler = event => { if (event.detail?.page === "表详情") this.loadDetail(); }; window.addEventListener("portal:page-change", this.pageHandler); if (bridge.getPage() === "表详情") this.loadDetail(); },
     beforeUnmount() { clearTimeout(this.lineageTimer); window.removeEventListener("portal:page-change", this.pageHandler); }
   };
 
