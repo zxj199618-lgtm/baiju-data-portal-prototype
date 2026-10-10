@@ -877,4 +877,6 @@
 /* 表详情 · 知识库（Markdown 文本） */
 .portal-vue-knowledge-preview { margin: 0; padding: 14px 16px; background: #f5f7fa; border: 1px solid #e4e7ed; border-radius: 6px; font: 13px/1.75 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; overflow-x: auto; }
 .portal-vue-knowledge-editor textarea { font: 13px/1.75 ui-monospace, SFMono-Regular, Menlo, monospace; }
-.portal-vue-knowledge-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+.portal-vue-knowledge-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }
+.portal-vue-knowledge-edit { padding: 9px 20px; font-weight: 500; box-shadow: 0 4px 12px rgba(64, 128, 255, 0.22); }
+.portal-vue-knowledge-actions { display: flex; justify-content: flex-end; margin-top: 12px; }

@@ -5962,18 +5962,18 @@ function injectStyle(id, css) {
                 </el-table>
               </el-tab-pane>
               <el-tab-pane label="知识库" name="knowledge">
-                <div class="portal-vue-toolbar" style="padding:0 0 14px">
-                  <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">用 Markdown 描述本表：表说明、角色、指标计算逻辑、特殊规则。灵犀智析回答本表问题时整篇读取。</span></div>
-                  <div class="portal-vue-actions"><el-button v-if="!knowledgeEditing && canEdit('表管理')" type="primary" plain @click="startKnowledgeEdit">✎ 编辑</el-button><el-button v-if="knowledgeEditing" @click="cancelKnowledgeEdit">取消编辑</el-button></div>
+                <div class="portal-vue-knowledge-bar">
+                  <span class="portal-vue-muted">{{ knowledge && !knowledgeEditing ? "最近编辑：" + knowledge.updatedBy + " · " + knowledge.updatedAt : "" }}</span>
+                  <el-button v-if="!knowledgeEditing && canEdit('表管理')" type="primary" round class="portal-vue-knowledge-edit" @click="startKnowledgeEdit">编辑知识库</el-button>
+                  <el-button v-if="knowledgeEditing" round @click="cancelKnowledgeEdit">取消编辑</el-button>
                 </div>
                 <template v-if="knowledgeEditing">
                   <el-input v-model="knowledgeText" type="textarea" :rows="28" class="portal-vue-knowledge-editor" placeholder="在这里用 Markdown 填写本表的知识库"></el-input>
-                  <div class="portal-vue-knowledge-actions"><el-button type="primary" @click="saveKnowledge">保存知识库</el-button></div>
+                  <div class="portal-vue-knowledge-actions"><el-button type="primary" round @click="saveKnowledge">保存知识库</el-button></div>
                 </template>
                 <template v-else>
-                  <p v-if="knowledge" class="portal-vue-muted" style="margin:0 0 10px">最近编辑：{{ knowledge.updatedBy }} · {{ knowledge.updatedAt }}</p>
                   <pre v-if="knowledge" class="portal-vue-knowledge-preview">{{ knowledge.markdown }}</pre>
-                  <el-empty v-else description="该表还没有知识库。灵犀智析只能依据字段注释回答，指标口径可能不准确。"><el-button v-if="canEdit('表管理')" type="primary" @click="startKnowledgeEdit">＋ 新建知识库</el-button></el-empty>
+                  <el-empty v-else description="该表还没有知识库。灵犀智析只能依据字段注释回答，指标口径可能不准确。"><el-button v-if="canEdit('表管理')" type="primary" round @click="startKnowledgeEdit">新建知识库</el-button></el-empty>
                 </template>
               </el-tab-pane>
               <el-tab-pane label="血缘查询" name="lineage">
