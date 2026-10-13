@@ -453,9 +453,9 @@
 .portal-vue-ai-welcome { margin: auto; text-align: center; }
 .portal-vue-ai-welcome h3 { margin: 0 0 6px; font-size: 17px; color: #1f2733; }
 .portal-vue-ai-suggests { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.portal-vue-ai-message { display: flex; }
+.portal-vue-ai-message { display: flex; align-items: flex-start; gap: 10px; width: 100%; max-width: 980px; margin: 0 auto; }
 .portal-vue-ai-message.user { justify-content: flex-end; }
-.portal-vue-ai-bubble { max-width: 78%; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.7; color: #2a3446; }
+.portal-vue-ai-bubble { min-width: 0; max-width: 78%; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.7; color: #2a3446; }
 .portal-vue-ai-message.user .portal-vue-ai-bubble { background: #1677ff; color: #fff; border-bottom-right-radius: 3px; }
 .portal-vue-ai-message.assistant .portal-vue-ai-bubble { background: #f3f6fa; border-bottom-left-radius: 3px; }
 .portal-vue-ai-bubble p { margin: 0 0 4px; }
@@ -479,30 +479,6 @@
 .portal-vue-ai-composer { border: 1px solid #dcdfe6; border-radius: 12px; background: #fff; transition: border-color .15s, box-shadow .15s; }
 
 /* 灵犀智析：底部交互式澄清面板（多问、A/B/C 选项、逐题推进） */
-.portal-vue-ai-clarify { margin-bottom: 10px; border: 1px solid #dbe8fb; border-radius: 12px; background: #fff; box-shadow: 0 6px 18px rgba(15,35,70,.08); overflow: hidden; }
-.portal-vue-ai-clarify-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f0f7ff; border-bottom: 1px solid #e2edfb; }
-.portal-vue-ai-clarify-icon { font-size: 15px; }
-.portal-vue-ai-clarify-head strong { color: #1f2733; font-size: 13px; }
-.portal-vue-ai-clarify-steps { display: flex; align-items: center; gap: 6px; margin-left: 6px; }
-.portal-vue-ai-clarify-dot { width: 20px; height: 20px; padding: 0; border: 1px solid #c7d0dd; border-radius: 50%; background: #fff; color: #667085; font-size: 11px; font-weight: 700; cursor: pointer; transition: all .15s; }
-.portal-vue-ai-clarify-dot.is-done { border-color: #1677ff; background: #e8f2ff; color: #1677ff; }
-.portal-vue-ai-clarify-dot.is-active { border-color: #1677ff; background: #1677ff; color: #fff; }
-.portal-vue-ai-clarify-skip { margin-left: auto; padding: 0; border: 0; background: transparent; color: #8a94a6; font-size: 12px; cursor: pointer; }
-.portal-vue-ai-clarify-skip:hover { color: #1677ff; }
-.portal-vue-ai-clarify-body { padding: 14px 14px 12px; }
-.portal-vue-ai-clarify-question { margin: 0; color: #1f2733; font-size: 14px; font-weight: 650; }
-.portal-vue-ai-clarify-no { margin-right: 8px; padding: 1px 7px; border-radius: 999px; background: #edf5ff; color: #1677ff; font-size: 11px; font-weight: 700; }
-.portal-vue-ai-clarify-hint { margin: 6px 0 0; font-size: 12px; }
-.portal-vue-ai-clarify-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.portal-vue-ai-clarify-option { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px 7px 9px; border: 1px solid #dcdfe6; border-radius: 999px; background: #fff; color: #344054; font-size: 13px; cursor: pointer; transition: all .15s; }
-.portal-vue-ai-clarify-option:hover { border-color: #1677ff; color: #1677ff; }
-.portal-vue-ai-clarify-option.is-picked { border-color: #1677ff; background: #edf5ff; color: #1677ff; font-weight: 650; }
-.portal-vue-ai-clarify-key { display: inline-flex; width: 18px; height: 18px; align-items: center; justify-content: center; border-radius: 50%; background: #f2f4f7; color: #667085; font-size: 11px; font-weight: 700; }
-.portal-vue-ai-clarify-option.is-picked .portal-vue-ai-clarify-key { background: #1677ff; color: #fff; }
-.portal-vue-ai-clarify-desc { font-size: 12px; }
-.portal-vue-ai-clarify-foot { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid #eef1f6; background: #fafbfd; }
-.portal-vue-ai-clarify-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; font-size: 12px; }
-.portal-vue-ai-clarify-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
 .portal-vue-ai-confirms { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .portal-vue-ai-composer:focus-within { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(22,119,255,.08); }
 .portal-vue-ai-composer .el-textarea__inner { border: 0; box-shadow: none; background: transparent; padding: 8px 14px 2px; font-size: 13.5px; }
@@ -695,7 +671,7 @@
 /* 单元格内容上下居中；行高由内容最多的单元格撑开（自适应高度） */
 .portal-vue-alert-table .el-table__cell { vertical-align: middle; }
 
-/* 操作日志 */
+/* 看板访问记录 */
 .portal-vue-log-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .portal-vue-log-attrs { display: grid; gap: 0; border: 1px solid #e9edf4; border-radius: 10px; overflow: hidden; }
 .portal-vue-log-attr { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px; padding: 9px 12px; border-bottom: 1px solid #f0f3f8; font-size: 13px; }
@@ -904,3 +880,157 @@
 .portal-vue-knowledge-doc hr { margin: 16px 0; border: none; border-top: 1px solid #ebeef5; }
 .portal-vue-knowledge-doc pre { margin: 10px 0; padding: 12px 14px; background: #f5f7fa; border-radius: 6px; overflow-x: auto; }
 .portal-vue-knowledge-doc pre code { padding: 0; background: none; color: #303133; font: 12.5px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+
+/* 灵犀智析：对话版式优化 + AI 提问卡片 */
+.portal-vue-ai-avatar { flex: 0 0 auto; width: 30px; height: 30px; margin-top: 2px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: linear-gradient(135deg, #3b8cff, #1260e6); color: #fff; font-size: 13px; font-weight: 700; }
+.portal-vue-ai-message.assistant .portal-vue-ai-bubble { flex: 0 1 auto; background: #f6f8fb; border: 1px solid #edf0f5; border-top-left-radius: 4px; }
+.portal-vue-ai-message.assistant .portal-vue-ai-bubble.portal-vue-ai-report { flex: 1 1 auto; max-width: none; }
+.portal-vue-ai-message.user .portal-vue-ai-bubble { max-width: 70%; box-shadow: 0 2px 8px rgba(22,119,255,.18); }
+.portal-vue-ai-message.user .portal-vue-ai-confirms .el-tag { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.4); color: #fff; }
+.portal-vue-ai-thinking i { display: inline-block; width: 4px; height: 4px; margin-left: 3px; border-radius: 50%; background: #98a2b3; animation: portal-vue-ai-dot 1.2s infinite ease-in-out; }
+.portal-vue-ai-thinking i:nth-child(2) { animation-delay: .15s; }
+.portal-vue-ai-thinking i:nth-child(3) { animation-delay: .3s; }
+@keyframes portal-vue-ai-dot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.portal-vue-ai-welcome { max-width: 560px; }
+.portal-vue-ai-suggests { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
+.portal-vue-ai-suggests .el-button { margin: 0; }
+
+.portal-vue-ai-ask { flex: 1 1 auto; min-width: 0; max-width: 760px; border: 1px solid #cfe0fb; border-radius: 12px; background: #fff; box-shadow: 0 6px 18px rgba(15,35,70,.07); overflow: hidden; }
+.portal-vue-ai-ask.is-answered, .portal-vue-ai-ask.is-skipped { border-color: #e4e9f2; box-shadow: none; background: #fafbfd; }
+.portal-vue-ai-ask-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f0f7ff; border-bottom: 1px solid #e2edfb; }
+.portal-vue-ai-ask.is-answered .portal-vue-ai-ask-head, .portal-vue-ai-ask.is-skipped .portal-vue-ai-ask-head { background: #f4f6fa; border-bottom-color: #eaedf3; }
+.portal-vue-ai-ask-badge { flex: 0 0 auto; padding: 1px 8px; border-radius: 999px; background: #1677ff; color: #fff; font-size: 11px; font-weight: 700; }
+.portal-vue-ai-ask.is-answered .portal-vue-ai-ask-badge, .portal-vue-ai-ask.is-skipped .portal-vue-ai-ask-badge { background: #98a2b3; }
+.portal-vue-ai-ask-head strong { min-width: 0; color: #1f2733; font-size: 13.5px; }
+.portal-vue-ai-ask-state { margin-left: auto; flex: 0 0 auto; color: #8a94a6; font-size: 12px; }
+.portal-vue-ai-ask-intro { margin: 0; padding: 10px 14px 0; color: #5b6575; font-size: 13px; }
+.portal-vue-ai-ask-q { padding: 12px 14px 4px; }
+.portal-vue-ai-ask-q + .portal-vue-ai-ask-q { border-top: 1px dashed #e9edf4; margin-top: 8px; }
+.portal-vue-ai-ask-title { margin: 0; color: #1f2733; font-size: 13.5px; font-weight: 650; line-height: 1.6; }
+.portal-vue-ai-ask-title em { margin-left: 8px; padding: 0 6px; border-radius: 4px; background: #f2f4f7; color: #667085; font-size: 11px; font-style: normal; font-weight: 500; }
+.portal-vue-ai-ask-no { display: inline-flex; width: 18px; height: 18px; margin-right: 8px; align-items: center; justify-content: center; border-radius: 50%; background: #edf5ff; color: #1677ff; font-size: 11px; font-weight: 700; }
+.portal-vue-ai-ask-hint { margin: 2px 0 0 26px; font-size: 12px; }
+.portal-vue-ai-ask-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin: 10px 0 8px 26px; }
+.portal-vue-ai-ask-option { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1px solid #dcdfe6; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.portal-vue-ai-ask-option:hover { border-color: #1677ff; }
+.portal-vue-ai-ask-option.is-picked { border-color: #1677ff; background: #edf5ff; }
+.portal-vue-ai-ask-mark { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; border: 1.5px solid #c0c7d3; border-radius: 50%; background: #fff; position: relative; }
+.portal-vue-ai-ask-mark.is-multi { border-radius: 4px; }
+.portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-mark { border-color: #1677ff; background: #1677ff; }
+.portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-mark::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.portal-vue-ai-ask-text { display: flex; flex-direction: column; min-width: 0; }
+.portal-vue-ai-ask-text b { color: #1f2733; font-size: 13px; font-weight: 600; }
+.portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-text b { color: #1677ff; }
+.portal-vue-ai-ask-text small { margin-top: 2px; color: #8a94a6; font-size: 11.5px; line-height: 1.4; }
+.portal-vue-ai-ask-custom { margin: 0 0 10px 26px; width: calc(100% - 26px); }
+.portal-vue-ai-ask-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid #eef1f6; background: #fafbfd; font-size: 12px; }
+.portal-vue-ai-ask-result { padding: 10px 14px 12px; }
+.portal-vue-ai-ask-result p { margin: 0; font-size: 12.5px; }
+.portal-vue-ai-ask-result-row { display: flex; gap: 10px; padding: 3px 0; font-size: 13px; }
+.portal-vue-ai-ask-result-row span { flex: 0 0 auto; color: #8a94a6; }
+.portal-vue-ai-ask-result-row span::after { content: "："; }
+.portal-vue-ai-ask-result-row strong { color: #1f2733; font-weight: 600; }
+
+/* ===== 灵犀智析 UI 重绘（覆盖上文旧样式）：去边框堆叠、统一圆角与留白、柔和阴影 ===== */
+.portal-vue-ai-layout { gap: 16px; margin-top: 4px; grid-template-columns: 288px minmax(0,1fr); }
+@media (max-width: 1440px) { .portal-vue-ai-layout { grid-template-columns: 264px minmax(0,1fr); } }
+
+/* 左侧：不再套一层带边框的卡片，列表直接落在页面底色上 */
+.portal-vue-ai-side { padding: 0; border: 0; background: transparent; gap: 12px; }
+.portal-vue-ai-asset-btn { margin: 0; padding: 12px 14px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #eef5ff, #e3efff); box-shadow: 0 1px 2px rgba(22,119,255,.08); }
+.portal-vue-ai-asset-btn:hover { background: linear-gradient(135deg, #e6f0ff, #d9e9ff); }
+.portal-vue-ai-asset-btn.active { background: linear-gradient(135deg, #dcebff, #cfe3ff); box-shadow: 0 0 0 1.5px #1677ff inset; }
+.portal-vue-ai-asset-btn-text { color: #0f5bd8; }
+.portal-vue-ai-new.el-button { height: 38px; border-radius: 12px; border: 1px dashed #b7d2ff; background: #fff; color: #1677ff; font-weight: 600; }
+.portal-vue-ai-new.el-button:hover { border-style: solid; background: #f4f8ff; }
+.portal-vue-ai-group-label { margin: 4px 4px -2px; font-size: 12px; font-weight: 600; letter-spacing: .2px; }
+.portal-vue-ai-sessions { gap: 2px; padding-right: 6px; }
+.portal-vue-ai-session { position: relative; padding: 10px 12px 10px 14px; border: 0; border-radius: 10px; background: transparent; }
+.portal-vue-ai-session:hover { background: #eef2f8; }
+.portal-vue-ai-session.active { background: #fff; box-shadow: 0 2px 10px rgba(30,60,110,.08); }
+.portal-vue-ai-session.active::before { content: ""; position: absolute; left: 4px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: #1677ff; }
+.portal-vue-ai-session-top strong { font-size: 13.5px; font-weight: 600; }
+.portal-vue-ai-session-top time { font-size: 11px; color: #9aa4b5; }
+.portal-vue-ai-session-meta { margin-top: 5px; gap: 6px; }
+.portal-vue-ai-session-meta .el-tag { height: 18px; padding: 0 6px; border: 0; border-radius: 4px; font-size: 11px; }
+.portal-vue-ai-session-status.running { padding: 0 6px; border-radius: 4px; background: #fff4e0; font-size: 11px; }
+.portal-vue-ai-side-summary { margin: 0; padding: 10px 12px; border: 0; border-radius: 10px; background: #eef2f8; }
+
+/* 右侧：一张完整白卡，场景用胶囊切换，不再是 4 个带描述的方框 */
+.portal-vue-ai-main { border: 0; border-radius: 16px; background: #fff; box-shadow: 0 4px 24px rgba(30,60,110,.07), 0 0 0 1px rgba(30,60,110,.05); }
+.portal-vue-ai-scenarios { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 18px; max-height: none; overflow: visible; border-bottom: 1px solid #f0f2f7; background: #fff; }
+.portal-vue-ai-scenario { gap: 6px; padding: 6px 14px 6px 10px; border: 0; border-radius: 999px; background: #f3f5f9; transition: background .15s, color .15s, box-shadow .15s; }
+.portal-vue-ai-scenario:hover { background: #e8edf5; }
+.portal-vue-ai-scenario.active { background: #1677ff; box-shadow: 0 4px 12px rgba(22,119,255,.28); }
+.portal-vue-ai-scenario.active strong { color: #fff; }
+.portal-vue-ai-scenario strong { font-size: 13px; font-weight: 600; color: #3a4558; }
+.portal-vue-ai-scenario small { display: none; }
+.portal-vue-ai-scenario.active .portal-vue-ai-scene-icon { filter: brightness(0) invert(1); }
+
+/* 对话区：浅灰底衬托白色气泡 */
+.portal-vue-ai-chat { padding: 24px 28px; gap: 18px; background: #f8f9fc; }
+.portal-vue-ai-welcome { padding: 36px 32px; border-radius: 16px; background: #fff; box-shadow: 0 2px 12px rgba(30,60,110,.05); }
+.portal-vue-ai-welcome h3 { font-size: 20px; font-weight: 700; }
+.portal-vue-ai-suggests .el-button { height: 32px; padding: 0 14px; border: 0; background: #f0f4fb; color: #3a4558; font-weight: 500; }
+.portal-vue-ai-suggests .el-button:hover { background: #1677ff; color: #fff; }
+.portal-vue-ai-avatar { width: 32px; height: 32px; border-radius: 50%; box-shadow: 0 3px 8px rgba(22,119,255,.25); }
+.portal-vue-ai-bubble { padding: 12px 16px; border-radius: 14px; font-size: 14px; line-height: 1.75; }
+.portal-vue-ai-message.user .portal-vue-ai-bubble { background: linear-gradient(135deg, #3b8cff, #1569ee); border-bottom-right-radius: 4px; box-shadow: 0 4px 14px rgba(22,119,255,.22); }
+.portal-vue-ai-message.assistant .portal-vue-ai-bubble { background: #fff; border: 0; border-top-left-radius: 4px; box-shadow: 0 2px 10px rgba(30,60,110,.06); }
+.portal-vue-ai-refs .el-tag, .portal-vue-ai-confirms .el-tag { border: 0; background: #eef3fb; color: #3a4a66; }
+.portal-vue-ai-message.user .portal-vue-ai-refs .el-tag { background: rgba(255,255,255,.2); color: #fff; }
+
+/* 报告卡片：弱化边框，预览区限高渐隐 */
+.portal-vue-ai-report-card { padding: 16px 18px; border: 0; border-radius: 12px; background: #f8f9fc; }
+.portal-vue-ai-report-card:hover { background: #f3f6fb; }
+.portal-vue-ai-report-card-head { padding-bottom: 8px; border-bottom: 1px solid #e9edf4; margin-bottom: 8px; }
+.portal-vue-ai-report-card-title { font-size: 15px; }
+.portal-vue-ai-report-body code { background: #eef2fa; color: #b4432b; }
+.portal-vue-ai-report-table { border-radius: 8px; overflow: hidden; }
+.portal-vue-ai-report-table th, .portal-vue-ai-report-table td { border-color: #edf0f5; }
+.portal-vue-ai-report-table th { background: #f4f6fa; }
+.portal-vue-ai-report-meta { border-top-style: solid; border-top-color: #eef0f5; }
+
+/* 输入区：悬浮式大圆角输入卡 */
+.portal-vue-ai-input { padding: 0 24px 18px; border-top: 0; background: #f8f9fc; }
+.portal-vue-ai-composer { max-width: 980px; margin: 0 auto; border: 1px solid #e3e8f1; border-radius: 16px; box-shadow: 0 6px 24px rgba(30,60,110,.08); }
+.portal-vue-ai-composer:focus-within { border-color: #1677ff; box-shadow: 0 6px 24px rgba(22,119,255,.14), 0 0 0 3px rgba(22,119,255,.08); }
+.portal-vue-ai-composer .el-textarea__inner { padding: 14px 18px 4px; font-size: 14px; }
+.portal-vue-ai-composer-bar { padding: 6px 12px 10px; }
+.portal-vue-ai-chip-table-cascader .el-input__wrapper, .portal-vue-ai-chip-model-select .el-select__wrapper, .portal-vue-ai-chip-reasoning-select .el-select__wrapper { background: #f3f5f9; box-shadow: none; }
+.portal-vue-ai-composer-send.el-button { width: 34px; height: 34px; padding: 0; border-radius: 50%; font-size: 0; }
+.portal-vue-ai-composer-send.el-button::after { content: "↑"; font-size: 17px; font-weight: 700; }
+.portal-vue-ai-mention { max-width: 980px; margin: 0 auto 8px; border: 0; border-radius: 12px; box-shadow: 0 6px 20px rgba(30,60,110,.12); }
+
+/* 提问卡片：与新底色统一 */
+.portal-vue-ai-ask { border: 0; border-radius: 14px; box-shadow: 0 6px 22px rgba(22,119,255,.12), 0 0 0 1px #d3e3fc; }
+.portal-vue-ai-ask.is-answered, .portal-vue-ai-ask.is-skipped { box-shadow: 0 2px 10px rgba(30,60,110,.05); background: #fff; }
+.portal-vue-ai-ask-head { padding: 12px 16px; background: linear-gradient(135deg, #f1f7ff, #e9f2ff); border-bottom: 0; }
+.portal-vue-ai-ask-option { border-color: #e3e8f1; border-radius: 10px; }
+.portal-vue-ai-ask-option.is-picked { background: #edf5ff; box-shadow: 0 0 0 1px #1677ff inset; }
+.portal-vue-ai-ask-foot { background: #f8f9fc; border-top: 0; }
+
+/* 分析资产页 */
+.portal-vue-ai-assets-page { padding: 20px 24px; background: #f8f9fc; }
+.portal-vue-ai-asset-card { border: 0; border-radius: 14px; box-shadow: 0 2px 10px rgba(30,60,110,.06); }
+.portal-vue-ai-asset-card:hover { box-shadow: 0 8px 22px rgba(22,119,255,.16); }
+
+/* 输入区工具条：只压缩选择下拉的高度，宽度保持原样 */
+.portal-vue-ai-input { padding: 0 24px 12px; }
+.portal-vue-ai-composer { border-radius: 14px; }
+.portal-vue-ai-composer .el-textarea__inner { padding: 10px 16px 0; font-size: 13.5px; }
+.portal-vue-ai-composer-bar { gap: 8px; padding: 2px 10px 6px; }
+.portal-vue-ai-composer-bar .el-select, .portal-vue-ai-composer-bar .el-cascader, .portal-vue-ai-composer-bar .el-input { --el-component-size: 24px; --el-input-height: 24px; }
+.portal-vue-ai-composer-bar .el-cascader { line-height: 24px; }
+.portal-vue-ai-composer-bar .el-select__wrapper,
+.portal-vue-ai-composer-bar .el-cascader .el-input__wrapper { min-height: 24px !important; height: 24px !important; padding-top: 0; padding-bottom: 0; font-size: 12px; }
+.portal-vue-ai-composer-bar .el-cascader .el-input__inner { height: 22px; line-height: 22px; font-size: 12px; }
+.portal-vue-ai-composer-bar .el-select__placeholder, .portal-vue-ai-composer-bar .el-select__selected-item { font-size: 12px; line-height: 22px; }
+.portal-vue-ai-composer-limit { font-size: 11px; }
+.portal-vue-ai-composer-send.el-button { width: 28px; height: 28px; }
+.portal-vue-ai-composer-send.el-button::after { font-size: 15px; }
+
+/* 多选题：方形勾选框 + 标题徽标高亮 */
+.portal-vue-ai-ask-title em.is-multi { background: #e8f2ff; color: #1677ff; font-weight: 600; }
+.portal-vue-ai-ask-mark.is-multi { border-radius: 5px; }
+.portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-mark.is-multi::after { left: 4.5px; top: 1.5px; }

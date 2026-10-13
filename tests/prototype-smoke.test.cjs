@@ -208,7 +208,7 @@ assert(portalVue.includes("reportMarkdownOf") && portalVue.includes("portal-vue-
 assert(portalVue.includes("markdown:String(markdownText") && portalVue.includes("liveMsg.reportId=report.id"), "报告归档应保存完整正文并绑定到聊天消息，刷新后仍为超链");
 assert(portalVue.includes("leadMsg") && portalVue.includes("trailMsg"), "报告消息应包含上下总结文字");
 assert(portalVue.includes("portal-vue-ai-assets-grid") && portalVue.includes("portal-vue-ai-asset-card") && portalVue.includes('v-if="!assetView"'), "分析资产应以卡片网格整页展示，资产页隐藏聊天与输入框");
-assert(portalVue.includes("const isReport=!errorMsg&&full.trim().length>=80"), "过短/中断的回答不应归档为分析报告");
+assert(portalVue.includes("const isReport=!errorMsg&&!askFound&&full.trim().length>=80"), "过短/中断的回答不应归档为分析报告");
 assert(portalVue.includes("report:report.markdown"), "分享内容应使用完整 markdown 正文");
 assert(portalVue.includes("数据表权限") && portalVue.includes("toggleAllTables") && portalVue.includes("allTables"), "权限组应支持数据表权限配置");
 assert(portalBridge.includes('tables: ["全部数据表"]'), "权限组数据应包含数据表权限维度");
@@ -272,14 +272,14 @@ assert(portalCss.includes(".portal-vue-user > span { white-space: nowrap") && po
 assert(portalBridge.includes('menuEdits: ["灵犀智析"') && portalBridge.includes("menuEdits: []"), "权限组数据应包含菜单编辑权限，只读角色默认无编辑权限");
 assert(portalBridge.includes('group: "系统管理"') && portalBridge.includes('name: "菜单管理"'), "系统管理应包含菜单管理");
 const systemGroup = (portalBridge.match(/\{ group: "系统管理"[\s\S]*?\}\] \}/) || [""])[0];
-assert(portalBridge.includes('name: "操作日志"'), "系统管理应提供操作日志菜单");
-assert(systemGroup.indexOf('name: "操作日志"') < systemGroup.indexOf('name: "菜单管理"'), "操作日志菜单应位于菜单管理之前（环境域名已迁入大数据工具箱）");
+assert(portalBridge.includes('name: "看板访问记录"'), "系统管理应提供看板访问记录菜单");
+assert(systemGroup.indexOf('name: "看板访问记录"') < systemGroup.indexOf('name: "菜单管理"'), "看板访问记录菜单应位于菜单管理之前（环境域名已迁入大数据工具箱）");
 // AI 中心：把 Skill 配置 / 模型配置从系统管理抽成独立一级菜单，排在系统管理之前
 const aiGroup = (portalBridge.match(/\{ group: "AI 中心"[\s\S]*?\}\] \}/) || [""])[0];
 assert(portalBridge.includes('group: "AI 中心"') && portalBridge.indexOf('group: "AI 中心"') < portalBridge.indexOf('group: "系统管理"'), "AI 中心应作为一级菜单分组，排在系统管理之前");
 assert(aiGroup.includes('name: "Skill 配置", badge: "5.0"') && aiGroup.includes('name: "模型配置", badge: "5.0"') && portalBridge.indexOf('name: "Skill 配置"') < portalBridge.indexOf('name: "模型配置"'), "AI 中心应包含 Skill 配置与模型配置（Skill 在前，保留 5.0 角标）");
 assert(portalBridge.includes('group: "AI 中心", icon: "ai"'), "AI 中心应有独立侧栏图标");
-assert(systemGroup.includes('name: "操作日志"') && systemGroup.includes('name: "菜单管理"') && !systemGroup.includes('name: "任务运维"') && !systemGroup.includes('name: "环境域名"'), "系统管理只应保留操作日志 / 菜单管理；任务运维与环境域名必须已迁入大数据工具箱（此断言防止回退）");
+assert(systemGroup.includes('name: "看板访问记录"') && systemGroup.includes('name: "菜单管理"') && !systemGroup.includes('name: "任务运维"') && !systemGroup.includes('name: "环境域名"'), "系统管理只应保留看板访问记录 / 菜单管理；任务运维与环境域名必须已迁入大数据工具箱（此断言防止回退）");
 assert(!systemGroup.includes("Skill 配置") && !systemGroup.includes("模型配置"), "系统管理不应再包含 Skill 配置与模型配置（此断言防止回退）");
 assert(portalBridge.includes('if (page === "Skill 配置" || page === "模型配置") return "ai";'), "AI 中心两个页面的顶部页签应使用 ai 图标");
 /* Skill 图标：内置四个 Skill 用随原型分发的 SVG，不再用 emoji；上传图 / emoji 仍按原逻辑渲染 */
@@ -290,7 +290,7 @@ assert(portalVue.includes("portal-vue-skill-cell-icon") && portalCss.includes(".
 assert(["skill-query", "skill-asset", "skill-lineage", "skill-attribution", "skill-single-table"].every(name => standaloneBuild.includes(`"assets/${name}.svg"`)), "单文件构建白名单要带上 Skill 图标，否则分享出去缺图");
 assert(portalBridge.includes('ai: { default: "assets/nav-ai-default.svg", active: "assets/nav-ai-active.svg" }'), "ai 图标应指向独立的默认/选中态资源");
 const adminGroup = (portalBridge.match(/\{ name: "门户管理员"[\s\S]*?status: "启用" \}/) || [""])[0];
-assert(adminGroup.includes('"AI 中心"') && adminGroup.includes('"模型配置"') && adminGroup.includes('"Skill 配置"') && adminGroup.includes('"操作日志"'), "门户管理员权限组应同时给出 AI 中心分组名与两个菜单名（保存权限后分组名会被拍平成菜单名，不能只依赖分组授权），并显式包含操作日志");
+assert(adminGroup.includes('"AI 中心"') && adminGroup.includes('"模型配置"') && adminGroup.includes('"Skill 配置"') && adminGroup.includes('"看板访问记录"'), "门户管理员权限组应同时给出 AI 中心分组名与两个菜单名（保存权限后分组名会被拍平成菜单名，不能只依赖分组授权），并显式包含看板访问记录");
 assert(portalVue.includes('name: "AI 中心", icon: "ai"') && portalVue.includes('permission: "ai_center"'), "菜单管理树应同步新增 AI 中心一级菜单（含图标与权限标识）");
 assert((portalVue.match(/name: "Skill 配置"/g) || []).length === 1 && (portalVue.match(/name: "模型配置"/g) || []).length === 1, "菜单管理树里 Skill 配置 / 模型配置 只应出现在 AI 中心下，不重复挂载");
 assert(portalVue.includes('ai:"◈"'), "菜单管理图标字典应包含 ai 字形");
@@ -369,22 +369,22 @@ assert(portalVue.includes('name: "业务工具箱", icon: "toolboxBiz"') && port
 assert(portalCss.includes(".portal-vue-tool-section") && portalCss.includes(".portal-vue-batch-panel") && portalCss.includes(".portal-vue-diff-row"), "工具分步区块 / 上报批次面板 / 差异行都要有样式");
 assert(standaloneBuild.includes('"assets/nav-toolbox-biz-default.svg"') && standaloneBuild.includes('"assets/nav-toolbox-biz-active.svg"') && standaloneBuild.includes('"assets/tool-audience.svg"') && standaloneBuild.includes('"assets/tool-drama-account.svg"'), "单文件构建白名单要带上业务工具箱图标");
 assert(standaloneBuild.includes('"assets/nav-toolbox-default.svg"') && standaloneBuild.includes('"assets/nav-toolbox-active.svg"') && standaloneBuild.includes('"assets/tool-backfill.svg"') && standaloneBuild.includes('"assets/tool-compare.svg"') && standaloneBuild.includes('"assets/tool-env.svg"'), "单文件构建白名单要带上工具箱图标，否则分享出去会缺图");
-assert(html.includes('id="operationLogView"') && portalVue.includes('mount("#operationLogView"'), "操作日志应挂载独立视图");
-assert(portalVue.includes("OperationLogApp") && portalVue.includes("operationLogEvents") && portalVue.includes("operationLogSeeds"), "操作日志应基于埋点事件定义构建");
-assert(portalVue.includes('"page_view"') && portalVue.includes('"dashboard_view_heartbeat"'), "操作日志应覆盖页面访问与看板心跳两类埋点");
-assert(portalVue.includes('category: "页面访问"') && portalVue.includes('category: "查看看板"'), "操作日志应按页面访问 / 查看看板分类");
-assert(portalVue.includes('const OPERATION_LOG_VISIBLE_CATEGORIES = ["查看看板"]') && portalVue.includes("!OPERATION_LOG_VISIBLE_CATEGORIES.includes(operationLogEvents[record.event]?.category)"), "操作日志当前只对外展示「查看看板」记录：页面访问等埋点隐藏（数据与定义保留，白名单加回即恢复）");
+assert(html.includes('id="operationLogView"') && portalVue.includes('mount("#operationLogView"'), "看板访问记录应挂载独立视图");
+assert(portalVue.includes("OperationLogApp") && portalVue.includes("operationLogEvents") && portalVue.includes("operationLogSeeds"), "看板访问记录应基于埋点事件定义构建");
+assert(portalVue.includes('"page_view"') && portalVue.includes('"dashboard_view_heartbeat"'), "看板访问记录应覆盖页面访问与看板心跳两类埋点");
+assert(portalVue.includes('category: "页面访问"') && portalVue.includes('category: "查看看板"'), "看板访问记录应按页面访问 / 查看看板分类");
+assert(portalVue.includes('const OPERATION_LOG_VISIBLE_CATEGORIES = ["查看看板"]') && portalVue.includes("!OPERATION_LOG_VISIBLE_CATEGORIES.includes(operationLogEvents[record.event]?.category)"), "看板访问记录当前只对外展示「查看看板」记录：页面访问等埋点隐藏（数据与定义保留，白名单加回即恢复）");
 assert(portalVue.includes("visibleCategories() { return this.categories.filter(item => OPERATION_LOG_VISIBLE_CATEGORIES.includes(item)); }") && portalVue.includes('v-if="visibleCategories.length > 1"'), "只剩一个分类时不渲染分类页签与分类列，后续加回分类会自动恢复");
 const logTabsBlock = (portalVue.match(/v-if="visibleCategories\.length > 1"[\s\S]{0,360}/) || [""])[0];
-assert(logTabsBlock.includes('v-for="item in visibleCategories"') && !logTabsBlock.includes('v-for="item in categories"'), "操作日志分类页签不得再直接遍历全部分类（此断言防止回退）");
-assert(portalBridge.includes("「查看看板」明细"), "操作日志页头文案应说明当前只开放查看看板明细");
+assert(logTabsBlock.includes('v-for="item in visibleCategories"') && !logTabsBlock.includes('v-for="item in categories"'), "看板访问记录分类页签不得再直接遍历全部分类（此断言防止回退）");
+assert(portalBridge.includes("「查看看板」明细"), "看板访问记录页头文案应说明当前只开放查看看板明细");
 assert(portalVue.includes("visitId") && portalVue.includes("duration_seconds") && portalVue.includes("visit_id"), "看板心跳应按 visit_id 归并为一次访问并计算停留时长");
-assert(!portalVue.includes("数据来源：前端埋点"), "操作日志底部数据来源说明应移除");
-assert(portalVue.includes("portal-vue-log-attrs") && portalVue.includes("detailBeats"), "操作日志详情应展示完整埋点属性与心跳明细");
-assert(portalVue.includes('label="页面名称"') && portalVue.includes('label="页面URL"') && portalVue.includes('["menu_name", "菜单名称"'), "操作日志应把页面名称与页面URL拆成独立列，页面访问带菜单名称");
-assert(portalVue.includes('label="UA"') && portalVue.includes("operationLogUaSummary") && portalVue.includes("uaSummaryOf"), "操作日志应展示 UA（摘要 + 完整值 tooltip）");
-assert(portalVue.includes('type="datetimerange"') && portalVue.includes("rangeBounds") && portalVue.includes("timeShortcuts"), "操作日志时间筛选应支持选择时间范围，并保留快捷区间")
-assert(portalBridge.includes('"操作日志": ["操作日志"'), "操作日志应配置页面标题与说明");
+assert(!portalVue.includes("数据来源：前端埋点"), "看板访问记录底部数据来源说明应移除");
+assert(portalVue.includes("portal-vue-log-attrs") && portalVue.includes("detailBeats"), "看板访问记录详情应展示完整埋点属性与心跳明细");
+assert(portalVue.includes('label="页面名称"') && !portalVue.includes('label="页面URL"') && !portalVue.includes('<el-table-column label="事件"') && portalVue.includes('["menu_name", "菜单名称"'), "看板访问记录应把页面名称与页面URL拆成独立列，页面访问带菜单名称");
+assert(portalVue.includes('label="UA"') && portalVue.includes("operationLogUaSummary") && portalVue.includes("uaSummaryOf"), "看板访问记录应展示 UA（摘要 + 完整值 tooltip）");
+assert(portalVue.includes('type="datetimerange"') && portalVue.includes("rangeBounds") && portalVue.includes("timeShortcuts"), "看板访问记录时间筛选应支持选择时间范围，并保留快捷区间")
+assert(portalBridge.includes('"看板访问记录": ["看板访问记录"'), "看板访问记录应配置页面标题与说明");
 assert(html.includes('id="menuManagementView"') && portalVue.includes("mount(\"#menuManagementView\""), "菜单管理应挂载独立视图");
 assert(portalVue.includes("MenuManagementApp") && portalVue.includes("权限标识") && portalVue.includes("组件路径"), "菜单管理应提供层级树/组件路径/权限标识配置");
 assert(html.includes('id="skillManagementView"') && portalVue.includes("mount(\"#skillManagementView\""), "Skill 配置应挂载独立视图");
@@ -570,9 +570,9 @@ assert(portalCss.includes(".portal-vue-ai-chip-table-cascader { width: 200px; }"
 assert(portalVue.includes('reasoning: "high"') && portalVue.includes("maxTokens=this.currentContextLimit") && portalVue.includes("reasoningEffort:this.reasoning,maxTokens:this.maxTokens"), "分析请求应固定使用最高推理强度和当前模型最高上下文");
 assert(!portalVue.includes("推理强度") && !portalVue.includes("上下文长度") && !portalVue.includes("重置为默认设置") && !portalVue.includes("portal-vue-ai-model-reset"), "模型菜单只应保留模型选择，不展示额外设置");
 assert(portalVue.includes('label="业务线"') && portalVue.includes("bizLines()"), "表管理应提供业务线列与筛选");
-assert(portalVue.includes("portal-vue-ai-clarify") && portalVue.includes("clarifyVisible") && portalVue.includes("openClarify") && portalVue.includes("你问的是哪个业务线？"), "未引用数据表时应弹出底部澄清面板咨询业务线");
-assert(portalVue.includes("clarifySubmit") && portalVue.includes("clarifyNext") && portalVue.includes("clarifyPrev") && portalVue.includes("clarifyOptionKey"), "澄清面板应支持 A/B/C 选项与上一题/下一题逐题推进");
-assert(portalVue.includes("clarifyAnswers") && portalVue.includes("msg.confirms"), "已确认项应随消息气泡回显");
+assert(portalVue.includes("portal-vue-ai-ask") && portalVue.includes("buildAsk") && portalVue.includes("你的问题没有指定数据表") && portalVue.includes("extractAsk"), "未引用数据表时应在对话流里出现 AI 提问卡片；模型输出 ```ask 块也应渲染成提问卡片");
+assert(portalVue.includes("submitAsk") && portalVue.includes("toggleAsk") && portalVue.includes("q.multiple") && portalVue.includes("onAskCustom") && portalVue.includes("提交并继续分析"), "提问卡片应支持单选 / 多选 / 自定义输入，提交后继续回复");
+assert(portalVue.includes("clarifyAnswers") && portalVue.includes("msg.confirms") && portalVue.includes("askResult"), "已确认项应随消息气泡回显");
 assert(portalVue.includes('questions: [') && portalVue.includes("timeRange") && portalVue.includes("granularity"), "澄清题目应支持配置多问");
 assert(portalVue.includes("存量") && portalVue.includes("权益") && portalVue.includes("保险") && portalVue.includes("短剧") && portalVue.includes("其他"), "业务线咨询应提供完整选项");
 assert(portalVue.includes("assetCandidates") && portalVue.includes("businessLine") && gatewaySource.includes("assetCandidates") && gatewaySource.includes("业务线范围"), "选择业务线后应把候选数据资产范围交给 Skill");
