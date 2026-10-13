@@ -480,7 +480,10 @@
     template: `
       <el-config-provider :locale="locale">
         <div v-if="visible" class="portal-vue-page-head">
-          <div><h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p></div>
+          <div>
+            <button v-if="backBox" type="button" class="portal-vue-tool-back portal-vue-head-back" @click="backToBox(backBox)">‹ 返回{{ backBox }}</button>
+            <h1>{{ title }}</h1><p v-if="subtitle">{{ subtitle }}</p>
+          </div>
         </div>
       </el-config-provider>
     `,
@@ -490,7 +493,13 @@
       // 灵犀智析是整屏工作台，自身已有导航与标签栏标识，不再展示页面标题区。
       visible() { return !["灵犀智析", "新增API", "新建人群包", "Quick BI 展示", "配置权限", "查看权限", "无权限", "维表数据维护", "表详情"].includes(this.page); },
       title() { return this.meta?.[0] || this.page; },
-      subtitle() { return this.meta?.[1] || ""; }
+      subtitle() { return this.meta?.[1] || ""; },
+      /* 工具箱内的具体工具页：标题上方给出返回所属工具箱的入口 */
+      backBox() {
+        if (["补数据", "消耗对比", "环境域名"].includes(this.page)) return "大数据工具箱";
+        if (["生成人群包", "短剧投放账户上报"].includes(this.page)) return "业务工具箱";
+        return "";
+      }
     },
     watch: { visible(value) { document.querySelector(".page-head")?.classList.toggle("portal-vue-head-hidden", !value); } },
     mounted() {
@@ -5358,7 +5367,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
   /* 工具页统一的「返回所属箱 + 所属箱 + 可写」标识与只读提示 */
   const TOOL_META_TEMPLATE = (tool, note, box = "大数据工具箱") => `
-        <div class="portal-vue-tool-back-row"><button class="portal-vue-tool-back" type="button" @click="backToBox('${box}')">‹ 返回${box}</button></div>
         <div class="portal-vue-tool-meta">
           <el-tag size="small" effect="plain" type="info">${box}</el-tag>
           <el-tag size="small" effect="plain" :type="canEdit('${tool}') ? 'primary' : 'warning'">{{ canEdit('${tool}') ? '可写' : '只读' }}</el-tag>
@@ -6409,7 +6417,6 @@ function injectStyle(id, css) {
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel" style="padding:18px 22px 24px">
-          <div class="portal-vue-tool-back-row" style="margin:0 0 8px"><button class="portal-vue-tool-back" type="button" @click="backToBox('大数据工具箱')">‹ 返回大数据工具箱</button></div>
           <div class="portal-vue-toolbar" style="padding:0 0 14px">
             <div class="portal-vue-toolbar-left"><span class="portal-vue-muted">{{ envEditing ? "编辑中：各分类均可新增 / 修改 / 删除条目，改动即时保存" : "当前为只读展示，点击右上角「✎ 编辑」后可维护" }}</span></div>
             <div class="portal-vue-actions">

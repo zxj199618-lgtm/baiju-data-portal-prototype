@@ -1034,3 +1034,7 @@
 .portal-vue-ai-ask-title em.is-multi { background: #e8f2ff; color: #1677ff; font-weight: 600; }
 .portal-vue-ai-ask-mark.is-multi { border-radius: 5px; }
 .portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-mark.is-multi::after { left: 4.5px; top: 1.5px; }
+
+/* 工具页标题上方的返回入口 */
+.portal-vue-head-back { display: inline-flex; align-items: center; gap: 2px; margin: 0 0 8px; padding: 3px 10px 3px 6px; border-radius: 6px; font-size: 13px; color: #4b5563; transition: background .15s, color .15s; }
+.portal-vue-head-back:hover { background: #eef3ff; color: #0066FF; }

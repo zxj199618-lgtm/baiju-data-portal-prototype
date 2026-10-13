@@ -324,8 +324,8 @@ assert(adminGroup.includes('"大数据工具箱"') && adminGroup.includes('"补�
 assert(portalCss.includes(".portal-vue-tool-card") && portalCss.includes(".portal-vue-tool-cards"), "工具总览卡片需要有样式（网格 + 悬停态）");
 /* 工具详情页左上角要有返回所属箱的入口（侧栏已不列工具，返回只能靠页内入口） */
 assert(portalVue.includes("backToBox: box => bridge.setPage(box)"), "返回所属箱要走全局 mixin，供各工具组件共用");
-assert(portalVue.includes('@click="backToBox(\'${box}\')"'), "统一工具头部要渲染返回所属箱按钮，目标箱随参数走");
-assert(portalVue.includes("backToBox('大数据工具箱')"), "环境域名页不用统一头部，需单独补返回入口");
+assert(portalVue.includes('portal-vue-head-back') && portalVue.includes('@click="backToBox(backBox)"') && portalVue.includes("backBox()"), "工具页左上角（页面标题上方）要渲染返回所属工具箱按钮，大数据 / 业务工具箱各自指向所属箱");
+assert(portalVue.includes('["补数据", "消耗对比", "环境域名"].includes(this.page)') && portalVue.includes('["生成人群包", "短剧投放账户上报"].includes(this.page)'), "返回入口应覆盖大数据工具箱与业务工具箱下的全部工具页");
 /* 环境域名的编辑入口要与「表管理」同款：primary plain + 退出编辑，且不做成与分类标题同级的伪标题 */
 assert(portalVue.includes('type="primary" plain @click="envEditing=true">✎ 编辑') && portalVue.includes(">退出编辑<"), "环境域名编辑入口应与表管理一致（primary plain + 退出编辑），不再用灰色按钮和抢眼的「完成」");
 assert(!portalVue.includes('portal-vue-env-head') && !portalCss.includes(".portal-vue-env-head"), "「🌐 服务域名」伪标题应移除（此断言防止回退）");
