@@ -2365,7 +2365,12 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      padding-bottom: 24px;
+      /* 整屏工作台：四周只留 12px，别让内容区外边距吃掉可用空间 */
+      padding: 12px;
+    }
+
+    .main:has(#analysisWorkbenchView:not(.hidden)) #analysisWorkbenchView.manager-view {
+      padding-top: 0;
     }
 
     .main:has(#analysisWorkbenchView:not(.hidden)) #analysisWorkbenchView:not(.hidden) {

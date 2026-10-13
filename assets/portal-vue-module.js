@@ -1858,10 +1858,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <p v-if="!sessions.length" class="portal-vue-muted">暂无会话</p>
                 </div>
               </el-scrollbar>
-              <div class="portal-vue-ai-side-summary">
-                <div><span>可用数据表</span><strong>{{ myTables.length }} 张</strong></div>
-                <div><span>当前模型</span><strong>{{ model || "加载中" }}</strong></div>
-              </div>
             </aside>
             <section class="portal-vue-ai-main">
               <div v-if="assetView" class="portal-vue-ai-assets-page">
@@ -1937,6 +1933,15 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                     </div>
                   </div>
                   <div v-else class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
+                    <div v-if="msg.reasoning" class="portal-vue-ai-think" :class="{ 'is-open': msg.thinkOpen }">
+                      <button type="button" class="portal-vue-ai-think-head" @click="msg.thinkOpen = !msg.thinkOpen">
+                        <span class="portal-vue-ai-think-icon">🤔</span>
+                        <strong>{{ msg.streaming && !msg.html ? "思考中…" : "思考过程" }}</strong>
+                        <span class="portal-vue-muted">{{ msg.reasoning.length }} 字</span>
+                        <span class="portal-vue-ai-think-arrow">{{ msg.thinkOpen ? "收起 ▴" : "展开 ▾" }}</span>
+                      </button>
+                      <div v-show="msg.thinkOpen" class="portal-vue-ai-think-body" :class="{ 'is-live': msg.streaming && !msg.html }">{{ msg.reasoning }}</div>
+                    </div>
                     <template v-if="msg.reportId"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><div class="portal-vue-ai-report-card">
   <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file">📄</span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportById(msg.reportId)">打开展示所有 ›</button></div>
   <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
@@ -2583,6 +2588,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                 let evt;try{evt=JSON.parse(line.slice(5).trim());}catch(err){continue;}
                 if(evt.delta){
                   this.thinking=false;
+                  if(liveMsg.reasoning&&liveMsg.thinkOpen!==false&&!full)liveMsg.thinkOpen=false;
                   lastTextAt=Date.now();
                   full+=evt.delta;
                   // 流式中按 markdown 渲染，换行/列表/标题即时生效，避免整段文本挤在一起
@@ -2595,7 +2601,10 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   this.thinking=false;
                   lastTextAt=Date.now();
                   reasoningText+=evt.reasoning;
-                  if(!full)liveMsg.lines=["🤔 思考中："+reasoningText.slice(-80)];
+                  liveMsg.reasoning=reasoningText;
+                  if(liveMsg.thinkOpen===undefined)liveMsg.thinkOpen=true;
+                  if(!full)liveMsg.lines=[];
+                  this.$nextTick(()=>document.querySelectorAll(".portal-vue-ai-think-body.is-live").forEach(el=>{el.scrollTop=el.scrollHeight;}));
                   if(Date.now()-this.historyLastAt>5000){this.historyLastAt=Date.now();this.persistHistory();}
                   this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
                 }
@@ -2605,6 +2614,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             }
             this.thinking=false;
             liveMsg.streaming=false;
+            if(liveMsg.reasoning)liveMsg.thinkOpen=false;
             const askFound=this.extractAsk(full);
             if(askFound)full=askFound.text;
             session.status=askFound?"进行中":"已完成";

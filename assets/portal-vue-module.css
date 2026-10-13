@@ -1038,3 +1038,15 @@
 /* 工具页标题上方的返回入口 */
 .portal-vue-head-back { display: inline-flex; align-items: center; gap: 2px; margin: 0 0 8px; padding: 3px 10px 3px 6px; border-radius: 6px; font-size: 13px; color: #4b5563; transition: background .15s, color .15s; }
 .portal-vue-head-back:hover { background: #eef3ff; color: #0066FF; }
+
+/* 思考过程：完整保留，可折叠，流式时在框内自动滚到底 */
+.portal-vue-ai-think { margin: 0 0 10px; border-radius: 10px; background: #f6f8fc; overflow: hidden; }
+.portal-vue-ai-think-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: 0; background: transparent; font-size: 12.5px; color: #3a4558; text-align: left; cursor: pointer; }
+.portal-vue-ai-think-head:hover { background: #eef2f9; }
+.portal-vue-ai-think-head .portal-vue-muted { font-size: 12px; }
+.portal-vue-ai-think-arrow { margin-left: auto; color: #8a94a6; font-size: 12px; }
+.portal-vue-ai-think-body { max-height: 280px; overflow-y: auto; padding: 4px 14px 12px; color: #5b6575; font-size: 12.5px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+.portal-vue-ai-think-body.is-live::after { content: "▍"; color: #1677ff; animation: portal-vue-ai-blink 1s steps(2) infinite; }
+
+/* 灵犀智析整屏工作台：去掉顶部多余外边距，左右列贴齐 */
+.portal-vue-ai-layout { margin-top: 0; }
