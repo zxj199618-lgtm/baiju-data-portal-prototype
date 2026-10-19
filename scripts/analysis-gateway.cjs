@@ -893,6 +893,57 @@ function skillInstructions(id) {
   try { return fs.readFileSync(path.join(skillDir(id), "SKILL.md"), "utf8"); } catch { return ""; }
 }
 
+/* 通用分析（路由型）：自身不执行工具，按问题关键词在「用户可用」的技能中自动转交；路由规则与兜底技能在「Skill 配置」里维护 */
+const ROUTER_SKILL_ID = "general-analyst";
+const ROUTER_SKILL_DEFAULTS = {
+  id: ROUTER_SKILL_ID, name: "通用分析 Skill", source: "router", version: "v1.0-portal", kind: "router", scenarioKey: "general", icon: "✦",
+  title: "通用分析", displayDesc: "自动选择最合适的分析技能", desc: "根据问题内容与你可用的分析技能，自动转交给最合适的一个；未命中关键词时使用兜底技能。",
+  sort: 5, enabled: true, grayUsers: [], builtin: true, fallbackSkillId: "warehouse-analyst",
+  routes: [
+    { skillId: "lineage-analyst", keywords: ["血缘", "上游", "下游", "依赖", "影响面", "变更影响"] },
+    { skillId: "attribution-analyst", keywords: ["异动", "归因", "环比", "波动", "为什么", "诊断", "下降", "上涨"] },
+    { skillId: "asset-qa", keywords: ["有哪些表", "哪张表", "负责人", "资产", "口径是什么", "字段含义"] },
+    { skillId: "warehouse-analyst", keywords: ["多少", "汇总", "趋势", "明细", "消耗", "CPA", "ROI", "查询"] }
+  ]
+};
+function ensureRouterSkill(registry) {
+  const existing = registry.find(item => item.id === ROUTER_SKILL_ID);
+  if (!existing) {
+    registry.push({ ...ROUTER_SKILL_DEFAULTS, dir: skillDir(ROUTER_SKILL_ID), installedAt: new Date().toISOString() });
+    return;
+  }
+  /* 展示信息由代码定义覆盖；开关、路由规则与兜底技能保留后台配置 */
+  Object.assign(existing, {
+    name: ROUTER_SKILL_DEFAULTS.name, kind: "router", scenarioKey: ROUTER_SKILL_DEFAULTS.scenarioKey, icon: ROUTER_SKILL_DEFAULTS.icon,
+    title: ROUTER_SKILL_DEFAULTS.title, displayDesc: ROUTER_SKILL_DEFAULTS.displayDesc, desc: ROUTER_SKILL_DEFAULTS.desc, sort: ROUTER_SKILL_DEFAULTS.sort, builtin: true,
+    fallbackSkillId: existing.fallbackSkillId || ROUTER_SKILL_DEFAULTS.fallbackSkillId,
+    routes: Array.isArray(existing.routes) && existing.routes.length ? existing.routes : ROUTER_SKILL_DEFAULTS.routes
+  });
+}
+/* 规范化后台提交的路由规则 */
+function sanitizeRoutes(list) {
+  return list.slice(0, 20).map(route => ({
+    skillId: String(route?.skillId || "").slice(0, 60),
+    keywords: (Array.isArray(route?.keywords) ? route.keywords : []).map(item => String(item).trim()).filter(Boolean).slice(0, 30)
+  })).filter(route => route.skillId);
+}
+/* 自动选择：只在该用户可用的技能（已上线 + 灰度名单）中挑选；命中关键词最多者胜出，未命中用兜底 */
+function pickAutoSkill(router, user, question) {
+  const registry = loadSkillRegistry();
+  const usable = id => registry.find(item => item.id === id && item.kind !== "router" && item.enabled !== false && (!item.grayUsers?.length || item.grayUsers.includes(user))) || null;
+  const text = String(question || "").toLowerCase();
+  let best = null;
+  for (const route of router.routes || []) {
+    const entry = usable(route.skillId);
+    if (!entry) continue;
+    const hits = (route.keywords || []).filter(keyword => keyword && text.includes(String(keyword).toLowerCase()));
+    if (hits.length && (!best || hits.length > best.hits.length)) best = { entry, hits };
+  }
+  if (best) return { skill: best.entry, reason: `命中关键词「${best.hits.join("、")}」` };
+  const fallback = usable(router.fallbackSkillId) || (router.routes || []).map(route => usable(route.skillId)).find(Boolean) || null;
+  return { skill: fallback, reason: "未命中关键词，使用兜底技能" };
+}
+
 /* 内置包定义：SKILL.md + 工具 + 字段元数据，首次启动落盘安装 */
 function installBuiltinPackages() {
   fs.mkdirSync(SKILLS_DIR, { recursive: true });
@@ -982,6 +1033,7 @@ function installBuiltinPackages() {
       registry.push({ id: warehouseDef.id, name: warehouseDef.name, source: warehouseDef.source, version: warehouseDef.version, dir, enabled: true, grayUsers: [], installedAt: new Date().toISOString(), builtin: true });
     }
   })();
+  ensureRouterSkill(registry);
   saveSkillRegistry(registry);
 }
 
@@ -2059,10 +2111,11 @@ async function handleRequest(req, res) {
     const entry = registry.find(item => item.id === id);
     if (!entry) return sendJson(res, 404, { error: `Skill 不存在：${id}` });
     const body = await readBody(req);
-    ["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt", "scenarioKey", "clarification", "assetScope", "responseContract"].forEach(key => {
+    ["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt", "scenarioKey", "clarification", "assetScope", "responseContract", "fallbackSkillId"].forEach(key => {
       if (body[key] !== undefined) entry[key] = body[key];
     });
     if (Array.isArray(body.grayUsers)) entry.grayUsers = body.grayUsers.slice(0, 50);
+    if (Array.isArray(body.routes)) entry.routes = sanitizeRoutes(body.routes);
     saveSkillRegistry(registry);
     return sendJson(res, 200, { id, saved: true });
   }
@@ -2231,8 +2284,13 @@ async function handleRequest(req, res) {
 
     /* Skill 运行时：优先按 skillId 执行注册表里的包（工具出证据 + SKILL.md 出编排），失败回退内置 */
     let buildEvidenceOverride = null;
-    const registrySkill = body.skillId
-      ? loadSkillRegistry().find(item => item.id === body.skillId && item.enabled !== false && (!item.grayUsers?.length || item.grayUsers.includes(user)))
+    /* 通用分析：按问题关键词与用户可用技能自动转交；其余请求按 skillId 直接执行 */
+    const routerEntry = loadSkillRegistry().find(item => item.id === ROUTER_SKILL_ID);
+    const isRouting = Boolean(routerEntry) && (body.skillId === ROUTER_SKILL_ID || (!body.skillId && scenario === "general"));
+    const routed = isRouting ? pickAutoSkill(routerEntry, user, question) : null;
+    const targetSkillId = isRouting ? (routed.skill?.id || "") : body.skillId;
+    const registrySkill = targetSkillId
+      ? loadSkillRegistry().find(item => item.id === targetSkillId && item.enabled !== false && (!item.grayUsers?.length || item.grayUsers.includes(user)))
       : null;
     let skill = null, scene = null, runtimeError = "";
     if (registrySkill) {
@@ -2249,7 +2307,7 @@ async function handleRequest(req, res) {
     if (!skill) {
       const builtin = skills["warehouse-analyst"];
       skill = builtin;
-      scene = builtin.scenarios[scenario] || builtin.scenarios.single;
+      scene = builtin.scenarios[routed?.skill?.scenarioKey || (isRouting ? "data-query" : scenario)] || builtin.scenarios.single;
     }
     const evidenceTables = referenced.length ? referenced : scopedCandidates;
     const evidence = buildEvidenceOverride || buildEvidence(evidenceTables, portalContext);
@@ -2285,7 +2343,7 @@ async function handleRequest(req, res) {
       });
       const send = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
       const heartbeat = setInterval(() => res.write(": hb\n\n"), 5000);
-      send({ started: true, scenario: scene.label, model });
+      send({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "" });
       const reasoningOptions = {};
       // 只在该模型声明支持的档位里透传 reasoning_effort：不支持的模型直接不带这个参数
       const modelReasoning = modelCapabilityFor(model).reasoning;

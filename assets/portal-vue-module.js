@@ -1730,6 +1730,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
   // 工作台场景卡片由「Skill 配置」驱动：icon/标题/描述/排序均来自 skill 注册表
   const skillScenarioFallback = [
+    { id: "general-analyst", kind: "router", scenarioKey: "general", icon: "✦", title: "通用分析", displayDesc: "自动选择最合适的分析技能", sort: 5 },
     { id: "single", icon: "assets/skill-single-table.svg", title: "单表分析", displayDesc: "趋势、分布与异常", sort: 10 }
   ];
 
@@ -1882,11 +1883,19 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   <el-empty v-if="!reports.length" description="暂无分析报告，发起一次分析后自动归档到这里"></el-empty>
                 </div>
               </div>
-              <div v-else class="portal-vue-ai-scenarios">
-                <button v-for="scene in scenarios" :key="scene.key" type="button" class="portal-vue-ai-scenario" :class="{ active: scenario === scene.key }" :title="scene.desc" @click="setScenario(scene.key)">
-                  <span class="portal-vue-ai-scene-icon"><img v-if="isImageIcon(scene.icon)" :src="scene.icon" alt="" /><span v-else>{{ scene.icon }}</span></span>
-                  <span><strong>{{ scene.name }}</strong><small>{{ scene.desc }}</small></span>
-                </button>
+              <div v-else class="portal-vue-ai-skillbar">
+                <div class="portal-vue-ai-skillbar-head">
+                  <span class="portal-vue-ai-skillbar-label">分析技能</span>
+                  <span class="portal-vue-ai-skillbar-hint">{{ scenarioHint }}</span>
+                </div>
+                <div class="portal-vue-ai-scenarios">
+                  <button v-for="scene in scenarios" :key="scene.key" type="button" class="portal-vue-ai-scenario" :class="{ active: scenario === scene.key, 'is-auto': scene.kind === 'router' }" :title="scene.desc" :aria-pressed="scenario === scene.key" @click="setScenario(scene.key)">
+                    <span class="portal-vue-ai-scene-icon"><img v-if="isImageIcon(scene.icon)" :src="scene.icon" alt="" /><span v-else>{{ scene.icon }}</span></span>
+                    <span class="portal-vue-ai-scene-text"><strong>{{ scene.name }}</strong><small>{{ scene.desc }}</small></span>
+                    <span v-if="scene.kind === 'router'" class="portal-vue-ai-scene-badge">自动</span>
+                    <span class="portal-vue-ai-scene-check" aria-hidden="true">✓</span>
+                  </button>
+                </div>
               </div>
               <div v-if="!assetView" class="portal-vue-ai-chat" ref="chatBox">
                 <div v-if="!activeSession.messages.length" class="portal-vue-ai-welcome">
@@ -2021,7 +2030,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       </el-config-provider>
     `,
     data:()=>({
-      scenario: "data-query",
+      scenario: "general",
       input: "",
       thinking: false,
       mentionOpen: false,
@@ -2056,6 +2065,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         return source.filter(item=>item.id!=="numa-warehouse"&&item.enabled!==false&&item.status!=="已停用").sort((a,b)=>(a.sort||99)-(b.sort||99)).map(item=>({...item,key:item.scenarioKey||item.id,icon:item.icon||"✦",name:item.title||item.name,desc:item.displayDesc||item.desc||""}));
       },
       activeSkill(){return this.skillScenarios.find(item=>item.key===this.scenario);},
+      scenarioHint(){return this.activeSkill?.kind==="router"?"自动根据问题内容与你可用的技能选择，也可以手动切换":`当前使用「${this.scenarioName}」，可随时切换，或选「通用分析」让系统自动选择`;},
       scenarioName(){return this.activeSkill?.name||"单表分析";},
       activeSession(){return this.sessions.find(item => item.id === this.activeId) || this.sessions[0] || { messages: [] };},
       currentUser(){refreshTick.value;return state.users.find(user=>user.name==="曾祥竞")||state.users[0];},
@@ -3596,7 +3606,19 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             <el-form-item label="描述"><el-input v-model="editForm.desc" type="textarea" :rows="2" resize="none" placeholder="列表里展示的一句话说明"></el-input></el-form-item>
             <el-form-item label="工作台展示描述"><el-input v-model="editForm.displayDesc" placeholder="如：趋势、分布与异常"></el-input></el-form-item>
             <el-form-item label="排序（越小越靠前）"><el-input-number v-model="editForm.sort" :min="1" :max="999"></el-input-number></el-form-item>
-            <el-form-item label="提示词"><el-input v-model="editForm.prompt" type="textarea" :rows="6" resize="none" placeholder="该版本的分析指令，保存后即时生效"></el-input></el-form-item>
+            <template v-if="activeSkill?.kind==='router'">
+              <el-form-item label="自动路由规则"><div class="portal-vue-route-editor">
+                <p class="portal-vue-muted" style="margin:0 0 10px;font-size:12px">问题命中某条规则的关键词时，转交给对应技能；命中最多者优先，都未命中则使用兜底技能。只会选择对当前用户可用（已上线、在灰度范围内）的技能。</p>
+                <div v-for="(route,index) in editForm.routes" :key="index" class="portal-vue-route-row">
+                  <el-select v-model="route.skillId" placeholder="选择技能" style="width:200px"><el-option v-for="item in routeOptions" :key="item.id" :label="item.name" :value="item.id"></el-option></el-select>
+                  <el-input v-model="route.keywords" placeholder="命中关键词，用顿号分隔，如 血缘、上游、下游"></el-input>
+                  <el-button link type="danger" @click="editForm.routes.splice(index,1)">删除</el-button>
+                </div>
+                <el-button @click="editForm.routes.push({skillId:'',keywords:''})">＋ 新增规则</el-button>
+              </div></el-form-item>
+              <el-form-item label="兜底技能（未命中关键词时使用）"><el-select v-model="editForm.fallbackSkillId" placeholder="选择兜底技能" style="width:260px"><el-option v-for="item in routeOptions" :key="item.id" :label="item.name" :value="item.id"></el-option></el-select></el-form-item>
+            </template>
+            <el-form-item v-else label="提示词"><el-input v-model="editForm.prompt" type="textarea" :rows="6" resize="none" placeholder="该版本的分析指令，保存后即时生效"></el-input></el-form-item>
             <el-form-item label="版本号" required><el-input v-model="editForm.version" placeholder="如：v1.4"></el-input></el-form-item>
             <el-form-item label="版本内容说明"><el-input v-model="editForm.versionNote" type="textarea" :rows="2" resize="none" placeholder="如：新增自动澄清、修复口径问题"></el-input></el-form-item>
             <el-form-item label="上线状态"><el-switch :disabled="!canEdit('Skill 配置')" v-model="editForm.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">新版本先保存为「未发布」，到版本管理灰度 / 发版</span></el-form-item>
@@ -3666,6 +3688,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     data:()=>({keyword:"",createVisible:false,createForm:{},editVisible:false,editForm:{},activeSkill:null,publishVisible:false,publishSkill:null,viewVisible:false,viewVersion:null,grayDialogVisible:false,grayVersion:null,grayDraft:[]}),
     computed:{
       skills(){refreshTick.value;return (state.skills||[]).filter(item=>item.id!=="numa-warehouse");},
+      routeOptions(){refreshTick.value;return (state.skills||[]).filter(item=>item.kind!=="router"&&item.id!=="numa-warehouse").map(item=>({id:item.id,name:item.title||item.name}));},
       filteredRows(){const keyword=this.keyword.trim().toLowerCase();return this.skills.filter(item=>!keyword||`${item.name} ${item.title||""} ${item.desc||""}`.toLowerCase().includes(keyword));},
       currentUser(){refreshTick.value;return loginUser()||state.users[0];},
       activeUsers(){refreshTick.value;return state.users.filter(user=>user.status!=="已停用");}
@@ -3719,7 +3742,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         const skill=row||this.publishSkill;
         if(!skill)return;
         this.activeSkill=skill;
-        this.editForm={icon:skill.icon||"✦",title:skill.title||"",desc:skill.desc||"",displayDesc:skill.displayDesc||"",sort:skill.sort||50,enabled:skill.enabled!==false,prompt:skill.prompt||"",version:this.nextVersion(),versionNote:""};
+        this.editForm={icon:skill.icon||"✦",title:skill.title||"",desc:skill.desc||"",displayDesc:skill.displayDesc||"",sort:skill.sort||50,enabled:skill.enabled!==false,prompt:skill.prompt||"",version:this.nextVersion(),versionNote:"",routes:(skill.routes||[]).map(route=>({skillId:route.skillId,keywords:(route.keywords||[]).join("、")})),fallbackSkillId:skill.fallbackSkillId||""};
         this.editVisible=true;
       },
       openViewVersion(item){this.viewVersion=item;this.viewVisible=true;},
@@ -3729,13 +3752,15 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if(!skill)return;
         if(!String(form.title||"").trim())return ep.ElMessage.warning("请输入工作台展示标题");
         const note=String(form.versionNote||"").trim()||"更新配置";
-        const snapshot={icon:form.icon||"✦",title:form.title.trim(),desc:String(form.desc||"").trim(),displayDesc:String(form.displayDesc||"").trim(),sort:form.sort,enabled:form.enabled,prompt:form.prompt};
+        const routing=skill.kind==="router";
+        const routes=routing?(form.routes||[]).map(route=>({skillId:route.skillId,keywords:String(route.keywords||"").split(/[、,，]/).map(item=>item.trim()).filter(Boolean)})).filter(route=>route.skillId):undefined;
+        const snapshot={icon:form.icon||"✦",title:form.title.trim(),desc:String(form.desc||"").trim(),displayDesc:String(form.displayDesc||"").trim(),sort:form.sort,enabled:form.enabled,prompt:form.prompt,...(routing?{routes,fallbackSkillId:form.fallbackSkillId}:{})};
         Object.assign(skill,snapshot);
         const version=String(form.version||"").trim()||this.nextVersion();
         skill.versions=(skill.versions||[]).map(item=>({...item,current:false}));
         skill.versions.unshift({version,time:new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-"),operator:this.currentUser?.name||"曾祥竞",note,current:true,status:"未发布",grayUsers:[],snapshot});
         skill.version=version;
-        try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(skill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:snapshot.icon,title:snapshot.title,desc:snapshot.desc,displayDesc:snapshot.displayDesc,sort:snapshot.sort,enabled:snapshot.enabled,prompt:snapshot.prompt,latestVersion:{version,note,status:"未发布",grayUsers:[]}})});}catch(error){/* 网关未连接时保留原型状态 */}
+        try{await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(skill.id)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({icon:snapshot.icon,title:snapshot.title,desc:snapshot.desc,displayDesc:snapshot.displayDesc,sort:snapshot.sort,enabled:snapshot.enabled,prompt:snapshot.prompt,...(routing?{routes,fallbackSkillId:snapshot.fallbackSkillId}:{}),latestVersion:{version,note,status:"未发布",grayUsers:[]}})});}catch(error){/* 网关未连接时保留原型状态 */}
         this.editVisible=false;
         notify(`「${skill.name}」已保存为 ${version}（未发布，可到「版本管理」灰度 / 发版）`);
       },

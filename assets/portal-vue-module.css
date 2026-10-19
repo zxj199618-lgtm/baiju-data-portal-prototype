@@ -1050,3 +1050,30 @@
 
 /* 灵犀智析整屏工作台：去掉顶部多余外边距，左右列贴齐 */
 .portal-vue-ai-layout { margin-top: 0; }
+
+/* 灵犀智析：分析技能切换条（醒目版） */
+.portal-vue-ai-skillbar { margin: 10px 16px 0; padding: 12px 14px; border: 1px solid #dbe6f5; border-radius: 12px; background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%); }
+.portal-vue-ai-skillbar-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 10px; }
+.portal-vue-ai-skillbar-label { font-size: 13px; font-weight: 700; color: #1f2733; padding-left: 9px; border-left: 3px solid #1677ff; line-height: 16px; }
+.portal-vue-ai-skillbar-hint { font-size: 12px; color: #6b7587; }
+.portal-vue-ai-skillbar .portal-vue-ai-scenarios { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario { position: relative; min-height: 56px; padding: 10px 12px; border: 1.5px solid #d3dcea; border-radius: 10px; background: #fff; color: #1f2733; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); transition: border-color .15s, box-shadow .15s, background .15s, transform .15s; }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario:hover { border-color: #1677ff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22, 119, 255, .12); }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario.active { border-color: #1677ff; background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%); color: #fff; box-shadow: 0 6px 16px rgba(22, 119, 255, .32); }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario.active strong { color: #fff; }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario.active small { color: rgba(255, 255, 255, .85); }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario.active .portal-vue-ai-scene-icon { background: rgba(255, 255, 255, .2); }
+.portal-vue-ai-skillbar .portal-vue-ai-scene-text { min-width: 0; flex: 1; }
+.portal-vue-ai-skillbar .portal-vue-ai-scene-text strong { font-size: 13px; }
+.portal-vue-ai-skillbar .portal-vue-ai-scene-text small { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portal-vue-ai-scene-badge { flex: none; padding: 1px 6px; border-radius: 999px; background: #e7f1ff; color: #1677ff; font-size: 11px; line-height: 16px; }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario.active .portal-vue-ai-scene-badge { background: rgba(255, 255, 255, .25); color: #fff; }
+.portal-vue-ai-scene-check { flex: none; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: transparent; border: 1.5px solid #c4cedd; }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario.active .portal-vue-ai-scene-check { color: #1677ff; background: #fff; border-color: #fff; font-weight: 700; }
+@media (max-width: 720px) { .portal-vue-ai-skillbar { margin: 8px 10px 0; } .portal-vue-ai-skillbar .portal-vue-ai-scenarios { grid-template-columns: 1fr; } }
+
+/* 后台 Skill 配置：自动路由规则编辑器 */
+.portal-vue-route-editor { width: 100%; }
+.portal-vue-route-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.portal-vue-route-row .el-input { flex: 1; min-width: 0; }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario small { display: block; }
