@@ -39,7 +39,7 @@ function startFakeRelay(state) {
       req.on("end", () => {
         if (req.method === "GET" && req.url.startsWith("/v1/models")) {
           res.writeHead(200, { "Content-Type": "application/json" });
-          return res.end(JSON.stringify({ data: [{ id: MODEL }] }));
+          return res.end(JSON.stringify({ data: (state.models || [MODEL]).map(id => ({ id })) }));
         }
         if (req.method === "POST" && req.url.startsWith("/v1/chat/completions")) {
           const body = JSON.parse(raw || "{}");
@@ -103,8 +103,9 @@ function startGateway(env) {
   });
 }
 
-async function startHarness({ env = {} } = {}) {
+async function startHarness({ env = {}, prepare } = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "gateway-harness-"));
+  if (prepare) prepare(dataDir); // 在网关启动前预置数据目录（例如放一份过期的工具脚本）
   const relayState = { requests: [], toolScript: [], report: "默认测试回答", usage: { prompt_tokens: 6, completion_tokens: 4, total_tokens: 10 } };
   const fakeRelay = await startFakeRelay(relayState);
   const port = await freePort();

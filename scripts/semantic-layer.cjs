@@ -97,7 +97,7 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
   }
 
   /** 查询指标：最近 N 天 vs 前 N 天，可按一个维度拆分。table 缺省时仅在唯一可选表时自动选择 */
-  function query({ metric: metricKey, table: requestedTable, group, days, allowedTables }) {
+  function query({ metric: metricKey, table: requestedTable, group, days, filters, allowedTables }) {
     const metric = findMetric(metricKey);
     if (!metric) return { ok: false, error: `未找到指标：${metricKey || "（未指定）"}，请先用 list_metrics 查看可用指标` };
     const allowed = new Set(allowedTables);
@@ -112,10 +112,19 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
 
     const config = tableConfig.get(tableName);
     if (group && !config.dimensions.includes(group)) return { ok: false, error: `该表不支持按 ${group} 分组，可用分组：${config.dimensions.join("、") || "无"}` };
+    // 筛选：只允许该表声明过的文本维度，按「字段 = 任一取值」过滤；多个筛选之间是「且」
+    const activeFilters = [];
+    for (const filter of Array.isArray(filters) ? filters : []) {
+      const field = String(filter?.field || "");
+      const values = (Array.isArray(filter?.values) ? filter.values : [filter?.values]).map(value => String(value ?? "").trim()).filter(Boolean);
+      if (!config.dimensions.includes(field)) return { ok: false, error: `该表不支持按 ${field || "（空）"} 筛选，可用维度：${config.dimensions.join("、") || "无"}` };
+      if (!values.length || values.length > 20) return { ok: false, error: `筛选 ${field} 需要 1 到 20 个取值` };
+      activeFilters.push({ field, values });
+    }
     const windowDays = Math.min(90, Math.max(1, Math.floor(num(days)) || 7));
-    const rows = rowsOf(tableName);
+    const rows = rowsOf(tableName).filter(row => activeFilters.every(({ field, values }) => values.includes(String(row[field] ?? ""))));
     const anchor = rows.map(row => dayOf(row[config.dateField])).sort().at(-1);
-    if (!anchor) return { ok: true, data: { 表名: tableName, 指标: metric.id, 说明: "该表没有数据" } };
+    if (!anchor) return { ok: true, data: { 表名: tableName, 指标: metric.id, ...(activeFilters.length ? { 筛选: activeFilters.map(({ field, values }) => ({ 字段: field, 取值: values })) } : {}), 说明: activeFilters.length ? "筛选后没有数据：请检查取值是否写对（取值需与数据里的写法完全一致）" : "该表没有数据" } };
     const windows = {
       current: { start: shiftDay(anchor, -(windowDays - 1)), end: anchor },
       prior: { start: shiftDay(anchor, -(2 * windowDays - 1)), end: shiftDay(anchor, -windowDays) }
@@ -142,6 +151,7 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
       前N天: round(priorTotal, digits),
       ...change(currentTotal, priorTotal)
     };
+    if (activeFilters.length) data.筛选 = activeFilters.map(({ field, values }) => ({ 字段: field, 取值: values }));
 
     if (group) {
       const keys = new Set([...currentRows, ...priorRows].map(row => String(row[group] ?? "—")));

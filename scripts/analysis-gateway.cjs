@@ -30,12 +30,13 @@ const path = require("path");
 const crypto = require("crypto");
 const { createAuth } = require("./gateway-auth.cjs");
 const { checkNumericGrounding } = require("./numeric-check.cjs");
-const { computeAttribution } = require("./attribution-calc.cjs");
+const { computeAttribution, parseWindowDays } = require("./attribution-calc.cjs");
 const { createAnalysisToolkit } = require("./analysis-tools.cjs");
 const { createUsageTracker } = require("./usage-quota.cjs");
 const { createSemanticLayer } = require("./semantic-layer.cjs");
 const { createFeedbackStore, RATINGS } = require("./feedback-store.cjs");
 const { createOrgStore } = require("./org-store.cjs");
+const { createAccountStore } = require("./account-store.cjs");
 
 const RELAY_BASE_URL = process.env.RELAY_BASE_URL || "https://simindapi.modelgs.com";
 const RELAY_API_KEYS = (process.env.RELAY_API_KEY || "").split(",").map(key => key.trim()).filter(Boolean);
@@ -48,7 +49,9 @@ const SHARES_FILE = path.join(DATA_DIR, "report-shares.json");
 const HISTORY_FILE = path.join(DATA_DIR, "workbench-history.json");
 const LEGACY_HISTORY_FILE = path.join(DATA_DIR, "workbench-history.legacy.json");
 const SAMPLE_DATA_FILE = path.join(DATA_DIR, "sample-data.json");
-const DEFAULT_MODEL = "gpt-5.4-mini";
+/* 默认模型：管理员在界面设置的优先（model-config.json 的 defaultModel），其次环境变量 DEFAULT_MODEL，最后内置值；
+   设置的模型不可用（被停用或供应商没有它）时自动退回到清单里的第一个可用模型 */
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "gpt-5.4-mini";
 const TODAY = "2026-08-31";
 
 /* ================= 模拟数据生成（确定性随机，可复现） ================= */
@@ -722,16 +725,21 @@ const TOOL_MAX_STEPS = 4;
 const TOOL_MAX_CALLS = 8;
 const AUDIT_FILE = path.join(DATA_DIR, "analysis-audit.jsonl");
 
+/* 演示登录模式（PORTAL_DEMO_LOGIN_PASSWORD）：账号共用一个公开密码，所以
+   - 不做「连续输错锁定」（否则任何人都能用脚本把演示账号反复锁死）；
+   - 历史与用量按「账号~访客」分开记（访客 id 由浏览器随机生成并随请求头 X-Visitor-Id 发送），访客之间互不可见、各自计数；
+   - 全站每日 token 总量兜底（默认 2000 万，可用 PORTAL_GLOBAL_DAILY_TOKEN_LIMIT 调整），避免公开账号被刷出高额费用。 */
+if (process.env.PORTAL_DEMO_LOGIN_PASSWORD && process.env.PORTAL_GLOBAL_DAILY_TOKEN_LIMIT === undefined) process.env.PORTAL_GLOBAL_DAILY_TOKEN_LIMIT = "20000000";
 const usageTracker = createUsageTracker({ dataDir: DATA_DIR });
 const feedbackStore = createFeedbackStore({ dataDir: DATA_DIR });
 const tokensOf = usage => Number(usage?.total_tokens) || ((Number(usage?.prompt_tokens) || 0) + (Number(usage?.completion_tokens) || 0));
 
 /** 一次分析结束：累计 token 用量，并写一条审计（谁、问了什么、用了什么、花了多少、结果如何） */
-function finishAnalysis({ user, requestId, question, model, skillName, scenarioLabel, toolMode, toolCalls, tablesUsed, usage, extraTokens = 0, latencyMs, numericCheck, status, error = "" }) {
+function finishAnalysis({ user, scope = user, requestId, question, model, skillName, scenarioLabel, toolMode, toolCalls, tablesUsed, usage, extraTokens = 0, latencyMs, numericCheck, status, error = "" }) {
   const tokens = tokensOf(usage) + extraTokens;
-  usageTracker.recordTokens(user, tokens);
+  usageTracker.recordTokens(scope, tokens);
   appendAuditEntry({
-    type: "analysis", user, requestId, status, error: error ? String(error).slice(0, 200) : undefined,
+    type: "analysis", user, scope: scope !== user ? scope : undefined, requestId, status, error: error ? String(error).slice(0, 200) : undefined,
     question: String(question).slice(0, 300), model, skill: skillName, scenario: scenarioLabel,
     toolMode, toolCallCount: toolCalls.length, tablesUsed, tokens, latencyMs,
     ungroundedNumbers: numericCheck ? numericCheck.ungrounded.length : null
@@ -743,6 +751,21 @@ function readAuditEntries() {
   try {
     return fs.readFileSync(AUDIT_FILE, "utf8").split("\n").filter(Boolean).map(line => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
   } catch { return []; }
+}
+
+/** 只读审计日志的末尾（默认最近 4MB），日志变大后查询也不会变慢；返回按时间倒序的记录 */
+function readAuditTail(maxBytes = 4 * 1024 * 1024) {
+  let fd;
+  try {
+    fd = fs.openSync(AUDIT_FILE, "r");
+    const size = fs.fstatSync(fd).size;
+    const start = Math.max(0, size - maxBytes);
+    const buffer = Buffer.alloc(size - start);
+    fs.readSync(fd, buffer, 0, buffer.length, start);
+    const lines = buffer.toString("utf8").split("\n");
+    if (start > 0) lines.shift(); // 第一行可能被截断
+    return lines.filter(Boolean).map(line => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean).reverse();
+  } catch { return []; } finally { if (fd !== undefined) fs.closeSync(fd); }
 }
 
 function appendAuditEntry(entry) {
@@ -797,7 +820,8 @@ async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEven
 }
 
 /* 指标异动归因：维度贡献由代码确定性计算（attribution-calc.cjs），写入每张表的证据「归因计算」，模型只负责解释 */
-function attachAttribution(evidence, tableNames) {
+function attachAttribution(evidence, tableNames, question = "") {
+  const days = parseWindowDays(question);
   const targets = tableNames.map(name => tables.find(table => table.cnName === name)).filter(Boolean).slice(0, 3);
   if (!targets.length) {
     evidence.push({ 归因计算: { available: false, reason: "所选数据表不在门户表目录中，无法归因" } });
@@ -809,7 +833,8 @@ function attachAttribution(evidence, tableNames) {
       dateKey: agg.dateKey || "",
       metric: agg.metric || "",
       dimensions: (agg.groupBy || []).filter(Boolean),
-      activateKey: "activate_cnt"
+      activateKey: "activate_cnt",
+      days
     });
     let item = evidence.find(entry => entry.表名 === table.cnName);
     if (!item) {
@@ -880,17 +905,21 @@ const users = [
 
 /* 身份：账号密码登录，令牌由服务端签发；角色由权限组决定（门户管理员 = 管理员），不信任请求体里的任何用户名 */
 /* 组与账号分组：管理员在界面保存后以 org.json 为准，之前使用上面的默认值 */
+/* 账号列表：可新增 / 停用，保存在 accounts.json；上面的 users 只是首次启动时的默认账号 */
+const accountStore = createAccountStore({ dataDir: DATA_DIR, defaults: users.map(item => item.name) });
+const generatePassword = () => crypto.randomBytes(9).toString("base64url");
 const orgStore = createOrgStore({
   dataDir: DATA_DIR,
   defaultGroups: permissionGroups,
   defaultUserGroups: Object.fromEntries(users.map(item => [item.name, item.group])),
-  accounts: users.map(item => item.name),
+  accounts: () => accountStore.names(),
+  isActive: name => accountStore.isActive(name),
   tableNames: allTableNames
 });
 const auth = createAuth(DATA_DIR);
 const DEMO_LOGIN_PASSWORD = String(process.env.PORTAL_DEMO_LOGIN_PASSWORD || "");
 function roleOf(name) {
-  return users.some(item => item.name === name) && orgStore.isAdmin(name) ? "admin" : "user";
+  return accountStore.isActive(name) && orgStore.isAdmin(name) ? "admin" : "user";
 }
 
 /* ================= Skill 包运行时（SKILL.md + 工具脚本 + 注册表） ================= */
@@ -990,7 +1019,8 @@ process.stdin.on("end", () => {
       if (metric) stats.sort((a, b) => (b.合计[metric] || 0) - (a.合计[metric] || 0));
       stats = stats.slice(0, 8);
       if (dateKey && metric) {
-        const mk = back => { const d = new Date(Date.UTC(2026, 7, 31)); d.setUTCDate(d.getUTCDate() - back); return d.toISOString().slice(0, 10); };
+        const anchorDay = rows.map(r => String(r[dateKey]).slice(0, 10)).sort().pop();
+        const mk = back => { const d = new Date(anchorDay + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() - back); return d.toISOString().slice(0, 10); };
         const s7 = mk(7), s14 = mk(14);
         stats.forEach(st => {
           const g = groups[st.组];
@@ -1175,6 +1205,17 @@ function installBuiltinPackages() {
       registry.push({ id: warehouseDef.id, name: warehouseDef.name, source: warehouseDef.source, version: warehouseDef.version, dir, enabled: true, grayUsers: [], installedAt: new Date().toISOString(), builtin: true });
     }
   })();
+  /* 工具脚本是代码、不是配置：每次启动都以代码里的版本为准（内容不同才重写）。
+     不依赖版本号变化，这样更新脚本不会重置管理员在界面里改过的 Skill 配置（升级内置包时会覆盖追问等配置）。 */
+  const writeToolIfChanged = (file, source) => {
+    try {
+      if (fs.existsSync(file) && fs.readFileSync(file, "utf8") === source) return;
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, source);
+    } catch (error) { console.warn(`[skills] 工具脚本更新失败 ${file}：${error.message}`); }
+  };
+  defs.forEach(def => writeToolIfChanged(path.join(skillDir(def.id), "tools", "evidence.cjs"), EVIDENCE_TOOL_SOURCE));
+  writeToolIfChanged(path.join(skillDir(warehouseDef.id), "tools", "warehouse-evidence.cjs"), WAREHOUSE_EVIDENCE_TOOL);
   ensureRouterSkill(registry);
   saveSkillRegistry(registry);
 }
@@ -1824,7 +1865,7 @@ function saveHistory(userName, box) {
 }
 
 function userTables(userName) {
-  if (!users.some(item => item.name === userName)) return [];
+  if (!accountStore.has(userName)) return [];
   const override = loadPermissionOverrides()[userName];
   if (override) return override.tables.includes("全部数据表") ? [...allTableNames] : [...override.tables];
   return orgStore.tablesOf(userName);
@@ -1907,7 +1948,7 @@ function resolveCorsOrigin(req) {
 
 function corsHeadersFor(res) {
   const headers = {
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Visitor-Id",
     "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
     Vary: "Origin"
   };
@@ -2056,8 +2097,8 @@ function isPublicApi(method, pathname) {
 
 /* 管理类接口：AI 中心（供应商、模型配置、Skill 管理）、表数据与权限的写操作，以及供应商明细读取 */
 function requiresAdmin(method, pathname) {
-  if (method === "GET") return pathname === "/v1/providers" || pathname === "/v1/model-config" || pathname === "/v1/usage/all" || pathname === "/v1/feedback";
-  return /^\/v1\/(providers|model-config|table-rows|permissions|quota|org|skills\/upload)(\/|$)/.test(pathname) || /^\/v1\/skills\/[^/]+\/config$/.test(pathname);
+  if (method === "GET") return pathname === "/v1/providers" || pathname === "/v1/model-config" || pathname === "/v1/usage/all" || pathname === "/v1/feedback" || pathname === "/v1/accounts" || pathname === "/v1/audit";
+  return /^\/v1\/(providers|model-config|default-model|table-rows|permissions|quota|org|accounts|skills\/upload)(\/|$)/.test(pathname) || /^\/v1\/skills\/[^/]+\/config$/.test(pathname);
 }
 
 async function handleRequest(req, res) {
@@ -2070,17 +2111,20 @@ async function handleRequest(req, res) {
   /* 身份闸门：除公开接口外，所有 /v1/ 接口都要求有效令牌；管理类接口再要求管理员角色 */
   if (url.pathname.startsWith("/v1/") && !isPublicApi(req.method, url.pathname)) {
     const username = auth.userFromRequest(req);
-    if (!username || !users.some(item => item.name === username)) return sendJson(res, 401, { error: "请先登录" });
+    // 账号被停用后，已经签发的令牌下一次请求就失效（不用等令牌过期）
+    if (!username || !accountStore.isActive(username)) return sendJson(res, 401, { error: username && accountStore.has(username) ? "账号已停用，请联系管理员" : "请先登录" });
     const role = roleOf(username);
     if (requiresAdmin(req.method, url.pathname) && role !== "admin") return sendJson(res, 403, { error: "该操作需要门户管理员权限" });
-    req.session = { name: username, role };
+    // 演示模式下按「账号~访客」区分同一账号的不同浏览器；非演示模式忽略该请求头
+    const visitor = DEMO_LOGIN_PASSWORD && /^[A-Za-z0-9_-]{8,40}$/.test(String(req.headers["x-visitor-id"] || "")) ? String(req.headers["x-visitor-id"]) : "";
+    req.session = { name: username, role, scope: visitor ? `${username}~${visitor}` : username };
   }
 
   /* 本地演示登录：仅当显式设置了 PORTAL_DEMO_LOGIN_PASSWORD 才开启，登录页会据此给出账号快捷按钮并自动填密码。
      它会把这个密码公开给任何访问者，所以默认关闭，只能用于本机；服务器部署不要设置。 */
   if (req.method === "GET" && url.pathname === "/v1/auth/demo") {
     if (!DEMO_LOGIN_PASSWORD) return sendJson(res, 404, { error: "未开启演示登录" });
-    return sendJson(res, 200, { accounts: users.map(item => ({ name: item.name, role: roleOf(item.name) })), password: DEMO_LOGIN_PASSWORD });
+    return sendJson(res, 200, { accounts: accountStore.activeNames().map(name => ({ name, role: roleOf(name) })), password: DEMO_LOGIN_PASSWORD });
   }
 
   if (req.method === "POST" && url.pathname === "/v1/auth/login") {
@@ -2088,13 +2132,15 @@ async function handleRequest(req, res) {
     const name = String(body.name || "").trim();
     const password = String(body.password || "");
     // 未知用户与密码错误返回同样的提示，避免枚举账号
-    if (!users.some(item => item.name === name)) return sendJson(res, 401, { error: "账号或密码错误" });
-    if (auth.isLocked(name)) return sendJson(res, 429, { error: "失败次数过多，请 15 分钟后再试" });
+    if (!accountStore.has(name)) return sendJson(res, 401, { error: "账号或密码错误" });
+    if (!DEMO_LOGIN_PASSWORD && auth.isLocked(name)) return sendJson(res, 429, { error: "失败次数过多，请 15 分钟后再试" });
     if (!auth.checkPassword(name, password)) {
-      auth.recordFailure(name);
+      if (!DEMO_LOGIN_PASSWORD) auth.recordFailure(name);
       return sendJson(res, 401, { error: "账号或密码错误" });
     }
     auth.clearFailures(name);
+    // 密码正确但账号已停用：明确告知（此时已证明是账号主人，不算泄露账号是否存在）
+    if (!accountStore.isActive(name)) return sendJson(res, 403, { error: "账号已停用，请联系管理员" });
     return sendJson(res, 200, { token: auth.issueToken(name), user: { name, role: roleOf(name), group: orgStore.groupOf(name) } });
   }
 
@@ -2131,7 +2177,8 @@ async function handleRequest(req, res) {
     const disabled = modelConfig.disabled || {};
     const capabilityOverrides = modelConfig.models || {};
     const enabledModels = usable.filter(id => !disabled[id]).sort();
-    const defaultModel = enabledModels.includes(DEFAULT_MODEL) ? DEFAULT_MODEL : enabledModels[0] || DEFAULT_MODEL;
+    const configuredDefault = modelConfig.defaultModel || "";
+    const defaultModel = [configuredDefault, DEFAULT_MODEL].find(id => id && enabledModels.includes(id)) || enabledModels[0] || DEFAULT_MODEL;
     return sendJson(res, 200, {
       models: enabledModels,
       allModels: usable.sort().map(id => ({ id, enabled: !disabled[id], reason: disabled[id]?.reason || "", source: callable.find(row => row.id === id)?.source || "" })),
@@ -2141,6 +2188,7 @@ async function handleRequest(req, res) {
         return { id, contextLimit: capability.contextLimit, reasoning: capability.reasoning, capabilityConfigured: capability.configured };
       }),
       default: defaultModel,
+      defaultConfigured: configuredDefault,
       notice
     });
   }
@@ -2414,7 +2462,7 @@ async function handleRequest(req, res) {
     const body = await readBody(req, 8000);
     const requestId = String(body.requestId || "").slice(0, 80);
     if (!RATINGS.includes(body.rating)) return sendJson(res, 400, { error: "评价只能是 up 或 down" });
-    const analysis = readAuditEntries().find(entry => entry.type === "analysis" && entry.requestId === requestId && entry.user === req.session.name);
+    const analysis = readAuditEntries().find(entry => entry.type === "analysis" && entry.requestId === requestId && (entry.scope || entry.user) === req.session.scope);
     if (!analysis) return sendJson(res, 404, { error: "找不到这次分析，或它不属于当前账号" });
     const saved = feedbackStore.set({ requestId, user: req.session.name, rating: body.rating, comment: body.comment, model: analysis.model, skill: analysis.skill, scenario: analysis.scenario, toolMode: analysis.toolMode, question: analysis.question });
     return sendJson(res, 200, { saved: true, rating: saved.rating });
@@ -2430,7 +2478,7 @@ async function handleRequest(req, res) {
     const own = orgStore.groupOf(req.session.name);
     return {
       role: req.session.role,
-      accounts: admin ? users.map(item => item.name) : [req.session.name],
+      accounts: admin ? accountStore.names() : [req.session.name],
       customized: org.customized,
       // 还没有管理员保存过时不下发组配置，界面继续使用自带的默认配置
       groups: org.customized ? (admin ? org.groups : org.groups.filter(group => group.name === own)) : [],
@@ -2457,43 +2505,124 @@ async function handleRequest(req, res) {
   // 按口径直接查询指标（与 query_metric 工具同一套计算与权限）：供评测取「标准答案」，也可给界面或外部调用
   if (req.method === "POST" && url.pathname === "/v1/metrics/query") {
     const body = await readBody(req, 20000);
-    const outcome = semanticLayer.query({ metric: body.metric, table: body.table, group: body.group, days: body.days, allowedTables: userTables(req.session.name) });
+    const outcome = semanticLayer.query({ metric: body.metric, table: body.table, group: body.group, days: body.days, filters: body.filters, allowedTables: userTables(req.session.name) });
     return sendJson(res, outcome.ok ? 200 : 400, outcome.ok ? outcome.data : { error: outcome.error });
+  }
+
+  // 审计日志查询（管理员）：按类型 / 账号 / 状态筛选，最近的在前，默认 50 条、最多 200 条
+  if (req.method === "GET" && url.pathname === "/v1/audit") {
+    const type = url.searchParams.get("type") || "";
+    const user = url.searchParams.get("user") || "";
+    const status = url.searchParams.get("status") || "";
+    const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit")) || 50));
+    const all = readAuditTail().filter(entry => (!type || entry.type === type) && (!user || entry.user === user) && (!status || entry.status === status));
+    const counts = {};
+    all.forEach(entry => { counts[entry.type] = (counts[entry.type] || 0) + 1; });
+    return sendJson(res, 200, { items: all.slice(0, limit), matched: all.length, counts });
+  }
+
+  // 账号管理（管理员）：新增、停用 / 启用、重置密码。停用立即生效（已签发的令牌下一次请求就被拒绝）。
+  // 不提供删除：账号名是历史、反馈、审计的归属键，删掉会让这些记录失去主人。
+  const accountView = name => ({
+    name, status: accountStore.isActive(name) ? "active" : "disabled", group: orgStore.groupOf(name), role: roleOf(name),
+    createdAt: accountStore.list().find(account => account.name === name)?.createdAt || null
+  });
+  if (req.method === "GET" && url.pathname === "/v1/accounts") {
+    return sendJson(res, 200, { accounts: accountStore.names().map(accountView), demoMode: Boolean(DEMO_LOGIN_PASSWORD) });
+  }
+  if (req.method === "POST" && url.pathname === "/v1/accounts") {
+    const body = await readBody(req, 4000);
+    const created = accountStore.create(body.name);
+    if (!created.ok) return sendJson(res, 400, { error: created.error });
+    // 演示模式下所有账号共用公开密码，不再单独生成；否则生成随机初始密码，只在这次响应里返回
+    const password = DEMO_LOGIN_PASSWORD ? "" : generatePassword();
+    auth.setPassword(created.name, DEMO_LOGIN_PASSWORD || password);
+    let warning = "";
+    if (body.group) {
+      const outcome = orgStore.save({ userGroups: { [created.name]: String(body.group) } });
+      if (!outcome.ok) warning = `账号已创建，但权限组没有设置成功：${outcome.error}`;
+    }
+    appendAuditEntry({ type: "account-create", user: req.session.name, account: created.name });
+    return sendJson(res, 200, { account: accountView(created.name), password, warning });
+  }
+  const accountMatch = url.pathname.match(/^\/v1\/accounts\/([^/]+)(\/reset-password)?$/);
+  if (accountMatch) {
+    const name = decodeURIComponent(accountMatch[1]);
+    if (!accountStore.has(name)) return sendJson(res, 404, { error: `账号不存在：${name}` });
+    if (req.method === "PATCH" && !accountMatch[2]) {
+      const body = await readBody(req, 2000);
+      if (!["active", "disabled"].includes(body.status)) return sendJson(res, 400, { error: "状态只能是 active 或 disabled" });
+      if (body.status === "disabled") {
+        if (name === req.session.name) return sendJson(res, 400, { error: "不能停用自己的账号" });
+        const remainingAdmins = accountStore.activeNames().filter(item => item !== name && orgStore.isAdmin(item));
+        if (!remainingAdmins.length) return sendJson(res, 400, { error: "至少需要保留一个未停用的门户管理员账号" });
+      }
+      accountStore.setStatus(name, body.status);
+      appendAuditEntry({ type: "account-status", user: req.session.name, account: name, status: body.status });
+      return sendJson(res, 200, { account: accountView(name) });
+    }
+    if (req.method === "POST" && accountMatch[2]) {
+      if (DEMO_LOGIN_PASSWORD) return sendJson(res, 403, { error: "演示环境的账号共用公开密码，不允许重置密码" });
+      const password = generatePassword();
+      auth.setPassword(name, password);
+      auth.clearFailures(name);
+      appendAuditEntry({ type: "account-reset-password", user: req.session.name, account: name });
+      return sendJson(res, 200, { password });
+    }
+  }
+
+  // 默认模型：管理员指定新会话默认选中的模型（传空字符串清除，退回环境变量 / 内置默认）
+  if (req.method === "PUT" && url.pathname === "/v1/default-model") {
+    const body = await readBody(req, 4000);
+    const model = String(body.model || "").trim();
+    const config = loadModelConfig();
+    if (model) {
+      const { rows } = await collectModels();
+      const callable = new Set(rows.filter(row => row.callable).map(row => row.id));
+      if (!callable.has(model)) return sendJson(res, 400, { error: `模型「${model}」不在可调用的模型清单里，请先在供应商配置里接入并拉取模型` });
+      if (config.disabled?.[model]) return sendJson(res, 400, { error: `模型「${model}」已被停用，不能设为默认` });
+      config.defaultModel = model;
+    } else {
+      delete config.defaultModel;
+    }
+    saveModelConfig(config);
+    appendAuditEntry({ type: "default-model", user: req.session.name, model: model || null });
+    return sendJson(res, 200, { defaultConfigured: config.defaultModel || "" });
   }
 
   // 用量与配额：个人查看自己的今日用量；管理员查看全员并调整限额（0 = 不限）
   if (req.method === "GET" && url.pathname === "/v1/usage") {
-    return sendJson(res, 200, { ...usageTracker.usageOf(req.session.name), limits: usageTracker.limitsFor(req.session.name) });
+    return sendJson(res, 200, { ...usageTracker.usageOf(req.session.scope), limits: usageTracker.limitsFor(req.session.name) });
   }
   if (req.method === "GET" && url.pathname === "/v1/usage/all") {
-    return sendJson(res, 200, usageTracker.snapshot(users.map(item => item.name)));
+    return sendJson(res, 200, usageTracker.snapshot(accountStore.names()));
   }
   if (req.method === "PUT" && url.pathname === "/v1/quota") {
     const body = await readBody(req, 20000);
-    usageTracker.setLimits(body, users.map(item => item.name));
-    return sendJson(res, 200, usageTracker.snapshot(users.map(item => item.name)));
+    usageTracker.setLimits(body, accountStore.names());
+    return sendJson(res, 200, usageTracker.snapshot(accountStore.names()));
   }
 
   // 工作台历史：只读写当前登录账号自己的记录，页面刷新后恢复（会话、消息、分析资产）
   if (req.method === "GET" && url.pathname === "/v1/history") {
-    return sendJson(res, 200, loadHistory(req.session.name));
+    return sendJson(res, 200, loadHistory(req.session.scope));
   }
   if (req.method === "PUT" && url.pathname === "/v1/history") {
     const body = await readBody(req, 30e6);
     if (!Array.isArray(body.sessions) || !Array.isArray(body.reports)) {
       return sendJson(res, 400, { error: "历史数据格式不正确" });
     }
-    const existing = loadHistory(req.session.name);
+    const existing = loadHistory(req.session.scope);
     // 合并而非替换：多标签页各自保存时以 id 互不覆盖（旧标签页的旧状态不会清掉新标签页的记录）
-    saveHistory(req.session.name, mergeHistory({ sessions: body.sessions, reports: body.reports }, existing));
+    saveHistory(req.session.scope, mergeHistory({ sessions: body.sessions, reports: body.reports }, existing));
     return sendJson(res, 200, { saved: true });
   }
   const historyReportMatch = url.pathname.match(/^\/v1\/history\/report\/(.+)$/);
   if (req.method === "DELETE" && historyReportMatch) {
     const reportId = decodeURIComponent(historyReportMatch[1]);
-    const existing = loadHistory(req.session.name);
+    const existing = loadHistory(req.session.scope);
     const reports = existing.reports.filter(r => r.id !== reportId);
-    saveHistory(req.session.name, { sessions: existing.sessions, reports });
+    saveHistory(req.session.scope, { sessions: existing.sessions, reports });
     return sendJson(res, 200, { removed: reports.length !== existing.reports.length });
   }
 
@@ -2567,11 +2696,11 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, {
       groups: org.groups.map(group => ({ name: group.name, tables: group.tables })),
       // 普通用户只能看到自己的有效权限，全员清单仅管理员可见
-      users: (req.session.role === "admin" ? users : users.filter(item => item.name === req.session.name)).map(user => ({
-        name: user.name, group: org.userGroups[user.name],
-        groupTables: org.groups.find(item => item.name === org.userGroups[user.name])?.tables || [],
-        override: overrides[user.name] || null,
-        effectiveTables: userTables(user.name)
+      users: (req.session.role === "admin" ? accountStore.names() : [req.session.name]).map(name => ({
+        name, group: org.userGroups[name],
+        groupTables: org.groups.find(item => item.name === org.userGroups[name])?.tables || [],
+        override: overrides[name] || null,
+        effectiveTables: userTables(name)
       }))
     });
   }
@@ -2579,7 +2708,7 @@ async function handleRequest(req, res) {
   const permissionMatch = url.pathname.match(/^\/v1\/permissions\/(.+)$/);
   if (req.method === "PUT" && permissionMatch) {
     const userName = decodeURIComponent(permissionMatch[1]);
-    if (!users.some(user => user.name === userName)) return sendJson(res, 404, { error: `用户不存在：${userName}` });
+    if (!accountStore.has(userName)) return sendJson(res, 404, { error: `用户不存在：${userName}` });
     const body = await readBody(req);
     const tableList = Array.isArray(body.tables) ? body.tables : [];
     const invalid = tableList.filter(name => name !== "全部数据表" && !allTableNames.includes(name));
@@ -2595,9 +2724,11 @@ async function handleRequest(req, res) {
     const body = await readBody(req);
     // 分析身份只取令牌里的登录用户，请求体里的 user 一律忽略
     const user = req.session.name;
+    const scope = req.session.scope;
     const started = Date.now();
-    const { question = "", scenario = "data-query", tables: requestedTables = [], assetCandidates = [], businessLine = "", model = DEFAULT_MODEL, reasoningEffort = "", maxTokens = null, portalContext = [] } = body;
+    const { question = "", scenario = "data-query", tables: requestedTables = [], assetCandidates = [], businessLine = "", model: requestedModel = "", reasoningEffort = "", maxTokens = null, portalContext = [] } = body;
     if (!question.trim()) return sendJson(res, 400, { error: "问题不能为空" });
+    const model = requestedModel || loadModelConfig().defaultModel || DEFAULT_MODEL;
 
     const modelConfig = loadModelConfig();
     if (modelConfig.disabled?.[model]) {
@@ -2617,9 +2748,9 @@ async function handleRequest(req, res) {
     }
 
     /* 每人每日配额：请求数或 token 用量达到上限时直接拒绝（校验与权限检查之后才计数） */
-    const quota = usageTracker.check(user);
+    const quota = usageTracker.check(scope, user);
     if (!quota.ok) return sendJson(res, 429, { error: quota.error, quota: { usage: quota.usage, limits: quota.limits } });
-    usageTracker.recordRequest(user);
+    usageTracker.recordRequest(scope);
     const requestId = crypto.randomUUID();
 
     /* Skill 运行时：优先按 skillId 执行注册表里的包（工具出证据 + SKILL.md 出编排），失败回退内置 */
@@ -2693,8 +2824,8 @@ async function handleRequest(req, res) {
           model, tablesUsed: referenced, deniedTables: denied, latencyMs: Date.now() - started, usage: null, requestId,
           numericCheck: null, usageToday: null, totalTokens: toolTokens
         };
-        finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: askMeta.toolMode, toolCalls: askCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: askMeta.latencyMs, numericCheck: null, status: "ok" });
-        askMeta.usageToday = { ...usageTracker.usageOf(user), limits: usageTracker.limitsFor(user) };
+        finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: askMeta.toolMode, toolCalls: askCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: askMeta.latencyMs, numericCheck: null, status: "ok" });
+        askMeta.usageToday = { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) };
         if (sseSend) {
           clearInterval(sseHeartbeat);
           sseSend({ delta: askText });
@@ -2716,7 +2847,7 @@ async function handleRequest(req, res) {
         toolMode = `fallback:${loop.reason || "no-tool-call"}`;
       }
     }
-    if (isAttributionRequest) attachAttribution(evidence, evidenceTables);
+    if (isAttributionRequest) attachAttribution(evidence, evidenceTables, question);
     const prompt = [
       `## 用户问题\n${question}`,
       `## 分析场景\n${scene.label}`,
@@ -2758,13 +2889,13 @@ async function handleRequest(req, res) {
       if (!result.ok) {
         clearInterval(heartbeat);
         const failure = `模型调用失败（${result.lastResult?.status || 502}）：${JSON.stringify(result.lastResult?.data).slice(0, 300)}`;
-        finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: failure });
+        finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: failure });
         send({ error: failure });
         return res.end();
       }
       clearInterval(heartbeat);
       const streamNumericCheck = checkNumericGrounding(result.content || "", evidence, question);
-      finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: streamNumericCheck, status: "ok" });
+      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: streamNumericCheck, status: "ok" });
       send({
         done: true,
         meta: {
@@ -2776,7 +2907,7 @@ async function handleRequest(req, res) {
           usage: result.usage || null, requestId,
           warning: result.stalled ? "上游中断，以上为已生成内容" : "",
           numericCheck: streamNumericCheck, totalTokens: tokensOf(result.usage) + toolTokens,
-          usageToday: { ...usageTracker.usageOf(user), limits: usageTracker.limitsFor(user) }
+          usageToday: { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) }
         }
       });
       return res.end();
@@ -2794,12 +2925,12 @@ async function handleRequest(req, res) {
       }
       if (result.status !== 200) {
         const failure = `模型调用失败（${result.status}）：${JSON.stringify(result.data).slice(0, 300)}`;
-        finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: failure });
+        finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: failure });
         return sendJson(res, 502, { error: failure });
       }
       const content = result.data?.choices?.[0]?.message?.content || "";
       const plainNumericCheck = checkNumericGrounding(content, evidence, question);
-      finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.data.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: plainNumericCheck, status: "ok" });
+      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.data.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: plainNumericCheck, status: "ok" });
       return sendJson(res, 200, {
         report: content,
         meta: {
@@ -2811,11 +2942,11 @@ async function handleRequest(req, res) {
           deniedTables: denied, latencyMs: Date.now() - started,
           usage: result.data.usage || null, requestId,
           numericCheck: plainNumericCheck, totalTokens: tokensOf(result.data.usage) + toolTokens,
-          usageToday: { ...usageTracker.usageOf(user), limits: usageTracker.limitsFor(user) }
+          usageToday: { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) }
         }
       });
     } catch (error) {
-      finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: error.message });
+      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: error.message });
       return sendJson(res, 502, { error: `分析失败：${error.message}` });
     }
   }
@@ -2877,7 +3008,7 @@ loadSampleData();
 installBuiltinPackages();
 /* 账号：名单内用户首次启动时创建；密码取 PORTAL_INITIAL_PASSWORD，未设置则随机生成并只打印这一次 */
 if (DEMO_LOGIN_PASSWORD) console.warn("[auth] ⚠ 已开启演示登录（PORTAL_DEMO_LOGIN_PASSWORD）：登录页会公开显示账号并自动填入密码，只能用于本机，不要用于服务器。");
-const generatedAccounts = auth.bootstrapAccounts(users.map(item => item.name), process.env.PORTAL_INITIAL_PASSWORD || "");
+const generatedAccounts = auth.bootstrapAccounts(accountStore.names(), process.env.PORTAL_INITIAL_PASSWORD || "");
 if (generatedAccounts.length) {
   console.log("[auth] 已为以下账号生成初始密码（只显示这一次，请尽快修改）：");
   generatedAccounts.forEach(item => console.log(`[auth]   ${item.name}：${item.password}`));

@@ -69,10 +69,26 @@ function createUsageTracker({ dataDir, env = process.env, now = () => new Date()
     return { date: todayKey(), requests: entry.requests || 0, tokens: entry.tokens || 0 };
   }
 
-  /** 请求开始前检查；通过返回 { ok: true }，否则给出可直接展示的原因 */
-  function check(user) {
-    const usage = usageOf(user);
-    const limits = limitsFor(user);
+  /** 今日全站 token 总量（所有账号与访客之和） */
+  function globalTokens() {
+    const day = loadUsage().days[todayKey()] || {};
+    return Object.values(day).reduce((total, entry) => total + (entry.tokens || 0), 0);
+  }
+
+  /** 全站每日 token 上限：环境变量 PORTAL_GLOBAL_DAILY_TOKEN_LIMIT，0 或未设置表示不限。共用演示账号时用它兜底总成本 */
+  const globalTokenLimit = () => toCount(env.PORTAL_GLOBAL_DAILY_TOKEN_LIMIT, 0);
+
+  /**
+   * 请求开始前检查；通过返回 { ok: true }，否则给出可直接展示的原因。
+   * key = 记账对象（普通账号就是账号名；演示模式下是「账号~访客」，每个浏览器各自计数）；limitName = 取限额的账号名。
+   */
+  function check(key, limitName = key) {
+    const usage = usageOf(key);
+    const limits = limitsFor(limitName);
+    const cap = globalTokenLimit();
+    if (cap > 0 && globalTokens() >= cap) {
+      return { ok: false, error: `今日全站 token 用量已达上限（${cap}），请明天再试或联系管理员`, usage, limits };
+    }
     if (limits.requests > 0 && usage.requests >= limits.requests) {
       return { ok: false, error: `今日分析次数已达上限（${limits.requests} 次），请明天再试或联系管理员调整额度`, usage, limits };
     }
@@ -94,12 +110,14 @@ function createUsageTracker({ dataDir, env = process.env, now = () => new Date()
   const recordRequest = user => bump(user, "requests", 1);
   const recordTokens = (user, tokens) => bump(user, "tokens", tokens);
 
-  /** 管理员视图：今日全员用量 + 生效限额 */
+  /** 管理员视图：今日各账号用量（演示模式下把该账号名下所有访客的用量合并）+ 生效限额 + 全站合计 */
   function snapshot(userNames) {
     const day = loadUsage().days[todayKey()] || {};
+    const sumFor = name => Object.entries(day).filter(([key]) => key === name || key.startsWith(`${name}~`)).reduce((total, [, entry]) => ({ requests: total.requests + (entry.requests || 0), tokens: total.tokens + (entry.tokens || 0) }), { requests: 0, tokens: 0 });
     return {
       date: todayKey(),
-      users: userNames.map(name => ({ name, requests: day[name]?.requests || 0, tokens: day[name]?.tokens || 0, limits: limitsFor(name) }))
+      global: { tokens: globalTokens(), limit: globalTokenLimit() },
+      users: userNames.map(name => ({ name, ...sumFor(name), limits: limitsFor(name) }))
     };
   }
 
@@ -124,7 +142,7 @@ function createUsageTracker({ dataDir, env = process.env, now = () => new Date()
     return config;
   }
 
-  return { limitsFor, usageOf, check, recordRequest, recordTokens, snapshot, setLimits };
+  return { limitsFor, usageOf, check, recordRequest, recordTokens, snapshot, setLimits, globalTokens };
 }
 
 module.exports = { createUsageTracker, DEFAULT_REQUEST_LIMIT, DEFAULT_TOKEN_LIMIT };

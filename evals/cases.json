@@ -76,6 +76,35 @@
       }
     },
     {
+      "id": "filtered-cpa",
+      "title": "带筛选的指标：只看某一个媒体，数字要按筛选后的口径算",
+      "question": "只看巨量，近 7 天的 CPA 是多少？",
+      "tables": [
+        "媒体消耗汇总"
+      ],
+      "expect": {
+        "anyTool": [
+          "query_metric"
+        ],
+        "cites": [
+          {
+            "metric": "cpa",
+            "table": "媒体消耗汇总",
+            "field": "近N天",
+            "filters": [
+              {
+                "field": "media_source",
+                "values": [
+                  "巨量"
+                ]
+              }
+            ]
+          }
+        ],
+        "maxUngrounded": 1
+      }
+    },
+    {
       "id": "roi-by-product",
       "title": "ROI：跨产品，数字来自语义层",
       "question": "近 7 天各产品的 ROI 怎么样？",

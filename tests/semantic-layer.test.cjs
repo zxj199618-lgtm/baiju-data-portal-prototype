@@ -79,6 +79,34 @@ describe("口径计算（单元）", () => {
   });
 });
 
+describe("筛选条件", () => {
+  test("按维度取值筛选：只算筛选后的行，比率仍是先汇总再相除", () => {
+    const onlyA = layer.query({ metric: "cpa", table: "投放表", filters: [{ field: "media", values: ["A"] }], allowedTables: ALL });
+    assert.equal(onlyA.data.近N天, 10, "A：消耗 100 / 激活 10");
+    assert.equal(onlyA.data.前N天, 5);
+    assert.deepEqual(onlyA.data.筛选, [{ 字段: "media", 取值: ["A"] }]);
+    const both = layer.query({ metric: "cpa", table: "投放表", filters: [{ field: "media", values: ["A", "B"] }], allowedTables: ALL });
+    assert.equal(both.data.近N天, 18.18, "A+B 与不筛选一致");
+  });
+
+  test("不支持的筛选字段、空取值、取值过多都被拒绝并说明可用维度", () => {
+    assert.match(layer.query({ metric: "cost", table: "投放表", filters: [{ field: "act", values: ["1"] }], allowedTables: ALL }).error, /不支持按 act 筛选，可用维度：media/);
+    assert.match(layer.query({ metric: "cost", table: "投放表", filters: [{ field: "media", values: [] }], allowedTables: ALL }).error, /1 到 20 个取值/);
+    assert.match(layer.query({ metric: "cost", table: "投放表", filters: [{ field: "media", values: Array.from({ length: 21 }, (_, index) => `m${index}`) }], allowedTables: ALL }).error, /1 到 20 个取值/);
+  });
+
+  test("筛选后没有数据时明确提示（取值写法要与数据一致），不返回 0 当作结果", () => {
+    const none = layer.query({ metric: "cost", table: "投放表", filters: [{ field: "media", values: ["不存在的媒体"] }], allowedTables: ALL });
+    assert.equal(none.ok, true);
+    assert.match(none.data.说明, /筛选后没有数据/);
+  });
+
+  test("筛选与分组可以用同一个字段", () => {
+    const result = layer.query({ metric: "cost", table: "投放表", group: "media", filters: [{ field: "media", values: ["B"] }], allowedTables: ALL });
+    assert.deepEqual(result.data.分组.明细.map(item => item.组), ["B"]);
+  });
+});
+
 describe("权限与参数", () => {
   test("没有权限的表：查不到，且与不存在的表提示一致", () => {
     const denied = layer.query({ metric: "cost", table: "另一张表", allowedTables: ["投放表"] });
@@ -175,6 +203,18 @@ describe("经网关的工具调用", () => {
     assert.match(finalUser, /"口径状态": "草稿（待数据团队确认）"/);
     assert.match(finalUser, /"环比百分比"/);
     assert.deepEqual(result.events.filter(event => event.tool).map(event => event.tool.name), ["list_metrics", "query_metric"]);
+  });
+
+  test("POST /v1/metrics/query 的筛选结果与「按该维度分组后取同一组」一致", async () => {
+    const token = await harness.tokenFor("曾祥竞");
+    const grouped = await harness.call("POST", "/v1/metrics/query", { token, body: { metric: "cpa", table: "媒体消耗汇总", group: "media_source" } });
+    const target = grouped.data.分组.明细[0];
+    const filtered = await harness.call("POST", "/v1/metrics/query", { token, body: { metric: "cpa", table: "媒体消耗汇总", filters: [{ field: "media_source", values: [target.组] }] } });
+    assert.equal(filtered.status, 200);
+    assert.equal(filtered.data.近N天, target.近N天);
+    assert.equal(filtered.data.前N天, target.前N天);
+    const bad = await harness.call("POST", "/v1/metrics/query", { token, body: { metric: "cpa", table: "媒体消耗汇总", filters: [{ field: "cost", values: ["1"] }] } });
+    assert.equal(bad.status, 400);
   });
 
   test("无权限的表：query_metric 被拒绝并写入审计", async () => {

@@ -23,6 +23,20 @@
     return "http://localhost:8787";
   }
 
+  const VISITOR_KEY = "portalVisitorId";
+
+  /** 每个浏览器一个随机访客 id（只在网关开启演示登录时才被采用，用来让共用演示账号的访客互相隔离） */
+  function visitorId() {
+    try {
+      let id = localStorage.getItem(VISITOR_KEY);
+      if (!id) {
+        id = Array.from(crypto.getRandomValues(new Uint8Array(12)), byte => byte.toString(16).padStart(2, "0")).join("");
+        localStorage.setItem(VISITOR_KEY, id);
+      }
+      return id;
+    } catch (error) { return ""; }
+  }
+
   function readStorage(key) {
     try { return localStorage.getItem(key) || ""; } catch (error) { return ""; }
   }
@@ -74,6 +88,8 @@
     const headers = new Headers(init.headers || {});
     const token = readStorage(TOKEN_KEY);
     if (token) headers.set("Authorization", `Bearer ${token}`);
+    const visitor = visitorId();
+    if (visitor) headers.set("X-Visitor-Id", visitor);
     return nativeFetch(input, { ...init, headers }).then(response => {
       if (response.status === 401 && !url.endsWith("/v1/auth/login")) {
         // 只有「曾经登录过、令牌失效」才提示过期；首次访问的 401 直接停在登录页

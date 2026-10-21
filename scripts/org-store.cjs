@@ -16,8 +16,11 @@ const ALL_TABLES = "全部数据表";
 const text = (value, max) => String(value ?? "").trim().slice(0, max);
 const list = (value, maxItems, maxLength) => (Array.isArray(value) ? value : []).map(item => text(item, maxLength)).filter(Boolean).slice(0, maxItems);
 
-function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts, tableNames }) {
+function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts: accountsInput, isActive, tableNames }) {
   const file = path.join(dataDir, "org.json");
+  // 账号清单可以是数组，也可以是函数（账号可新增 / 停用，每次现取）；isActive 用来判断「至少保留一个管理员」时只数未停用的账号
+  const accountList = () => (typeof accountsInput === "function" ? accountsInput() : accountsInput);
+  const activeList = () => (typeof isActive === "function" ? accountList().filter(isActive) : accountList());
 
   const load = () => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return {}; } };
 
@@ -26,7 +29,7 @@ function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts, t
     const saved = load();
     const groups = Array.isArray(saved.groups) && saved.groups.length ? saved.groups : defaultGroups.map(group => ({ ...group }));
     const userGroups = { ...defaultUserGroups, ...(saved.userGroups || {}) };
-    accounts.forEach(name => { if (!userGroups[name]) userGroups[name] = UNASSIGNED; });
+    accountList().forEach(name => { if (!userGroups[name]) userGroups[name] = UNASSIGNED; });
     return { groups, userGroups, customized: Array.isArray(saved.groups) && saved.groups.length > 0 };
   }
 
@@ -72,16 +75,16 @@ function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts, t
     if (input.userGroups !== undefined) {
       if (!input.userGroups || typeof input.userGroups !== "object") return { ok: false, error: "账号分组格式不正确" };
       for (const [name, group] of Object.entries(input.userGroups)) {
-        if (!accounts.includes(name)) continue; // 非网关账号（界面里的演示成员）不由服务端管理
+        if (!accountList().includes(name)) continue; // 非网关账号（界面里的演示成员）不由服务端管理
         const groupName = text(group, 30);
         if (groupName !== UNASSIGNED && !groups.some(item => item.name === groupName)) return { ok: false, error: `账号「${name}」的权限组不存在：${groupName}` };
         userGroups[name] = groupName;
       }
     }
     // 删掉了某个组时，原来属于它的账号落到「未分配」
-    accounts.forEach(name => { if (userGroups[name] !== UNASSIGNED && !groups.some(item => item.name === userGroups[name])) userGroups[name] = UNASSIGNED; });
+    accountList().forEach(name => { if (userGroups[name] !== UNASSIGNED && !groups.some(item => item.name === userGroups[name])) userGroups[name] = UNASSIGNED; });
 
-    if (!accounts.some(name => userGroups[name] === ADMIN_GROUP) || !groups.some(item => item.name === ADMIN_GROUP)) {
+    if (!activeList().some(name => userGroups[name] === ADMIN_GROUP) || !groups.some(item => item.name === ADMIN_GROUP)) {
       return { ok: false, error: `至少需要保留一个「${ADMIN_GROUP}」账号，否则没人能再管理系统` };
     }
 

@@ -92,7 +92,7 @@ async function runEvals({ baseUrl, password, cases, models = [], filter = "", tr
   const truth = async spec => {
     const key = JSON.stringify(spec);
     if (!truthCache.has(key)) {
-      const result = await http(baseUrl, "/v1/metrics/query", { method: "POST", token: await login(spec.as || truthUser), body: { metric: spec.metric, table: spec.table, group: spec.group, days: spec.days } });
+      const result = await http(baseUrl, "/v1/metrics/query", { method: "POST", token: await login(spec.as || truthUser), body: { metric: spec.metric, table: spec.table, group: spec.group, days: spec.days, filters: spec.filters } });
       let value = null;
       if (result.status === 200) value = spec.field === "__topGroup" ? result.data.分组?.明细?.[0]?.组 ?? null : result.data[spec.field] ?? null;
       truthCache.set(key, value);

@@ -33,6 +33,11 @@ const SEMANTIC_TOOL_SCHEMAS = [
           metric: { type: "string", description: "指标 id、名称或别名，来自 list_metrics" },
           table: { type: "string", description: "数据表；指标只在一张有权限的表中可用时可省略" },
           group: { type: "string", description: "分组维度，须在 list_metrics 给出的可用分组内" },
+          filters: {
+            type: "array",
+            description: "筛选条件（且）：例如只看某个媒体。字段须在 list_metrics 给出的可用分组内，取值需与数据里的写法一致",
+            items: { type: "object", properties: { field: { type: "string" }, values: { type: "array", items: { type: "string" } } }, required: ["field", "values"] }
+          },
           days: { type: "integer", minimum: 1, maximum: 90, description: "窗口天数，默认 7" }
         },
         required: ["metric"]
@@ -267,7 +272,7 @@ function createAnalysisToolkit({ userName, allowedTables, tables, rowsOf, audit 
   }
 
   function queryMetricTool(args) {
-    return semantic.query({ metric: args.metric, table: args.table, group: args.group, days: args.days, allowedTables });
+    return semantic.query({ metric: args.metric, table: args.table, group: args.group, days: args.days, filters: args.filters, allowedTables });
   }
 
   const handlers = { search_tables: searchTables, get_schema: getSchema, run_metric: runMetric, get_sample_rows: getSampleRows, ask_user: askUser };

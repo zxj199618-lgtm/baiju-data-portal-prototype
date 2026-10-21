@@ -202,4 +202,28 @@ function computeAttribution(rows, options) {
   return result;
 }
 
-module.exports = { computeAttribution, windowsFor };
+const CN_DIGITS = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+
+/** 中文数字（1–99）或阿拉伯数字 → 数值；无法识别返回 NaN */
+function parseCount(text) {
+  if (/^\d+$/.test(text)) return Number(text);
+  if (text === "十") return 10;
+  const tens = text.match(/^([一二两三四五六七八九])?十([一二三四五六七八九])?$/);
+  if (tens) return (tens[1] ? CN_DIGITS[tens[1]] : 1) * 10 + (tens[2] ? CN_DIGITS[tens[2]] : 0);
+  return CN_DIGITS[text] ?? NaN;
+}
+
+/**
+ * 从问题里解析分析窗口：「近 14 天」「最近两周」「过去 30 日」「近一个月」。
+ * 周按 7 天、月按 30 天换算；没有写明时用默认 7 天；上限 90 天。
+ */
+function parseWindowDays(question, fallback = 7) {
+  const match = String(question || "").match(/(?:近|最近|过去)\s*([0-9]+|[一二两三四五六七八九十]{1,3})\s*(天|日|周|个月|月)/);
+  if (!match) return fallback;
+  const count = parseCount(match[1]);
+  if (!Number.isFinite(count) || count < 1) return fallback;
+  const days = match[2] === "周" ? count * 7 : /月/.test(match[2]) ? count * 30 : count;
+  return Math.min(90, days);
+}
+
+module.exports = { computeAttribution, windowsFor, parseWindowDays };
