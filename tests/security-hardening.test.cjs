@@ -110,6 +110,18 @@ describe("演示登录（默认关闭）", () => {
   });
 });
 
+describe("演示登录模式下禁止改密码", () => {
+  test("开启演示登录后，修改密码接口返回 403（共享的公开密码不能被改掉）", async () => {
+    const harness = await startHarness({ env: { PORTAL_DEMO_LOGIN_PASSWORD: "harness-pass-1" } });
+    try {
+      const result = await harness.call("POST", "/v1/auth/password", { token: await harness.tokenFor("李雨航"), body: { oldPassword: "harness-pass-1", newPassword: "brand-new-pass-9" } });
+      assert.equal(result.status, 403);
+      assert.match(result.data.error, /不允许修改密码/);
+      assert.equal((await harness.call("POST", "/v1/auth/login", { body: { name: "李雨航", password: "harness-pass-1" } })).status, 200, "密码应保持不变");
+    } finally { await harness.stop(); }
+  });
+});
+
 describe("修改密码", () => {
   let harness;
   before(async () => { harness = await startHarness(); });

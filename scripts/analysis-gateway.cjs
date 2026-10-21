@@ -2104,6 +2104,8 @@ async function handleRequest(req, res) {
 
   // 修改自己的密码：需要旧密码；旧密码连续输错同样会被临时锁定
   if (req.method === "POST" && url.pathname === "/v1/auth/password") {
+    // 演示登录模式下账号共用一个公开的密码：不允许任何人改掉它，否则登录页自动填的密码就会失效，所有人都登不进去
+    if (DEMO_LOGIN_PASSWORD) return sendJson(res, 403, { error: "演示环境的账号共用公开密码，不允许修改密码" });
     const body = await readBody(req, 4096);
     const name = req.session.name;
     const newPassword = String(body.newPassword || "");
