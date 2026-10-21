@@ -3,8 +3,12 @@
   "private": true,
   "description": "观星台管理后台交互原型",
   "scripts": {
-    "test": "node tests/prototype-smoke.test.cjs",
+    "test": "node --test tests/*.test.cjs",
     "build:standalone": "node scripts/build-standalone.cjs",
-    "deploy": "bash scripts/deploy.sh"
+    "deploy": "bash scripts/deploy.sh",
+    "eval": "node scripts/run-evals.cjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.1"
   }
 }

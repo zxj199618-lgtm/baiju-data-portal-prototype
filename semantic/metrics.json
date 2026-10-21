@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "reviewStatus": "草稿：以下口径由表结构（字段名与注释）推导，尚未经数据团队确认；确认后把对应指标的 reviewed 改为 true。",
+  "tables": {
+    "广告计划日报表": { "dateField": "stat_date", "dimensions": ["media_source", "plan_name", "account_name", "product_name"] },
+    "广告账户日报": { "dateField": "stat_date", "dimensions": ["media_source", "account_name", "biz_line"] },
+    "广告组转化日报": { "dateField": "stat_date", "dimensions": ["media_source", "account_name", "biz_line"] },
+    "媒体消耗汇总": { "dateField": "stat_date", "dimensions": ["media_source"] },
+    "产品 ROI 日报": { "dateField": "stat_date", "dimensions": ["product_name"] },
+    "渠道归因明细": { "dateField": "biz_date", "dimensions": ["channel_name"] },
+    "用户订单明细": { "dateField": "created_at", "dimensions": ["product_name", "status", "pay_channel"] },
+    "用户生命周期日报": { "dateField": "stage_date", "dimensions": ["lifecycle_stage"] }
+  },
+  "metrics": [
+    {
+      "id": "cost", "name": "消耗", "aliases": ["花费", "广告消耗", "spend"], "type": "sum", "unit": "元",
+      "description": "广告投放的消耗金额，按所选维度对字段 cost 求和。", "owner": "黄佩贤", "reviewed": false,
+      "fields": { "广告计划日报表": "cost", "广告账户日报": "cost", "广告组转化日报": "cost", "媒体消耗汇总": "cost", "产品 ROI 日报": "cost", "渠道归因明细": "cost" }
+    },
+    {
+      "id": "activate", "name": "激活数", "aliases": ["激活", "激活量", "activate"], "type": "sum", "unit": "次",
+      "description": "激活次数，对字段 activate_cnt 求和。", "owner": "黄佩贤", "reviewed": false,
+      "fields": { "广告计划日报表": "activate_cnt", "广告账户日报": "activate_cnt", "广告组转化日报": "activate_cnt", "媒体消耗汇总": "activate_cnt", "产品 ROI 日报": "activate_cnt" }
+    },
+    {
+      "id": "click", "name": "点击数", "aliases": ["点击", "click"], "type": "sum", "unit": "次",
+      "description": "点击次数，对字段 click_cnt 求和。", "owner": "黄佩贤", "reviewed": false,
+      "fields": { "广告计划日报表": "click_cnt", "媒体消耗汇总": "click_cnt" }
+    },
+    {
+      "id": "show", "name": "曝光数", "aliases": ["曝光", "展示", "show"], "type": "sum", "unit": "次",
+      "description": "曝光次数，对字段 show_cnt 求和。", "owner": "黄佩贤", "reviewed": false,
+      "fields": { "广告计划日报表": "show_cnt", "媒体消耗汇总": "show_cnt" }
+    },
+    {
+      "id": "register", "name": "注册数", "aliases": ["注册", "register"], "type": "sum", "unit": "次",
+      "description": "注册次数，对字段 register_cnt 求和。", "owner": "黄佩贤", "reviewed": false,
+      "fields": { "广告计划日报表": "register_cnt" }
+    },
+    {
+      "id": "orders", "name": "订单数", "aliases": ["订单", "orders"], "type": "sum", "unit": "单",
+      "description": "订单数量，对字段 order_cnt 求和。", "owner": "黄佩贤", "reviewed": false,
+      "fields": { "广告计划日报表": "order_cnt", "产品 ROI 日报": "order_cnt" }
+    },
+    {
+      "id": "revenue", "name": "收入", "aliases": ["营收", "revenue"], "type": "sum", "unit": "元",
+      "description": "产品收入，对字段 revenue 求和。", "owner": "黄佩贤", "reviewed": false,
+      "fields": { "产品 ROI 日报": "revenue" }
+    },
+    {
+      "id": "order_amount", "name": "订单金额", "aliases": ["成交金额", "GMV", "gmv"], "type": "sum", "unit": "元",
+      "description": "订单金额，对字段 order_amount 求和（不区分订单状态，需要按状态拆分时请使用 status 分组）。", "owner": "李雨航", "reviewed": false,
+      "fields": { "用户订单明细": "order_amount" }
+    },
+    {
+      "id": "user_cnt", "name": "用户数", "aliases": ["用户量", "user"], "type": "sum", "unit": "人",
+      "description": "各生命周期阶段的用户数，对字段 user_cnt 求和（跨日求和会重复计算同一批用户，更适合看单日或分阶段）。", "owner": "李雨航", "reviewed": false,
+      "fields": { "用户生命周期日报": "user_cnt" }
+    },
+    {
+      "id": "cpa", "name": "CPA", "aliases": ["激活成本", "单次激活成本"], "type": "ratio", "unit": "元/次", "numerator": "cost", "denominator": "activate", "scale": 1,
+      "description": "消耗 ÷ 激活数。先分别汇总再相除，不是各行 CPA 的平均。", "owner": "黄佩贤", "reviewed": false
+    },
+    {
+      "id": "ctr", "name": "点击率", "aliases": ["CTR", "ctr"], "type": "ratio", "unit": "%", "numerator": "click", "denominator": "show", "scale": 100,
+      "description": "点击数 ÷ 曝光数 × 100。先分别汇总再相除。", "owner": "黄佩贤", "reviewed": false
+    },
+    {
+      "id": "roi", "name": "ROI", "aliases": ["投产比", "roi"], "type": "ratio", "unit": "", "numerator": "revenue", "denominator": "cost", "scale": 1,
+      "description": "收入 ÷ 消耗。先分别汇总再相除。", "owner": "黄佩贤", "reviewed": false
+    },
+    {
+      "id": "register_rate", "name": "注册转化率", "aliases": ["注册率"], "type": "ratio", "unit": "%", "numerator": "register", "denominator": "activate", "scale": 100,
+      "description": "注册数 ÷ 激活数 × 100。先分别汇总再相除。", "owner": "黄佩贤", "reviewed": false
+    }
+  ]
+}

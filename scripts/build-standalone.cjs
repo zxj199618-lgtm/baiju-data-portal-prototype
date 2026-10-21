@@ -52,6 +52,7 @@ const textAssets = [
   { assetPath: "assets/cp-vue-module.css", kind: "style" },
   { assetPath: "assets/portal-vue-module.css", kind: "style" },
   { assetPath: "assets/portal-shell.css", kind: "style" },
+  { assetPath: "assets/gateway-auth.js", kind: "script" }, // 必须在 portal-bridge.js 之前：负责登录态与请求鉴权
   { assetPath: "assets/portal-bridge.js", kind: "script" },
   { assetPath: "assets/cp-bridge.js", kind: "script" },
   { assetPath: "assets/vendor/vue.global.prod.js", kind: "script" },

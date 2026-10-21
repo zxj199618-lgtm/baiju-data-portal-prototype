@@ -7,3 +7,4 @@ baiju-data-portal-feishu-standalone.html
 .env
 .deploy.env
 data/
+evals/results/

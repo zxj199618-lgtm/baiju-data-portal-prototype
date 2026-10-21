@@ -500,7 +500,7 @@ assert(portalVue.includes("this.modelCaps[item.id]={contextLimit:item.contextLim
 assert(portalVue.includes("reasoningChoices(){") && portalVue.includes("changeReasoning(level){") && portalVue.includes("localStorage.setItem(\"portalReasoningPref\",level)") && portalVue.includes("readReasoningPref(){"), "思考深度 chip 的档位只来自当前模型声明，并记住用户上次选择");
 assert(portalVue.includes('class="portal-vue-ai-chip-reasoning-select"') && portalVue.includes("contextWindowLabel(){") && portalVue.includes("窗口 {{ contextWindowLabel }}"), "输入框要有「深度」chip 与只读的窗口提示（不摆 token 滑杆）");
 assert(!portalVue.includes('this.reasoning="high";') && !portalVue.includes("applyMaxModelSettings(){\n        this.reasoning=\"high\";"), "思考档位不能再硬编码为 high（此断言防止回退：档位要来自模型能力与用户选择）");
-assert(portalCss.includes(".portal-vue-ai-chip-reasoning-select") && portalCss.includes('content: "深度"'), "「深度」chip 沿用输入框胶囊样式（::before 前缀「深度」）");
+assert(portalCss.includes(".portal-vue-ai-chip-reasoning-select") && portalCss.includes('content: "思考"'), "「思考」chip 沿用输入框胶囊样式（::before 前缀「思考」）");
 assert(portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商配置入口");
 assert(portalBridge.includes("内置中转站 + 自配供应商") || portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商接入与模型开关");
 assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCascadeOptions") && portalVue.includes("activeTablePath") && portalVue.includes("changeTablePath") && portalVue.includes("<el-cascader"), "数据表选择应使用单个业务线到数据表的级联下拉");

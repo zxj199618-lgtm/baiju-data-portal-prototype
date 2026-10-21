@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="assets/vendor/element-plus.css" />
   <link rel="stylesheet" href="assets/cp-vue-module.css?v=20260920a" />
   <link rel="stylesheet" href="assets/portal-vue-module.css?v=20261013d" />
-  <link rel="stylesheet" href="assets/portal-shell.css?v=20261013c" />
+  <link rel="stylesheet" href="assets/portal-shell.css?v=20261021b" />
 </head>
 <body>
   <section class="login-view" id="loginView">
@@ -25,15 +25,22 @@
           <h1>观星台</h1>
         </div>
         <div class="login-card">
-          <div class="login-tabs">
-            <span>密码登录</span>
-            <span>扫码登录</span>
+          <div class="login-tabs" role="tablist">
+            <button type="button" class="active" role="tab" aria-selected="true" data-login-tab="password">密码登录</button>
+            <button type="button" role="tab" aria-selected="false" data-login-tab="qr">扫码登录</button>
           </div>
+          <div class="gateway-login-demo" id="gatewayLoginDemo" hidden></div>
+          <form class="gateway-login-form" id="gatewayLoginForm" autocomplete="on">
+            <label>账号<input name="name" type="text" autocomplete="username" required /></label>
+            <label>密码<input name="password" type="password" autocomplete="current-password" required /></label>
+            <p class="gateway-login-error" id="gatewayLoginError" hidden></p>
+            <button class="btn primary" id="gatewayLoginBtn" type="submit">登录</button>
+          </form>
           <div class="login-provider">
             <span>企业微信</span>
             <span>飞书</span>
           </div>
-          <button class="btn primary feishu-btn" id="feishuLoginBtn">飞书快捷登录</button>
+          <button class="btn primary feishu-btn" id="feishuLoginBtn" disabled title="飞书登录尚未接入，请使用账号密码">飞书快捷登录（未接入）</button>
           <button class="mock-login-btn" id="noPermissionLoginBtn">模拟无权限登录</button>
         </div>
       </div>
@@ -59,8 +66,8 @@
         <div class="userbar">
           <div class="user-menu-wrap">
             <button class="user-menu-trigger" id="userMenuTrigger">
-              <div class="avatar">曾</div>
-              <strong style="color: var(--blue)">曾祥竞</strong>
+              <div class="avatar" id="headerUserAvatar">曾</div>
+              <strong style="color: var(--blue)" id="headerUserName">曾祥竞</strong>
             </button>
             <div class="user-menu" id="userMenu">
               <button id="logoutBtn">退出系统</button>
@@ -808,12 +815,13 @@
     </div>
   </div>
 
-  <script src="assets/portal-bridge.js?v=20261013c"></script>
+  <script src="assets/gateway-auth.js?v=20261021a"></script>
+  <script src="assets/portal-bridge.js?v=20261019b"></script>
   <script src="assets/cp-bridge.js?v=20260903g"></script>
   <script src="assets/vendor/vue.global.prod.js"></script>
   <script src="assets/vendor/element-plus.full.min.js"></script>
   <script src="assets/vendor/element-plus.zh-cn.min.js"></script>
   <script src="assets/cp-vue-module.js?v=20260915k"></script>
-  <script src="assets/portal-vue-module.js?v=20261013c"></script>
+  <script src="assets/portal-vue-module.js?v=20261021f"></script>
 </body>
 </html>

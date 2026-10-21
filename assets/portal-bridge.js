@@ -3420,13 +3420,6 @@
 
       });
 
-      document.getElementById("feishuLoginBtn").addEventListener("click", () => {
-        try { localStorage.setItem("portalDemoUser", "1"); } catch (error) { /* 隐私模式忽略 */ }
-        document.getElementById("loginView").classList.add("hidden");
-        document.getElementById("portalApp").classList.remove("hidden");
-        document.getElementById("sidebar").classList.remove("hidden");
-        setSimplePage("灵犀智析");
-      });
       const sidebar = document.getElementById("sidebar");
       const collapseBtn = document.getElementById("collapseBtn");
       const userMenuTrigger = document.getElementById("userMenuTrigger");
@@ -3441,7 +3434,7 @@
         userMenu.classList.toggle("open");
       });
       document.getElementById("logoutBtn").addEventListener("click", () => {
-        try { localStorage.removeItem("portalDemoUser"); } catch (error) { /* 隐私模式忽略 */ }
+        window.portalAuth?.clear();
         userMenu.classList.remove("open");
         closeSimpleDrawer();
         closeFormModal();
@@ -3468,8 +3461,8 @@
           if (asset) window.portalTableDetailAsset = asset;
           else { savedPage = "表管理"; bootNotice = db || table ? "链接中的数据表不存在或已删除，已回到表管理" : "该页面需要指定数据表，已回到表管理"; }
         }
-        if (savedPage && localStorage.getItem("portalDemoUser") !== "1") localStorage.setItem("portalDemoUser", "1");
-        if (localStorage.getItem("portalDemoUser") === "1") {
+        // 必须有网关令牌才进入系统（gateway-auth.js 已在无令牌时清除标记）；带 #page= 的链接也要先登录
+        if (localStorage.getItem("portalDemoUser") === "1" && window.portalAuth?.token()) {
           document.getElementById("loginView").classList.add("hidden");
           document.getElementById("portalApp").classList.remove("hidden");
           document.getElementById("sidebar").classList.remove("hidden");

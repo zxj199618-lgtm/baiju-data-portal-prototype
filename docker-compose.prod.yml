@@ -12,6 +12,11 @@ services:
       RELAY_BASE_URL: "https://simindapi.modelgs.com"
       RELAY_API_KEY: "${RELAY_API_KEY:?请在 .env 中设置 RELAY_API_KEY（多个 key 用英文逗号分隔）}"
       PORT: "8787"
+      PORTAL_INITIAL_PASSWORD: "${PORTAL_INITIAL_PASSWORD:-}"
+      PORTAL_AUTH_SECRET: "${PORTAL_AUTH_SECRET:-}"
+      PORTAL_ALLOWED_ORIGINS: "${PORTAL_ALLOWED_ORIGINS:-}"
+      PORTAL_DAILY_REQUEST_LIMIT: "${PORTAL_DAILY_REQUEST_LIMIT:-}"
+      PORTAL_DAILY_TOKEN_LIMIT: "${PORTAL_DAILY_TOKEN_LIMIT:-}"
       DATA_DIR: "/app/data"
       PUBLIC_DIR: "/app"
     volumes:

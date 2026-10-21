@@ -49,8 +49,70 @@
   function notify(message) {
     refreshTick.value += 1;
     bridge.notifyDataChange();
+    orgSync.schedulePush();
     if (message) ep.ElMessage.success(message);
   }
+
+  /* ===== 权限组 / 账号分组与服务端同步 =====
+     登录后读取服务端保存的配置并应用到界面；管理员修改（经 notify）后防抖保存回服务端。
+     服务端据此判断数据表权限与管理员角色，并校验内容（例如不能把最后一个管理员降级）。
+     服务端拒绝保存时，界面回退到服务端当前配置，避免「界面上改了但实际没生效」。 */
+  const orgSync = {
+    role: "", accounts: [], ready: false, timer: null, lastSnapshot: "",
+    snapshot() {
+      const userGroups = {};
+      this.accounts.forEach(name => { const user = state.users.find(item => item.name === name); if (user) userGroups[name] = user.group; });
+      const groups = state.groups.map(group => ({ name: group.name, desc: group.desc, status: group.status, menus: group.menus, menuEdits: group.menuEdits, boards: group.boards, tables: group.tables }));
+      return { groups, userGroups };
+    },
+    async load() {
+      if (!window.portalAuth?.token()) return;
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/org`);
+        if (!response.ok) return;
+        const org = await response.json();
+        this.role = org.role;
+        this.accounts = org.accounts || [];
+        if (org.groups?.length) {
+          if (org.role === "admin") {
+            const keep = new Set(org.groups.map(group => group.name));
+            for (let index = state.groups.length - 1; index >= 0; index -= 1) if (!keep.has(state.groups[index].name)) state.groups.splice(index, 1);
+          }
+          org.groups.forEach(serverGroup => {
+            const local = state.groups.find(group => group.name === serverGroup.name);
+            if (local) Object.assign(local, serverGroup); else state.groups.push({ ...serverGroup });
+          });
+        }
+        Object.entries(org.userGroups || {}).forEach(([name, group]) => {
+          const user = state.users.find(item => item.name === name);
+          if (user && user.group !== group) user.group = group;
+        });
+        this.lastSnapshot = JSON.stringify(this.snapshot());
+        this.ready = true;
+        refreshTick.value += 1;
+        bridge.notifyDataChange();
+      } catch (error) { /* 网关未启动时保持界面自带的默认配置 */ }
+    },
+    schedulePush() {
+      if (!this.ready || this.role !== "admin") return;
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => this.push(), 800);
+    },
+    async push() {
+      const body = this.snapshot();
+      const serialized = JSON.stringify(body);
+      if (serialized === this.lastSnapshot) return;
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/org`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: serialized });
+        if (response.ok) { this.lastSnapshot = serialized; return; }
+        const data = await response.json().catch(() => ({}));
+        ep.ElMessage.warning(`权限配置没有保存到服务器：${data.error || "未知错误"}。已恢复为服务器上的配置`);
+        await this.load();
+      } catch (error) {
+        ep.ElMessage.warning("权限配置没有保存到服务器：无法连接分析网关");
+      }
+    }
+  };
 
   async function confirmAction(title, message, confirmButtonText = "确认") {
     try {
@@ -74,12 +136,15 @@
 
   /* ===== 管理范围：按部门配置，部门下用户自动纳入；未配置时默认只看自己 ===== */
 
-  const LOGIN_USER_NAME = "曾祥竞";
+  // 当前登录账号（由 gateway-auth.js 写入）；未登录时回落到默认演示账号
+  function loginUserName() {
+    try { return localStorage.getItem("portalLoginUser") || "曾祥竞"; } catch (error) { return "曾祥竞"; }
+  }
   const DEPT_SEPARATOR = " / ";
   const USER_SCOPE_PREFIX = "user:";
 
   function loginUser() {
-    return state.users.find(user => user.name === LOGIN_USER_NAME) || state.users[0] || null;
+    return state.users.find(user => user.name === loginUserName()) || state.users[0] || null;
   }
 
   function departmentMatched(dept, scope) {
@@ -440,8 +505,8 @@
             </button>
           </div>
           <el-dropdown trigger="click" @command="handleUserCommand">
-            <span class="portal-vue-user"><el-avatar :size="34" style="background:#1677ff">曾</el-avatar><span>曾祥竞</span></span>
-            <template #dropdown><el-dropdown-menu><el-dropdown-item command="logout">退出系统</el-dropdown-item></el-dropdown-menu></template>
+            <span class="portal-vue-user"><el-avatar :size="34" style="background:#1677ff">{{ userName.slice(0, 1) }}</el-avatar><span class="portal-vue-user-name">{{ userName }}</span></span>
+            <template #dropdown><el-dropdown-menu><el-dropdown-item command="password">修改密码</el-dropdown-item><el-dropdown-item command="logout">退出系统</el-dropdown-item></el-dropdown-menu></template>
           </el-dropdown>
         </div>
       </el-config-provider>
@@ -450,6 +515,8 @@
     computed: {
       tabs() { refreshTick.value; return state.tabs; },
       page() { return currentPage.value; },
+      // 页头显示当前登录账号（原来写死为「曾祥竞」，任何人登录都显示同一个名字）
+      userName() { refreshTick.value; return loginUserName(); },
       activeBoard() { refreshTick.value; return bridge.getActiveBoard(); }
     },
     methods: {
@@ -467,8 +534,21 @@
         }
         refreshTick.value += 1;
       },
+      async changePassword() {
+        const ask = (message, title) => ep.ElMessageBox.prompt(message, title, { inputType: "password", confirmButtonText: "下一步", cancelButtonText: "取消", inputPattern: /\S+/, inputErrorMessage: "不能为空" });
+        try {
+          const oldPassword = (await ask("请输入当前密码", "修改密码")).value;
+          const newPassword = (await ask("请输入新密码（至少 8 位）", "修改密码")).value;
+          const response = await fetch(`${analysisGatewayBase}/v1/auth/password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ oldPassword, newPassword }) });
+          const data = await response.json().catch(() => ({}));
+          if (response.ok) ep.ElMessage.success("密码已修改，下次登录请使用新密码");
+          else ep.ElMessage.warning(data.error || "修改失败");
+        } catch (cancelled) { /* 用户取消 */ }
+      },
       handleUserCommand(command) {
+        if (command === "password") return this.changePassword();
         if (command !== "logout") return;
+        window.portalAuth?.clear();
         document.getElementById("portalApp").classList.add("hidden");
         document.getElementById("loginView").classList.remove("hidden");
         ep.ElMessage.success("已退出系统");
@@ -1954,8 +2034,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                     <template v-if="msg.reportId"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><div class="portal-vue-ai-report-card">
   <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file">📄</span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportById(msg.reportId)">打开展示所有 ›</button></div>
   <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
-</div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
-                    <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p></template>
+</div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button></div></template>
+                    <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button></div></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div>
@@ -2180,15 +2260,30 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           }
         }catch(error){/* 网关未启动时保留本地种子 */}
       },
-      persistHistory(){
+      historyBody(){
+        return JSON.stringify({sessions:this.sessions.map(s=>({...s,messages:s.messages.map(m=>({...m,streaming:false}))})),reports:this.reports});
+      },
+      /* 保存历史：默认防抖 600ms；immediate=true（回答完成时）立即保存。
+         每次调用都会取消上一次的定时器，所以页面在定时器触发前被关闭 / 刷新就会丢数据——
+         这里在 pagehide 时把还没发出的那一次用 keepalive 补发出去。 */
+      persistHistory(immediate=false){
         clearTimeout(this.historyTimer);
-        this.historyTimer=setTimeout(()=>{
-          fetch(`${analysisGatewayBase}/v1/history`,{
-            method:"PUT",
-            headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({sessions:this.sessions.map(s=>({...s,messages:s.messages.map(m=>({...m,streaming:false}))})),reports:this.reports})
-          }).catch(()=>{/* 网关未启动时忽略 */});
-        },600);
+        this.historyTimer=null;
+        if(!this.historyFlushBound){
+          this.historyFlushBound=true;
+          window.addEventListener("pagehide",()=>{
+            if(!this.historyPending)return;
+            this.historyPending=false;
+            try{fetch(`${analysisGatewayBase}/v1/history`,{method:"PUT",headers:{"Content-Type":"application/json"},body:this.historyBody(),keepalive:true}).catch(()=>{});}catch(error){/* 超过 keepalive 体积上限时放弃补发 */}
+          });
+        }
+        const send=()=>{
+          this.historyTimer=null;
+          this.historyPending=false;
+          fetch(`${analysisGatewayBase}/v1/history`,{method:"PUT",headers:{"Content-Type":"application/json"},body:this.historyBody()}).catch(()=>{/* 网关未启动时忽略 */});
+        };
+        this.historyPending=true;
+        if(immediate)send();else this.historyTimer=setTimeout(send,600);
       },
       async loadMyTables(){
         try{
@@ -2509,6 +2604,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         if(!session.id||session.suggested){
           session=createAnalysisSession({title:question.slice(0,18)||"新的分析",scenario:this.scenarioName});
           this.sessions.unshift(session);
+          // 取回响应式代理：上面的本地变量是原始对象，之后对它的写入（流式文本、完成状态、反馈按钮）不会触发界面更新
+          session=this.sessions[0];
           this.activeId=session.id;
         }
         const mentionedTables=[...new Set([...this.myTables.filter(table=>question.includes(`@${table}`)),...(this.activeTable?[this.activeTable]:[])])];
@@ -2571,6 +2668,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
             const reader=response.body.getReader();
             const decoder=new TextDecoder();
             let buffer="",full="",meta=null,errorMsg="",reasoningText="";
+            const toolLog=[];
             const idleTimeoutMs=45000, textIdleMs=60000;
             let lastDataAt=Date.now(), lastTextAt=Date.now();
             const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -2618,6 +2716,15 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
                   if(Date.now()-this.historyLastAt>5000){this.historyLastAt=Date.now();this.persistHistory();}
                   this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
                 }
+                if(evt.status){
+                  lastTextAt=Date.now();
+                  if(!full&&!reasoningText)liveMsg.lines=[evt.status];
+                }
+                if(evt.tool){
+                  lastTextAt=Date.now();
+                  toolLog.push(evt.tool);
+                  if(!full)liveMsg.lines=[`工具取数：${toolLog.map(call=>call.name+(call.table?`（${call.table}）`:"")+(call.ok?"":" ✗")).join("、")}`];
+                }
                 if(evt.done)meta=evt.meta||{};
                 if(evt.error)errorMsg=evt.error;
               }
@@ -2638,6 +2745,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               const trail=(allLines.slice(2).map(line=>line.replace(/^[-•\d、.\s]+/,"").trim()).filter(line=>line.length>6&&!line.startsWith("证据限制")&&!line.includes("证据限制")).pop()||"分析详情、指标口径与上下游血缘见报告全文。").slice(0,80);
               const isReport=!errorMsg&&!askFound&&full.trim().length>=80;
               liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
+              liveMsg.requestId=meta?.requestId||"";
               if(isReport){
                 // 真正的分析报告：消息上下总结 + 中间报告超链，归档到分析资产
                 liveMsg.html="";
@@ -2657,6 +2765,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
               session.messages.push({role:"assistant",lines:[],ask:this.buildAsk(askFound.cfg,{question})});
               this.persistHistory();
             }
+            this.persistHistory(true);
           }
         }catch(error){
           this.thinking=false;
@@ -2667,9 +2776,29 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
         this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
       },
+      async rateMessage(msg,rating){
+        if(!msg.requestId)return;
+        let comment="";
+        if(rating==="down"){
+          try{
+            const answer=await ep.ElMessageBox.prompt("哪里不满意？（可选，帮助我们改进口径与回答）","反馈",{confirmButtonText:"提交",cancelButtonText:"取消",inputPlaceholder:"例如：口径不对、数字对不上、没有回答我的问题"});
+            comment=answer?.value||"";
+          }catch(cancelled){return;}
+        }
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/feedback`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId:msg.requestId,rating,comment})});
+          if(!response.ok){const data=await response.json().catch(()=>({}));ep.ElMessage.warning(data.error||"提交失败，请稍后再试");return;}
+          msg.feedback=rating;
+          this.persistHistory(true);
+          ep.ElMessage.success("感谢反馈");
+        }catch(error){ep.ElMessage.warning("提交失败：无法连接分析网关");}
+      },
       buildMetaLine(meta){
         let line=`${meta.scenario||""} · ${meta.model||""} · 推理 ${meta.reasoningEffort||"default"}${meta.maxTokens?` · 上下文 ${meta.maxTokens>=1024?Math.round(meta.maxTokens/1024)+"K":meta.maxTokens}`:""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;
-        if(meta.warning)line+=` · ⚠️ ${meta.warning}`;
+        if(meta.toolCalls?.length){const okCount=meta.toolCalls.filter(call=>call.ok).length;line+=` · 工具取数 ${meta.toolCalls.length} 次（成功 ${okCount}）：${meta.toolCalls.map(call=>call.tool+(call.table?`(${call.table})`:"")+(call.ok?"":" ✗")).join("、")}`;}
+        else if(meta.toolMode&&meta.toolMode.startsWith("fallback:"))line+=` · 未使用工具取数（${meta.toolMode.slice("fallback:".length)}）`;
+        if(meta.warning)line+=` · ⚠️ `;
+        if(meta.numericCheck?.ungrounded?.length)line+=` · ⚠️ ${meta.numericCheck.ungrounded.length} 个数字未在证据中找到，请核对（${meta.numericCheck.ungrounded.join("、")}）`;
         if(meta.deniedTables?.length)line+=` · 无权限表 ${meta.deniedTables.join("、")}`;
         return line;
       },
@@ -2892,7 +3021,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
 
   const NoPermissionApp = {
     template:`<el-config-provider :locale="locale"><el-result icon="warning" title="暂无访问权限" sub-title="当前飞书账号尚未分配门户权限组，请联系管理员处理。"><template #extra><el-button type="primary" @click="logout">退出系统</el-button></template></el-result></el-config-provider>`,
-    methods:{logout(){document.getElementById("portalApp").classList.remove("no-permission-mode");document.getElementById("portalApp").classList.add("hidden");document.getElementById("loginView").classList.remove("hidden");}}
+    methods:{logout(){window.portalAuth?.clear();document.getElementById("portalApp").classList.remove("no-permission-mode");document.getElementById("portalApp").classList.add("hidden");document.getElementById("loginView").classList.remove("hidden");}}
   };
 
   const menuTreeSeed = [
@@ -4011,7 +4140,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     const dimensionFields = (table.fields || []).filter(field => !isMeasureField(field));
     const defaultKeyField = dimensionFields.find(field => field.name === table.keyField) || dimensionFields[0] || {};
     return {
-      name: "", category: alertCategoryDefaults[0], desc: "", owner: LOGIN_USER_NAME, requester: LOGIN_USER_NAME,
+      name: "", category: alertCategoryDefaults[0], desc: "", owner: loginUserName(), requester: loginUserName(),
       table: table.name, keyField: defaultKeyField.name || "", timeField: table.timeField,
       relation: "AND",
       conditions: [alertNewCondition(table.fields)],
@@ -4627,7 +4756,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           "schedule.time": [required("请选择执行时间")]
         };
       },
-      currentUser() { refreshTick.value; return state.users.find(user => user.name === LOGIN_USER_NAME) || state.users[0]; },
+      currentUser() { refreshTick.value; return state.users.find(user => user.name === loginUserName()) || state.users[0]; },
       pagedRows() {
         const result = paginate(this.filteredRows, this.page, this.pageSize);
         if (result.safePage !== this.page) this.page = result.safePage;
@@ -4757,8 +4886,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       openCreate() {
         this.editingId = "";
         this.form = createAlertForm();
-        this.form.owner = this.currentUser?.name || LOGIN_USER_NAME;
-        this.form.requester = this.currentUser?.name || LOGIN_USER_NAME;
+        this.form.owner = this.currentUser?.name || loginUserName();
+        this.form.requester = this.currentUser?.name || loginUserName();
         this.testResult = "";
         this.dialogVisible = true;
         this.clearValidation();
@@ -4925,7 +5054,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
         } else {
           this.alerts.unshift({
             id: "AL" + Date.now(), ...payload, enabled: true,
-            creator: this.currentUser?.name || LOGIN_USER_NAME,
+            creator: this.currentUser?.name || loginUserName(),
             lastTriggered: "—", recent7dCount: 0, history: []
           });
         }
@@ -7184,8 +7313,10 @@ function injectStyle(id, css) {
     canView: canViewMenu,
     canEditPage,
     denyEdit,
-    state
+    state,
+    orgSync
   };
   syncPrimaryAction();
   window.dispatchEvent(new CustomEvent("portal:page-change", { detail: { page: bridge.getPage() } }));
+  orgSync.load();
 })();

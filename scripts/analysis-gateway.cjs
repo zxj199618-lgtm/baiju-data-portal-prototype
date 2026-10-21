@@ -2,7 +2,11 @@
 /**
  * 观星台分析网关
  *
+ * 身份：除 POST /v1/auth/login 与 GET /v1/shares/:id 外，所有 /v1/ 接口需要 Authorization: Bearer <令牌>；
+ *       管理类接口（供应商 / 模型配置 / 表数据 / 权限 / Skill 上传与配置）需要「门户管理员」角色。
+ *
  * 接口：
+ *  POST /v1/auth/login             — 账号密码登录，返回令牌（12 小时有效）；GET /v1/auth/me 查看当前身份
  *  GET  /v1/models                 — 可用模型列表（内置中转站 + 自配供应商，仅纳入可调用协议）
  *  GET  /v1/providers              — 自配供应商列表（API Key 只回显掩码，永不返回明文）
  *  POST /v1/providers              — 新增供应商；PUT / DELETE /v1/providers/:id 修改与删除
@@ -24,6 +28,14 @@ const { execFile, spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { createAuth } = require("./gateway-auth.cjs");
+const { checkNumericGrounding } = require("./numeric-check.cjs");
+const { computeAttribution } = require("./attribution-calc.cjs");
+const { createAnalysisToolkit } = require("./analysis-tools.cjs");
+const { createUsageTracker } = require("./usage-quota.cjs");
+const { createSemanticLayer } = require("./semantic-layer.cjs");
+const { createFeedbackStore, RATINGS } = require("./feedback-store.cjs");
+const { createOrgStore } = require("./org-store.cjs");
 
 const RELAY_BASE_URL = process.env.RELAY_BASE_URL || "https://simindapi.modelgs.com";
 const RELAY_API_KEYS = (process.env.RELAY_API_KEY || "").split(",").map(key => key.trim()).filter(Boolean);
@@ -34,6 +46,7 @@ const PERMISSIONS_FILE = path.join(DATA_DIR, "user-permissions.json");
 const MODEL_CONFIG_FILE = path.join(DATA_DIR, "model-config.json");
 const SHARES_FILE = path.join(DATA_DIR, "report-shares.json");
 const HISTORY_FILE = path.join(DATA_DIR, "workbench-history.json");
+const LEGACY_HISTORY_FILE = path.join(DATA_DIR, "workbench-history.legacy.json");
 const SAMPLE_DATA_FILE = path.join(DATA_DIR, "sample-data.json");
 const DEFAULT_MODEL = "gpt-5.4-mini";
 const TODAY = "2026-08-31";
@@ -693,6 +706,120 @@ function recentRows(table, count = 8) {
   return rowsOf(table.cnName).slice(-count);
 }
 
+/* 语义层：指标口径定义在 semantic/metrics.json（开发时在仓库根目录，镜像里与网关同级），启动时对照表结构校验 */
+const SEMANTIC_FILE = process.env.SEMANTIC_FILE
+  || [path.join(__dirname, "semantic", "metrics.json"), path.join(__dirname, "..", "semantic", "metrics.json")].find(file => fs.existsSync(file))
+  || "";
+let semanticCatalog = { tables: {}, metrics: [] };
+try { if (SEMANTIC_FILE) semanticCatalog = JSON.parse(fs.readFileSync(SEMANTIC_FILE, "utf8")); } catch (error) { console.warn("[semantic] 指标定义读取失败：", error.message); }
+const semanticLayer = createSemanticLayer({ catalog: semanticCatalog, tables, rowsOf });
+semanticLayer.warnings.forEach(message => console.warn(`[semantic] ${message}`));
+
+const ATTRIBUTION_SKILL_ID = "attribution-analyst";
+
+/* 工具调用式取数：模型按需调用 search_tables 等工具，平台逐次做权限校验；步数与次数有上限 */
+const TOOL_MAX_STEPS = 4;
+const TOOL_MAX_CALLS = 8;
+const AUDIT_FILE = path.join(DATA_DIR, "analysis-audit.jsonl");
+
+const usageTracker = createUsageTracker({ dataDir: DATA_DIR });
+const feedbackStore = createFeedbackStore({ dataDir: DATA_DIR });
+const tokensOf = usage => Number(usage?.total_tokens) || ((Number(usage?.prompt_tokens) || 0) + (Number(usage?.completion_tokens) || 0));
+
+/** 一次分析结束：累计 token 用量，并写一条审计（谁、问了什么、用了什么、花了多少、结果如何） */
+function finishAnalysis({ user, requestId, question, model, skillName, scenarioLabel, toolMode, toolCalls, tablesUsed, usage, extraTokens = 0, latencyMs, numericCheck, status, error = "" }) {
+  const tokens = tokensOf(usage) + extraTokens;
+  usageTracker.recordTokens(user, tokens);
+  appendAuditEntry({
+    type: "analysis", user, requestId, status, error: error ? String(error).slice(0, 200) : undefined,
+    question: String(question).slice(0, 300), model, skill: skillName, scenario: scenarioLabel,
+    toolMode, toolCallCount: toolCalls.length, tablesUsed, tokens, latencyMs,
+    ungroundedNumbers: numericCheck ? numericCheck.ungrounded.length : null
+  });
+  return tokens;
+}
+
+function readAuditEntries() {
+  try {
+    return fs.readFileSync(AUDIT_FILE, "utf8").split("\n").filter(Boolean).map(line => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
+  } catch { return []; }
+}
+
+function appendAuditEntry(entry) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.appendFileSync(AUDIT_FILE, JSON.stringify({ at: new Date().toISOString(), ...entry }) + "\n");
+  } catch (error) {
+    console.warn("[audit] 写入失败：", error.message);
+  }
+}
+
+/** 只有 OpenAI 兼容协议的供应商会把 tools 原样转发；Anthropic 翻译层目前不支持，走原有证据方式 */
+function providerSupportsTools(modelId) {
+  const route = routeForModel(modelId);
+  return Boolean(route) && !isAnthropicProtocol(route.provider.protocol);
+}
+
+async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEvent = () => {} }) {
+  const messages = [
+    { role: "system", content: "你是观星台数据分析助手。需要数据时调用工具：先用 search_tables 找表，用 get_schema 看口径。问业务指标（消耗、CPA、点击率、ROI 等）时优先用 list_metrics 与 query_metric，口径由平台统一定义；只有表里没有定义口径的数值字段才用 run_metric。只引用工具返回的数字；工具返回错误时如实说明，不要猜测。数据足够后停止调用工具。问题缺少关键信息（口径、时间范围、业务线、拆解维度）且无法从数据推断时，调用 ask_user 提问，不要猜测。" },
+    { role: "user", content: `## 用户问题\n${question}\n## 提示\n${hints.length ? `用户指定的数据表：${hints.join("、")}` : "用户未指定数据表，请先搜索候选表。"}` }
+  ];
+  const evidence = [];
+  let calls = 0, steps = 0, tokens = 0;
+  while (steps < TOOL_MAX_STEPS) {
+    steps += 1;
+    const result = await relayChat(model, { messages, tools: toolkit.schemas, tool_choice: "auto" });
+    tokens += tokensOf(result.data?.usage);
+    if (!result.ok) return { used: false, reason: `工具调用不可用（${result.status}）`, tokens };
+    const message = result.data?.choices?.[0]?.message;
+    const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
+    if (!toolCalls.length) break;
+    messages.push({ role: "assistant", content: message.content || "", tool_calls: toolCalls });
+    for (const call of toolCalls) {
+      const name = call.function?.name || "";
+      if (calls >= TOOL_MAX_CALLS) {
+        messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: false, error: "工具调用次数已达上限" }) });
+        continue;
+      }
+      calls += 1;
+      const outcome = toolkit.execute(name, call.function?.arguments || "");
+      evidence.push({ 工具: name, 参数: call.function?.arguments || "", 结果: outcome.ok ? outcome.data : { 错误: outcome.error } });
+      let table = "";
+      try { table = String(JSON.parse(call.function?.arguments || "{}").table || ""); } catch { /* 参数非法时不显示表名 */ }
+      onToolEvent({ name, table, ok: outcome.ok, error: outcome.ok ? "" : outcome.error });
+      // 模型选择向用户提问：本轮分析到此暂停，由调用方把问题卡片交给界面（不再调用最终回答）
+      if (name === "ask_user" && outcome.ok) return { used: true, ask: outcome.data.payload, evidence, calls, steps, tokens, reason: "" };
+      messages.push({ role: "tool", tool_call_id: call.id, content: outcome.content });
+    }
+  }
+  return { used: evidence.length > 0, evidence, calls, steps, tokens, reason: evidence.length ? "" : "模型未调用工具" };
+}
+
+/* 指标异动归因：维度贡献由代码确定性计算（attribution-calc.cjs），写入每张表的证据「归因计算」，模型只负责解释 */
+function attachAttribution(evidence, tableNames) {
+  const targets = tableNames.map(name => tables.find(table => table.cnName === name)).filter(Boolean).slice(0, 3);
+  if (!targets.length) {
+    evidence.push({ 归因计算: { available: false, reason: "所选数据表不在门户表目录中，无法归因" } });
+    return;
+  }
+  targets.forEach(table => {
+    const agg = table.agg || {};
+    const result = computeAttribution(rowsOf(table.cnName), {
+      dateKey: agg.dateKey || "",
+      metric: agg.metric || "",
+      dimensions: (agg.groupBy || []).filter(Boolean),
+      activateKey: "activate_cnt"
+    });
+    let item = evidence.find(entry => entry.表名 === table.cnName);
+    if (!item) {
+      item = { 表名: table.cnName };
+      evidence.push(item);
+    }
+    item.归因计算 = result;
+  });
+}
+
 function buildEvidence(cnNames, portalContext = []) {
   const selected = cnNames.length ? tables.filter(table => cnNames.includes(table.cnName)) : tables;
   return selected.map(table => {
@@ -750,6 +877,21 @@ const users = [
   { name: "谭嘉颖", group: "优化师" },
   { name: "李雨航", group: "数据分析师" }
 ];
+
+/* 身份：账号密码登录，令牌由服务端签发；角色由权限组决定（门户管理员 = 管理员），不信任请求体里的任何用户名 */
+/* 组与账号分组：管理员在界面保存后以 org.json 为准，之前使用上面的默认值 */
+const orgStore = createOrgStore({
+  dataDir: DATA_DIR,
+  defaultGroups: permissionGroups,
+  defaultUserGroups: Object.fromEntries(users.map(item => [item.name, item.group])),
+  accounts: users.map(item => item.name),
+  tableNames: allTableNames
+});
+const auth = createAuth(DATA_DIR);
+const DEMO_LOGIN_PASSWORD = String(process.env.PORTAL_DEMO_LOGIN_PASSWORD || "");
+function roleOf(name) {
+  return users.some(item => item.name === name) && orgStore.isAdmin(name) ? "admin" : "user";
+}
 
 /* ================= Skill 包运行时（SKILL.md + 工具脚本 + 注册表） ================= */
 
@@ -964,9 +1106,9 @@ function installBuiltinPackages() {
     { id: "asset-qa", name: "数据资产问答 Skill", source: "asset-qa", version: "v1.0-portal", scenarioKey: "asset", icon: "📚", title: "数据资产问答", displayDesc: "有哪些表、口径、负责人", sort: 30,
       clarification: { enabled: false, question: "", options: [] }, assetScope: "全部已授权数据资产", responseContract: ["推荐表", "关键字段", "负责人"],
       instructions: "你是观星台数据平台的资产问答助手。\n基于提供的表资产清单回答用户问题，输出：相关表清单、各表口径说明、负责人、推荐用法。\n只推荐清单内的表；清单外的可能性标注「权限外，未纳入」。" },
-    { id: "attribution-analyst", name: "指标异动诊断 Skill", source: "attribution-analyst", version: "v0.6-portal", scenarioKey: "attribution", icon: "🎯", title: "指标异动诊断", displayDesc: "指标异动拆解与定位", sort: 40,
+    { id: "attribution-analyst", name: "指标异动诊断 Skill", source: "attribution-analyst", version: "v0.7-portal", scenarioKey: "attribution", icon: "🎯", title: "指标异动诊断", displayDesc: "指标异动拆解与定位", sort: 40,
       clarification: { enabled: false, question: "", options: [] }, assetScope: "引用指标表与可拆解维度", responseContract: ["异动幅度", "维度贡献", "证据限制"],
-      instructions: "你是观星台数据平台的归因分析助手。\n基于聚合统计中的「近7天 / 前7天 / 环比 / CPA环比」数据对指标异动做维度拆解：1. 先给出整体结论；2. 逐维度列出对比表（Markdown 表格）；3. 定位到具体的组并给出原因判断；4. 给出建议。\n所有数字必须来自证据，不编造。" }
+      instructions: "你是观星台数据平台的归因分析助手。\n证据中的「归因计算」由代码按确定性公式算出：加法指标（如消耗）按维度给出分组贡献；CPA 拆成结构效应、效率效应与无激活花费三部分，三者之和等于总变化。你的任务是解释这些结果，不是重新计算。\n1. 先给出整体结论（总变化与幅度）；2. 按「归因计算」里的维度列出贡献最大的组（Markdown 表格，数字原样引用，不得重算或改写）；3. 解释原因：结构效应表示激活占比（投放结构）的变化，效率效应表示单个分组 CPA 的变化；区分有证据支撑的结论与需要业务确认的假设；4. 给出建议。\n所有数字必须来自证据，不编造。「归因计算」中 reconciled 为 false 的维度不要使用。" }
   ];
   /* 数仓模型分析（服务化）：原 maxcompute-warehouse-analyst 提炼，输出对齐 WorkBuddy 八段式 */
   const warehouseDef = {
@@ -1040,15 +1182,22 @@ function installBuiltinPackages() {
 /* 执行 skill 工具：stdin 传参，stdout 出 JSON */
 function runSkillTool(registryEntry, toolName, args) {
   return new Promise(resolve => {
+    /* 只有随网关代码发布的内置包可以执行工具；上传包不论 skill.json 写什么都不执行（不再允许任意 cmd） */
+    if (registryEntry.builtin !== true) return resolve({ ok: false, error: "未经审核的 Skill 不执行工具" });
+    const dir = skillDir(registryEntry.id);
     const manifest = skillManifest(registryEntry.id);
     const tool = (manifest?.tools || []).find(item => item.name === toolName) || (manifest?.tools || [])[0];
     if (!tool || !tool.cmd) return resolve({ ok: false, error: "该 Skill 未声明可用工具" });
-    const parts = tool.cmd.split(" ");
-    const timeoutMs = Number(tool.timeoutMs || 20000);
+    /* 命令白名单：只接受 `node tools/<文件>.cjs`，脚本必须在技能目录的 tools 下；不经过 shell */
+    const match = String(tool.cmd).match(/^node (tools\/[A-Za-z0-9_.-]+\.cjs)$/);
+    const scriptPath = match ? path.join(dir, match[1]) : "";
+    if (!match || !scriptPath.startsWith(path.join(dir, "tools") + path.sep)) return resolve({ ok: false, error: "工具命令不在白名单内" });
+    const timeoutMs = Math.min(Number(tool.timeoutMs || 20000), 60000);
     let stdout = "", stderr = "";
-    const child = spawn(parts[0], parts.slice(1), {
-      cwd: registryEntry.dir,
-      env: { ...process.env, GATEWAY_DATA_DIR: DATA_DIR },
+    const child = spawn(process.execPath, [scriptPath], {
+      cwd: dir,
+      /* 工具进程不继承网关的密钥环境变量，只带必要变量 */
+      env: { PATH: process.env.PATH || "", GATEWAY_DATA_DIR: DATA_DIR },
       stdio: ["pipe", "pipe", "pipe"]
     });
     const timer = setTimeout(() => { child.kill("SIGKILL"); }, timeoutMs);
@@ -1595,12 +1744,21 @@ function saveShares(shares) {
   fs.renameSync(tmp, SHARES_FILE);
 }
 
-// 工作台会话/分析资产历史（无登录、共享一份：所有人看到同样的记录，刷新可恢复）
-function loadHistory() {
-  try {
-    const data = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf8"));
-    return { sessions: Array.isArray(data.sessions) ? data.sessions.slice(0, 80) : [], reports: Array.isArray(data.reports) ? data.reports.slice(0, 120) : [] };
-  } catch { return { sessions: [], reports: [] }; }
+/* 工作台历史按登录账号隔离：文件结构 { users: { <账号>: { sessions, reports } } }。
+   旧版是全站共享的一份（没有账号维度），无法判断归属，首次读取时改名为 .legacy.json 保留，不再对外提供。 */
+function readHistoryStore() {
+  let data = null;
+  try { data = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf8")); } catch { return { users: {} }; }
+  if (data && data.users && typeof data.users === "object") return data;
+  if (Array.isArray(data?.sessions) || Array.isArray(data?.reports)) {
+    try { fs.renameSync(HISTORY_FILE, LEGACY_HISTORY_FILE); } catch { /* 改名失败时下次再尝试 */ }
+  }
+  return { users: {} };
+}
+
+function loadHistory(userName) {
+  const box = readHistoryStore().users[userName] || {};
+  return { sessions: Array.isArray(box.sessions) ? box.sessions.slice(0, 80) : [], reports: Array.isArray(box.reports) ? box.reports.slice(0, 120) : [] };
 }
 
 function sanitizeHistoryMessage(msg) {
@@ -1612,13 +1770,15 @@ function sanitizeHistoryMessage(msg) {
     meta: String(msg?.meta || "").slice(0, 400),
     model: String(msg?.model || "").slice(0, 80),
     reportId: String(msg?.reportId || "").slice(0, 80),
+    requestId: String(msg?.requestId || "").slice(0, 80),
+    feedback: RATINGS.includes(msg?.feedback) ? msg.feedback : "",
     leadMsg: String(msg?.leadMsg || "").slice(0, 300),
     trailMsg: String(msg?.trailMsg || "").slice(0, 300),
     streaming: false
   };
 }
 
-// 工作台历史：无登录、共享一份。多标签页并发时按 id 合并（旧标签页的旧状态不会覆盖新记录）
+// 工作台历史：每个账号一份。同一账号多标签页并发时按 id 合并（旧标签页的旧状态不会覆盖新记录）
 function mergeHistory(incoming, existing) {
   const sessions = new Map((existing.sessions || []).map(s => [s.id, s]));
   for (const s of incoming.sessions || []) if (s.id) sessions.set(s.id, s);
@@ -1630,7 +1790,7 @@ function mergeHistory(incoming, existing) {
   };
 }
 
-function saveHistory(box) {
+function saveHistory(userName, box) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const sessions = (Array.isArray(box.sessions) ? box.sessions.slice(0, 80) : []).map(s => ({
     id: String(s?.id || "").slice(0, 80),
@@ -1655,20 +1815,19 @@ function saveHistory(box) {
     starred: !!r?.starred,
     sourceId: String(r?.sourceId || "").slice(0, 80)
   })).filter(r => r.id);
+  // 读-改-写在同一个同步段内完成，不会与其他账号的保存交错
+  const store = readHistoryStore();
+  store.users[userName] = { sessions, reports, updatedAt: new Date().toISOString() };
   const tmp = `${HISTORY_FILE}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ sessions, reports, updatedAt: new Date().toISOString() }, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
   fs.renameSync(tmp, HISTORY_FILE);
 }
 
 function userTables(userName) {
-  const user = users.find(item => item.name === userName);
-  if (!user) return [];
+  if (!users.some(item => item.name === userName)) return [];
   const override = loadPermissionOverrides()[userName];
   if (override) return override.tables.includes("全部数据表") ? [...allTableNames] : [...override.tables];
-  const group = permissionGroups.find(item => item.name === user.group);
-  if (!group) return [];
-  if (group.tables.includes("全部数据表")) return [...allTableNames];
-  return tables.filter(table => group.tables.includes(table.cnName)).map(table => table.cnName);
+  return orgStore.tablesOf(userName);
 }
 
 /* ================= Skill 注册表 ================= */
@@ -1718,9 +1877,9 @@ const skills = {
         label: "归因分析",
         system: [
           "你是观星台数据平台的归因分析助手。",
-          "基于聚合统计中的「近7天 / 前7天 / 环比 / CPA环比」数据对指标异动做维度拆解：",
-          "1. 先给出整体结论（哪个维度贡献最大、幅度多少）；2. 逐维度列出对比表（Markdown 表格）；3. 定位到具体的组并给出原因判断；4. 给出建议。",
-          "所有数字必须来自证据，不编造；无法归因时说明数据限制。"
+          "证据中的「归因计算」由代码按确定性公式算出：加法指标（如消耗）按维度给出分组贡献；CPA 拆成结构效应、效率效应与无激活花费三部分，三者之和等于总变化。你的任务是解释这些结果，不是重新计算。",
+          "1. 先给出整体结论（总变化与幅度）；2. 按「归因计算」里的维度列出贡献最大的组（Markdown 表格，数字原样引用，不得重算或改写）；3. 解释原因：结构效应表示激活占比（投放结构）的变化，效率效应表示单个分组 CPA 的变化；区分有证据支撑的结论与需要业务确认的假设；4. 给出建议。",
+          "所有数字必须来自证据，不编造。「归因计算」中 reconciled 为 false 的维度不要使用。"
         ].join("\n")
       }
     }
@@ -1729,12 +1888,38 @@ const skills = {
 
 /* ================= 工具函数 ================= */
 
+/* 跨域：默认只允许同源页面与本机开发页（localhost / 127.0.0.1）；其他来源要写进 PORTAL_ALLOWED_ORIGINS（逗号分隔，
+   写 * 表示不限制）。没有 Origin 头的请求（curl、服务端调用）不涉及浏览器跨域，不受影响。 */
+const ALLOWED_ORIGINS = String(process.env.PORTAL_ALLOWED_ORIGINS || "").split(",").map(item => item.trim()).filter(Boolean);
+
+/** 返回应写入 Access-Control-Allow-Origin 的值：""（无需 CORS 头）、具体来源，或 null（不允许） */
+function resolveCorsOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return "";
+  if (ALLOWED_ORIGINS.includes("*")) return "*";
+  try {
+    const parsed = new URL(origin);
+    if (parsed.host === req.headers.host) return origin;
+    if (["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)) return origin;
+  } catch { return null; }
+  return ALLOWED_ORIGINS.includes(origin) ? origin : null;
+}
+
+function corsHeadersFor(res) {
+  const headers = {
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+    Vary: "Origin"
+  };
+  if (res.corsOrigin) headers["Access-Control-Allow-Origin"] = res.corsOrigin;
+  return headers;
+}
+
 function sendJson(res, status, data) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+    ...corsHeadersFor(res),
+    "X-Content-Type-Options": "nosniff"
   });
   res.end(JSON.stringify(data));
 }
@@ -1864,9 +2049,76 @@ async function relayChatStream(model, payload, onEvent) {
 
 /* ================= 路由 ================= */
 
+/* 公开接口：登录本身，以及同事通过链接打开的分享报告（只读） */
+function isPublicApi(method, pathname) {
+  return (method === "POST" && pathname === "/v1/auth/login") || (method === "GET" && pathname === "/v1/auth/demo") || (method === "GET" && /^\/v1\/shares\/[a-f0-9]+$/.test(pathname));
+}
+
+/* 管理类接口：AI 中心（供应商、模型配置、Skill 管理）、表数据与权限的写操作，以及供应商明细读取 */
+function requiresAdmin(method, pathname) {
+  if (method === "GET") return pathname === "/v1/providers" || pathname === "/v1/model-config" || pathname === "/v1/usage/all" || pathname === "/v1/feedback";
+  return /^\/v1\/(providers|model-config|table-rows|permissions|quota|org|skills\/upload)(\/|$)/.test(pathname) || /^\/v1\/skills\/[^/]+\/config$/.test(pathname);
+}
+
 async function handleRequest(req, res) {
+  const corsOrigin = resolveCorsOrigin(req);
+  res.corsOrigin = corsOrigin || "";
+  if (corsOrigin === null) return sendJson(res, 403, { error: "该来源不在允许的跨域名单内" });
   if (req.method === "OPTIONS") return sendJson(res, 204, {});
   const url = new URL(req.url, "http://localhost");
+
+  /* 身份闸门：除公开接口外，所有 /v1/ 接口都要求有效令牌；管理类接口再要求管理员角色 */
+  if (url.pathname.startsWith("/v1/") && !isPublicApi(req.method, url.pathname)) {
+    const username = auth.userFromRequest(req);
+    if (!username || !users.some(item => item.name === username)) return sendJson(res, 401, { error: "请先登录" });
+    const role = roleOf(username);
+    if (requiresAdmin(req.method, url.pathname) && role !== "admin") return sendJson(res, 403, { error: "该操作需要门户管理员权限" });
+    req.session = { name: username, role };
+  }
+
+  /* 本地演示登录：仅当显式设置了 PORTAL_DEMO_LOGIN_PASSWORD 才开启，登录页会据此给出账号快捷按钮并自动填密码。
+     它会把这个密码公开给任何访问者，所以默认关闭，只能用于本机；服务器部署不要设置。 */
+  if (req.method === "GET" && url.pathname === "/v1/auth/demo") {
+    if (!DEMO_LOGIN_PASSWORD) return sendJson(res, 404, { error: "未开启演示登录" });
+    return sendJson(res, 200, { accounts: users.map(item => ({ name: item.name, role: roleOf(item.name) })), password: DEMO_LOGIN_PASSWORD });
+  }
+
+  if (req.method === "POST" && url.pathname === "/v1/auth/login") {
+    const body = await readBody(req, 4096);
+    const name = String(body.name || "").trim();
+    const password = String(body.password || "");
+    // 未知用户与密码错误返回同样的提示，避免枚举账号
+    if (!users.some(item => item.name === name)) return sendJson(res, 401, { error: "账号或密码错误" });
+    if (auth.isLocked(name)) return sendJson(res, 429, { error: "失败次数过多，请 15 分钟后再试" });
+    if (!auth.checkPassword(name, password)) {
+      auth.recordFailure(name);
+      return sendJson(res, 401, { error: "账号或密码错误" });
+    }
+    auth.clearFailures(name);
+    return sendJson(res, 200, { token: auth.issueToken(name), user: { name, role: roleOf(name), group: orgStore.groupOf(name) } });
+  }
+
+  if (req.method === "GET" && url.pathname === "/v1/auth/me") {
+    return sendJson(res, 200, { name: req.session.name, role: req.session.role, group: orgStore.groupOf(req.session.name), tables: userTables(req.session.name) });
+  }
+
+  // 修改自己的密码：需要旧密码；旧密码连续输错同样会被临时锁定
+  if (req.method === "POST" && url.pathname === "/v1/auth/password") {
+    const body = await readBody(req, 4096);
+    const name = req.session.name;
+    const newPassword = String(body.newPassword || "");
+    if (auth.isLocked(name)) return sendJson(res, 429, { error: "失败次数过多，请 15 分钟后再试" });
+    if (!auth.checkPassword(name, String(body.oldPassword || ""))) {
+      auth.recordFailure(name);
+      return sendJson(res, 401, { error: "旧密码不正确" });
+    }
+    if (newPassword.length < 8) return sendJson(res, 400, { error: "新密码至少 8 位" });
+    if (newPassword === String(body.oldPassword)) return sendJson(res, 400, { error: "新密码不能与旧密码相同" });
+    auth.clearFailures(name);
+    auth.setPassword(name, newPassword);
+    appendAuditEntry({ type: "password-change", user: name });
+    return sendJson(res, 200, { changed: true });
+  }
 
   if (req.method === "GET" && url.pathname === "/v1/models") {
     // 所有模型都来自供应商记录（内置中转站也是其中一条）；某个供应商挂了不影响其他供应商的模型
@@ -2046,7 +2298,12 @@ async function handleRequest(req, res) {
 
   if (req.method === "POST" && url.pathname === "/v1/skills/upload") {
     const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
+    let uploadedBytes = 0;
+    for await (const chunk of req) {
+      uploadedBytes += chunk.length;
+      if (uploadedBytes > 20e6) return sendJson(res, 413, { error: "Skill 包超过 20MB 上限" });
+      chunks.push(chunk);
+    }
     const zipBuffer = Buffer.concat(chunks);
     if (!zipBuffer.length) return sendJson(res, 400, { error: "未收到文件内容" });
     const id = "skill-" + crypto.randomBytes(4).toString("hex");
@@ -2078,6 +2335,11 @@ async function handleRequest(req, res) {
       }
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
       if (!manifest.name) throw new Error("skill.json 缺少 name 字段");
+      /* 上传包不执行工具：清空 tools 并落盘，运行时也只接受内置包（见 runSkillTool）。
+         数据取证沿用网关内置证据通道；需要自定义工具的包须经代码评审后随网关发布。 */
+      manifest.tools = [];
+      manifest.toolsDisabled = true;
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
       const registry = loadSkillRegistry();
       const entry = {
         id, name: String(manifest.name).slice(0, 60),
@@ -2091,7 +2353,7 @@ async function handleRequest(req, res) {
         enabled: manifest.enabled !== false,
         grayUsers: Array.isArray(manifest.grayUsers) ? manifest.grayUsers.slice(0, 50) : [],
         desc: String(manifest.desc || "").slice(0, 200),
-        dir, installedAt: new Date().toISOString(), builtin: false
+        dir, installedAt: new Date().toISOString(), builtin: false, toolsDisabled: true
       };
       registry.push(entry);
       saveSkillRegistry(registry);
@@ -2131,7 +2393,7 @@ async function handleRequest(req, res) {
       tablesUsed: Array.isArray(body.tablesUsed) ? body.tablesUsed.slice(0, 8).map(item => String(item).slice(0, 60)) : [],
       report: String(body.report || "").slice(0, 120000),
       question: String(body.question || "").slice(0, 500),
-      createdBy: String(body.createdBy || "").slice(0, 40),
+      createdBy: req.session.name,
       createdAt: new Date().toISOString()
     };
     saveShares(shares);
@@ -2145,26 +2407,91 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, share);
   }
 
-  // 工作台历史：无登录共享一份，页面刷新后恢复（会话、消息、分析资产）
+  // 回答反馈：只能评价自己的分析（用审计里的 requestId 校验归属）；管理员查看列表与汇总
+  if (req.method === "POST" && url.pathname === "/v1/feedback") {
+    const body = await readBody(req, 8000);
+    const requestId = String(body.requestId || "").slice(0, 80);
+    if (!RATINGS.includes(body.rating)) return sendJson(res, 400, { error: "评价只能是 up 或 down" });
+    const analysis = readAuditEntries().find(entry => entry.type === "analysis" && entry.requestId === requestId && entry.user === req.session.name);
+    if (!analysis) return sendJson(res, 404, { error: "找不到这次分析，或它不属于当前账号" });
+    const saved = feedbackStore.set({ requestId, user: req.session.name, rating: body.rating, comment: body.comment, model: analysis.model, skill: analysis.skill, scenario: analysis.scenario, toolMode: analysis.toolMode, question: analysis.question });
+    return sendJson(res, 200, { saved: true, rating: saved.rating });
+  }
+  if (req.method === "GET" && url.pathname === "/v1/feedback") {
+    return sendJson(res, 200, { summary: feedbackStore.summary(), items: feedbackStore.list({ rating: url.searchParams.get("rating") || "", limit: url.searchParams.get("limit") || 50 }) });
+  }
+
+  // 组织与权限：权限组配置与账号分组。登录后界面读取；管理员在界面修改后保存，服务端据此判断数据表权限与管理员角色
+  const orgView = () => {
+    const org = orgStore.effective();
+    const admin = req.session.role === "admin";
+    const own = orgStore.groupOf(req.session.name);
+    return {
+      role: req.session.role,
+      accounts: admin ? users.map(item => item.name) : [req.session.name],
+      customized: org.customized,
+      // 还没有管理员保存过时不下发组配置，界面继续使用自带的默认配置
+      groups: org.customized ? (admin ? org.groups : org.groups.filter(group => group.name === own)) : [],
+      userGroups: admin ? org.userGroups : { [req.session.name]: own }
+    };
+  };
+  if (req.method === "GET" && url.pathname === "/v1/org") return sendJson(res, 200, orgView());
+  if (req.method === "PUT" && url.pathname === "/v1/org") {
+    const body = await readBody(req);
+    const outcome = orgStore.save({ groups: body.groups, userGroups: body.userGroups });
+    if (!outcome.ok) return sendJson(res, 400, { error: outcome.error });
+    appendAuditEntry({ type: "org-change", user: req.session.name, groups: Array.isArray(body.groups) ? body.groups.length : undefined });
+    return sendJson(res, 200, orgView());
+  }
+
+  // 语义层：当前用户有权限的业务指标与口径（校验警告只给管理员看）
+  if (req.method === "GET" && url.pathname === "/v1/metrics") {
+    return sendJson(res, 200, {
+      metrics: semanticLayer.listMetrics(userTables(req.session.name), url.searchParams.get("keyword") || ""),
+      ...(req.session.role === "admin" ? { warnings: semanticLayer.warnings } : {})
+    });
+  }
+
+  // 按口径直接查询指标（与 query_metric 工具同一套计算与权限）：供评测取「标准答案」，也可给界面或外部调用
+  if (req.method === "POST" && url.pathname === "/v1/metrics/query") {
+    const body = await readBody(req, 20000);
+    const outcome = semanticLayer.query({ metric: body.metric, table: body.table, group: body.group, days: body.days, allowedTables: userTables(req.session.name) });
+    return sendJson(res, outcome.ok ? 200 : 400, outcome.ok ? outcome.data : { error: outcome.error });
+  }
+
+  // 用量与配额：个人查看自己的今日用量；管理员查看全员并调整限额（0 = 不限）
+  if (req.method === "GET" && url.pathname === "/v1/usage") {
+    return sendJson(res, 200, { ...usageTracker.usageOf(req.session.name), limits: usageTracker.limitsFor(req.session.name) });
+  }
+  if (req.method === "GET" && url.pathname === "/v1/usage/all") {
+    return sendJson(res, 200, usageTracker.snapshot(users.map(item => item.name)));
+  }
+  if (req.method === "PUT" && url.pathname === "/v1/quota") {
+    const body = await readBody(req, 20000);
+    usageTracker.setLimits(body, users.map(item => item.name));
+    return sendJson(res, 200, usageTracker.snapshot(users.map(item => item.name)));
+  }
+
+  // 工作台历史：只读写当前登录账号自己的记录，页面刷新后恢复（会话、消息、分析资产）
   if (req.method === "GET" && url.pathname === "/v1/history") {
-    return sendJson(res, 200, loadHistory());
+    return sendJson(res, 200, loadHistory(req.session.name));
   }
   if (req.method === "PUT" && url.pathname === "/v1/history") {
     const body = await readBody(req, 30e6);
     if (!Array.isArray(body.sessions) || !Array.isArray(body.reports)) {
       return sendJson(res, 400, { error: "历史数据格式不正确" });
     }
-    const existing = loadHistory();
+    const existing = loadHistory(req.session.name);
     // 合并而非替换：多标签页各自保存时以 id 互不覆盖（旧标签页的旧状态不会清掉新标签页的记录）
-    saveHistory(mergeHistory({ sessions: body.sessions, reports: body.reports }, existing));
+    saveHistory(req.session.name, mergeHistory({ sessions: body.sessions, reports: body.reports }, existing));
     return sendJson(res, 200, { saved: true });
   }
   const historyReportMatch = url.pathname.match(/^\/v1\/history\/report\/(.+)$/);
   if (req.method === "DELETE" && historyReportMatch) {
     const reportId = decodeURIComponent(historyReportMatch[1]);
-    const existing = loadHistory();
+    const existing = loadHistory(req.session.name);
     const reports = existing.reports.filter(r => r.id !== reportId);
-    saveHistory({ sessions: existing.sessions, reports });
+    saveHistory(req.session.name, { sessions: existing.sessions, reports });
     return sendJson(res, 200, { removed: reports.length !== existing.reports.length });
   }
 
@@ -2234,11 +2561,13 @@ async function handleRequest(req, res) {
 
   if (req.method === "GET" && url.pathname === "/v1/permissions") {
     const overrides = loadPermissionOverrides();
+    const org = orgStore.effective();
     return sendJson(res, 200, {
-      groups: permissionGroups,
-      users: users.map(user => ({
-        name: user.name, group: user.group,
-        groupTables: permissionGroups.find(item => item.name === user.group)?.tables || [],
+      groups: org.groups.map(group => ({ name: group.name, tables: group.tables })),
+      // 普通用户只能看到自己的有效权限，全员清单仅管理员可见
+      users: (req.session.role === "admin" ? users : users.filter(item => item.name === req.session.name)).map(user => ({
+        name: user.name, group: org.userGroups[user.name],
+        groupTables: org.groups.find(item => item.name === org.userGroups[user.name])?.tables || [],
         override: overrides[user.name] || null,
         effectiveTables: userTables(user.name)
       }))
@@ -2262,7 +2591,10 @@ async function handleRequest(req, res) {
 
   if (req.method === "POST" && url.pathname === "/v1/analyze") {
     const body = await readBody(req);
-    const { user = "曾祥竞", question = "", scenario = "data-query", tables: requestedTables = [], assetCandidates = [], businessLine = "", model = DEFAULT_MODEL, reasoningEffort = "", maxTokens = null, portalContext = [] } = body;
+    // 分析身份只取令牌里的登录用户，请求体里的 user 一律忽略
+    const user = req.session.name;
+    const started = Date.now();
+    const { question = "", scenario = "data-query", tables: requestedTables = [], assetCandidates = [], businessLine = "", model = DEFAULT_MODEL, reasoningEffort = "", maxTokens = null, portalContext = [] } = body;
     if (!question.trim()) return sendJson(res, 400, { error: "问题不能为空" });
 
     const modelConfig = loadModelConfig();
@@ -2281,6 +2613,12 @@ async function handleRequest(req, res) {
     if (businessLine && !referenced.length && !scopedCandidates.length) {
       return sendJson(res, 404, { error: `「${businessLine}」业务线下没有可用数据资产，请先在表管理中配置业务线或确认权限` });
     }
+
+    /* 每人每日配额：请求数或 token 用量达到上限时直接拒绝（校验与权限检查之后才计数） */
+    const quota = usageTracker.check(user);
+    if (!quota.ok) return sendJson(res, 429, { error: quota.error, quota: { usage: quota.usage, limits: quota.limits } });
+    usageTracker.recordRequest(user);
+    const requestId = crypto.randomUUID();
 
     /* Skill 运行时：优先按 skillId 执行注册表里的包（工具出证据 + SKILL.md 出编排），失败回退内置 */
     let buildEvidenceOverride = null;
@@ -2310,7 +2648,73 @@ async function handleRequest(req, res) {
       scene = builtin.scenarios[routed?.skill?.scenarioKey || (isRouting ? "data-query" : scenario)] || builtin.scenarios.single;
     }
     const evidenceTables = referenced.length ? referenced : scopedCandidates;
-    const evidence = buildEvidenceOverride || buildEvidence(evidenceTables, portalContext);
+    const isAttributionRequest = targetSkillId === ATTRIBUTION_SKILL_ID || scenario === "attribution";
+    let evidence = buildEvidenceOverride || buildEvidence(evidenceTables, portalContext);
+    /* 工具取数：模型自己决定查什么，权限在工具里逐次校验；未调用工具或模型不支持时回到原证据方式 */
+    let toolMode = "off";
+    let toolCalls = [];
+    let toolTokens = 0;
+    /* 流式请求在工具阶段就打开 SSE，让界面实时看到「正在查询 / 调用了哪个工具」，而不是长时间无响应 */
+    const streaming = body.stream === true;
+    let sseSend = null, sseHeartbeat = null;
+    if (streaming) {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        ...corsHeadersFor(res)
+      });
+      sseSend = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+      sseHeartbeat = setInterval(() => res.write(": hb\n\n"), 5000);
+      sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "" });
+    }
+    if (body.toolMode !== false && !isAttributionRequest && providerSupportsTools(model)) {
+      const toolkit = createAnalysisToolkit({ userName: user, allowedTables: allowed, tables, rowsOf, audit: appendAuditEntry, allowAsk: !question.includes("用户补充信息"), semantic: semanticLayer });
+      if (sseSend) sseSend({ status: "正在查询数据…" });
+      let loop;
+      try {
+        loop = await runAnalysisToolLoop({ model, question, hints: referenced, toolkit, onToolEvent: ev => { if (sseSend) sseSend({ tool: ev }); } });
+      } catch (error) {
+        if (sseSend) {
+          clearInterval(sseHeartbeat);
+          sseSend({ error: `工具取数失败：${error.message}` });
+          return res.end();
+        }
+        throw error;
+      }
+      toolTokens += loop.tokens || 0;
+      if (loop.ask) {
+        const askText = `${loop.ask.intro ? loop.ask.intro + "\n\n" : ""}\`\`\`ask\n${JSON.stringify(loop.ask)}\n\`\`\``;
+        const askCalls = loop.evidence.map(entry => ({ tool: entry.工具, table: "", ok: !(entry.结果 && entry.结果.错误) }));
+        const askMeta = {
+          skill: skill.name, skillVersion: skill.version, scenario: scene.label, toolMode: `ask:${loop.calls}`, toolCalls: askCalls,
+          model, tablesUsed: referenced, deniedTables: denied, latencyMs: Date.now() - started, usage: null, requestId,
+          numericCheck: null, usageToday: null, totalTokens: toolTokens
+        };
+        finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: askMeta.toolMode, toolCalls: askCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: askMeta.latencyMs, numericCheck: null, status: "ok" });
+        askMeta.usageToday = { ...usageTracker.usageOf(user), limits: usageTracker.limitsFor(user) };
+        if (sseSend) {
+          clearInterval(sseHeartbeat);
+          sseSend({ delta: askText });
+          sseSend({ done: true, meta: askMeta });
+          return res.end();
+        }
+        return sendJson(res, 200, { report: askText, meta: askMeta });
+      }
+      if (loop.used) {
+        evidence = loop.evidence;
+        toolMode = `used:${loop.calls}`;
+        // 界面展示用的摘要：调了什么工具、查了哪张表、是否成功（完整结果已进入证据与审计）
+        toolCalls = loop.evidence.map(entry => {
+          let args = {};
+          try { args = JSON.parse(entry.参数 || "{}"); } catch { /* 参数非法时只展示工具名 */ }
+          return { tool: entry.工具, table: typeof args.table === "string" ? args.table : "", ok: !(entry.结果 && entry.结果.错误) };
+        });
+      } else {
+        toolMode = `fallback:${loop.reason || "no-tool-call"}`;
+      }
+    }
+    if (isAttributionRequest) attachAttribution(evidence, evidenceTables);
     const prompt = [
       `## 用户问题\n${question}`,
       `## 分析场景\n${scene.label}`,
@@ -2320,7 +2724,6 @@ async function handleRequest(req, res) {
       `## 表证据（唯一事实来源，所有数字必须来自这里）\n${JSON.stringify(evidence, null, 1)}`
     ].filter(Boolean).join("\n\n");
 
-    const started = Date.now();
     const ASK_PROTOCOL = [
       "## 交互式提问协议",
       "当用户问题缺少关键信息（指标口径、时间范围、业务线、拆解维度等），且无法从表证据中合理推断时，不要猜测，也不要输出长报告；改为先提问。",
@@ -2332,18 +2735,11 @@ async function handleRequest(req, res) {
     const messages = [{ role: "system", content: `${scene.system}\n\n${ASK_PROTOCOL}` }, { role: "user", content: prompt }];
 
     /* 流式模式：SSE 逐段转发给前端 */
-    if (body.stream === true) {
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
-      });
-      const send = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
-      const heartbeat = setInterval(() => res.write(": hb\n\n"), 5000);
-      send({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "" });
+    if (streaming) {
+      // SSE 已在工具阶段之前打开（见上方），这里沿用同一条连接
+      const send = sseSend;
+      const heartbeat = sseHeartbeat;
+      if (send) send({ status: "正在生成回答…" });
       const reasoningOptions = {};
       // 只在该模型声明支持的档位里透传 reasoning_effort：不支持的模型直接不带这个参数
       const modelReasoning = modelCapabilityFor(model).reasoning;
@@ -2359,20 +2755,26 @@ async function handleRequest(req, res) {
       }
       if (!result.ok) {
         clearInterval(heartbeat);
-        send({ error: `模型调用失败（${result.lastResult?.status || 502}）：${JSON.stringify(result.lastResult?.data).slice(0, 300)}` });
+        const failure = `模型调用失败（${result.lastResult?.status || 502}）：${JSON.stringify(result.lastResult?.data).slice(0, 300)}`;
+        finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: failure });
+        send({ error: failure });
         return res.end();
       }
       clearInterval(heartbeat);
+      const streamNumericCheck = checkNumericGrounding(result.content || "", evidence, question);
+      finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: streamNumericCheck, status: "ok" });
       send({
         done: true,
         meta: {
-          skill: skill.name, skillVersion: skill.version, scenario: scene.label,
+          skill: skill.name, skillVersion: skill.version, scenario: scene.label, toolMode, toolCalls,
           model, reasoningEffort: reasoningOptions.reasoning_effort || "default",
           maxTokens: reasoningOptions.max_completion_tokens || null,
           tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名),
           deniedTables: denied, latencyMs: Date.now() - started,
-          usage: result.usage || null, requestId: crypto.randomUUID(),
-          warning: result.stalled ? "上游中断，以上为已生成内容" : ""
+          usage: result.usage || null, requestId,
+          warning: result.stalled ? "上游中断，以上为已生成内容" : "",
+          numericCheck: streamNumericCheck, totalTokens: tokensOf(result.usage) + toolTokens,
+          usageToday: { ...usageTracker.usageOf(user), limits: usageTracker.limitsFor(user) }
         }
       });
       return res.end();
@@ -2389,22 +2791,29 @@ async function handleRequest(req, res) {
         result = await relayChat(model, { messages });
       }
       if (result.status !== 200) {
-        return sendJson(res, 502, { error: `模型调用失败（${result.status}）：${JSON.stringify(result.data).slice(0, 300)}` });
+        const failure = `模型调用失败（${result.status}）：${JSON.stringify(result.data).slice(0, 300)}`;
+        finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: failure });
+        return sendJson(res, 502, { error: failure });
       }
       const content = result.data?.choices?.[0]?.message?.content || "";
+      const plainNumericCheck = checkNumericGrounding(content, evidence, question);
+      finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.data.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: plainNumericCheck, status: "ok" });
       return sendJson(res, 200, {
         report: content,
         meta: {
-          skill: skill.name, skillVersion: skill.version, scenario: scene.label,
+          skill: skill.name, skillVersion: skill.version, scenario: scene.label, toolMode, toolCalls,
           model, skillRuntime: registrySkill ? ("package:" + registrySkill.id) : "builtin", skillFallback: runtimeError || "",
           reasoningEffort: hasReasoningOptions ? (reasoningOptions.reasoning_effort || "default") : "default",
           maxTokens: reasoningOptions.max_completion_tokens || null,
           tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名),
           deniedTables: denied, latencyMs: Date.now() - started,
-          usage: result.data.usage || null, requestId: crypto.randomUUID()
+          usage: result.data.usage || null, requestId,
+          numericCheck: plainNumericCheck, totalTokens: tokensOf(result.data.usage) + toolTokens,
+          usageToday: { ...usageTracker.usageOf(user), limits: usageTracker.limitsFor(user) }
         }
       });
     } catch (error) {
+      finishAnalysis({ user, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: error.message });
       return sendJson(res, 502, { error: `分析失败：${error.message}` });
     }
   }
@@ -2431,7 +2840,11 @@ async function handleRequest(req, res) {
         };
         res.writeHead(200, {
           "Content-Type": types[ext] || "application/octet-stream",
-          "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=3600"
+          "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=3600",
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "same-origin",
+          // 不影响现有页面的收紧项：禁用插件对象、限制 base 与表单提交目标、禁止被其他站点嵌入
+          "Content-Security-Policy": "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
         });
         return res.end(content);
       }
@@ -2444,8 +2857,15 @@ async function handleRequest(req, res) {
 // 全局兜底：任何 handler 异常（如非法 JSON 请求体）只返回 400，不拖垮服务进程
 const server = http.createServer((req, res) => {
   handleRequest(req, res).catch(error => {
+    const message = `请求处理失败：${error && error.message ? error.message : "未知错误"}`;
     try {
-      sendJson(res, 400, { error: `请求处理失败：${error && error.message ? error.message : "未知错误"}` });
+      if (res.headersSent) {
+        // 流式响应已经打开：不能再改状态码，用 error 事件告知前端并结束连接，避免界面一直等待
+        res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+        res.end();
+      } else {
+        sendJson(res, 400, { error: message });
+      }
     } catch (sendError) { /* 响应可能已发出，忽略 */ }
     if (error && error.message) console.error("网关请求处理异常：", error.message);
   });
@@ -2453,6 +2873,13 @@ const server = http.createServer((req, res) => {
 
 loadSampleData();
 installBuiltinPackages();
+/* 账号：名单内用户首次启动时创建；密码取 PORTAL_INITIAL_PASSWORD，未设置则随机生成并只打印这一次 */
+if (DEMO_LOGIN_PASSWORD) console.warn("[auth] ⚠ 已开启演示登录（PORTAL_DEMO_LOGIN_PASSWORD）：登录页会公开显示账号并自动填入密码，只能用于本机，不要用于服务器。");
+const generatedAccounts = auth.bootstrapAccounts(users.map(item => item.name), process.env.PORTAL_INITIAL_PASSWORD || "");
+if (generatedAccounts.length) {
+  console.log("[auth] 已为以下账号生成初始密码（只显示这一次，请尽快修改）：");
+  generatedAccounts.forEach(item => console.log(`[auth]   ${item.name}：${item.password}`));
+}
 server.listen(PORT, () => console.log(`观星台分析网关已启动: http://localhost:${PORT}（数据目录 ${DATA_DIR}，skill 运行时已就绪）`));
 // 首次启动把环境变量里的中转站迁移成普通供应商记录；之后一切都走「供应商配置」
 ensureRelayProvider()
