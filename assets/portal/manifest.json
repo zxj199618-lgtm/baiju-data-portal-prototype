@@ -32,5 +32,6 @@
   "page-table-detail.js",
   "page-ops-env.js",
   "page-alert-management.js",
+  "page-ops-center.js",
   "boot.js"
 ]

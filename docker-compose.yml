@@ -17,6 +17,7 @@ services:
       PORTAL_DAILY_TOKEN_LIMIT: "${PORTAL_DAILY_TOKEN_LIMIT:-}"
       PORTAL_DEMO_LOGIN_PASSWORD: "${PORTAL_DEMO_LOGIN_PASSWORD:-}"
       PORTAL_GLOBAL_DAILY_TOKEN_LIMIT: "${PORTAL_GLOBAL_DAILY_TOKEN_LIMIT:-}"
+      DEFAULT_MODEL: "${DEFAULT_MODEL:-}"
       DATA_DIR: "/app/data"
     volumes:
       - gateway-data:/app/data

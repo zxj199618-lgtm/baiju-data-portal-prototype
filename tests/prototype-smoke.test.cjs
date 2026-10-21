@@ -283,7 +283,7 @@ assert(aiGroup.includes('name: "Skill 配置", badge: "5.0"') && aiGroup.include
 assert(portalBridge.includes('group: "AI 中心", icon: "ai"'), "AI 中心应有独立侧栏图标");
 assert(systemGroup.includes('name: "看板访问记录"') && systemGroup.includes('name: "菜单管理"') && !systemGroup.includes('name: "任务运维"') && !systemGroup.includes('name: "环境域名"'), "系统管理只应保留看板访问记录 / 菜单管理；任务运维与环境域名必须已迁入大数据工具箱（此断言防止回退）");
 assert(!systemGroup.includes("Skill 配置") && !systemGroup.includes("模型配置"), "系统管理不应再包含 Skill 配置与模型配置（此断言防止回退）");
-assert(portalBridge.includes('if (page === "Skill 配置" || page === "模型配置") return "ai";'), "AI 中心两个页面的顶部页签应使用 ai 图标");
+assert(portalBridge.includes('if (page === "Skill 配置" || page === "模型配置" || page === "运营中心") return "ai";'), "AI 中心三个页面的顶部页签应使用 ai 图标");
 /* Skill 图标：内置四个 Skill 用随原型分发的 SVG，不再用 emoji；上传图 / emoji 仍按原逻辑渲染 */
 assert(portalVue.includes('icon: "assets/skill-query.svg"') && portalVue.includes('icon: "assets/skill-asset.svg"') && portalVue.includes('icon: "assets/skill-lineage.svg"') && portalVue.includes('icon: "assets/skill-attribution.svg"'), "四个内置 Skill 要用设计好的 SVG 图标");
 assert(portalVue.includes('icon: "assets/skill-single-table.svg"'), "网关未连接时的兜底场景「单表分析」也要用同一套 SVG 图标");

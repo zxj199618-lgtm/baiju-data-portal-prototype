@@ -86,6 +86,18 @@ describe("演示模式：用量按访客各自计数，并有全站兜底", () =
   });
 });
 
+describe("演示模式：全站兜底的默认值", () => {
+  for (const [label, value, expected] of [["环境变量是空字符串（compose 透传的写法）", "", 20000000], ["显式设为 0 表示不限", "0", 0], ["自定义数值", "5000", 5000]]) {
+    test(`${label} → 全站上限 ${expected}`, async () => {
+      const harness = await startHarness({ env: { PORTAL_DEMO_LOGIN_PASSWORD: PASSWORD, PORTAL_GLOBAL_DAILY_TOKEN_LIMIT: value } });
+      try {
+        const snapshot = await harness.call("GET", "/v1/usage/all", { token: await harness.tokenFor("曾祥竞") });
+        assert.equal(snapshot.data.global.limit, expected);
+      } finally { await harness.stop(); }
+    });
+  }
+});
+
 describe("非演示模式：访客请求头被忽略", () => {
   test("同一账号带不同访客 id 时看到的是同一份历史（身份只看账号）", async () => {
     const harness = await startHarness();

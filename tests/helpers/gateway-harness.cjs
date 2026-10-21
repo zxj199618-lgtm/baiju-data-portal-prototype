@@ -64,6 +64,9 @@ function startFakeRelay(state) {
             return res.end(JSON.stringify({ choices: [{ message: { content: "", tool_calls: next.calls } }], usage: state.usage }));
           }
           const content = typeof state.report === "function" ? state.report(body) : state.report;
+          if (state.finalDelayMs) { setTimeout(() => respondFinal(), state.finalDelayMs); return; }
+          respondFinal();
+          function respondFinal() {
           if (body.stream) {
             res.writeHead(200, { "Content-Type": "text/event-stream" });
             const half = Math.floor(content.length / 2);
@@ -76,6 +79,8 @@ function startFakeRelay(state) {
           }
           res.writeHead(200, { "Content-Type": "application/json" });
           return res.end(JSON.stringify({ choices: [{ message: { content } }], usage: state.usage }));
+          }
+          return;
         }
         res.writeHead(404);
         res.end("{}");

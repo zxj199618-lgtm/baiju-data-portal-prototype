@@ -103,10 +103,11 @@
       clearTimeout(this.timer);
       this.timer = setTimeout(() => this.push(), 800);
     },
-    async push() {
+    /** force=true：即使和上次一致也保存（服务端还没有保存过权限组快照时，需要先把完整的组配置交给服务端） */
+    async push(force = false) {
       const body = this.snapshot();
       const serialized = JSON.stringify(body);
-      if (serialized === this.lastSnapshot) return;
+      if (!force && serialized === this.lastSnapshot) return;
       try {
         const response = await fetch(`${analysisGatewayBase}/v1/org`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: serialized });
         if (response.ok) { this.lastSnapshot = serialized; return; }

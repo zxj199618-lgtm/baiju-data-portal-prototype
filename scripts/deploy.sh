@@ -73,6 +73,10 @@ DEPLOY_VERIFY_RETRIES="${DEPLOY_VERIFY_RETRIES:-30}"
 DEPLOY_VERIFY_INTERVAL="${DEPLOY_VERIFY_INTERVAL:-10}"
 DEPLOY_ALLOW_DIRTY="${DEPLOY_ALLOW_DIRTY:-0}"
 DEPLOY_SKIP_TESTS="${DEPLOY_SKIP_TESTS:-0}"
+DEPLOY_EVAL="${DEPLOY_EVAL:-0}"
+DEPLOY_EVAL_PASSWORD="${DEPLOY_EVAL_PASSWORD:-}"
+DEPLOY_EVAL_MODELS="${DEPLOY_EVAL_MODELS:-}"
+DEPLOY_EVAL_FILTER="${DEPLOY_EVAL_FILTER:-}"
 
 [ -n "$DEPLOY_HOST" ] || die "未配置 DEPLOY_HOST。请复制 .deploy.env.example 为 .deploy.env 并填写服务器信息。"
 [ -n "$DEPLOY_PATH" ] || die "未配置 DEPLOY_PATH（服务器上的仓库路径）。"
@@ -202,6 +206,26 @@ if [ -n "$DEPLOY_URL" ]; then
   ok "线上版本号已更新为 $EXPECT_VERSION"
 else
   warn "未配置 DEPLOY_URL，跳过线上版本号核对"
+fi
+
+# ---------------------------------------------------------------------------
+# 7. 可选：对线上跑一遍评测（DEPLOY_EVAL=1）。会调用真实模型、消耗 token，所以默认关闭。
+#    发版已经完成，评测失败或相对基线回退只给出醒目提示，不回滚。
+# ---------------------------------------------------------------------------
+if [ "$DEPLOY_EVAL" = "1" ]; then
+  if [ -z "$DEPLOY_URL" ] || [ -z "$DEPLOY_EVAL_PASSWORD" ]; then
+    warn "DEPLOY_EVAL=1 需要同时配置 DEPLOY_URL 与 DEPLOY_EVAL_PASSWORD（评测账号的密码，所有评测账号用同一个），已跳过评测"
+  else
+    log "线上评测（真实模型，会消耗 token）"
+    EVAL_ARGS=(--base "${DEPLOY_URL%/}" --baseline evals/baseline.json)
+    [ -n "$DEPLOY_EVAL_MODELS" ] && EVAL_ARGS+=(--models "$DEPLOY_EVAL_MODELS")
+    [ -n "$DEPLOY_EVAL_FILTER" ] && EVAL_ARGS+=(--filter "$DEPLOY_EVAL_FILTER")
+    if EVAL_PASSWORD="$DEPLOY_EVAL_PASSWORD" node scripts/run-evals.cjs "${EVAL_ARGS[@]}"; then
+      ok "评测通过，且相对基线没有回退"
+    else
+      warn "评测有失败或相对基线出现回退（发版已完成，未回滚）：请查看上面的明细，必要时修复后重新发版"
+    fi
+  fi
 fi
 
 printf '\n\033[1;32m发版完成\033[0m：%s @ %s\n' "$COMMIT" "$(date '+%Y-%m-%d %H:%M:%S')"

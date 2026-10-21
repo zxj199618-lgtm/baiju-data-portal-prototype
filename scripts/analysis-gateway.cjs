@@ -729,7 +729,8 @@ const AUDIT_FILE = path.join(DATA_DIR, "analysis-audit.jsonl");
    - 不做「连续输错锁定」（否则任何人都能用脚本把演示账号反复锁死）；
    - 历史与用量按「账号~访客」分开记（访客 id 由浏览器随机生成并随请求头 X-Visitor-Id 发送），访客之间互不可见、各自计数；
    - 全站每日 token 总量兜底（默认 2000 万，可用 PORTAL_GLOBAL_DAILY_TOKEN_LIMIT 调整），避免公开账号被刷出高额费用。 */
-if (process.env.PORTAL_DEMO_LOGIN_PASSWORD && process.env.PORTAL_GLOBAL_DAILY_TOKEN_LIMIT === undefined) process.env.PORTAL_GLOBAL_DAILY_TOKEN_LIMIT = "20000000";
+// 空字符串（compose 的 ${VAR:-} 会传空值）按未设置处理；想明确不限制请设为 0
+if (process.env.PORTAL_DEMO_LOGIN_PASSWORD && !process.env.PORTAL_GLOBAL_DAILY_TOKEN_LIMIT) process.env.PORTAL_GLOBAL_DAILY_TOKEN_LIMIT = "20000000";
 const usageTracker = createUsageTracker({ dataDir: DATA_DIR });
 const feedbackStore = createFeedbackStore({ dataDir: DATA_DIR });
 const tokensOf = usage => Number(usage?.total_tokens) || ((Number(usage?.prompt_tokens) || 0) + (Number(usage?.completion_tokens) || 0));
@@ -2515,7 +2516,9 @@ async function handleRequest(req, res) {
     const user = url.searchParams.get("user") || "";
     const status = url.searchParams.get("status") || "";
     const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit")) || 50));
-    const all = readAuditTail().filter(entry => (!type || entry.type === type) && (!user || entry.user === user) && (!status || entry.status === status));
+    // 工具调用的审计记录没有 type 字段，统一归为 tool-call，才能被筛选与统计
+    const typeOf = entry => entry.type || (entry.tool ? "tool-call" : "other");
+    const all = readAuditTail().map(entry => ({ ...entry, type: typeOf(entry) })).filter(entry => (!type || entry.type === type) && (!user || entry.user === user) && (!status || entry.status === status));
     const counts = {};
     all.forEach(entry => { counts[entry.type] = (counts[entry.type] || 0) + 1; });
     return sendJson(res, 200, { items: all.slice(0, limit), matched: all.length, counts });

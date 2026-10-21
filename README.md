@@ -13,6 +13,22 @@ python3 -m http.server 8080        # 或 npx serve .
 npm test
 ```
 
+### 前端结构
+
+前端是无构建的多个 `<script>`（Vue 3 + Element Plus 的全局构建，模板在运行时编译）。门户的主体按页面拆在 `assets/portal/`：
+
+| 文件 | 内容 |
+|---|---|
+| `core.js` | 共享状态、权限判断、通用工具；被页面使用的名字挂在 `window.PortalVue` 上 |
+| `page-*.js` | 每个页面一个文件（含只被该页面使用的数据与工具），末尾 `mount("#xxxView", 组件, "名字")` |
+| `boot.js` | 全部页面挂载后的收尾（对外 API、首次页面同步、服务端权限同步） |
+| `manifest.json` | 加载顺序（`core.js` 最先、`boot.js` 最后）；`index.html` 的 script 标签必须与它完全一致 |
+
+新增一个页面：写 `assets/portal/page-xxx.js` → 加进 `manifest.json` 与 `index.html`（同一个 `?v=` 版本号）→ 在 `index.html` 加容器
+`<div class="manager-view hidden" id="xxxView">`，并在 `assets/portal-bridge.js` 里登记导航、页面标题、显示 / 隐藏与管理员菜单 →
+在 `page-menu-management.js` 的菜单树里加一项。`npm run lint`（ESLint `no-undef`）会检查页面文件里有没有用到没定义的变量，
+`tests/lint.test.cjs` 与浏览器冒烟测试会检查清单一致与每个菜单页都能打开。
+
 `npm test` 会启动真实网关（临时数据目录 + 本地假模型），不需要中转站 Key。其中浏览器端到端用例（`tests/e2e-ui.test.cjs`）
 通过 Playwright 驱动本机 Chrome；没有 Chrome 时这组用例自动跳过。
 
@@ -53,7 +69,11 @@ docker compose exec analysis-gateway node gateway-auth.cjs set-password 曾祥�
 
 - 登录页默认是「密码登录」，会记住上次登录的账号（不记密码；浏览器自带的密码管理器可以自动填充）。
 - **本地演示登录**：本机开发时设置 `PORTAL_DEMO_LOGIN_PASSWORD=<账号共用密码>`，登录页会出现账号快捷按钮，点一下自动填密码并登录。
-  这会把密码公开给任何访问者，默认关闭，**只能用于本机，不要在服务器上设置**（启动时会打印警告）。
+  这会把密码公开给任何访问者，默认关闭；设置后（本机或线上演示环境）会同时：不做「连续输错锁定」（否则任何人都能把演示账号锁死）、
+  禁止修改 / 重置密码（共用密码不能被改掉）、历史与用量按「账号 + 访客」分开（每个浏览器一个随机访客 id，互相看不到、各自计数），
+  并启用全站每日 token 兜底（默认 2000 万，`PORTAL_GLOBAL_DAILY_TOKEN_LIMIT` 可调）。启动时会打印警告。
+- **账号管理**（管理员，界面在「AI 中心 → 运营中心 → 账号管理」，接口见下表）：新增账号（随机初始密码只显示一次）、停用 / 启用（立即生效，已签发的令牌下一次请求就失效）、重置密码、分配权限组。
+  不提供删除：账号名是历史、反馈、审计的归属键。
 - 用户可以在页头菜单「修改密码」自己改密码（需要旧密码，至少 8 位）；旧密码连续输错 5 次会被临时锁定。
 - 分析身份只取登录账号，请求里的 `user` 字段会被忽略。
 - **跨域**：默认只允许同源页面与本机开发页（localhost / 127.0.0.1）。页面部署在别的域名时，把来源写进 `PORTAL_ALLOWED_ORIGINS`（逗号分隔）。
@@ -70,7 +90,8 @@ docker compose exec analysis-gateway node gateway-auth.cjs set-password 曾祥�
 - **语义层（指标口径即代码）**：业务指标定义在 `semantic/metrics.json`（消耗、激活、点击、CPA、点击率、ROI…），随代码评审发布；
   启动时会对照真实表结构校验，不合格的定义被丢弃并在日志与 `GET /v1/metrics`（管理员）里给出警告。
   比率指标一律「先分别汇总再相除」。目前所有口径都标为**草稿（待数据团队确认）**，确认后把对应指标的 `reviewed` 改为 `true`。
-- **归因**：指标异动的维度贡献、CPA 的结构 / 效率效应由代码确定性计算（`scripts/attribution-calc.cjs`），模型只负责解释。
+- 语义层查询支持 `filters`（按维度取值筛选，如只看某个媒体），筛选后比率仍是先汇总再相除；取值需与数据里的写法一致。
+- **归因**：问题里的「近 14 天 / 最近两周 / 近一个月」会被解析成窗口（周按 7 天、月按 30 天，上限 90 天，默认 7 天）。指标异动的维度贡献、CPA 的结构 / 效率效应由代码确定性计算（`scripts/attribution-calc.cjs`），模型只负责解释。
 - **数字回查**：报告里的数字会对照证据与问题，找不到的写进 `meta.numericCheck`，界面在回答下方提示「N 个数字未在证据中找到」。
 - **追问**：信息不足时模型调用 `ask_user`，平台校验（最多 3 题、每题 2–6 个选项）后以问题卡片展示；用户已补充信息后不再提供该工具。
 
@@ -78,6 +99,9 @@ docker compose exec analysis-gateway node gateway-auth.cjs set-password 曾祥�
 
 - 每人每日分析次数 / token 上限：环境变量 `PORTAL_DAILY_REQUEST_LIMIT`（默认 200）、`PORTAL_DAILY_TOKEN_LIMIT`（默认 200 万），`0` 表示不限；
   超限返回 429。管理员可运行时调整：`PUT /v1/quota`（全员或按人覆盖，保存在 `DATA_DIR/quota-config.json`）；`GET /v1/usage` 看自己的今日用量，`GET /v1/usage/all`（管理员）看全员。
+- **默认模型**：管理员在「运营中心 → 默认模型」设置（`PUT /v1/default-model`），其次环境变量 `DEFAULT_MODEL`，最后内置值；
+  配置的模型被停用或不可用时自动退回到清单里的第一个可用模型。
+- **运营中心**（管理员）：用量与配额、审计日志（按类型 / 账号 / 状态筛选）、回答反馈（好评 / 差评与按模型 / Skill 汇总）、账号管理、默认模型。
 - 审计日志 `DATA_DIR/analysis-audit.jsonl`（每行一条 JSON）：每次分析（谁、问题前 300 字、模型、Skill、工具模式、表、token、耗时、结果）、
   每次工具调用（含被拒绝的）、密码修改、权限变更。
 - 回答反馈：界面回答下方的 👍 / 👎（👎 可附原因），`POST /v1/feedback`；只能评价自己的分析。管理员 `GET /v1/feedback` 查看明细与按模型 / Skill 的汇总。
@@ -105,6 +129,9 @@ EVAL_PASSWORD=<评测账号密码> npm run eval -- --base http://localhost:8787 
 | GET | `/v1/metrics` · POST `/v1/metrics/query` | 当前用户可用的业务指标；按口径直接查询指标 |
 | GET | `/v1/usage` · `/v1/usage/all` · PUT `/v1/quota` | 用量与配额 |
 | POST / GET | `/v1/feedback` | 提交反馈；管理员查看列表与汇总 |
+| GET | `/v1/audit` | 审计日志（管理员）：`type` / `user` / `status` / `limit` 筛选，最近的在前，只读日志末尾 |
+| GET / POST / PATCH | `/v1/accounts` · `/v1/accounts/:name` · POST `/v1/accounts/:name/reset-password` | 账号管理（管理员） |
+| PUT | `/v1/default-model` | 设置 / 清除默认模型（管理员） |
 
 ## 服务器部署（推荐：容器自带页面托管 + Caddy HTTPS）
 

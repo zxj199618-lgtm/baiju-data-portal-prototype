@@ -51,6 +51,16 @@ describe("审计日志查询", () => {
     assert.equal((await query("?limit=0")).data.items.length >= 1, true, "非法 limit 回落到默认值而不是返回空");
   });
 
+  test("工具调用记录没有 type 字段，接口统一归为 tool-call，可以筛选和统计", async () => {
+    await harness.call("POST", "/v1/analyze", { token: await harness.tokenFor("曾祥竞"), body: { question: "有哪些表", scenario: "single", model: harness.MODEL, tables: [] } });
+    harness.relay.toolScript = [{ calls: [{ id: "c1", type: "function", function: { name: "search_tables", arguments: "{}" } }] }];
+    await harness.call("POST", "/v1/analyze", { token: await harness.tokenFor("曾祥竞"), body: { question: "有哪些表", scenario: "single", model: harness.MODEL, tables: [] } });
+    const tools = await query("?type=tool-call");
+    assert.ok(tools.data.items.length >= 1);
+    assert.ok(tools.data.items.every(item => item.type === "tool-call" && item.tool));
+    assert.ok((await query()).data.counts["tool-call"] >= 1);
+  });
+
   test("日志变大时只读末尾：很长的日志也能返回最近的记录，被截断的第一行不会让解析失败", async () => {
     const file = path.join(harness.dataDir, "analysis-audit.jsonl");
     const filler = Array.from({ length: 6000 }, (_, index) => JSON.stringify({ type: "filler", user: "x", n: index, pad: "p".repeat(1000) })).join("\n") + "\n";

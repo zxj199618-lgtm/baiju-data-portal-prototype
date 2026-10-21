@@ -191,6 +191,173 @@ describe("浏览器端到端", () => {
     }
   }));
 
+  /** 以管理员身份打开「运营中心」页面 */
+  async function openOpsCenter(page) {
+    await login(page, "曾祥竞");
+    await appVisible(page);
+    await page.evaluate(() => window.portalVueBridge.setPage("运营中心"));
+    await page.waitForSelector("#opsCenterPanel");
+  }
+
+  test("运营中心：普通用户的菜单里没有它；管理员能打开", async t => withPage(t, async page => {
+    await login(page, "李雨航");
+    await appVisible(page);
+    assert.doesNotMatch(await page.textContent("#sidebar"), /运营中心/);
+    await page.context().clearCookies();
+    await page.evaluate(() => window.portalAuth.clear());
+    await login(page, "曾祥竞");
+    await appVisible(page);
+    assert.match(await page.textContent("#sidebar"), /运营中心/);
+  }));
+
+  test("运营中心 · 用量与配额：列出全部账号，并能在界面里调整某个账号的额度（服务端立即生效）", async t => withPage(t, async page => {
+    await openOpsCenter(page);
+    const rows = page.locator('[data-test="usage-table"] .el-table__body tr');
+    await rows.first().waitFor();
+    assert.ok(await rows.count() >= 5, "应列出 5 个以上账号");
+    const target = rows.filter({ hasText: "谭嘉颖" });
+    await target.getByText("调整额度").click();
+    await page.locator(".el-dialog:visible .el-input-number input").first().fill("37");
+    await page.locator(".el-dialog:visible").getByRole("button", { name: "保存" }).click();
+    await page.waitForSelector(".el-dialog:visible", { state: "detached" });
+    await target.getByText("/ 37").first().waitFor();
+    const usage = await harness.call("GET", "/v1/usage/all", { token: await harness.tokenFor("曾祥竞") });
+    assert.equal(usage.data.users.find(item => item.name === "谭嘉颖").limits.requests, 37);
+  }));
+
+  test("运营中心 · 账号管理（演示环境）：新增账号用共用密码登录、不能重置密码；界面里停用后立即无法登录；审计里有记录", async t => withPage(t, async page => {
+    await openOpsCenter(page);
+    await page.getByRole("tab", { name: "账号管理" }).click();
+    await page.locator('[data-test="accounts-table"] .el-table__body tr').first().waitFor();
+    await page.locator('[data-test="create-account"]').click();
+    await page.locator('input[data-test="new-account-name"]').fill("界面新建的人");
+    await page.locator('[data-test="confirm-create"]').click();
+    await page.locator(".el-dialog:visible").getByText("使用演示环境共用的密码登录").waitFor();
+    assert.equal(await page.locator('[data-test="initial-password"]').count(), 0, "演示环境不生成单独的密码");
+    await page.getByRole("button", { name: "我已记下" }).click();
+    assert.equal((await harness.call("POST", "/v1/auth/login", { body: { name: "界面新建的人", password: PASSWORD } })).status, 200);
+
+    const row = page.locator('[data-test="accounts-table"] .el-table__body tr').filter({ hasText: "界面新建的人" });
+    assert.equal(await row.getByText("重置密码").locator("xpath=ancestor-or-self::button").isDisabled(), true, "演示环境不允许重置密码");
+    await row.getByText("停用").click();
+    await page.getByRole("button", { name: "确认" }).click();
+    await row.getByText("已停用").waitFor();
+    assert.equal((await harness.call("POST", "/v1/auth/login", { body: { name: "界面新建的人", password: PASSWORD } })).status, 403, "停用后立即无法登录");
+
+    await page.getByRole("tab", { name: "审计日志" }).click();
+    await page.locator('[data-test="audit-table"]').getByText("新增账号「界面新建的人」").first().waitFor();
+  }));
+
+  test("运营中心 · 账号管理（正式环境）：新增账号后密码只显示一次且能登录；重置密码后旧密码失效", async t => {
+    if (skipReason) return t.skip(skipReason);
+    const plain = await startHarness(); // 没有开启演示登录的网关
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(30000);
+    try {
+      await page.goto(plain.baseUrl + "/");
+      await page.fill('#gatewayLoginForm input[name="name"]', "曾祥竞");
+      await page.fill('#gatewayLoginForm input[name="password"]', plain.PASSWORD);
+      await page.click("#gatewayLoginBtn");
+      await appVisible(page);
+      await page.evaluate(() => window.portalVueBridge.setPage("运营中心"));
+      await page.getByRole("tab", { name: "账号管理" }).click();
+      await page.locator('[data-test="accounts-table"] .el-table__body tr').first().waitFor();
+      await page.locator('[data-test="create-account"]').click();
+      await page.locator('input[data-test="new-account-name"]').fill("正式新人");
+      await page.locator('[data-test="confirm-create"]').click();
+      const password = (await page.locator('[data-test="initial-password"]').textContent()).trim();
+      assert.ok(password.length >= 10);
+      await page.getByRole("button", { name: "我已记下" }).click();
+      assert.equal((await plain.call("POST", "/v1/auth/login", { body: { name: "正式新人", password } })).status, 200);
+
+      const row = page.locator('[data-test="accounts-table"] .el-table__body tr').filter({ hasText: "正式新人" });
+      await row.getByText("重置密码").click();
+      await page.getByRole("button", { name: "确认" }).click();
+      // 关闭后的弹窗 DOM 还在，等界面换成新密码再读
+      await page.waitForFunction(previous => { const node = document.querySelector('[data-test="initial-password"]'); return node && node.textContent.trim() && node.textContent.trim() !== previous; }, password);
+      const newPassword = (await page.locator('[data-test="initial-password"]').textContent()).trim();
+      assert.notEqual(newPassword, password);
+      assert.equal((await plain.call("POST", "/v1/auth/login", { body: { name: "正式新人", password } })).status, 401, "旧密码应失效");
+      assert.equal((await plain.call("POST", "/v1/auth/login", { body: { name: "正式新人", password: newPassword } })).status, 200);
+    } finally {
+      await context.close();
+      await plain.stop();
+    }
+  });
+
+  test("运营中心 · 审计日志与回答反馈：能看到分析记录、工具调用和用户的差评", async t => withPage(t, async page => {
+    const token = await harness.tokenFor("李雨航");
+    const analysis = await harness.call("POST", "/v1/analyze", { token, body: { question: "运营中心测试问题 9911", scenario: "single", model: harness.MODEL, tables: ["广告计划日报表"], toolMode: false } });
+    await harness.call("POST", "/v1/feedback", { token, body: { requestId: analysis.data.meta.requestId, rating: "down", comment: "数字对不上 9911" } });
+    await openOpsCenter(page);
+    await page.getByRole("tab", { name: "审计日志" }).click();
+    await page.locator('[data-test="audit-table"]').getByText("运营中心测试问题 9911").first().waitFor();
+    await page.getByRole("tab", { name: "回答反馈" }).click();
+    await page.locator('[data-test="feedback-table"]').getByText("数字对不上 9911").first().waitFor();
+    assert.match(await page.textContent("#opsCenterPanel"), /👎 \d+/);
+  }));
+
+  test("运营中心 · 默认模型：在界面里选择并保存后，服务端的默认模型随之改变", async t => withPage(t, async page => {
+    harness.relay.models = [harness.MODEL, "alt-model"];
+    await harness.call("POST", "/v1/providers/prov-relay/refresh", { token: await harness.tokenFor("曾祥竞") });
+    await openOpsCenter(page);
+    await page.getByRole("tab", { name: "默认模型" }).click();
+    await page.locator('[data-test="effective-default"]').getByText(harness.MODEL).waitFor();
+    await page.locator(".el-select:visible").last().click();
+    await page.getByRole("option", { name: "alt-model" }).click();
+    await page.locator('[data-test="save-default-model"]').click();
+    await page.locator('[data-test="effective-default"]').getByText("alt-model").waitFor();
+    assert.equal((await harness.call("GET", "/v1/models", { token: await harness.tokenFor("曾祥竞") })).data.default, "alt-model");
+    await harness.call("PUT", "/v1/default-model", { token: await harness.tokenFor("曾祥竞"), body: { model: "" } });
+  }));
+
+  test("模型还在工作时，界面实时显示「工具取数：…」，最终回答出来后才出现反馈按钮", async t => withPage(t, async page => {
+    harness.relay.toolScript = [{ calls: [{ id: "live1", type: "function", function: { name: "search_tables", arguments: "{}" } }] }];
+    harness.relay.finalDelayMs = 2500; // 最终回答故意慢一点，给界面留出显示进度的时间
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      await page.getByPlaceholder(/输入分析问题/).fill("实时进度测试问题 6677");
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(1500);
+      console.log("LIVE-DEBUG", (await page.locator("#analysisWorkbenchView").innerText()).slice(-600));
+      await page.locator("#analysisWorkbenchView").getByText("工具取数：search_tables").first().waitFor({ timeout: 15000 });
+      assert.equal(await page.locator(".portal-vue-ai-feedback").count(), 0, "最终回答还没出来，不应有反馈按钮");
+      await page.locator(".portal-vue-ai-feedback").first().waitFor();
+      assert.match(await page.locator(".portal-vue-ai-report-meta").first().textContent(), /工具取数 1 次（成功 1）：search_tables/);
+    } finally {
+      harness.relay.finalDelayMs = 0;
+    }
+  }));
+
+  test("页头菜单「修改密码」：输入旧密码和新密码后，旧密码失效、新密码可用（正式环境）", async t => {
+    if (skipReason) return t.skip(skipReason);
+    const plain = await startHarness();
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(30000);
+    try {
+      await page.goto(plain.baseUrl + "/");
+      await page.fill('#gatewayLoginForm input[name="name"]', "李雨航");
+      await page.fill('#gatewayLoginForm input[name="password"]', plain.PASSWORD);
+      await page.click("#gatewayLoginBtn");
+      await appVisible(page);
+      await page.locator(".portal-vue-user").first().click();
+      await page.getByRole("menuitem", { name: "修改密码" }).click();
+      await page.getByRole("textbox", { name: "请输入当前密码" }).fill(plain.PASSWORD);
+      await page.getByRole("button", { name: "下一步" }).last().click();
+      await page.getByRole("textbox", { name: "请输入新密码（至少 8 位）" }).fill("brand-new-pass-77");
+      await page.getByRole("button", { name: "下一步" }).last().click();
+      await page.getByText("密码已修改").first().waitFor();
+      assert.equal((await plain.call("POST", "/v1/auth/login", { body: { name: "李雨航", password: plain.PASSWORD } })).status, 401);
+      assert.equal((await plain.call("POST", "/v1/auth/login", { body: { name: "李雨航", password: "brand-new-pass-77" } })).status, 200);
+    } finally {
+      await context.close();
+      await plain.stop();
+    }
+  });
+
   test("管理员误操作被服务端拒绝：提示并回退到服务端配置（防止把所有管理员降级）", async t => withPage(t, async page => {
     await login(page, "曾祥竞");
     await appVisible(page);
