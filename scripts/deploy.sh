@@ -108,7 +108,7 @@ COMMIT="$(git rev-parse --short HEAD)"
 ok "HEAD = $COMMIT"
 
 log "检查脚本语法"
-node --check assets/portal-vue-module.js >/dev/null
+for f in assets/portal/*.js; do node --check "$f" >/dev/null; done
 node --check assets/portal-vue-module.css 2>/dev/null || true
 ok "JS 语法正常"
 
@@ -125,7 +125,7 @@ npm run build:standalone --silent >/dev/null
 ok "单文件版已生成"
 
 # 期望版本号：取自 index.html 的静态资源查询串，用于发布后核对
-EXPECT_VERSION="$(grep -oE 'assets/portal-vue-module\.js\?v=[A-Za-z0-9]+' index.html | head -1 | sed 's/.*?v=//')"
+EXPECT_VERSION="$(grep -oE 'assets/portal/core\.js\?v=[A-Za-z0-9]+' index.html | head -1 | sed 's/.*?v=//')"
 [ -n "$EXPECT_VERSION" ] || die "无法从 index.html 解析静态资源版本号"
 ok "期望线上版本号 = $EXPECT_VERSION"
 
@@ -193,7 +193,7 @@ if [ -n "$DEPLOY_URL" ]; then
   log "核对线上版本号（期望 ${EXPECT_VERSION}）"
   live=""
   for i in $(seq 1 "$DEPLOY_VERIFY_RETRIES"); do
-    live="$(curl -fsS --max-time 15 "$DEPLOY_URL" 2>/dev/null | grep -oE 'assets/portal-vue-module\.js\?v=[A-Za-z0-9]+' | head -1 | sed 's/.*?v=//' || true)"
+    live="$(curl -fsS --max-time 15 "$DEPLOY_URL" 2>/dev/null | grep -oE 'assets/portal/core\.js\?v=[A-Za-z0-9]+' | head -1 | sed 's/.*?v=//' || true)"
     if [ "$live" = "$EXPECT_VERSION" ]; then break; fi
     warn "[$i/$DEPLOY_VERIFY_RETRIES] 线上为 ${live:-（读取失败）}，等待 ${DEPLOY_VERIFY_INTERVAL}s"
     sleep "$DEPLOY_VERIFY_INTERVAL"

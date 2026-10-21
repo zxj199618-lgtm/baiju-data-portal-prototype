@@ -6,9 +6,12 @@
     "test": "node --test tests/*.test.cjs",
     "build:standalone": "node scripts/build-standalone.cjs",
     "deploy": "bash scripts/deploy.sh",
-    "eval": "node scripts/run-evals.cjs"
+    "eval": "node scripts/run-evals.cjs",
+    "lint": "eslint assets"
   },
   "devDependencies": {
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
     "playwright-core": "^1.64.1"
   }
 }

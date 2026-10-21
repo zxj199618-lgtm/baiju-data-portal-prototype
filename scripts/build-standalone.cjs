@@ -59,7 +59,8 @@ const textAssets = [
   { assetPath: "assets/vendor/element-plus.full.min.js", kind: "script" },
   { assetPath: "assets/vendor/element-plus.zh-cn.min.js", kind: "script" },
   { assetPath: "assets/cp-vue-module.js", kind: "script" },
-  { assetPath: "assets/portal-vue-module.js", kind: "script" }
+  // 门户前端按页面拆成 assets/portal/*.js，按 manifest.json 的加载顺序逐个内联
+  ...JSON.parse(fs.readFileSync(path.join(root, "assets/portal/manifest.json"), "utf8")).map(file => ({ assetPath: `assets/portal/${file}`, kind: "script" }))
 ];
 
 let html = fs.readFileSync(sourcePath, "utf8");

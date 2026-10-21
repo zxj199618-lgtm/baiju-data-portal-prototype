@@ -13,7 +13,9 @@ const html = read("index.html");
 const portalBridge = read("assets/portal-bridge.js");
 const gatewaySource = read("scripts/analysis-gateway.cjs");
 const audienceBridge = read("assets/cp-bridge.js");
-const portalVue = read("assets/portal-vue-module.js");
+// 前端已按页面拆成 assets/portal/*.js（加载顺序见 manifest.json）；这里拼成一个整体，沿用原来对源码的断言
+const portalVueFiles = JSON.parse(read("assets/portal/manifest.json")).map(file => `assets/portal/${file}`);
+const portalVue = portalVueFiles.map(read).join("\n");
 const portalCss = read("assets/portal-vue-module.css");
 const audienceVue = read("assets/cp-vue-module.js");
 const shareHtml = read("share.html");
@@ -35,7 +37,7 @@ assert(portalVue.includes("window.PORTAL_GATEWAY_BASE") && shareHtml.includes("w
 [
   "assets/portal-bridge.js",
   "assets/cp-bridge.js",
-  "assets/portal-vue-module.js",
+  ...portalVueFiles,
   "assets/cp-vue-module.js",
   "assets/portal-vue-module.css",
   "assets/cp-vue-module.css",
@@ -58,7 +60,7 @@ assert(exists("assets/portal-shell.css") && read("assets/portal-shell.css").incl
   "assets/vendor/element-plus.full.min.js",
   "assets/vendor/element-plus.zh-cn.min.js",
   "assets/cp-vue-module.js",
-  "assets/portal-vue-module.js"
+  ...portalVueFiles
 ].reduce((lastIndex, source) => {
   const index = html.indexOf(`src="${source}"`) !== -1 ? html.indexOf(`src="${source}"`) : html.indexOf(`src="${source}?`);
   assert(index > lastIndex, `脚本加载顺序错误或缺失: ${source}`);
@@ -68,7 +70,7 @@ assert(exists("assets/portal-shell.css") && read("assets/portal-shell.css").incl
 [
   ["assets/portal-bridge.js", portalBridge],
   ["assets/cp-bridge.js", audienceBridge],
-  ["assets/portal-vue-module.js", portalVue],
+  ["assets/portal/（合并）", portalVue],
   ["assets/cp-vue-module.js", audienceVue]
 ].forEach(([file, source]) => new vm.Script(source, { filename: file }));
 

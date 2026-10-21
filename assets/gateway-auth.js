@@ -12,7 +12,7 @@
   const LAST_NAME_KEY = "portalLastLoginName";
 
   function gatewayBase() {
-    // 与 portal-vue-module.js 的 analysisGatewayBase 保持一致
+    // 与 portal/core.js 的 analysisGatewayBase 保持一致
     try {
       if (window.PORTAL_GATEWAY_BASE !== undefined) return String(window.PORTAL_GATEWAY_BASE).replace(/\/$/, "");
     } catch (error) { /* 忽略 */ }
@@ -62,9 +62,11 @@
     document.getElementById("sidebar")?.classList.add("hidden");
     document.getElementById("loginView")?.classList.remove("hidden");
     const error = document.getElementById("gatewayLoginError");
-    if (error) {
-      error.textContent = message || "";
-      error.hidden = !message;
+    // 只有带内容的提示才写入：令牌被清掉后，页面里后发出的请求（没有令牌）也会收到 401 并再次调用这里，
+    // 它们不能把第一次写入的「登录已过期」提示冲掉
+    if (error && message) {
+      error.textContent = message;
+      error.hidden = false;
     }
   }
 
