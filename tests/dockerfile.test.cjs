@@ -35,3 +35,8 @@ test("镜像里不包含测试、密钥与数据目录（.dockerignore）", () =
   const ignore = fs.readFileSync(path.join(ROOT, ".dockerignore"), "utf8");
   ["tests/", "data/", ".env", "node_modules/"].forEach(entry => assert.ok(ignore.includes(entry), `.dockerignore 缺少 ${entry}`));
 });
+
+test("构建不依赖外网软件源：Dockerfile 里不能 apk add（国内服务器访问 Alpine 源会超时，导致发版失败）", () => {
+  const instructions = dockerfile.split("\n").filter(line => !line.trim().startsWith("#")).join("\n");
+  assert.doesNotMatch(instructions, /apk\s+add/);
+});

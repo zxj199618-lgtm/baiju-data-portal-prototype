@@ -13,7 +13,9 @@ COPY semantic ./semantic
 COPY index.html share.html ./
 COPY assets ./assets
 ENV PORT=8787 DATA_DIR=/app/data PUBLIC_DIR=/app
-RUN mkdir -p /app/data && chown node:node /app/data && apk add --no-cache unzip
+# 解压 Skill 包用的 unzip 来自基础镜像自带的 busybox（node:22-alpine 已包含），不要再 apk add：
+# 国内服务器访问 Alpine 软件源经常超时，会让发版在构建阶段失败
+RUN mkdir -p /app/data && chown node:node /app/data
 VOLUME /app/data
 EXPOSE 8787
 USER node
