@@ -7,6 +7,8 @@
  * 3. 查询时由调用方传入 allowedTables，只暴露用户有权限的表。
  */
 
+const { additiveAttribution, ratioAttribution } = require("./attribution-calc.cjs");
+
 const NUMERIC = /DECIMAL|BIGINT|INT|DOUBLE|FLOAT/i;
 const MAX_GROUPS = 10;
 
@@ -119,29 +121,29 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
       }));
   }
 
-  /** 查询指标：最近 N 天 vs 前 N 天，可按一个维度拆分。table 缺省时仅在唯一可选表时自动选择 */
-  function query({ metric: metricKey, table: requestedTable, group, days, filters, daily, allowedTables }) {
+  /** 查询与归因共用的准备步骤：解析指标 / 表 / 筛选（含固定筛选）、取窗口内的行。出错返回 { error }，没有数据返回 { empty } */
+  function prepare({ metric: metricKey, table: requestedTable, group, days, filters, allowedTables }) {
     const metric = findMetric(metricKey);
-    if (!metric) return { ok: false, error: `未找到指标：${metricKey || "（未指定）"}，请先用 list_metrics 查看可用指标` };
+    if (!metric) return { error: `未找到指标：${metricKey || "（未指定）"}，请先用 list_metrics 查看可用指标` };
     const allowed = new Set(allowedTables);
     const candidates = tablesOf(metric).filter(name => allowed.has(name));
-    if (!candidates.length) return { ok: false, error: `没有可用的数据表支持指标「${metric.name}」（或无权访问）` };
+    if (!candidates.length) return { error: `没有可用的数据表支持指标「${metric.name}」（或无权访问）` };
     let tableName = String(requestedTable || "");
     if (!tableName) {
-      if (candidates.length > 1) return { ok: false, error: `指标「${metric.name}」在多张表中可用，请指定 table：${candidates.join("、")}` };
+      if (candidates.length > 1) return { error: `指标「${metric.name}」在多张表中可用，请指定 table：${candidates.join("、")}` };
       tableName = candidates[0];
     }
-    if (!candidates.includes(tableName)) return { ok: false, error: `数据表不存在、无权访问或不支持该指标：${tableName}` };
+    if (!candidates.includes(tableName)) return { error: `数据表不存在、无权访问或不支持该指标：${tableName}` };
 
     const config = tableConfig.get(tableName);
-    if (group && !config.dimensions.includes(group)) return { ok: false, error: `该表不支持按 ${group} 分组，可用分组：${config.dimensions.join("、") || "无"}` };
+    if (group && !config.dimensions.includes(group)) return { error: `该表不支持按 ${group} 分组，可用分组：${config.dimensions.join("、") || "无"}` };
     // 筛选：只允许该表声明过的文本维度，按「字段 = 任一取值」过滤；多个筛选之间是「且」
     const activeFilters = [];
     for (const filter of Array.isArray(filters) ? filters : []) {
       const field = String(filter?.field || "");
       const values = (Array.isArray(filter?.values) ? filter.values : [filter?.values]).map(value => String(value ?? "").trim()).filter(Boolean);
-      if (!config.dimensions.includes(field)) return { ok: false, error: `该表不支持按 ${field || "（空）"} 筛选，可用维度：${config.dimensions.join("、") || "无"}` };
-      if (!values.length || values.length > 20) return { ok: false, error: `筛选 ${field} 需要 1 到 20 个取值` };
+      if (!config.dimensions.includes(field)) return { error: `该表不支持按 ${field || "（空）"} 筛选，可用维度：${config.dimensions.join("、") || "无"}` };
+      if (!values.length || values.length > 20) return { error: `筛选 ${field} 需要 1 到 20 个取值` };
       activeFilters.push({ field, values });
     }
     // 固定筛选（表级 + 指标级）与用户筛选合并；冲突（取交集为空）时说明该指标的适用范围，而不是返回空数据
@@ -150,12 +152,12 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
     const emptied = effectiveFilters.find(filter => !filter.values.length);
     if (emptied) {
       const fixed = fixedFilters.find(filter => filter.field === emptied.field);
-      return { ok: false, error: `指标「${metric.name}」只适用于 ${emptied.field} = ${(fixed?.values || []).join("、")}，你指定的筛选与它冲突` };
+      return { error: `指标「${metric.name}」只适用于 ${emptied.field} = ${(fixed?.values || []).join("、")}，你指定的筛选与它冲突` };
     }
     const windowDays = Math.min(90, Math.max(1, Math.floor(num(days)) || 7));
     const rows = rowsOf(tableName).filter(row => effectiveFilters.every(({ field, values }) => values.includes(String(row[field] ?? ""))));
     const anchor = rows.map(row => dayOf(row[config.dateField])).sort().at(-1);
-    if (!anchor) return { ok: true, data: { 表名: tableName, 指标: metric.id, ...(activeFilters.length ? { 筛选: activeFilters.map(({ field, values }) => ({ 字段: field, 取值: values })) } : {}), 说明: activeFilters.length ? "筛选后没有数据：请检查取值是否写对（取值需与数据里的写法完全一致）" : "该表没有数据" } };
+    if (!anchor) return { empty: { 表名: tableName, 指标: metric.id, ...(activeFilters.length ? { 筛选: activeFilters.map(({ field, values }) => ({ 字段: field, 取值: values })) } : {}), 说明: activeFilters.length ? "筛选后没有数据：请检查取值是否写对（取值需与数据里的写法完全一致）" : "该表没有数据" } };
     const windows = {
       current: { start: shiftDay(anchor, -(windowDays - 1)), end: anchor },
       prior: { start: shiftDay(anchor, -(2 * windowDays - 1)), end: shiftDay(anchor, -windowDays) }
@@ -163,6 +165,15 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
     const inWindow = (row, window) => dayOf(row[config.dateField]) >= window.start && dayOf(row[config.dateField]) <= window.end;
     const currentRows = rows.filter(row => inWindow(row, windows.current));
     const priorRows = rows.filter(row => inWindow(row, windows.prior));
+    return { metric, tableName, config, activeFilters, fixedFilters, windowDays, anchor, windows, currentRows, priorRows };
+  }
+
+  /** 查询指标：最近 N 天 vs 前 N 天，可按一个维度拆分。table 缺省时仅在唯一可选表时自动选择 */
+  function query({ metric: metricKey, table: requestedTable, group, days, filters, daily, allowedTables }) {
+    const prepared = prepare({ metric: metricKey, table: requestedTable, group, days, filters, allowedTables });
+    if (prepared.error) return { ok: false, error: prepared.error };
+    if (prepared.empty) return { ok: true, data: prepared.empty };
+    const { metric, tableName, config, activeFilters, fixedFilters, windowDays, anchor, windows, currentRows, priorRows } = prepared;
     const digits = precision(metric);
     const change = (current, prior) => ({
       变化量: current !== null && prior !== null ? round(current - prior, digits) : null,
@@ -224,7 +235,103 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
     return { ok: true, data };
   }
 
-  return { warnings, listMetrics, query, metricCount: metrics.size };
+  const MAX_ATTRIBUTION_DIMENSIONS = 5;
+  const SHOWN_DRIVERS = 5;
+
+  /**
+   * 指标异动归因：把「近 N 天 vs 前 N 天」的变化拆到各个维度上，所有数字由代码确定性计算，模型只负责解释。
+   * - 加法指标（消耗、用户数…）：每个维度下各组的变化之和严格等于总变化，给出各组占总变化的比例；
+   * - 比率指标（CPA、ROI、签约率…）：拆成「结构效应」（该组分母占比变化）与「效率效应」（该组自身比率变化），
+   *   再加上「分母为零的分组的影响」，三者之和严格等于比率的总变化（每个维度都核对一次）。
+   * 维度按「前几名能解释多少变化」从高到低排序，最值得先看的排在最前面。
+   */
+  function attribute({ metric: metricKey, table: requestedTable, dimensions, days, filters, allowedTables }) {
+    const prepared = prepare({ metric: metricKey, table: requestedTable, days, filters, allowedTables });
+    if (prepared.error) return { ok: false, error: prepared.error };
+    if (prepared.empty) return { ok: true, data: prepared.empty };
+    const { metric, tableName, config, activeFilters, fixedFilters, windowDays, anchor, windows, currentRows, priorRows } = prepared;
+    if (!currentRows.length || !priorRows.length) return { ok: true, data: { 表名: tableName, 指标: metric.id, 窗口: { N: windowDays, 近N天: [windows.current.start, windows.current.end], 前N天: [windows.prior.start, windows.prior.end] }, 说明: "近 N 天或前 N 天没有数据，无法归因；可以缩短窗口再试" } };
+
+    // 要拆的维度：默认用该表的全部可用维度；被筛选成单一取值的维度没有信息量，去掉
+    const requested = (Array.isArray(dimensions) ? dimensions : []).map(String);
+    const unknown = requested.find(name => !config.dimensions.includes(name));
+    if (unknown) return { ok: false, error: `该表不支持按 ${unknown} 拆解，可用维度：${config.dimensions.join("、") || "无"}` };
+    const pool = requested.length ? requested : config.dimensions;
+    const informative = pool.filter(name => new Set([...currentRows, ...priorRows].map(row => String(row[name] ?? "—"))).size > 1);
+    const dims = informative.slice(0, MAX_ATTRIBUTION_DIMENSIONS);
+    if (!dims.length) return { ok: true, data: { 表名: tableName, 指标: metric.id, 说明: "所选范围内没有可以拆解的维度（各维度都只有一个取值）" } };
+
+    // 把行映射成归因计算要的形状：维度取值 + 数值（比率按「分子 / 分母」，百分比类指标把分子乘以 scale）
+    let toRow;
+    let valueKey, numeratorKey, denominatorKey;
+    if (metric.type === "sum") {
+      valueKey = "__v";
+      toRow = row => ({ ...Object.fromEntries(dims.map(name => [name, row[name]])), __v: num(row[metric.fields[tableName]]) });
+    } else {
+      const numerator = metrics.get(metric.numerator), denominator = metrics.get(metric.denominator);
+      if (numerator.type !== "sum" || denominator.type !== "sum") return { ok: false, error: `指标「${metric.name}」由比率再组合而成，暂不支持归因` };
+      numeratorKey = "__n"; denominatorKey = "__d";
+      const scale = metric.scale || 1;
+      toRow = row => ({ ...Object.fromEntries(dims.map(name => [name, row[name]])), __n: num(row[numerator.fields[tableName]]) * scale, __d: num(row[denominator.fields[tableName]]) });
+    }
+    const current = currentRows.map(toRow), prior = priorRows.map(toRow);
+    const digits = precision(metric);
+    const currentTotal = valueOn(metric, tableName, currentRows), priorTotal = valueOn(metric, tableName, priorRows);
+    const delta = currentTotal !== null && priorTotal !== null ? currentTotal - priorTotal : null;
+    const data = {
+      表名: tableName, 指标: metric.id, 名称: metric.name, 单位: metric.unit || "",
+      口径: { 说明: metric.description, 状态: metric.reviewed ? "已确认" : "草稿（待数据团队确认）" },
+      窗口: { N: windowDays, 近N天: [windows.current.start, windows.current.end], 前N天: [windows.prior.start, windows.prior.end] },
+      总体: { 近N天: round(currentTotal, digits), 前N天: round(priorTotal, digits), 变化量: round(delta, digits), 环比百分比: priorTotal ? round((delta / priorTotal) * 100, 2) : null },
+      数据截止日期: anchor
+    };
+    if (activeFilters.length) data.筛选 = activeFilters.map(({ field, values }) => ({ 字段: field, 取值: values }));
+    if (fixedFilters.length) data.口径.固定筛选 = fixedFilters.map(({ field, values }) => ({ 字段: field, 取值: values }));
+    if (metric.caveat) data.提示 = metric.caveat;
+    if (delta === null || Math.abs(delta) < 1e-9) data.说明 = "总变化接近 0，各组占比没有意义；下面只列各组自身的变化";
+
+    const share = value => (delta && Math.abs(delta) > 1e-9 ? round(value / delta, 4) : null);
+    let result;
+    if (metric.type === "sum") {
+      result = additiveAttribution(current, prior, valueKey, dims).map(item => {
+        const real = item.drivers.filter(driver => !String(driver.group).startsWith("其他"));
+        const shown = real.slice(0, SHOWN_DRIVERS);
+        const shownDelta = shown.reduce((total, driver) => total + driver.delta, 0);
+        const total = item.drivers.reduce((sum, driver) => sum + driver.delta, 0);
+        return {
+          字段: item.dimension,
+          主要贡献: shown.map(driver => ({ 组: driver.group, 近N天: round(driver.current, digits), 前N天: round(driver.baseline, digits), 变化量: round(driver.delta, digits), 环比百分比: driver.pct, 占总变化比例: driver.shareOfChange })),
+          其余合计: { 变化量: round(total - shownDelta, digits), 占总变化比例: share(total - shownDelta) },
+          各组变化之和等于总变化: item.reconciled,
+          _top: shown.length ? Math.abs(shown[0].shareOfChange ?? 0) : 0
+        };
+      });
+    } else {
+      result = ratioAttribution(current, prior, numeratorKey, denominatorKey, dims).map(item => {
+        const real = item.drivers.filter(driver => !String(driver.group).startsWith("其他"));
+        const shown = real.slice(0, SHOWN_DRIVERS);
+        const shownTotal = shown.reduce((sum, driver) => sum + driver.total, 0);
+        const shownMix = shown.reduce((sum, driver) => sum + driver.mix, 0);
+        const shownRate = shown.reduce((sum, driver) => sum + driver.rate, 0);
+        return {
+          字段: item.dimension,
+          结构效应合计: round(item.mixEffect, 4), 效率效应合计: round(item.rateEffect, 4), 分母为零的分组的影响: round(item.uninvestedCostEffect, 4),
+          主要贡献: shown.map(driver => ({ 组: driver.group, 结构效应: round(driver.mix, 4), 效率效应: round(driver.rate, 4), 合计变化: round(driver.total, 4), 占总变化比例: driver.shareOfChange })),
+          其余合计: { 结构效应: round(item.mixEffect - shownMix, 4), 效率效应: round(item.rateEffect - shownRate, 4), 合计变化: round(item.mixEffect + item.rateEffect - shownTotal, 4) },
+          三部分之和等于总变化: item.reconciled,
+          _top: shown.length ? Math.abs(shown[0].shareOfChange ?? 0) : 0
+        };
+      });
+    }
+    result.sort((a, b) => b._top - a._top);
+    data.维度 = result.map(({ _top, ...rest }) => rest);
+    data.读法 = metric.type === "sum"
+      ? "占总变化比例 = 该组变化 ÷ 总变化；同一维度下各组加其余合计等于 100%。维度已按「前几名能解释多少变化」从高到低排序，优先看排在前面的。"
+      : "结构效应 = 该组分母占比变化带来的影响（投放结构变了）；效率效应 = 该组自身比率变化带来的影响；加上「分母为零的分组的影响」等于比率的总变化。维度已按前几名的解释力排序，优先看排在前面的。";
+    return { ok: true, data };
+  }
+
+  return { warnings, listMetrics, query, attribute, metricCount: metrics.size };
 }
 
 module.exports = { createSemanticLayer };

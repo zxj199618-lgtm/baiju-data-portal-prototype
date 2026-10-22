@@ -226,4 +226,4 @@ function parseWindowDays(question, fallback = 7) {
   return Math.min(90, days);
 }
 
-module.exports = { computeAttribution, windowsFor, parseWindowDays };
+module.exports = { computeAttribution, windowsFor, parseWindowDays, additiveAttribution, ratioAttribution };

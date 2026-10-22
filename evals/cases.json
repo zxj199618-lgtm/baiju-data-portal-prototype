@@ -568,6 +568,61 @@
         ],
         "maxUngrounded": 3
       }
+    },
+    {
+      "id": "eq-why-cost",
+      "title": "任哥为什么变了：自动进权益包，先看总体再用归因定位到账号",
+      "question": "任哥近 7 天消耗为什么变化了？",
+      "user": "林金维",
+      "scenario": "general",
+      "skillId": "general-analyst",
+      "tables": [],
+      "expect": {
+        "anyTool": [
+          "attribute_change"
+        ],
+        "mustMatch": [
+          "(任哥一组|任哥二组)"
+        ],
+        "maxUngrounded": 6
+      }
+    },
+    {
+      "id": "eq-why-signrate",
+      "title": "签约率下滑：要定位到伯都主号，并区分效率与结构",
+      "question": "近 7 天自营签约率为什么下滑？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "anyTool": [
+          "attribute_change"
+        ],
+        "mustMatch": [
+          "伯都主号",
+          "(效率|结构)"
+        ],
+        "maxUngrounded": 8
+      }
+    },
+    {
+      "id": "eq-lineage",
+      "title": "血缘：读取登记的上游表，不编造",
+      "question": "权益-账号维度消耗统计表的上游是什么？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "anyTool": [
+          "get_lineage"
+        ],
+        "mustMatch": [
+          "dws_equity_com_order_profit_detail_mv"
+        ],
+        "maxUngrounded": 3
+      }
     }
   ]
 }

@@ -46,6 +46,39 @@ const SEMANTIC_TOOL_SCHEMAS = [
     }
   }
 ];
+/** 归因工具：问「为什么涨 / 跌 / 变了」时用；只有传入 semantic 时才提供 */
+const ATTRIBUTION_TOOL_SCHEMA = {
+  type: "function",
+  function: {
+    name: "attribute_change",
+    description: "解释一个指标为什么变了：把「近 N 天 vs 前 N 天」的变化确定性地拆到各个维度（部门、账号、媒体、套餐等），指出哪些组贡献最大。加法指标给出各组占总变化的比例；比率指标（CPA、ROI、签约率…）拆成结构效应（分母占比变了）与效率效应（自身比率变了）。所有数字由平台计算，请直接引用并解释，不要重算。先用 query_metric 确认总体变化，再用它定位原因。",
+    parameters: {
+      type: "object",
+      properties: {
+        metric: { type: "string", description: "指标 id、名称或别名，来自 list_metrics" },
+        table: { type: "string", description: "数据表；指标只在一张有权限的表中可用时可省略" },
+        filters: {
+          type: "array", description: "先把范围限定在某个部门 / 账号 / 套餐等，再拆解（且）",
+          items: { type: "object", properties: { field: { type: "string" }, values: { type: "array", items: { type: "string" } } }, required: ["field", "values"] }
+        },
+        dimensions: { type: "array", items: { type: "string" }, description: "只拆这几个维度；留空则拆该表全部可用维度（结果已按解释力排序）" },
+        days: { type: "integer", minimum: 1, maximum: 90, description: "窗口天数，默认 7" }
+      },
+      required: ["metric"]
+    }
+  }
+};
+
+/** 血缘工具：问上下游、变更影响时用 */
+const LINEAGE_TOOL_SCHEMA = {
+  type: "function",
+  function: {
+    name: "get_lineage",
+    description: "查看一张有权限数据表的上下游血缘：它依赖哪些上游表（角色、关联方式），又被哪些下游表使用。只把明确给出的血缘当作确定关系。",
+    parameters: { type: "object", properties: { table: { type: "string", description: "数据表中文名" } }, required: ["table"] }
+  }
+};
+
 const MAX_SEARCH_RESULTS = 20;
 
 const round = (value, digits = 2) => (Number.isFinite(value) ? Number(value.toFixed(digits)) : null);
@@ -276,8 +309,25 @@ function createAnalysisToolkit({ userName, allowedTables, tables, rowsOf, audit 
     return semantic.query({ metric: args.metric, table: args.table, group: args.group, days: args.days, filters: args.filters, daily: args.daily === true, allowedTables });
   }
 
-  const handlers = { search_tables: searchTables, get_schema: getSchema, run_metric: runMetric, get_sample_rows: getSampleRows, ask_user: askUser };
-  if (semantic) Object.assign(handlers, { list_metrics: listMetricsTool, query_metric: queryMetricTool });
+  function attributeChangeTool(args) {
+    return semantic.attribute({ metric: args.metric, table: args.table, dimensions: args.dimensions, days: args.days, filters: args.filters, allowedTables });
+  }
+
+  function getLineage(args) {
+    const definition = definitionOf(String(args.table || ""));
+    if (!definition) return denied(args.table);
+    const lineage = definition.lineage || { upstream: [], downstream: [] };
+    const data = {
+      表名: definition.cnName,
+      上游: (lineage.upstream || []).map(item => ({ 表: item.table, 角色: item.role || "", 关联方式: item.join || "" })),
+      下游: (lineage.downstream || []).map(item => ({ 表: item.table, 角色: item.role || "" }))
+    };
+    if (!data.上游.length && !data.下游.length) data.说明 = "平台没有登记这张表的血缘：不能据此判断它没有上下游，请如实告知并建议向表负责人确认";
+    return { ok: true, data };
+  }
+
+  const handlers = { search_tables: searchTables, get_schema: getSchema, run_metric: runMetric, get_sample_rows: getSampleRows, ask_user: askUser, get_lineage: getLineage };
+  if (semantic) Object.assign(handlers, { list_metrics: listMetricsTool, query_metric: queryMetricTool, attribute_change: attributeChangeTool });
   // 额外工具（例如 Skill 的 read_reference）：同样走参数解析、审计与输出上限，上限可单独放宽
   const outputLimits = {};
   extraTools.forEach(tool => { handlers[tool.schema.function.name] = tool.execute; outputLimits[tool.schema.function.name] = tool.maxChars || MAX_OUTPUT_CHARS; });
@@ -310,7 +360,7 @@ function createAnalysisToolkit({ userName, allowedTables, tables, rowsOf, audit 
   }
 
   // 用户已补充信息时不再提供追问工具：硬性禁止重复追问，而不只靠提示词约束
-  const baseSchemas = [...(semantic ? [...TOOL_SCHEMAS, ...SEMANTIC_TOOL_SCHEMAS] : TOOL_SCHEMAS), ...extraTools.map(tool => tool.schema)];
+  const baseSchemas = [...(semantic ? [...TOOL_SCHEMAS, ...SEMANTIC_TOOL_SCHEMAS, ATTRIBUTION_TOOL_SCHEMA] : TOOL_SCHEMAS), LINEAGE_TOOL_SCHEMA, ...extraTools.map(tool => tool.schema)];
   const schemas = allowAsk ? baseSchemas : baseSchemas.filter(tool => tool.function.name !== "ask_user");
   return { schemas, execute: (name, rawArguments) => (name === "ask_user" && !allowAsk ? { ok: false, content: JSON.stringify({ ok: false, error: "用户已补充信息，不能再提问" }), data: null, error: "用户已补充信息，不能再提问" } : execute(name, rawArguments)) };
 }
