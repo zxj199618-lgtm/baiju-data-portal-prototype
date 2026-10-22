@@ -9,13 +9,18 @@
     "产品 ROI 日报": { "dateField": "stat_date", "dimensions": ["product_name"] },
     "渠道归因明细": { "dateField": "biz_date", "dimensions": ["channel_name"] },
     "用户订单明细": { "dateField": "created_at", "dimensions": ["product_name", "status", "pay_channel"] },
-    "用户生命周期日报": { "dateField": "stage_date", "dimensions": ["lifecycle_stage"] }
+    "用户生命周期日报": { "dateField": "stage_date", "dimensions": ["lifecycle_stage"] },
+    "权益-账号维度消耗统计表": {
+      "dateField": "head_data_date",
+      "dimensions": ["department", "account_id", "optimize_user_name", "platform_name", "medium", "commodity_classify", "commodity_name", "is_renew", "pay_category", "aggregation_commodity_type", "rule_report_node", "main_body", "jz_name"],
+      "baseFilters": [{ "field": "commodity_classify", "values": ["常规套餐", "三方支付套餐"] }]
+    }
   },
   "metrics": [
     {
       "id": "cost", "name": "消耗", "aliases": ["花费", "广告消耗", "spend"], "type": "sum", "unit": "元",
       "description": "广告投放的消耗金额，按所选维度对字段 cost 求和。", "owner": "黄佩贤", "reviewed": false,
-      "fields": { "广告计划日报表": "cost", "广告账户日报": "cost", "广告组转化日报": "cost", "媒体消耗汇总": "cost", "产品 ROI 日报": "cost", "渠道归因明细": "cost" }
+      "fields": { "广告计划日报表": "cost", "广告账户日报": "cost", "广告组转化日报": "cost", "媒体消耗汇总": "cost", "产品 ROI 日报": "cost", "渠道归因明细": "cost", "权益-账号维度消耗统计表": "cash_cost" }
     },
     {
       "id": "activate", "name": "激活数", "aliases": ["激活", "激活量", "activate"], "type": "sum", "unit": "次",
@@ -25,12 +30,12 @@
     {
       "id": "click", "name": "点击数", "aliases": ["点击", "click"], "type": "sum", "unit": "次",
       "description": "点击次数，对字段 click_cnt 求和。", "owner": "黄佩贤", "reviewed": false,
-      "fields": { "广告计划日报表": "click_cnt", "媒体消耗汇总": "click_cnt" }
+      "fields": { "广告计划日报表": "click_cnt", "媒体消耗汇总": "click_cnt", "权益-账号维度消耗统计表": "click_count" }
     },
     {
       "id": "show", "name": "曝光数", "aliases": ["曝光", "展示", "show"], "type": "sum", "unit": "次",
       "description": "曝光次数，对字段 show_cnt 求和。", "owner": "黄佩贤", "reviewed": false,
-      "fields": { "广告计划日报表": "show_cnt", "媒体消耗汇总": "show_cnt" }
+      "fields": { "广告计划日报表": "show_cnt", "媒体消耗汇总": "show_cnt", "权益-账号维度消耗统计表": "view_count" }
     },
     {
       "id": "register", "name": "注册数", "aliases": ["注册", "register"], "type": "sum", "unit": "次",
@@ -72,6 +77,27 @@
     {
       "id": "register_rate", "name": "注册转化率", "aliases": ["注册率"], "type": "ratio", "unit": "%", "numerator": "register", "denominator": "activate", "scale": 100,
       "description": "注册数 ÷ 激活数 × 100。先分别汇总再相除。", "owner": "黄佩贤", "reviewed": false
-    }
+    },
+    {"id": "book_cost", "name": "账面消耗", "aliases": ["账面", "账面成本"], "type": "sum", "unit": "元", "description": "账面消耗 = 现金消耗 × 账面折算系数，与现金消耗不是同一口径。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "book_cost"}},
+    {"id": "conversion", "name": "转化数（平台回传）", "aliases": ["平台转化", "转化数"], "type": "sum", "unit": "次", "description": "广告平台回传的转化数，与站内支付成功不是同一件事。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "conversion_count"}, "caveat": "平台回传口径，不等于站内支付成功；看成交请用成功用户数 / 支付成功订单数。"},
+    {"id": "valid_orders", "name": "有效提单数", "aliases": ["提单数", "有效订单"], "type": "sum", "unit": "单", "description": "有效提单订单数（排除下单失败），按订单去重，跨行可累加。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "valid_order_cnt"}},
+    {"id": "success_orders", "name": "支付成功订单数", "aliases": ["成功订单", "成功订单数"], "type": "sum", "unit": "单", "description": "支付成功的订单数，按订单去重，跨行可累加。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "success_order_cnt"}},
+    {"id": "valid_users", "name": "有效提单用户数", "aliases": ["提单用户", "有效用户提单"], "type": "sum", "unit": "人", "description": "提了有效单的用户数。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "valid_user_cnt"}, "caveat": "用户数是各行（日期 × 账号 × 套餐 × 是否续费…）内按手机号去重后的人数，跨行累加会重复计算同一批用户；多日或多账号汇总时只能当作人次参考，不能当作去重用户数。"},
+    {"id": "contract_users", "name": "签约用户数", "aliases": ["签约用户", "签约数"], "type": "sum", "unit": "人", "description": "签约成功、解约中、已解约的用户数；仅对常规套餐（自营）有业务意义，已自动限定为常规套餐。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "contract_user_cnt"}, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}], "caveat": "用户数是各行（日期 × 账号 × 套餐 × 是否续费…）内按手机号去重后的人数，跨行累加会重复计算同一批用户；多日或多账号汇总时只能当作人次参考，不能当作去重用户数。"},
+    {"id": "success_users", "name": "成功用户数", "aliases": ["支付成功用户", "成功用户", "付费用户"], "type": "sum", "unit": "人", "description": "支付成功的用户数。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "success_user_cnt"}, "caveat": "用户数是各行（日期 × 账号 × 套餐 × 是否续费…）内按手机号去重后的人数，跨行累加会重复计算同一批用户；多日或多账号汇总时只能当作人次参考，不能当作去重用户数。"},
+    {"id": "valid_success_users", "name": "有效用户数（未解约未退款）", "aliases": ["有效成功用户", "留存用户"], "type": "sum", "unit": "人", "description": "支付成功、未发起退款且签约状态仍为签约成功的用户数，留存分析的核心指标；仅对常规套餐有意义。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "valid_success_user_cnt"}, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}], "caveat": "用户数是各行（日期 × 账号 × 套餐 × 是否续费…）内按手机号去重后的人数，跨行累加会重复计算同一批用户；多日或多账号汇总时只能当作人次参考，不能当作去重用户数。"},
+    {"id": "off_contract_users", "name": "解约用户数", "aliases": ["解约用户"], "type": "sum", "unit": "人", "description": "解约中或已解约且支付成功的用户数；仅对常规套餐有意义。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "off_contract_user_cnt"}, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}], "caveat": "用户数是各行（日期 × 账号 × 套餐 × 是否续费…）内按手机号去重后的人数，跨行累加会重复计算同一批用户；多日或多账号汇总时只能当作人次参考，不能当作去重用户数。"},
+    {"id": "refund_users", "name": "退款用户数", "aliases": ["退款用户"], "type": "sum", "unit": "人", "description": "退款完成或部分退款且支付成功的用户数；仅对常规套餐有意义。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "refund_user_cnt"}, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}], "caveat": "用户数是各行（日期 × 账号 × 套餐 × 是否续费…）内按手机号去重后的人数，跨行累加会重复计算同一批用户；多日或多账号汇总时只能当作人次参考，不能当作去重用户数。"},
+    {"id": "pay_amount", "name": "实付金额（自营收入）", "aliases": ["自营收入", "实付金额", "自营实付"], "type": "sum", "unit": "元", "description": "订单实付金额，自营（常规套餐）的收入口径，已自动限定为常规套餐；三方没有实付金额概念。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "pay_amount"}, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}]},
+    {"id": "real_pay_amount", "name": "净收入（自营）", "aliases": ["自营净收入", "实际收入"], "type": "sum", "unit": "元", "description": "自营净收入 =（实付 − 退款）−（手续费 − 退回手续费），再乘分成比例；已自动限定为常规套餐。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "real_pay_amount"}, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}]},
+    {"id": "report_reward", "name": "三方佣金（三方收入）", "aliases": ["三方收入", "佣金", "CPA收入"], "type": "sum", "unit": "元", "description": "三方支付套餐的上报佣金，是三方 CPA 的收入口径，已自动限定为三方支付套餐；在自营里它是成本，不是收入。", "owner": "待确认", "reviewed": false, "fields": {"权益-账号维度消耗统计表": "report_reward"}, "baseFilters": [{"field": "commodity_classify", "values": ["三方支付套餐"]}]},
+    {"id": "cost_per_success_user", "name": "每成功用户现金消耗", "aliases": ["每成功用户成本", "成功用户成本", "单用户成本"], "type": "ratio", "unit": "元/人", "numerator": "cost", "denominator": "success_users", "scale": 1, "description": "现金消耗 ÷ 成功用户数，先分别汇总再相除。", "owner": "待确认", "reviewed": false, "caveat": "分母是跨行累加的成功用户数（含重复），范围越大越偏；与单一切片内的结果有差别。"},
+    {"id": "sign_rate", "name": "提单签约率", "aliases": ["签约率"], "type": "ratio", "unit": "%", "numerator": "contract_users", "denominator": "valid_users", "scale": 100, "description": "签约用户数 ÷ 有效提单用户数 × 100，仅常规套餐；先分别汇总再相除。", "owner": "待确认", "reviewed": false, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}], "caveat": "续费行（is_renew = 是）也参与统计；只看新增用户漏斗时加筛选 is_renew = 否。分母小的时候率不稳定，判断前先看有效提单用户数的规模。"},
+    {"id": "sign_success_rate", "name": "签约成功率", "aliases": ["签约后成功率"], "type": "ratio", "unit": "%", "numerator": "success_users", "denominator": "contract_users", "scale": 100, "description": "成功用户数 ÷ 签约用户数 × 100，仅常规套餐。注意分母是签约用户，不是有效提单用户。", "owner": "待确认", "reviewed": false, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}], "caveat": "续费行（is_renew = 是）也参与统计；只看新增用户漏斗时加筛选 is_renew = 否。"},
+    {"id": "net_retention_rate", "name": "净留存率", "aliases": ["留存率"], "type": "ratio", "unit": "%", "numerator": "valid_success_users", "denominator": "success_users", "scale": 100, "description": "有效用户数 ÷ 成功用户数 × 100，仅常规套餐。", "owner": "待确认", "reviewed": false, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}], "caveat": "续费行（is_renew = 是）也参与统计；只看新增用户漏斗时加筛选 is_renew = 否。"},
+    {"id": "roi_self", "name": "自营 ROI", "aliases": ["ROI（自营）", "自营ROI", "自营 ROI", "回本"], "type": "ratio", "unit": "", "numerator": "pay_amount", "denominator": "cost", "scale": 1, "description": "自营收入（实付金额）÷ 现金消耗，仅常规套餐。订单与消耗不同时间轴，日级结果波动大，周 / 月口径才稳定。", "owner": "待确认", "reviewed": false, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}], "caveat": "日级 ROI 受订单（首单日）与消耗（消耗日）不同轴影响，只有周 / 月口径才可靠；窗口开始前的首单，其续费消耗落在窗口内会让 ROI 偏低。"},
+    {"id": "roi_net_self", "name": "自营净 ROI", "aliases": ["净ROI", "ROI（净）"], "type": "ratio", "unit": "", "numerator": "real_pay_amount", "denominator": "cost", "scale": 1, "description": "自营净收入 ÷ 现金消耗，仅常规套餐。", "owner": "待确认", "reviewed": false, "baseFilters": [{"field": "commodity_classify", "values": ["常规套餐"]}], "caveat": "口径同自营 ROI：日级波动大，周 / 月口径才可靠。"},
+    {"id": "roi_third", "name": "三方 ROI", "aliases": ["ROI（三方）", "三方ROI", "三方 ROI", "CPA ROI"], "type": "ratio", "unit": "", "numerator": "report_reward", "denominator": "cost", "scale": 1, "description": "三方佣金 ÷ 现金消耗，仅三方支付套餐；三方 CPA 的唯一正确口径。", "owner": "待确认", "reviewed": false, "baseFilters": [{"field": "commodity_classify", "values": ["三方支付套餐"]}], "caveat": "日级 ROI 受订单与消耗不同轴影响，周 / 月口径才可靠。"},
+    {"id": "cvr_platform", "name": "平台转化率", "aliases": ["CVR", "转化率（平台）"], "type": "ratio", "unit": "%", "numerator": "conversion", "denominator": "click", "scale": 100, "description": "平台回传转化数 ÷ 点击数 × 100，与站内支付成功不是同一件事。", "owner": "待确认", "reviewed": false}
   ]
 }

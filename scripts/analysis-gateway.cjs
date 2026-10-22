@@ -37,6 +37,8 @@ const { createSemanticLayer } = require("./semantic-layer.cjs");
 const { createFeedbackStore, RATINGS } = require("./feedback-store.cjs");
 const { createOrgStore } = require("./org-store.cjs");
 const { createAccountStore } = require("./account-store.cjs");
+const equitySample = require("./equity-sample.cjs");
+const skillPack = require("./skill-pack.cjs");
 
 const RELAY_BASE_URL = process.env.RELAY_BASE_URL || "https://simindapi.modelgs.com";
 const RELAY_API_KEYS = (process.env.RELAY_API_KEY || "").split(",").map(key => key.trim()).filter(Boolean);
@@ -594,6 +596,20 @@ const tables = [
     ],
     agg: { dateKey: "", groupBy: ["biz_line"], metric: "" },
     lineage: { upstream: [], downstream: [] }
+  },
+  {
+    cnName: equitySample.TABLE_NAME, table: "ads_equity_union_order_account_cost_stat_mv", database: "prod_equity", source: "StarRocks",
+    desc: "权益投放账号维度消耗统计（异步物化视图）：同一份订单明细按订单首单日与消耗日两条时间轴分别聚合后合并，含消耗、漏斗、自营收入与三方佣金。当前为示例数据，结构与生产一致。", owner: "待确认（示例数据）",
+    generator: () => equitySample.generate(TODAY),
+    fields: equitySample.FIELDS,
+    agg: { dateKey: "head_data_date", groupBy: ["department", "account_id"], metric: "cash_cost" },
+    lineage: {
+      upstream: [
+        { table: "dws_equity_com_order_profit_detail_mv", role: "权益订单利润明细（订单侧）", join: "LEFT JOIN" },
+        { table: "dim_equity_com_pay_channel_merchant_ratio_monthly", role: "月度支付渠道商户分成比例", join: "LEFT JOIN · 年月+渠道+商户" }
+      ],
+      downstream: []
+    }
   }
 ];
 
@@ -607,6 +623,14 @@ function loadSampleData() {
   try {
     sampleData = JSON.parse(fs.readFileSync(SAMPLE_DATA_FILE, "utf8"));
     console.log(`已加载模拟数据（生成于 ${sampleData.generatedAt}）`);
+    // 之后新增的表：旧的数据卷里没有它的数据，补生成并保存（已有的表不动）
+    const missing = tables.filter(table => !sampleData.tables[table.cnName]);
+    if (missing.length) {
+      missing.forEach(table => { sampleData.tables[table.cnName] = table.generator(); console.log(`补充生成 ${table.cnName}: ${sampleData.tables[table.cnName].length} 行`); });
+      const tmp = `${SAMPLE_DATA_FILE}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(sampleData));
+      fs.renameSync(tmp, SAMPLE_DATA_FILE);
+    }
     return;
   } catch { /* 首次启动或文件缺失时生成 */ }
   const dataset = { generatedAt: new Date().toISOString(), anchorDate: TODAY, tables: {} };
@@ -800,14 +824,14 @@ function providerSupportsTools(modelId) {
   return Boolean(route) && !isAnthropicProtocol(route.provider.protocol);
 }
 
-async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEvent = () => {} }) {
+async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEvent = () => {}, systemExtra = "", contextBlock = "", defaultTables = [], maxSteps = TOOL_MAX_STEPS, maxCalls = TOOL_MAX_CALLS }) {
   const messages = [
-    { role: "system", content: "你是观星台数据分析助手。需要数据时调用工具：先用 search_tables 找表，用 get_schema 看口径。问业务指标（消耗、CPA、点击率、ROI 等）时优先用 list_metrics 与 query_metric，口径由平台统一定义；只有表里没有定义口径的数值字段才用 run_metric。只引用工具返回的数字；工具返回错误时如实说明，不要猜测。数据足够后停止调用工具。问题缺少关键信息（口径、时间范围、业务线、拆解维度）且无法从数据推断时，调用 ask_user 提问，不要猜测。" },
-    { role: "user", content: `## 用户问题\n${question}\n## 提示\n${hints.length ? `用户指定的数据表：${hints.join("、")}` : "用户未指定数据表，请先搜索候选表。"}` }
+    { role: "system", content: `你是观星台数据分析助手。需要数据时调用工具：先用 search_tables 找表，用 get_schema 看口径。问业务指标（消耗、CPA、点击率、ROI 等）时优先用 list_metrics 与 query_metric，口径由平台统一定义；只有表里没有定义口径的数值字段才用 run_metric。只引用工具返回的数字；工具返回错误时如实说明，不要猜测。数据足够后停止调用工具。问题缺少关键信息（口径、时间范围、业务线、拆解维度）且无法从数据推断时，调用 ask_user 提问，不要猜测。${systemExtra ? `\n\n${systemExtra}` : ""}` },
+    { role: "user", content: `${contextBlock ? `${contextBlock}\n\n` : ""}## 用户问题\n${question}\n## 提示\n${hints.length ? `用户指定的数据表：${hints.join("、")}` : defaultTables.length ? `本 Skill 默认使用的数据表：${defaultTables.join("、")}，无需再搜索，直接用 list_metrics / query_metric 取数。` : "用户未指定数据表，请先搜索候选表。"}` }
   ];
   const evidence = [];
   let calls = 0, steps = 0, tokens = 0;
-  while (steps < TOOL_MAX_STEPS) {
+  while (steps < maxSteps) {
     steps += 1;
     const result = await relayChat(model, { messages, tools: toolkit.schemas, tool_choice: "auto" });
     tokens += tokensOf(result.data?.usage);
@@ -818,7 +842,7 @@ async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEven
     messages.push({ role: "assistant", content: message.content || "", tool_calls: toolCalls });
     for (const call of toolCalls) {
       const name = call.function?.name || "";
-      if (calls >= TOOL_MAX_CALLS) {
+      if (calls >= maxCalls) {
         messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: false, error: "工具调用次数已达上限" }) });
         continue;
       }
@@ -906,9 +930,9 @@ function buildEvidence(cnNames, portalContext = []) {
 
 const permissionGroups = [
   { name: "门户管理员", tables: ["全部数据表"] },
-  { name: "投放组长", tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"] },
-  { name: "优化师", tables: ["广告计划日报表", "广告账户日报"] },
-  { name: "数据分析师", tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"] },
+  { name: "投放组长", tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报", equitySample.TABLE_NAME] },
+  { name: "优化师", tables: ["广告计划日报表", "广告账户日报", equitySample.TABLE_NAME] },
+  { name: "数据分析师", tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细", equitySample.TABLE_NAME] },
   { name: "只读访客", tables: [] }
 ];
 
@@ -1082,6 +1106,48 @@ function skillInstructions(id) {
   try { return fs.readFileSync(path.join(skillDir(id), "SKILL.md"), "utf8"); } catch { return ""; }
 }
 
+/* Skill 规范包（随代码发布的业务知识：核心规则 + 术语表 + 拦截规则 + 参考资料），开发时在仓库根目录，镜像里与网关同级 */
+const SKILL_PACKS_DIR = [path.join(__dirname, "skill-packs"), path.join(__dirname, "..", "skill-packs")].find(dir => fs.existsSync(dir)) || path.join(__dirname, "skill-packs");
+const skillPacks = skillPack.loadPacks(SKILL_PACKS_DIR);
+
+/** 规范包落盘并登记到注册表：展示信息以代码为准，启停与灰度名单保留后台配置；并把路由关键词补进「通用分析」 */
+function installSkillPacks(registry) {
+  const writeIfChanged = (file, content) => {
+    try {
+      if (fs.existsSync(file) && fs.readFileSync(file, "utf8") === content) return;
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, content);
+    } catch (error) { console.warn(`[skills] 写入失败 ${file}：${error.message}`); }
+  };
+  for (const pack of skillPacks.values()) {
+    const { spec, router, ...manifest } = pack.manifest;
+    const dir = skillDir(pack.id);
+    writeIfChanged(path.join(dir, "skill.json"), JSON.stringify(manifest, null, 2));
+    writeIfChanged(path.join(dir, "SKILL.md"), pack.instructions);
+    const display = {
+      name: manifest.name, source: manifest.source, version: manifest.version, scenarioKey: manifest.scenarioKey, icon: manifest.icon, title: manifest.title,
+      displayDesc: manifest.displayDesc, desc: manifest.desc, sort: manifest.sort, clarification: manifest.clarification, assetScope: manifest.assetScope,
+      responseContract: manifest.responseContract, pack: true, builtin: true, dir
+    };
+    const existing = registry.find(item => item.id === pack.id);
+    if (existing) Object.assign(existing, display);
+    else registry.push({ id: pack.id, ...display, enabled: true, grayUsers: [], installedAt: new Date().toISOString() });
+  }
+}
+
+function ensurePackRoutes(registry) {
+  const routerEntry = registry.find(item => item.id === ROUTER_SKILL_ID);
+  if (!routerEntry) return;
+  routerEntry.routes = Array.isArray(routerEntry.routes) ? routerEntry.routes : [];
+  for (const pack of skillPacks.values()) {
+    const keywords = pack.manifest.router?.keywords;
+    if (!Array.isArray(keywords) || !keywords.length) continue;
+    const existingRoute = routerEntry.routes.find(route => route.skillId === pack.id);
+    if (!existingRoute) routerEntry.routes.unshift({ skillId: pack.id, keywords, priority: 10 });
+    else if (existingRoute.priority === undefined) existingRoute.priority = 10;
+  }
+}
+
 /* 通用分析（路由型）：自身不执行工具，按问题关键词在「用户可用」的技能中自动转交；路由规则与兜底技能在「Skill 配置」里维护 */
 const ROUTER_SKILL_ID = "general-analyst";
 const ROUTER_SKILL_DEFAULTS = {
@@ -1113,11 +1179,12 @@ function ensureRouterSkill(registry) {
 function sanitizeRoutes(list) {
   return list.slice(0, 20).map(route => ({
     skillId: String(route?.skillId || "").slice(0, 60),
-    keywords: (Array.isArray(route?.keywords) ? route.keywords : []).map(item => String(item).trim()).filter(Boolean).slice(0, 30)
+    keywords: (Array.isArray(route?.keywords) ? route.keywords : []).map(item => String(item).trim()).filter(Boolean).slice(0, 30),
+    ...(Number.isFinite(Number(route?.priority)) && Number(route.priority) > 0 ? { priority: Math.min(10, Math.floor(Number(route.priority))) } : {})
   })).filter(route => route.skillId);
 }
 /* 自动选择：只在该用户可用的技能（已上线 + 灰度名单）中挑选；命中关键词最多者胜出，未命中用兜底 */
-function pickAutoSkill(router, user, question) {
+function pickAutoSkill(router, user, question, stickySkillId = "") {
   const registry = loadSkillRegistry();
   const usable = id => registry.find(item => item.id === id && item.kind !== "router" && item.enabled !== false && (!item.grayUsers?.length || item.grayUsers.includes(user))) || null;
   const text = String(question || "").toLowerCase();
@@ -1126,9 +1193,14 @@ function pickAutoSkill(router, user, question) {
     const entry = usable(route.skillId);
     if (!entry) continue;
     const hits = (route.keywords || []).filter(keyword => keyword && text.includes(String(keyword).toLowerCase()));
-    if (hits.length && (!best || hits.length > best.hits.length)) best = { entry, hits };
+    // 业务专属技能（priority 更高）的关键词命中优先于通用技能的多个命中；同优先级再比命中数
+    const priority = Number(route.priority) || 0;
+    if (hits.length && (!best || priority > best.priority || (priority === best.priority && hits.length > best.hits.length))) best = { entry, hits, priority };
   }
   if (best) return { skill: best.entry, reason: `命中关键词「${best.hits.join("、")}」` };
+  // 追问（「那昨天呢」）里通常没有关键词：沿用上一轮的技能，而不是掉回兜底
+  const sticky = stickySkillId ? usable(stickySkillId) : null;
+  if (sticky) return { skill: sticky, reason: "沿用上一轮的技能" };
   const fallback = usable(router.fallbackSkillId) || (router.routes || []).map(route => usable(route.skillId)).find(Boolean) || null;
   return { skill: fallback, reason: "未命中关键词，使用兜底技能" };
 }
@@ -1233,7 +1305,9 @@ function installBuiltinPackages() {
   };
   defs.forEach(def => writeToolIfChanged(path.join(skillDir(def.id), "tools", "evidence.cjs"), EVIDENCE_TOOL_SOURCE));
   writeToolIfChanged(path.join(skillDir(warehouseDef.id), "tools", "warehouse-evidence.cjs"), WAREHOUSE_EVIDENCE_TOOL);
+  installSkillPacks(registry);
   ensureRouterSkill(registry);
+  ensurePackRoutes(registry);
   saveSkillRegistry(registry);
 }
 
@@ -1831,6 +1905,9 @@ function sanitizeHistoryMessage(msg) {
     requestId: String(msg?.requestId || "").slice(0, 80),
     feedback: RATINGS.includes(msg?.feedback) ? msg.feedback : "",
     leadMsg: String(msg?.leadMsg || "").slice(0, 300),
+    skillId: /^[A-Za-z0-9_-]{1,60}$/.test(String(msg?.skillId || "")) ? String(msg.skillId) : "",
+    terms: (Array.isArray(msg?.terms) ? msg.terms : []).slice(0, 6).map(term => String(term).slice(0, 20)),
+    resolved: (Array.isArray(msg?.resolved) ? msg.resolved : []).slice(0, 6).map(item => ({ term: String(item?.term || "").slice(0, 20), kind: String(item?.kind || "").slice(0, 20), means: String(item?.means || "").slice(0, 80), carried: item?.carried === true })),
     trailMsg: String(msg?.trailMsg || "").slice(0, 300),
     streaming: false
   };
@@ -2797,13 +2874,20 @@ async function handleRequest(req, res) {
     /* 通用分析：按问题关键词与用户可用技能自动转交；其余请求按 skillId 直接执行 */
     const routerEntry = loadSkillRegistry().find(item => item.id === ROUTER_SKILL_ID);
     const isRouting = Boolean(routerEntry) && (body.skillId === ROUTER_SKILL_ID || (!body.skillId && scenario === "general"));
-    const routed = isRouting ? pickAutoSkill(routerEntry, user, question) : null;
+    const conversationTurns = skillPack.sanitizeConversation(body.conversation);
+    const stickySkillId = [...conversationTurns].reverse().find(turn => turn.skillId)?.skillId || "";
+    const routed = isRouting ? pickAutoSkill(routerEntry, user, question, stickySkillId) : null;
     const targetSkillId = isRouting ? (routed.skill?.id || "") : body.skillId;
     const registrySkill = targetSkillId
       ? loadSkillRegistry().find(item => item.id === targetSkillId && item.enabled !== false && (!item.grayUsers?.length || item.grayUsers.includes(user)))
       : null;
     let skill = null, scene = null, runtimeError = "";
-    if (registrySkill) {
+    /* 规范包：核心规则直接作为场景提示词，数据通过工具循环取（不再跑证据脚本） */
+    const packEntry = registrySkill ? skillPacks.get(registrySkill.id) || null : null;
+    if (packEntry) {
+      skill = { name: registrySkill.name, version: registrySkill.version };
+      scene = { label: registrySkill.title || registrySkill.name, system: packEntry.instructions };
+    } else if (registrySkill) {
       const toolRun = await runSkillTool(registrySkill, "evidence", { tables: referenced.length ? referenced : scopedCandidates, question, businessLine });
       if (toolRun.ok && Array.isArray(toolRun.result.evidence)) {
         const instructions = skillInstructions(registrySkill.id);
@@ -2819,7 +2903,44 @@ async function handleRequest(req, res) {
       skill = builtin;
       scene = builtin.scenarios[routed?.skill?.scenarioKey || (isRouting ? "data-query" : scenario)] || builtin.scenarios.single;
     }
-    const evidenceTables = referenced.length ? referenced : scopedCandidates;
+    const packTables = packEntry ? (packEntry.spec.tables || []).filter(name => allowed.includes(name)) : [];
+    const evidenceTables = referenced.length ? referenced : (packTables.length ? packTables : scopedCandidates);
+    /* 回答协议（所有技能）+ 规范包上下文（术语解析、拦截规则）+ 会话上下文 */
+    const answerRole = skillPack.roleForGroup(orgStore.groupOf(user));
+    const answerProtocol = skillPack.buildAnswerProtocol(answerRole);
+    const conversationContext = skillPack.buildConversationContext(conversationTurns);
+    let specContext = "", packGuards = [], packMeta = { role: answerRole };
+    if (packEntry) {
+      const carried = [...conversationTurns].reverse().find(turn => turn.terms?.length)?.terms || [];
+      const resolution = skillPack.resolveTerms(packEntry.spec, question, carried);
+      packGuards = skillPack.matchGuards(packEntry.spec, question);
+      specContext = skillPack.buildSpecContext({ resolution, guards: packGuards, spec: packEntry.spec });
+      packMeta = {
+        role: answerRole, pack: packEntry.id,
+        resolvedTerms: resolution.resolved.map(({ term, kind, means, carried: isCarried }) => ({ term, kind, means, carried: isCarried })),
+        ambiguousTerms: resolution.ambiguous.map(item => item.term),
+        guards: packGuards.map(guard => guard.id)
+      };
+    }
+    /* 做不到的需求（例如按商户拆分）：直接给出明确答复与替代方案，不调用模型 */
+    const blockedBy = packGuards.find(guard => guard.mode === "block");
+    if (blockedBy) {
+      const blockMeta = {
+        skill: skill.name, skillVersion: skill.version, scenario: scene.label, toolMode: `guard:${blockedBy.id}`, toolCalls: [],
+        model, tablesUsed: [], deniedTables: denied, latencyMs: Date.now() - started, usage: null, requestId,
+        numericCheck: null, totalTokens: 0, ...packMeta
+      };
+      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: blockMeta.toolMode, toolCalls: [], tablesUsed: [], usage: null, extraTokens: 0, latencyMs: blockMeta.latencyMs, numericCheck: null, status: "ok" });
+      blockMeta.usageToday = { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) };
+      if (body.stream === true) {
+        res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache", Connection: "keep-alive", ...corsHeadersFor(res) });
+        res.write(`data: ${JSON.stringify({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [] })}\n\n`);
+        res.write(`data: ${JSON.stringify({ delta: blockedBy.answer })}\n\n`);
+        res.write(`data: ${JSON.stringify({ done: true, meta: blockMeta })}\n\n`);
+        return res.end();
+      }
+      return sendJson(res, 200, { report: blockedBy.answer, meta: blockMeta });
+    }
     const isAttributionRequest = targetSkillId === ATTRIBUTION_SKILL_ID || scenario === "attribution";
     let evidence = buildEvidenceOverride || buildEvidence(evidenceTables, portalContext);
     /* 工具取数：模型自己决定查什么，权限在工具里逐次校验；未调用工具或模型不支持时回到原证据方式 */
@@ -2838,14 +2959,20 @@ async function handleRequest(req, res) {
       });
       sseSend = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
       sseHeartbeat = setInterval(() => res.write(": hb\n\n"), 5000);
-      sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "" });
+      sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [] });
     }
     if (body.toolMode !== false && !isAttributionRequest && providerSupportsTools(model)) {
-      const toolkit = createAnalysisToolkit({ userName: user, allowedTables: allowed, tables, rowsOf, audit: appendAuditEntry, allowAsk: !question.includes("用户补充信息"), semantic: semanticLayer });
+      const referenceTool = packEntry ? skillPack.createReferenceTool(packEntry) : null;
+      const toolkit = createAnalysisToolkit({ userName: user, allowedTables: allowed, tables, rowsOf, audit: appendAuditEntry, allowAsk: !question.includes("用户补充信息"), semantic: semanticLayer, extraTools: referenceTool ? [{ ...referenceTool, maxChars: 26000 }] : [] });
+      const loopSystemExtra = [packEntry?.instructions, packEntry ? skillPack.referenceIndex(packEntry) : "", specContext, answerProtocol].filter(Boolean).join("\n\n");
       if (sseSend) sseSend({ status: "正在查询数据…" });
       let loop;
       try {
-        loop = await runAnalysisToolLoop({ model, question, hints: referenced, toolkit, onToolEvent: ev => { if (sseSend) sseSend({ tool: ev }); } });
+        loop = await runAnalysisToolLoop({
+          model, question, hints: referenced, toolkit, onToolEvent: ev => { if (sseSend) sseSend({ tool: ev }); },
+          systemExtra: loopSystemExtra, contextBlock: conversationContext, defaultTables: packTables,
+          ...(packEntry ? { maxSteps: 6, maxCalls: 12 } : {})
+        });
       } catch (error) {
         if (sseSend) {
           clearInterval(sseHeartbeat);
@@ -2861,7 +2988,7 @@ async function handleRequest(req, res) {
         const askMeta = {
           skill: skill.name, skillVersion: skill.version, scenario: scene.label, toolMode: `ask:${loop.calls}`, toolCalls: askCalls,
           model, tablesUsed: referenced, deniedTables: denied, latencyMs: Date.now() - started, usage: null, requestId,
-          numericCheck: null, usageToday: null, totalTokens: toolTokens
+          numericCheck: null, usageToday: null, totalTokens: toolTokens, ...packMeta
         };
         finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: askMeta.toolMode, toolCalls: askCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: askMeta.latencyMs, numericCheck: null, status: "ok" });
         askMeta.usageToday = { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) };
@@ -2888,7 +3015,9 @@ async function handleRequest(req, res) {
     }
     if (isAttributionRequest) attachAttribution(evidence, evidenceTables, question);
     const prompt = [
+      conversationContext,
       `## 用户问题\n${question}`,
+      specContext,
       `## 分析场景\n${scene.label}`,
       referenced.length ? `## 引用数据表\n${referenced.join("、")}` : scopedCandidates.length ? `## 业务线范围\n${businessLine || "已选择业务线"}；候选数据表：${scopedCandidates.join("、")}` : "## 引用数据表\n（未指定，以下为当前用户权限内全部表的概览，深度分析请引用具体表）",
       "## 门户配置说明\n表证据中的「枚举值」「字段备注」「标签配置」「维表数据样例」来自门户的表管理、字典管理、标签管理与维表管理配置，分析时优先据此解释编码取值与口径；与网关注释冲突时以门户配置为准。",
@@ -2904,7 +3033,7 @@ async function handleRequest(req, res) {
       "要求：最多 3 个问题，每题 2-6 个选项；multiple 为 true 表示可多选；界面会自动提供「自定义输入」，不需要自己加「其他」选项。",
       "提问块之后不要再输出任何内容。如果用户消息里已经包含「用户补充信息」，或信息已经足够，则直接分析，禁止再次提问。"
     ].join("\n");
-    const messages = [{ role: "system", content: `${scene.system}\n\n${ASK_PROTOCOL}` }, { role: "user", content: prompt }];
+    const messages = [{ role: "system", content: `${scene.system}\n\n（以上场景说明只提供事实边界与专业规则；回答的篇幅与结构以下面的「回答协议」为准。）\n\n${answerProtocol}\n\n${ASK_PROTOCOL}` }, { role: "user", content: prompt }];
 
     /* 流式模式：SSE 逐段转发给前端 */
     if (streaming) {
@@ -2946,7 +3075,7 @@ async function handleRequest(req, res) {
           usage: result.usage || null, requestId,
           warning: result.stalled ? "上游中断，以上为已生成内容" : "",
           numericCheck: streamNumericCheck, totalTokens: tokensOf(result.usage) + toolTokens,
-          usageToday: { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) }
+          usageToday: { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) }, ...packMeta
         }
       });
       return res.end();
@@ -2981,7 +3110,7 @@ async function handleRequest(req, res) {
           deniedTables: denied, latencyMs: Date.now() - started,
           usage: result.data.usage || null, requestId,
           numericCheck: plainNumericCheck, totalTokens: tokensOf(result.data.usage) + toolTokens,
-          usageToday: { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) }
+          usageToday: { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) }, ...packMeta
         }
       });
     } catch (error) {

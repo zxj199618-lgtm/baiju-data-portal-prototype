@@ -10,6 +10,16 @@
 const NUMERIC = /DECIMAL|BIGINT|INT|DOUBLE|FLOAT/i;
 const MAX_GROUPS = 10;
 
+/** 同一字段的多个筛选取交集；交集为空时 values 为空数组（调用方据此报错） */
+function mergeFilters(filters) {
+  const byField = new Map();
+  filters.forEach(({ field, values }) => {
+    const list = (values || []).map(String);
+    byField.set(field, byField.has(field) ? byField.get(field).filter(value => list.includes(value)) : list);
+  });
+  return [...byField].map(([field, values]) => ({ field, values }));
+}
+
 const num = value => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
 const dayOf = value => String(value ?? "").slice(0, 10);
 const shiftDay = (day, offset) => new Date(Date.parse(`${day}T00:00:00Z`) + offset * 86400000).toISOString().slice(0, 10);
@@ -32,7 +42,13 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
       if (!valid) warnings.push(`语义层：表「${name}」的维度 ${dimension} 不存在或不是文本字段，已忽略`);
       return valid;
     });
-    tableConfig.set(name, { dateField: config.dateField, dimensions });
+    // 固定筛选：该表任何查询都带上（例如只承认「常规套餐」「三方支付套餐」两类），字段必须是该表声明过的维度
+    const baseFilters = (config.baseFilters || []).filter(filter => {
+      const valid = dimensions.includes(filter.field) && Array.isArray(filter.values) && filter.values.length;
+      if (!valid) warnings.push(`语义层：表「${name}」的固定筛选 ${filter.field} 不是已声明的维度或没有取值，已忽略`);
+      return valid;
+    });
+    tableConfig.set(name, { dateField: config.dateField, dimensions, baseFilters });
   });
 
   // 2. 求和型指标：每张表的指标字段必须存在且为数值
@@ -64,6 +80,13 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
     if (!needle) return null;
     return [...metrics.values()].find(metric => [metric.id, metric.name, ...(metric.aliases || [])].some(label => String(label).toLowerCase() === needle)) || null;
   };
+
+  /** 指标自带的固定筛选：比率指标取自己、分子、分母三者的并集（同一字段取交集） */
+  function metricBaseFilters(metric) {
+    const own = metric.baseFilters || [];
+    if (metric.type !== "ratio") return own;
+    return mergeFilters([...own, ...metricBaseFilters(metrics.get(metric.numerator)), ...metricBaseFilters(metrics.get(metric.denominator))]);
+  }
 
   const tablesOf = metric => (metric.type === "ratio" ? metric.shared : Object.keys(metric.fields));
 
@@ -97,7 +120,7 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
   }
 
   /** 查询指标：最近 N 天 vs 前 N 天，可按一个维度拆分。table 缺省时仅在唯一可选表时自动选择 */
-  function query({ metric: metricKey, table: requestedTable, group, days, filters, allowedTables }) {
+  function query({ metric: metricKey, table: requestedTable, group, days, filters, daily, allowedTables }) {
     const metric = findMetric(metricKey);
     if (!metric) return { ok: false, error: `未找到指标：${metricKey || "（未指定）"}，请先用 list_metrics 查看可用指标` };
     const allowed = new Set(allowedTables);
@@ -121,8 +144,16 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
       if (!values.length || values.length > 20) return { ok: false, error: `筛选 ${field} 需要 1 到 20 个取值` };
       activeFilters.push({ field, values });
     }
+    // 固定筛选（表级 + 指标级）与用户筛选合并；冲突（取交集为空）时说明该指标的适用范围，而不是返回空数据
+    const fixedFilters = mergeFilters([...config.baseFilters, ...metricBaseFilters(metric)]);
+    const effectiveFilters = mergeFilters([...fixedFilters, ...activeFilters]);
+    const emptied = effectiveFilters.find(filter => !filter.values.length);
+    if (emptied) {
+      const fixed = fixedFilters.find(filter => filter.field === emptied.field);
+      return { ok: false, error: `指标「${metric.name}」只适用于 ${emptied.field} = ${(fixed?.values || []).join("、")}，你指定的筛选与它冲突` };
+    }
     const windowDays = Math.min(90, Math.max(1, Math.floor(num(days)) || 7));
-    const rows = rowsOf(tableName).filter(row => activeFilters.every(({ field, values }) => values.includes(String(row[field] ?? ""))));
+    const rows = rowsOf(tableName).filter(row => effectiveFilters.every(({ field, values }) => values.includes(String(row[field] ?? ""))));
     const anchor = rows.map(row => dayOf(row[config.dateField])).sort().at(-1);
     if (!anchor) return { ok: true, data: { 表名: tableName, 指标: metric.id, ...(activeFilters.length ? { 筛选: activeFilters.map(({ field, values }) => ({ 字段: field, 取值: values })) } : {}), 说明: activeFilters.length ? "筛选后没有数据：请检查取值是否写对（取值需与数据里的写法完全一致）" : "该表没有数据" } };
     const windows = {
@@ -152,7 +183,34 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
       ...change(currentTotal, priorTotal)
     };
     if (activeFilters.length) data.筛选 = activeFilters.map(({ field, values }) => ({ 字段: field, 取值: values }));
+    if (fixedFilters.length) data.口径.固定筛选 = fixedFilters.map(({ field, values }) => ({ 字段: field, 取值: values }));
+    if (metric.caveat) data.提示 = metric.caveat;
+    data.数据截止日期 = anchor;
 
+    if (daily) {
+      // 按日趋势：窗口内每天的值（比率按「当天先汇总再相除」）；订单与消耗不同轴，比率类的日级值会抖动
+      const series = [];
+      for (let offset = windowDays - 1; offset >= 0; offset -= 1) {
+        const day = shiftDay(anchor, -offset);
+        const dayRows = currentRows.filter(row => dayOf(row[config.dateField]) === day);
+        series.push({ 日期: day, 值: dayRows.length ? round(valueOn(metric, tableName, dayRows), digits) : null });
+      }
+      const present = series.filter(item => item.值 !== null);
+      const stats = {};
+      if (present.length) {
+        const sorted = [...present].sort((a, b) => a.值 - b.值);
+        stats.最高日 = sorted.at(-1);
+        stats.最低日 = sorted[0];
+        if (metric.type === "sum") {
+          const mean = present.reduce((total, item) => total + item.值, 0) / present.length;
+          const sd = Math.sqrt(present.reduce((total, item) => total + (item.值 - mean) ** 2, 0) / present.length);
+          stats.日均 = round(mean, digits);
+          if (sd > 0) stats.异常日 = present.filter(item => Math.abs(item.值 - mean) > 2 * sd).map(item => item.日期);
+        }
+      }
+      data.按日 = { 明细: series, ...stats };
+      if (metric.type === "ratio") data.按日.说明 = "比率类指标的日级值受订单与消耗不同时间轴影响，会明显抖动，趋势判断请以整个窗口为准。";
+    }
     if (group) {
       const keys = new Set([...currentRows, ...priorRows].map(row => String(row[group] ?? "—")));
       const items = [...keys].map(key => {

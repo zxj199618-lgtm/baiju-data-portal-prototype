@@ -3878,3 +3878,8 @@
       font-size: 13px;
       background: #fff;
     }
+
+/* 口径解析提示：回答上方一行，说明「任哥 / 存量 / 白驹」等词被理解成了什么 */
+.portal-vue-ai-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 12px; }
+.portal-vue-ai-scope-label { color: #8a93a6; }
+.portal-vue-ai-scope-chip { padding: 2px 8px; border-radius: 10px; background: #eef3ff; color: #2f5bd8; line-height: 18px; }

@@ -110,7 +110,7 @@ async function runEvals({ baseUrl, password, cases, models = [], filter = "", tr
         response = await http(baseUrl, "/v1/analyze", {
           method: "POST",
           token: await login(user),
-          body: { question: testCase.question, scenario: testCase.scenario || defaults.scenario || "single", skillId: testCase.skillId || "", tables: testCase.tables || [], model, stream: false }
+          body: { question: testCase.question, scenario: testCase.scenario || defaults.scenario || "single", skillId: testCase.skillId || "", tables: testCase.tables || [], conversation: testCase.conversation || [], model, stream: false }
         });
       } catch (error) {
         response = { status: 0, data: { error: error.message } };

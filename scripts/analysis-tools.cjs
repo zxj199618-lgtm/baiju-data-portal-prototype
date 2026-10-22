@@ -38,7 +38,8 @@ const SEMANTIC_TOOL_SCHEMAS = [
             description: "筛选条件（且）：例如只看某个媒体。字段须在 list_metrics 给出的可用分组内，取值需与数据里的写法一致",
             items: { type: "object", properties: { field: { type: "string" }, values: { type: "array", items: { type: "string" } } }, required: ["field", "values"] }
           },
-          days: { type: "integer", minimum: 1, maximum: 90, description: "窗口天数，默认 7" }
+          days: { type: "integer", minimum: 1, maximum: 90, description: "窗口天数，默认 7" },
+          daily: { type: "boolean", description: "为 true 时额外返回窗口内逐日的值（含最高 / 最低日、日均、异常日），用于趋势与找异常日" }
         },
         required: ["metric"]
       }
@@ -130,7 +131,7 @@ const TOOL_SCHEMAS = [
 /**
  * @param {{ userName: string, allowedTables: string[], tables: Array<object>, rowsOf: (name: string) => Array<object>, audit?: (entry: object) => void }} context
  */
-function createAnalysisToolkit({ userName, allowedTables, tables, rowsOf, audit = () => {}, allowAsk = true, semantic = null }) {
+function createAnalysisToolkit({ userName, allowedTables, tables, rowsOf, audit = () => {}, allowAsk = true, semantic = null, extraTools = [] }) {
   const allowed = new Set(allowedTables);
   const definitionOf = name => (allowed.has(name) ? tables.find(table => table.cnName === name) || null : null);
   const denied = name => ({ ok: false, error: `数据表不存在或无权访问：${name}` });
@@ -272,11 +273,14 @@ function createAnalysisToolkit({ userName, allowedTables, tables, rowsOf, audit 
   }
 
   function queryMetricTool(args) {
-    return semantic.query({ metric: args.metric, table: args.table, group: args.group, days: args.days, filters: args.filters, allowedTables });
+    return semantic.query({ metric: args.metric, table: args.table, group: args.group, days: args.days, filters: args.filters, daily: args.daily === true, allowedTables });
   }
 
   const handlers = { search_tables: searchTables, get_schema: getSchema, run_metric: runMetric, get_sample_rows: getSampleRows, ask_user: askUser };
   if (semantic) Object.assign(handlers, { list_metrics: listMetricsTool, query_metric: queryMetricTool });
+  // 额外工具（例如 Skill 的 read_reference）：同样走参数解析、审计与输出上限，上限可单独放宽
+  const outputLimits = {};
+  extraTools.forEach(tool => { handlers[tool.schema.function.name] = tool.execute; outputLimits[tool.schema.function.name] = tool.maxChars || MAX_OUTPUT_CHARS; });
 
   /** 执行一次工具调用：参数解析、权限、输出上限与审计都在这里统一处理 */
   function execute(name, rawArguments) {
@@ -290,8 +294,9 @@ function createAnalysisToolkit({ userName, allowedTables, tables, rowsOf, audit 
       try { outcome = handler(args); } catch (error) { outcome = { ok: false, error: `工具执行失败：${error.message}` }; }
     }
     let text = JSON.stringify(outcome);
-    if (text.length > MAX_OUTPUT_CHARS) {
-      text = JSON.stringify({ ok: outcome.ok, truncated: true, preview: text.slice(0, MAX_OUTPUT_CHARS - 200) });
+    const limit = outputLimits[name] || MAX_OUTPUT_CHARS;
+    if (text.length > limit) {
+      text = JSON.stringify({ ok: outcome.ok, truncated: true, preview: text.slice(0, limit - 200) });
     }
     audit({
       user: userName,
@@ -305,7 +310,7 @@ function createAnalysisToolkit({ userName, allowedTables, tables, rowsOf, audit 
   }
 
   // 用户已补充信息时不再提供追问工具：硬性禁止重复追问，而不只靠提示词约束
-  const baseSchemas = semantic ? [...TOOL_SCHEMAS, ...SEMANTIC_TOOL_SCHEMAS] : TOOL_SCHEMAS;
+  const baseSchemas = [...(semantic ? [...TOOL_SCHEMAS, ...SEMANTIC_TOOL_SCHEMAS] : TOOL_SCHEMAS), ...extraTools.map(tool => tool.schema)];
   const schemas = allowAsk ? baseSchemas : baseSchemas.filter(tool => tool.function.name !== "ask_user");
   return { schemas, execute: (name, rawArguments) => (name === "ask_user" && !allowAsk ? { ok: false, content: JSON.stringify({ ok: false, error: "用户已补充信息，不能再提问" }), data: null, error: "用户已补充信息，不能再提问" } : execute(name, rawArguments)) };
 }

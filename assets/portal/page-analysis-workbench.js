@@ -243,11 +243,11 @@
                       </button>
                       <div v-show="msg.thinkOpen" class="portal-vue-ai-think-body" :class="{ 'is-live': msg.streaming && !msg.html }">{{ msg.reasoning }}</div>
                     </div>
-                    <template v-if="msg.reportId"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><div class="portal-vue-ai-report-card">
+                    <template v-if="msg.reportId"><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><div class="portal-vue-ai-report-card">
   <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file">📄</span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportById(msg.reportId)">打开展示所有 ›</button></div>
   <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
 </div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button></div></template>
-                    <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button></div></template>
+                    <template v-else-if="msg.html"><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button></div></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div>
@@ -864,7 +864,7 @@
           const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question:apiQuestion,scenario:this.scenario,skillId:this.activeSkill?.id||"",tables:mentionedTables,assetCandidates,businessLine,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,portalContext:this.buildPortalContext(evidenceTables)})
+            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question:apiQuestion,scenario:this.scenario,skillId:this.activeSkill?.id||"",tables:mentionedTables,assetCandidates,businessLine,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,conversation:this.buildConversation(session),portalContext:this.buildPortalContext(evidenceTables)})
           });
           const contentType=response.headers.get("content-type")||"";
           if(!response.ok||(contentType.includes("application/json")&&!contentType.includes("event-stream"))){
@@ -928,6 +928,10 @@
                   if(Date.now()-this.historyLastAt>5000){this.historyLastAt=Date.now();this.persistHistory();}
                   this.$nextTick(()=>{const box=this.$refs.chatBox;if(box)box.scrollTop=box.scrollHeight;});
                 }
+                if(evt.started){
+                  liveMsg.resolved=Array.isArray(evt.resolved)?evt.resolved:[];
+                  liveMsg.skillId=evt.routedSkill?.id||this.activeSkill?.id||"";
+                }
                 if(evt.status){
                   lastTextAt=Date.now();
                   if(!full&&!reasoningText)liveMsg.lines=[evt.status];
@@ -955,9 +959,13 @@
               const allLines=String(full).split(/\r?\n/).map(line=>line.replace(/[#*`|>]/g,"").trim()).filter(Boolean);
               const lead=allLines.slice(0,2).join("；").slice(0,120);
               const trail=(allLines.slice(2).map(line=>line.replace(/^[-•\d、.\s]+/,"").trim()).filter(line=>line.length>6&&!line.startsWith("证据限制")&&!line.includes("证据限制")).pop()||"分析详情、指标口径与上下游血缘见报告全文。").slice(0,80);
-              const isReport=!errorMsg&&!askFound&&full.trim().length>=80;
+              // 只有篇幅长、带标题结构的内容才当「报告」归档成卡片；一般的回答（含表格与几段文字）直接显示在对话里
+              const isReport=!errorMsg&&!askFound&&full.trim().length>=900&&/^#{1,3}\s/m.test(full);
               liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
               liveMsg.requestId=meta?.requestId||"";
+              if(meta?.resolvedTerms)liveMsg.resolved=meta.resolvedTerms;
+              if(meta?.pack)liveMsg.skillId=meta.pack;
+              liveMsg.terms=(liveMsg.resolved||[]).map(item=>item.term).slice(0,6);
               if(isReport){
                 // 真正的分析报告：消息上下总结 + 中间报告超链，归档到分析资产
                 liveMsg.html="";
@@ -1004,6 +1012,25 @@
           this.persistHistory(true);
           ep.ElMessage.success("感谢反馈");
         }catch(error){ep.ElMessage.warning("提交失败：无法连接分析网关");}
+      },
+      /* 追问要带上前几轮：最近 3 轮的问题、回答摘要，以及上一轮用的技能和已确定的口径词（服务端据此沿用，不信任这里的过滤条件） */
+      buildConversation(session){
+        const messages=(session.messages||[]).slice(0,-1);
+        const plain=value=>String(value||"").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/\s+/g," ").trim();
+        const turns=[];
+        let pending=null;
+        messages.forEach(msg=>{
+          if(msg.role==="user"){
+            const text=(msg.lines||[]).join(" ").trim();
+            if(!text||/^(已补充信息|跳过补充)/.test(text))return;
+            pending={question:text,answer:"",skillId:"",terms:[]};
+            turns.push(pending);
+          }else if(pending&&!msg.ask){
+            const answer=msg.reportId?[msg.leadMsg,msg.trailMsg].filter(Boolean).join(" "):(msg.html?plain(msg.html):(msg.lines||[]).join(" "));
+            if(answer&&!pending.answer){pending.answer=answer;pending.skillId=msg.skillId||"";pending.terms=msg.terms||[];}
+          }
+        });
+        return turns.filter(turn=>turn.answer).slice(-3);
       },
       buildMetaLine(meta){
         let line=`${meta.scenario||""} · ${meta.model||""} · 推理 ${meta.reasoningEffort||"default"}${meta.maxTokens?` · 上下文 ${meta.maxTokens>=1024?Math.round(meta.maxTokens/1024)+"K":meta.maxTokens}`:""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;

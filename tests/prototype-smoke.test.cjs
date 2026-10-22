@@ -210,7 +210,7 @@ assert(portalVue.includes("reportMarkdownOf") && portalVue.includes("portal-vue-
 assert(portalVue.includes("markdown:String(markdownText") && portalVue.includes("liveMsg.reportId=report.id"), "报告归档应保存完整正文并绑定到聊天消息，刷新后仍为超链");
 assert(portalVue.includes("leadMsg") && portalVue.includes("trailMsg"), "报告消息应包含上下总结文字");
 assert(portalVue.includes("portal-vue-ai-assets-grid") && portalVue.includes("portal-vue-ai-asset-card") && portalVue.includes('v-if="!assetView"'), "分析资产应以卡片网格整页展示，资产页隐藏聊天与输入框");
-assert(portalVue.includes("const isReport=!errorMsg&&!askFound&&full.trim().length>=80"), "过短/中断的回答不应归档为分析报告");
+assert(portalVue.includes("const isReport=!errorMsg&&!askFound&&full.trim().length>=900&&/^#{1,3}\\s/m.test(full)"), "只有长篇且带标题结构的内容才归档为分析报告，一般回答直接显示在对话里");
 assert(portalVue.includes("report:report.markdown"), "分享内容应使用完整 markdown 正文");
 assert(portalVue.includes("数据表权限") && portalVue.includes("toggleAllTables") && portalVue.includes("allTables"), "权限组应支持数据表权限配置");
 assert(portalBridge.includes('tables: ["全部数据表"]'), "权限组数据应包含数据表权限维度");

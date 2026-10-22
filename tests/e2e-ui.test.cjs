@@ -320,14 +320,41 @@ describe("浏览器端到端", () => {
       await appVisible(page);
       await page.getByPlaceholder(/输入分析问题/).fill("实时进度测试问题 6677");
       await page.keyboard.press("Enter");
-      await page.waitForTimeout(1500);
-      console.log("LIVE-DEBUG", (await page.locator("#analysisWorkbenchView").innerText()).slice(-600));
       await page.locator("#analysisWorkbenchView").getByText("工具取数：search_tables").first().waitFor({ timeout: 15000 });
       assert.equal(await page.locator(".portal-vue-ai-feedback").count(), 0, "最终回答还没出来，不应有反馈按钮");
       await page.locator(".portal-vue-ai-feedback").first().waitFor();
       assert.match(await page.locator(".portal-vue-ai-report-meta").first().textContent(), /工具取数 1 次（成功 1）：search_tables/);
     } finally {
       harness.relay.finalDelayMs = 0;
+    }
+  }));
+
+  test("权益场景：口径提示显示在回答上方，短回答直接显示在对话里；追问带上前一轮并沿用技能与口径", async t => withPage(t, async page => {
+    harness.relay.requests.length = 0;
+    harness.relay.report = "任哥近 7 天消耗 10 万元。\n\n口径：部门口径（投放一部权益一组 + 二组）· 近 7 天。";
+    try {
+      await login(page, "林金维");
+      await appVisible(page);
+      await page.getByPlaceholder(/输入分析问题/).fill("任哥近 7 天消耗多少");
+      await page.keyboard.press("Enter");
+      const scope = page.locator('[data-test="ai-scope"]').first();
+      await scope.waitFor({ timeout: 20000 });
+      assert.match(await scope.textContent(), /任哥 → 投放一部-权益一组 \+ 投放一部-权益二组/);
+      await page.locator(".portal-vue-ai-feedback").first().waitFor();
+      assert.equal(await page.locator(".portal-vue-ai-report-card").count(), 0, "短回答不应被折叠成报告卡片");
+      assert.match(await page.locator("#analysisWorkbenchView").innerText(), /任哥近 7 天消耗 10 万元/);
+
+      harness.relay.requests.length = 0;
+      await page.getByPlaceholder(/输入分析问题/).fill("那昨天呢");
+      await page.keyboard.press("Enter");
+      await page.locator('[data-test="ai-scope"]').nth(1).waitFor({ timeout: 20000 });
+      assert.match(await page.locator('[data-test="ai-scope"]').nth(1).textContent(), /任哥.*沿用/);
+      const followUp = harness.relay.requests.find(request => request.tools);
+      const userMessage = followUp.messages.find(message => message.role === "user").content;
+      assert.match(userMessage, /对话上下文/);
+      assert.match(userMessage, /任哥近 7 天消耗 10 万元/);
+    } finally {
+      harness.relay.report = "默认测试回答";
     }
   }));
 

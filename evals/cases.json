@@ -250,6 +250,324 @@
         ],
         "maxUngrounded": 3
       }
+    },
+    {
+      "id": "eq-roi-self",
+      "title": "自营 ROI：用自营口径（实付金额 ÷ 现金消耗），并声明只含常规套餐",
+      "question": "近 7 天自营的 ROI 是多少？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "anyTool": [
+          "query_metric"
+        ],
+        "cites": [
+          {
+            "metric": "roi_self",
+            "table": "权益-账号维度消耗统计表",
+            "field": "近N天"
+          }
+        ],
+        "mustMatch": [
+          "(常规套餐|自营)"
+        ],
+        "maxUngrounded": 4
+      }
+    },
+    {
+      "id": "eq-roi-third",
+      "title": "三方 ROI：用佣金口径，不能用实付金额",
+      "question": "三方 CPA 近 7 天的 ROI 是多少？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "anyTool": [
+          "query_metric"
+        ],
+        "cites": [
+          {
+            "metric": "roi_third",
+            "table": "权益-账号维度消耗统计表",
+            "field": "近N天"
+          }
+        ],
+        "mustMatch": [
+          "(三方|佣金)"
+        ],
+        "maxUngrounded": 4
+      }
+    },
+    {
+      "id": "eq-renge",
+      "title": "「任哥」要解析成部门口径（投放一部权益一组 + 二组），并说明口径",
+      "question": "任哥近 7 天消耗多少？",
+      "user": "林金维",
+      "tables": [],
+      "scenario": "general",
+      "skillId": "general-analyst",
+      "expect": {
+        "anyTool": [
+          "query_metric"
+        ],
+        "cites": [
+          {
+            "metric": "cost",
+            "table": "权益-账号维度消耗统计表",
+            "field": "近N天",
+            "filters": [
+              {
+                "field": "department",
+                "values": [
+                  "投放一部-权益一组",
+                  "投放一部-权益二组"
+                ]
+              }
+            ]
+          }
+        ],
+        "mustMatch": [
+          "(投放一部|部门)"
+        ],
+        "maxUngrounded": 3
+      }
+    },
+    {
+      "id": "eq-cunliang",
+      "title": "「存量」是账号口径（白驹存量），不用反问",
+      "question": "存量昨天花了多少？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "anyTool": [
+          "query_metric"
+        ],
+        "cites": [
+          {
+            "metric": "cost",
+            "table": "权益-账号维度消耗统计表",
+            "field": "近N天",
+            "days": 1,
+            "filters": [
+              {
+                "field": "account_id",
+                "values": [
+                  "白驹存量"
+                ]
+              }
+            ]
+          }
+        ],
+        "mustMatch": [
+          "(账号|白驹存量)"
+        ],
+        "mustNotMatch": [
+          "```ask"
+        ],
+        "maxUngrounded": 3
+      }
+    },
+    {
+      "id": "eq-baiju-ambiguous",
+      "title": "「白驹」有歧义：两种口径的数字都要给出并标清，不能只选一个",
+      "question": "白驹近 7 天消耗多少？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "anyTool": [
+          "query_metric"
+        ],
+        "cites": [
+          {
+            "metric": "cost",
+            "table": "权益-账号维度消耗统计表",
+            "field": "近N天",
+            "filters": [
+              {
+                "field": "department",
+                "values": [
+                  "投放一部-权益一组",
+                  "投放一部-权益二组"
+                ]
+              }
+            ]
+          },
+          {
+            "metric": "cost",
+            "table": "权益-账号维度消耗统计表",
+            "field": "近N天",
+            "filters": [
+              {
+                "field": "account_id",
+                "values": [
+                  "白驹存量"
+                ]
+              }
+            ]
+          }
+        ],
+        "mustMatch": [
+          "部门",
+          "账号"
+        ],
+        "maxUngrounded": 4
+      }
+    },
+    {
+      "id": "eq-merchant-split",
+      "title": "按商户拆分：本表做不到，直接说明并给替代方案，不调用模型",
+      "question": "按商户看下这周的收入",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "mustMatch": [
+          "(做不到|无法)",
+          "明细表"
+        ],
+        "maxTokens": 5
+      }
+    },
+    {
+      "id": "eq-hourly-conversion",
+      "title": "小时级转化率：说明小时级只能看消耗",
+      "question": "每小时的转化率是多少？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "mustMatch": [
+          "(不支持|做不到|无法|只能看消耗|只能)"
+        ],
+        "maxUngrounded": 4
+      }
+    },
+    {
+      "id": "eq-third-contract",
+      "title": "三方不适用签约漏斗",
+      "question": "三方套餐的签约率是多少？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "mustMatch": [
+          "(不适用|没有签约|无法|不支持|不看)"
+        ],
+        "maxUngrounded": 3
+      }
+    },
+    {
+      "id": "eq-sign-rate",
+      "title": "提单签约率：只含常规套餐，找出最低的账号",
+      "question": "近 7 天自营的提单签约率是多少？哪个账号最低？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "anyTool": [
+          "query_metric"
+        ],
+        "cites": [
+          {
+            "metric": "sign_rate",
+            "table": "权益-账号维度消耗统计表",
+            "field": "近N天"
+          }
+        ],
+        "mustMatch": [
+          "伯都主号"
+        ],
+        "maxUngrounded": 6
+      }
+    },
+    {
+      "id": "eq-user-additivity",
+      "title": "用户数跨行累加含重复：不能说成去重用户数",
+      "question": "近 7 天一共有多少成功用户？是去重的吗？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "anyTool": [
+          "query_metric"
+        ],
+        "mustMatch": [
+          "(重复|人次|不能去重|无法去重|未去重|不是去重)"
+        ],
+        "maxUngrounded": 4
+      }
+    },
+    {
+      "id": "eq-daily-roi",
+      "title": "日级 ROI：要说明波动大，只能参考",
+      "question": "昨天自营 ROI 回本了吗？",
+      "user": "林金维",
+      "scenario": "equity",
+      "skillId": "equity-union-analyst",
+      "tables": [],
+      "expect": {
+        "anyTool": [
+          "query_metric"
+        ],
+        "mustMatch": [
+          "(波动|不稳定|不可靠|周|日级)"
+        ],
+        "maxUngrounded": 5
+      }
+    },
+    {
+      "id": "eq-followup",
+      "title": "追问沿用上一轮的技能与口径：「那昨天呢」仍然是任哥的消耗",
+      "question": "那昨天呢？",
+      "user": "林金维",
+      "tables": [],
+      "scenario": "general",
+      "skillId": "general-analyst",
+      "conversation": [
+        {
+          "question": "任哥近 7 天消耗多少？",
+          "answer": "任哥（投放一部权益一组 + 二组）近 7 天消耗约 10 万元。",
+          "skillId": "equity-union-analyst",
+          "terms": [
+            "任哥"
+          ]
+        }
+      ],
+      "expect": {
+        "anyTool": [
+          "query_metric"
+        ],
+        "cites": [
+          {
+            "metric": "cost",
+            "table": "权益-账号维度消耗统计表",
+            "field": "近N天",
+            "days": 1,
+            "filters": [
+              {
+                "field": "department",
+                "values": [
+                  "投放一部-权益一组",
+                  "投放一部-权益二组"
+                ]
+              }
+            ]
+          }
+        ],
+        "maxUngrounded": 3
+      }
     }
   ]
 }
