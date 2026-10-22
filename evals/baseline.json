@@ -1116,43 +1116,6 @@
       ]
     },
     {
-      "id": "eq-merchant-split",
-      "title": "按商户拆分：本表做不到，直接说明并给替代方案，不调用模型",
-      "model": "qwen3.8-max-0902",
-      "user": "林金维",
-      "passed": true,
-      "checks": [
-        {
-          "name": "HTTP 状态",
-          "ok": true,
-          "detail": ""
-        },
-        {
-          "name": "包含 /(做不到|无法)/",
-          "ok": true,
-          "detail": ""
-        },
-        {
-          "name": "包含 /明细表/",
-          "ok": true,
-          "detail": ""
-        },
-        {
-          "name": "证据外的数字不超过 2 个",
-          "ok": true,
-          "detail": ""
-        },
-        {
-          "name": "token 不超过 5",
-          "ok": true,
-          "detail": ""
-        }
-      ],
-      "tokens": 0,
-      "latencyMs": 19,
-      "tools": []
-    },
-    {
       "id": "eq-hourly-conversion",
       "title": "小时级转化率：说明小时级只能看消耗",
       "model": "qwen3.8-max-0902",
@@ -1577,6 +1540,85 @@
         "query_metric",
         "query_metric"
       ]
+    },
+    {
+      "id": "eq-merchant-split",
+      "title": "按商户拆分：本表做不到，直接说明并给替代方案，不调用模型",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(做不到|无法)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /明细表/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 2 个",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "token 不超过 5",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 0,
+      "latencyMs": 320,
+      "tools": []
+    },
+    {
+      "id": "eq-merchant-auto-route",
+      "title": "没有任何关键词的「按商户看收入」：自动交给权益包的拦截规则，直接说明做不到，不调用模型",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "规划选中了 equity-union-analyst",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(做不到|无法)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /明细表/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 2 个",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "token 不超过 5",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 0,
+      "latencyMs": 21,
+      "tools": []
     }
   ],
   "summary": {
