@@ -41,7 +41,7 @@ function buildPlannerPrompt({ question, skills, conversation = [] }) {
     conversation.length ? `## 对话上下文\n${conversation.map((turn, index) => `第 ${index + 1} 轮：${turn.question}`).join("\n")}` : "",
     `## 用户这句话\n${String(question).slice(0, 400)}`,
     "只输出一行 JSON，不要任何解释：",
-    '{"skill":"技能 id","output":"answer 或 report","confidence":0 到 1 的小数,"reason":"一句话理由"}',
+    '{"skill":"技能 id","output":"answer 或 report","confidence":0 到 1 的小数,"reason":"理由，不超过 20 字"}',
     "拿不准就把 confidence 写低；没有任何技能合适时 skill 写 none。"
   ];
   return lines.filter(Boolean).join("\n");
