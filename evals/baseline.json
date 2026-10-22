@@ -885,6 +885,487 @@
       "tokens": 7696,
       "latencyMs": 51559,
       "tools": []
+    },
+    {
+      "id": "eq-roi-self",
+      "title": "自营 ROI：用自营口径（实付金额 ÷ 现金消耗），并声明只含常规套餐",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(常规套餐|自营)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "引用了标准答案 roi_self.近N天=0.9769",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 4 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 39435,
+      "latencyMs": 77756,
+      "tools": [
+        "list_metrics",
+        "query_metric",
+        "query_metric",
+        "query_metric",
+        "list_metrics",
+        "query_metric",
+        "query_metric"
+      ]
+    },
+    {
+      "id": "eq-roi-third",
+      "title": "三方 ROI：用佣金口径，不能用实付金额",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(三方|佣金)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "引用了标准答案 roi_third.近N天=1.397",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 4 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 45697,
+      "latencyMs": 69874,
+      "tools": [
+        "list_metrics",
+        "list_metrics",
+        "query_metric",
+        "list_metrics",
+        "list_metrics",
+        "query_metric",
+        "get_schema",
+        "run_metric"
+      ]
+    },
+    {
+      "id": "eq-renge",
+      "title": "「任哥」要解析成部门口径（投放一部权益一组 + 二组），并说明口径",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(投放一部|部门)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "引用了标准答案 cost.近N天=188952.88",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 3 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 13432,
+      "latencyMs": 36002,
+      "tools": [
+        "list_metrics",
+        "query_metric"
+      ]
+    },
+    {
+      "id": "eq-cunliang",
+      "title": "「存量」是账号口径（白驹存量），不用反问",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(账号|白驹存量)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "不包含 /```ask/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "引用了标准答案 cost.近N天=3653.5",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 3 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 19278,
+      "latencyMs": 48262,
+      "tools": [
+        "list_metrics",
+        "query_metric",
+        "query_metric"
+      ]
+    },
+    {
+      "id": "eq-baiju-ambiguous",
+      "title": "「白驹」有歧义：两种口径的数字都要给出并标清，不能只选一个",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /部门/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /账号/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "引用了标准答案 cost.近N天=188952.88",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "引用了标准答案 cost.近N天=22161.29",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 4 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 25728,
+      "latencyMs": 90282,
+      "tools": [
+        "list_metrics",
+        "get_schema",
+        "query_metric",
+        "query_metric"
+      ]
+    },
+    {
+      "id": "eq-merchant-split",
+      "title": "按商户拆分：本表做不到，直接说明并给替代方案，不调用模型",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(做不到|无法)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /明细表/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 2 个",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "token 不超过 5",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 0,
+      "latencyMs": 19,
+      "tools": []
+    },
+    {
+      "id": "eq-hourly-conversion",
+      "title": "小时级转化率：说明小时级只能看消耗",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(不支持|做不到|无法|只能看消耗|只能)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 4 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 16301,
+      "latencyMs": 76211,
+      "tools": [
+        "list_metrics",
+        "query_metric"
+      ]
+    },
+    {
+      "id": "eq-third-contract",
+      "title": "三方不适用签约漏斗",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(不适用|没有|无法|不支持|不看|不走|只适用)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 3 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 12203,
+      "latencyMs": 36580,
+      "tools": [
+        "list_metrics",
+        "list_metrics"
+      ]
+    },
+    {
+      "id": "eq-sign-rate",
+      "title": "提单签约率：只含常规套餐，找出最低的账号",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /伯都主号/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "引用了标准答案 sign_rate.近N天=41.92",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 6 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 30024,
+      "latencyMs": 90855,
+      "tools": [
+        "list_metrics",
+        "query_metric",
+        "query_metric",
+        "list_metrics",
+        "query_metric"
+      ]
+    },
+    {
+      "id": "eq-user-additivity",
+      "title": "用户数跨行累加含重复：不能说成去重用户数",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(重复|人次|不能去重|无法去重|未去重|不是去重)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 4 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 12542,
+      "latencyMs": 50594,
+      "tools": [
+        "query_metric",
+        "list_metrics"
+      ]
+    },
+    {
+      "id": "eq-daily-roi",
+      "title": "日级 ROI：要说明波动大，只能参考",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(波动|不稳定|不可靠|周|日级)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 5 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 57307,
+      "latencyMs": 95175,
+      "tools": [
+        "list_metrics",
+        "list_metrics",
+        "query_metric",
+        "query_metric",
+        "query_metric",
+        "query_metric",
+        "list_metrics",
+        "query_metric",
+        "query_metric"
+      ]
+    },
+    {
+      "id": "eq-followup",
+      "title": "追问沿用上一轮的技能与口径：「那昨天呢」仍然是任哥的消耗",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "引用了标准答案 cost.近N天=28454.5",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 3 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 14259,
+      "latencyMs": 34324,
+      "tools": [
+        "query_metric",
+        "query_metric"
+      ]
     }
   ],
   "summary": {
