@@ -36,7 +36,10 @@ describe("规划层", () => {
     assert.equal(started.plan.confidence, 0.9);
     assert.equal(started.plan.output, "answer");
     assert.ok(started.plan.alternatives.length >= 2 && !started.plan.alternatives.some(item => item.id === PACK), "备选里不含当前技能");
-    assert.deepEqual(result.done.meta.plan, started.plan);
+    const { diagnostics, ...metaPlan } = result.done.meta.plan;
+    assert.deepEqual(metaPlan, started.plan);
+    assert.equal(diagnostics.at(-1).outcome, "采用", "meta 里带每次尝试的诊断信息");
+    assert.ok(diagnostics[0].model && Number.isFinite(diagnostics[0].ms));
     assert.equal(result.done.meta.pack, PACK, "规划选中的技能真的被执行（权益包的口径解析在 meta 里）");
     assert.match(result.events.map(event => event.status || "").join("|"), /正在判断用什么技能/);
     assert.ok(result.events.findIndex(event => event.status === "正在判断用什么技能…") < result.events.findIndex(event => event.started), "判断期间界面先收到进度提示");
@@ -58,6 +61,7 @@ describe("规划层", () => {
     assert.equal(plannerCalls().length, 1);
     assert.equal(started.plan.source, "fallback");
     assert.notEqual(started.routedSkill?.id, PACK);
+    assert.match(result.done.meta.plan.diagnostics.at(-1).outcome, /未采用（equity-union-analyst，置信度 0.3）/);
   });
 
   test("判断失败（不是 JSON、技能不存在、上游报错）：不影响回答，沿用兜底", async () => {

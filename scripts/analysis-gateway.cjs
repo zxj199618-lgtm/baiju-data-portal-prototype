@@ -1217,7 +1217,7 @@ function usableDomainSkills(user) {
     .map(item => ({ ...item, useWhen: skillPacks.get(item.id)?.spec.useWhen, notFor: skillPacks.get(item.id)?.spec.notFor }));
 }
 
-const PLANNER_TIMEOUT_MS = 12000;
+const PLANNER_TIMEOUT_MS = 20000;
 const PLANNER_MODEL = process.env.PORTAL_PLANNER_MODEL || "";
 
 /** 关键词拿不准（落到兜底）时，用一次便宜的模型调用判断技能与输出形式；失败、超时或不够确定都返回 null，调用方保留原来的结果 */
@@ -1229,21 +1229,25 @@ async function planWithModel({ question, domainSkills, conversationTurns, reques
   const described = planner.describeSkills(domainSkills);
   const prompt = planner.buildPlannerPrompt({ question, skills: described, conversation: conversationTurns.slice(-2) });
   let tokens = 0;
+  const attempts = []; // 每次尝试的模型、耗时与结果，写进 plan.diagnostics，方便运维看判断为什么没被采用
   for (const model of candidates) {
+    const startedAt = Date.now();
     let result;
     try {
       result = await Promise.race([
         relayChat(model, { messages: [{ role: "user", content: prompt }] }),
         new Promise(resolve => setTimeout(() => resolve({ ok: false, status: 0, timeout: true }), PLANNER_TIMEOUT_MS))
       ]);
-    } catch { continue; }
+    } catch (error) { attempts.push({ model, ms: Date.now() - startedAt, outcome: `异常：${error.message}`.slice(0, 80) }); continue; }
     tokens += tokensOf(result.data?.usage);
-    if (!result.ok) continue;
-    const plan = planner.parsePlannerReply(result.data?.choices?.[0]?.message?.content || "", described.map(item => item.id));
-    if (planner.acceptPlan(plan)) return { ...plan, model, tokens };
-    return { rejected: true, tokens };
+    if (!result.ok) { attempts.push({ model, ms: Date.now() - startedAt, outcome: result.timeout ? "超时" : `调用失败（${result.status}）` }); continue; }
+    const reply = result.data?.choices?.[0]?.message?.content || "";
+    const plan = planner.parsePlannerReply(reply, described.map(item => item.id));
+    if (planner.acceptPlan(plan)) return { ...plan, model, tokens, attempts: [...attempts, { model, ms: Date.now() - startedAt, outcome: "采用" }] };
+    attempts.push({ model, ms: Date.now() - startedAt, outcome: plan ? `未采用（${plan.skillId || "无技能"}，置信度 ${plan.confidence}）` : `回复无法解析：${String(reply).slice(0, 40)}` });
+    return { rejected: true, tokens, attempts };
   }
-  return { rejected: true, tokens };
+  return { rejected: true, tokens, attempts };
 }
 
 /* 内置包定义：SKILL.md + 工具 + 字段元数据，首次启动落盘安装 */
@@ -2941,7 +2945,7 @@ async function handleRequest(req, res) {
     /* 规划：手动选择 > 关键词 / 沿用上一轮 > 都没把握时用一次便宜的模型判断；每次决定都带来源和理由，界面上看得见也能改 */
     let routed = isRouting ? pickAutoSkill(routerEntry, user, question, stickySkillId) : null;
     let planSource = isRouting ? planner.sourceOfReason(routed.reason, false) : "manual";
-    let planConfidence = null, plannedOutput = "", plannerTokens = 0;
+    let planConfidence = null, plannedOutput = "", plannerTokens = 0, planAttempts = null;
     const domainSkills = usableDomainSkills(user);
     if (isRouting && body.planner !== false && planner.needsModelPlanning(routed, domainSkills)) {
       openStream();
@@ -2949,6 +2953,7 @@ async function handleRequest(req, res) {
       try {
         const decided = await planWithModel({ question, domainSkills, conversationTurns, requestedModel: model });
         plannerTokens += decided.tokens || 0;
+        planAttempts = decided.attempts || null;
         if (!decided.rejected) {
           routed = { skill: domainSkills.find(item => item.id === decided.skillId), reason: `智能判断：${decided.reason || "按问题内容判断"}` };
           planSource = "model"; planConfidence = decided.confidence; plannedOutput = decided.output;
@@ -3012,7 +3017,7 @@ async function handleRequest(req, res) {
       skill: registrySkill || { id: "", title: scene.label }, source: planSource, reason: isRouting ? routed?.reason : "你选择了该技能", confidence: planConfidence,
       output: wantsReport ? "report" : "answer", template: reportTemplate?.id || "", alternatives: domainSkills
     });
-    packMeta = { ...packMeta, plan };
+    packMeta = { ...packMeta, plan: planAttempts ? { ...plan, diagnostics: planAttempts } : plan };
     /* 做不到的需求（例如按商户拆分）：直接给出明确答复与替代方案，不调用模型 */
     const blockedBy = packGuards.find(guard => guard.mode === "block");
     if (blockedBy) {
