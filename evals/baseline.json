@@ -1366,6 +1366,122 @@
         "query_metric",
         "query_metric"
       ]
+    },
+    {
+      "id": "eq-why-cost",
+      "title": "任哥为什么变了：自动进权益包，先看总体再用归因定位到账号",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(任哥一组|任哥二组)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 6 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 27480,
+      "latencyMs": 106766,
+      "tools": [
+        "list_metrics",
+        "query_metric",
+        "query_metric",
+        "attribute_change"
+      ]
+    },
+    {
+      "id": "eq-why-signrate",
+      "title": "签约率下滑：要定位到伯都主号，并区分效率与结构",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /伯都主号/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(效率|结构)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 8 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 60026,
+      "latencyMs": 224718,
+      "tools": [
+        "list_metrics",
+        "query_metric",
+        "attribute_change",
+        "query_metric",
+        "query_metric",
+        "query_metric",
+        "attribute_change"
+      ]
+    },
+    {
+      "id": "eq-lineage",
+      "title": "血缘：读取登记的上游表，不编造",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /dws_equity_com_order_profit_detail_mv/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 3 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 10268,
+      "latencyMs": 18669,
+      "tools": [
+        "get_lineage"
+      ]
     }
   ],
   "summary": {
