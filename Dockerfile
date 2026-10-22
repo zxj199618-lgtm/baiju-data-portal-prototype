@@ -12,6 +12,8 @@ COPY scripts/org-store.cjs ./org-store.cjs
 COPY scripts/account-store.cjs ./account-store.cjs
 COPY scripts/equity-sample.cjs ./equity-sample.cjs
 COPY scripts/skill-pack.cjs ./skill-pack.cjs
+COPY scripts/report-skill.cjs ./report-skill.cjs
+COPY scripts/evidence-ledger.cjs ./evidence-ledger.cjs
 COPY semantic ./semantic
 COPY skill-packs ./skill-packs
 COPY index.html share.html ./

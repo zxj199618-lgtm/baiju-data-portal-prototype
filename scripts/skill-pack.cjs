@@ -196,6 +196,7 @@ function sanitizeConversation(input, { maxTurns = 3, maxAnswerChars = 600 } = {}
     question: String(turn?.question || "").slice(0, 400),
     answer: String(turn?.answer || "").replace(/```[\s\S]*?```/g, " ").replace(/\s+/g, " ").trim().slice(0, maxAnswerChars),
     skillId: /^[A-Za-z0-9_-]{1,60}$/.test(String(turn?.skillId || "")) ? String(turn.skillId) : "",
+    requestId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(String(turn?.requestId || "")) ? String(turn.requestId) : "",
     terms: (Array.isArray(turn?.terms) ? turn.terms : []).slice(0, 6).map(term => String(term).slice(0, 20))
   })).filter(turn => turn.question);
 }

@@ -247,7 +247,7 @@
   <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file">📄</span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportById(msg.reportId)">打开展示所有 ›</button></div>
   <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
 </div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button></div></template>
-                    <template v-else-if="msg.html"><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button></div></template>
+                    <template v-else-if="msg.html"><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button><el-dropdown trigger="click" @command="templateId => requestReport(msg, templateId)"><button type="button" class="portal-vue-ai-make-report" data-test="make-report" title="把这段对话里已核实的数据整理成报告">📝 整理成报告</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="template in reportTemplates" :key="template.id" :command="template.id" :data-test="'report-template-' + template.id">{{ template.name }}<span class="portal-vue-ai-make-report-desc">{{ template.when }}</span></el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div>
@@ -322,6 +322,7 @@
       </el-config-provider>
     `,
     data:()=>({
+      reportTemplates: [],
       scenario: "general",
       input: "",
       thinking: false,
@@ -354,7 +355,8 @@
       scenarios(){refreshTick.value;return this.skillScenarios;},
       skillScenarios(){
         const source = state.skills?.length ? state.skills : skillScenarioFallback;
-        return source.filter(item=>item.id!=="numa-warehouse"&&item.enabled!==false&&item.status!=="已停用").sort((a,b)=>(a.sort||99)-(b.sort||99)).map(item=>({...item,key:item.scenarioKey||item.id,icon:item.icon||"✦",name:item.title||item.name,desc:item.displayDesc||item.desc||""}));
+        // 输出类 Skill（报告生成）不是用来选的分析技能：由「整理成报告」按钮或「出个周报」这类说法按需调用
+        return source.filter(item=>item.id!=="numa-warehouse"&&item.kind!=="output"&&item.enabled!==false&&item.status!=="已停用").sort((a,b)=>(a.sort||99)-(b.sort||99)).map(item=>({...item,key:item.scenarioKey||item.id,icon:item.icon||"✦",name:item.title||item.name,desc:item.displayDesc||item.desc||""}));
       },
       activeSkill(){return this.skillScenarios.find(item=>item.key===this.scenario);},
       scenarioHint(){return this.activeSkill?.kind==="router"?"自动根据问题内容与你可用的技能选择，也可以手动切换":`当前使用「${this.scenarioName}」，可随时切换，或选「通用分析」让系统自动选择`;},
@@ -788,12 +790,14 @@
         this.persistHistory();
         this.sendMessage({question:ask.resume?.question||"",clarifyAnswers:answers,askResult:result,resumed:true,skipped:skip});
       },
-      async sendMessage({question:questionOverride="",clarifyAnswers=null,askResult=[],resumed=false,skipped=false}={}){
+      async sendMessage({question:questionOverride="",clarifyAnswers=null,askResult=[],resumed=false,skipped=false,reportOutput=null}={}){
         const question=(questionOverride||this.input).trim();
         if(!question||this.thinking)return;
         const explicitlyReferenced=this.myTables.some(table=>question.includes(`@${table}`))||!!this.activeTable;
         /* clarifyAnswers 为 null 表示用户刚发出问题：先走澄清面板；{} 表示用户选择跳过 */
-        if(this.activeSkill?.clarification?.enabled&&!explicitlyReferenced&&clarifyAnswers===null&&this.clarifyQuestions.length){
+        // 追问（本会话已经有回答）和「整理成报告」不再重复问业务线：上下文已经有了
+        const hasPriorAnswer=(this.activeSession?.messages||[]).some(msg=>msg.role==="assistant"&&(msg.html||msg.reportId));
+        if(this.activeSkill?.clarification?.enabled&&!explicitlyReferenced&&clarifyAnswers===null&&!reportOutput&&!hasPriorAnswer&&this.clarifyQuestions.length){
           let first=this.activeSession;
           if(!first.id||first.suggested){
             first=createAnalysisSession({title:question.slice(0,18)||"新的分析",scenario:this.scenarioName});
@@ -864,7 +868,7 @@
           const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question:apiQuestion,scenario:this.scenario,skillId:this.activeSkill?.id||"",tables:mentionedTables,assetCandidates,businessLine,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,conversation:this.buildConversation(session),portalContext:this.buildPortalContext(evidenceTables)})
+            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question:apiQuestion,scenario:this.scenario,skillId:this.activeSkill?.id||"",tables:mentionedTables,assetCandidates,businessLine,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,...(reportOutput||{}),conversation:this.buildConversation(session),portalContext:this.buildPortalContext(evidenceTables)})
           });
           const contentType=response.headers.get("content-type")||"";
           if(!response.ok||(contentType.includes("application/json")&&!contentType.includes("event-stream"))){
@@ -960,9 +964,10 @@
               const lead=allLines.slice(0,2).join("；").slice(0,120);
               const trail=(allLines.slice(2).map(line=>line.replace(/^[-•\d、.\s]+/,"").trim()).filter(line=>line.length>6&&!line.startsWith("证据限制")&&!line.includes("证据限制")).pop()||"分析详情、指标口径与上下游血缘见报告全文。").slice(0,80);
               // 只有篇幅长、带标题结构的内容才当「报告」归档成卡片；一般的回答（含表格与几段文字）直接显示在对话里
-              const isReport=!errorMsg&&!askFound&&full.trim().length>=900&&/^#{1,3}\s/m.test(full);
+              const isReport=!errorMsg&&!askFound&&(meta?.output==="report"?full.trim().length>=40:(full.trim().length>=900&&/^#{1,3}\s/m.test(full)));
               liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
               liveMsg.requestId=meta?.requestId||"";
+              if(liveMsg.requestId)this.loadReportTemplates();
               if(meta?.resolvedTerms)liveMsg.resolved=meta.resolvedTerms;
               if(meta?.pack)liveMsg.skillId=meta.pack;
               liveMsg.terms=(liveMsg.resolved||[]).map(item=>item.term).slice(0,6);
@@ -1023,19 +1028,33 @@
           if(msg.role==="user"){
             const text=(msg.lines||[]).join(" ").trim();
             if(!text||/^(已补充信息|跳过补充)/.test(text))return;
-            pending={question:text,answer:"",skillId:"",terms:[]};
+            pending={question:text,answer:"",skillId:"",terms:[],requestId:""};
             turns.push(pending);
           }else if(pending&&!msg.ask){
             const answer=msg.reportId?[msg.leadMsg,msg.trailMsg].filter(Boolean).join(" "):(msg.html?plain(msg.html):(msg.lines||[]).join(" "));
-            if(answer&&!pending.answer){pending.answer=answer;pending.skillId=msg.skillId||"";pending.terms=msg.terms||[];}
+            if(answer&&!pending.answer){pending.answer=answer;pending.skillId=msg.skillId||"";pending.terms=msg.terms||[];pending.requestId=msg.requestId||"";}
           }
         });
         return turns.filter(turn=>turn.answer).slice(-3);
+      },
+      /* 「整理成报告」：报告是按需调用的输出 Skill，基于对话里已经取到的事实写，不重新取数 */
+      requestReport(msg,templateId){
+        if(this.thinking||!msg.requestId)return;
+        const template=this.reportTemplates.find(item=>item.id===templateId);
+        this.sendMessage({question:`把上面的分析整理成${template?.name||"报告"}`,reportOutput:{output:"report",template:templateId}});
+      },
+      async loadReportTemplates(){
+        if(this.reportTemplates.length)return;
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/report/templates`);
+          if(response.ok)this.reportTemplates=await response.json();
+        }catch(error){/* 取不到模板时按钮的下拉为空，不影响对话 */}
       },
       buildMetaLine(meta){
         let line=`${meta.scenario||""} · ${meta.model||""} · 推理 ${meta.reasoningEffort||"default"}${meta.maxTokens?` · 上下文 ${meta.maxTokens>=1024?Math.round(meta.maxTokens/1024)+"K":meta.maxTokens}`:""} · 引用表 ${(meta.tablesUsed||[]).join("、")||"—"} · 耗时 ${((meta.latencyMs||0)/1000).toFixed(1)}s${meta.usage?` · tokens ${meta.usage.total_tokens}`:""}`;
         if(meta.toolCalls?.length){const okCount=meta.toolCalls.filter(call=>call.ok).length;line+=` · 工具取数 ${meta.toolCalls.length} 次（成功 ${okCount}）：${meta.toolCalls.map(call=>call.tool+(call.table?`(${call.table})`:"")+(call.ok?"":" ✗")).join("、")}`;}
         else if(meta.toolMode&&meta.toolMode.startsWith("fallback:"))line+=` · 未使用工具取数（${meta.toolMode.slice("fallback:".length)}）`;
+        if(meta.output==="report")line+=meta.basedOn?.length?` · 基于对话里 ${meta.basedOn.length} 次已核实的取数`:" · 报告";
         if(meta.warning)line+=` · ⚠️ `;
         if(meta.numericCheck?.ungrounded?.length)line+=` · ⚠️ ${meta.numericCheck.ungrounded.length} 个数字未在证据中找到，请核对（${meta.numericCheck.ungrounded.join("、")}）`;
         if(meta.deniedTables?.length)line+=` · 无权限表 ${meta.deniedTables.join("、")}`;

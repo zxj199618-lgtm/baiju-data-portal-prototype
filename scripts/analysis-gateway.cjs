@@ -39,6 +39,8 @@ const { createOrgStore } = require("./org-store.cjs");
 const { createAccountStore } = require("./account-store.cjs");
 const equitySample = require("./equity-sample.cjs");
 const skillPack = require("./skill-pack.cjs");
+const reportSkill = require("./report-skill.cjs");
+const { createEvidenceLedger } = require("./evidence-ledger.cjs");
 
 const RELAY_BASE_URL = process.env.RELAY_BASE_URL || "https://simindapi.modelgs.com";
 const RELAY_API_KEYS = (process.env.RELAY_API_KEY || "").split(",").map(key => key.trim()).filter(Boolean);
@@ -760,13 +762,13 @@ const feedbackStore = createFeedbackStore({ dataDir: DATA_DIR });
 const tokensOf = usage => Number(usage?.total_tokens) || ((Number(usage?.prompt_tokens) || 0) + (Number(usage?.completion_tokens) || 0));
 
 /** 一次分析结束：累计 token 用量，并写一条审计（谁、问了什么、用了什么、花了多少、结果如何） */
-function finishAnalysis({ user, scope = user, requestId, question, model, skillName, scenarioLabel, toolMode, toolCalls, tablesUsed, usage, extraTokens = 0, latencyMs, numericCheck, status, error = "" }) {
+function finishAnalysis({ user, scope = user, requestId, question, model, skillName, scenarioLabel, toolMode, toolCalls, tablesUsed, usage, extraTokens = 0, latencyMs, numericCheck, status, error = "", extra = {} }) {
   const tokens = tokensOf(usage) + extraTokens;
   usageTracker.recordTokens(scope, tokens);
   appendAuditEntry({
     type: "analysis", user, scope: scope !== user ? scope : undefined, requestId, status, error: error ? String(error).slice(0, 200) : undefined,
     question: String(question).slice(0, 300), model, skill: skillName, scenario: scenarioLabel,
-    toolMode, toolCallCount: toolCalls.length, tablesUsed, tokens, latencyMs,
+    toolMode, toolCallCount: toolCalls.length, tablesUsed, tokens, latencyMs, ...extra,
     ungroundedNumbers: numericCheck ? numericCheck.ungrounded.length : null
   });
   return tokens;
@@ -1109,6 +1111,8 @@ function skillInstructions(id) {
 /* Skill 规范包（随代码发布的业务知识：核心规则 + 术语表 + 拦截规则 + 参考资料），开发时在仓库根目录，镜像里与网关同级 */
 const SKILL_PACKS_DIR = [path.join(__dirname, "skill-packs"), path.join(__dirname, "..", "skill-packs")].find(dir => fs.existsSync(dir)) || path.join(__dirname, "skill-packs");
 const skillPacks = skillPack.loadPacks(SKILL_PACKS_DIR);
+/* 证据账本：每次分析取到的事实，报告 Skill 按需使用（只有产生它的账号能读） */
+const evidenceLedger = createEvidenceLedger({ dir: path.join(DATA_DIR, "evidence") });
 
 /** 规范包落盘并登记到注册表：展示信息以代码为准，启停与灰度名单保留后台配置；并把路由关键词补进「通用分析」 */
 function installSkillPacks(registry) {
@@ -1127,7 +1131,7 @@ function installSkillPacks(registry) {
     const display = {
       name: manifest.name, source: manifest.source, version: manifest.version, scenarioKey: manifest.scenarioKey, icon: manifest.icon, title: manifest.title,
       displayDesc: manifest.displayDesc, desc: manifest.desc, sort: manifest.sort, clarification: manifest.clarification, assetScope: manifest.assetScope,
-      responseContract: manifest.responseContract, pack: true, builtin: true, dir
+      responseContract: manifest.responseContract, pack: true, builtin: true, dir, kind: manifest.kind
     };
     const existing = registry.find(item => item.id === pack.id);
     if (existing) Object.assign(existing, display);
@@ -2453,6 +2457,12 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, { ...result, provider: publicProvider(provider) });
   }
 
+  // 报告模板清单：界面「整理成报告」按钮的下拉菜单用
+  if (req.method === "GET" && url.pathname === "/v1/report/templates") {
+    const templates = skillPacks.get("report-writer")?.spec.templates || [];
+    return sendJson(res, 200, templates.map(({ id, name, when }) => ({ id, name, when })));
+  }
+
   if (req.method === "GET" && url.pathname === "/v1/skills") {
     return sendJson(res, 200, loadSkillRegistry().map(entry => {
       const manifest = skillManifest(entry.id) || {};
@@ -2942,7 +2952,21 @@ async function handleRequest(req, res) {
       return sendJson(res, 200, { report: blockedBy.answer, meta: blockMeta });
     }
     const isAttributionRequest = targetSkillId === ATTRIBUTION_SKILL_ID || scenario === "attribution";
+    /* 报告是按需调用的输出 Skill：只有用户明确要报告（或点了「整理成报告」）才走；基于对话里已经取到的事实写，不重新取数 */
+    const reportPack = skillPacks.get("report-writer") || null;
+    const wantsReport = Boolean(reportPack) && (body.output === "report" || reportSkill.detectReportIntent(question));
+    const reportTemplate = wantsReport ? reportSkill.pickTemplate(reportPack.spec.templates, body.template, question) : null;
+    const priorLedger = wantsReport ? evidenceLedger.loadMany(conversationTurns.map(turn => turn.requestId).filter(Boolean).slice(-4), scope) : [];
+    const reuseOnly = wantsReport && priorLedger.length > 0 && (body.output === "report" || reportSkill.wantsReuse(question));
+    if (wantsReport) packMeta = { ...packMeta, output: "report", template: reportTemplate?.id || "", basedOn: priorLedger.map(entry => entry.requestId) };
     let evidence = buildEvidenceOverride || buildEvidence(evidenceTables, portalContext);
+    if (reuseOnly) evidence = priorLedger.flatMap(entry => entry.evidence);
+    const reportAudit = wantsReport ? { output: "report", template: reportTemplate?.id || "", basedOn: priorLedger.length } : {};
+    /* 把这次取到的事实存进证据账本，之后「整理成报告」直接用，不用重新取数 */
+    const saveLedger = answerText => evidenceLedger.save({
+      requestId, scope, user, question, model, skill: skill.name, pack: packEntry?.id || "", resolvedTerms: packMeta.resolvedTerms,
+      evidence, answer: answerText, output: wantsReport ? "report" : "answer", template: reportTemplate?.id || ""
+    });
     /* 工具取数：模型自己决定查什么，权限在工具里逐次校验；未调用工具或模型不支持时回到原证据方式 */
     let toolMode = "off";
     let toolCalls = [];
@@ -2959,12 +2983,18 @@ async function handleRequest(req, res) {
       });
       sseSend = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
       sseHeartbeat = setInterval(() => res.write(": hb\n\n"), 5000);
-      sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [] });
+      sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [], ...(wantsReport ? { output: "report", template: reportTemplate?.name || "" } : {}) });
     }
-    if (body.toolMode !== false && !isAttributionRequest && providerSupportsTools(model)) {
+    if (reuseOnly) {
+      toolMode = `reuse:${priorLedger.length}`;
+      if (sseSend) sseSend({ status: `基于对话里已核实的 ${priorLedger.length} 次取数整理报告…` });
+    } else if (body.toolMode !== false && !isAttributionRequest && providerSupportsTools(model)) {
       const referenceTool = packEntry ? skillPack.createReferenceTool(packEntry) : null;
       const toolkit = createAnalysisToolkit({ userName: user, allowedTables: allowed, tables, rowsOf, audit: appendAuditEntry, allowAsk: !question.includes("用户补充信息"), semantic: semanticLayer, extraTools: referenceTool ? [{ ...referenceTool, maxChars: 26000 }] : [] });
-      const loopSystemExtra = [packEntry?.instructions, packEntry ? skillPack.referenceIndex(packEntry) : "", specContext, answerProtocol].filter(Boolean).join("\n\n");
+      const loopSystemExtra = [
+        packEntry?.instructions, packEntry ? skillPack.referenceIndex(packEntry) : "", specContext,
+        wantsReport ? `## 本次要生成报告\n先把写「${reportTemplate?.name || "报告"}」需要的事实取全（口径、时间窗、对比期、必要的拆分维度），取完就停止，不要写报告正文。${priorLedger.length ? "对话里已经取过的事实不用重复取。" : ""}` : answerProtocol
+      ].filter(Boolean).join("\n\n");
       if (sseSend) sseSend({ status: "正在查询数据…" });
       let loop;
       try {
@@ -3001,7 +3031,7 @@ async function handleRequest(req, res) {
         return sendJson(res, 200, { report: askText, meta: askMeta });
       }
       if (loop.used) {
-        evidence = loop.evidence;
+        evidence = [...priorLedger.flatMap(entry => entry.evidence), ...loop.evidence];
         toolMode = `used:${loop.calls}`;
         // 界面展示用的摘要：调了什么工具、查了哪张表、是否成功（完整结果已进入证据与审计）
         toolCalls = loop.evidence.map(entry => {
@@ -3022,7 +3052,8 @@ async function handleRequest(req, res) {
       referenced.length ? `## 引用数据表\n${referenced.join("、")}` : scopedCandidates.length ? `## 业务线范围\n${businessLine || "已选择业务线"}；候选数据表：${scopedCandidates.join("、")}` : "## 引用数据表\n（未指定，以下为当前用户权限内全部表的概览，深度分析请引用具体表）",
       "## 门户配置说明\n表证据中的「枚举值」「字段备注」「标签配置」「维表数据样例」来自门户的表管理、字典管理、标签管理与维表管理配置，分析时优先据此解释编码取值与口径；与网关注释冲突时以门户配置为准。",
       denied.length ? `## 权限提示\n以下表未授权，未纳入分析：${denied.join("、")}` : "",
-      `## 表证据（唯一事实来源，所有数字必须来自这里）\n${JSON.stringify(evidence, null, 1)}`
+      wantsReport && priorLedger.length ? reportSkill.buildFactsSection(priorLedger) : "",
+      reuseOnly ? "" : `## 表证据（唯一事实来源，所有数字必须来自这里）\n${JSON.stringify(wantsReport && priorLedger.length ? evidence.filter(item => !priorLedger.some(entry => entry.evidence.includes(item))) : evidence, null, 1)}`
     ].filter(Boolean).join("\n\n");
 
     const ASK_PROTOCOL = [
@@ -3033,14 +3064,19 @@ async function handleRequest(req, res) {
       "要求：最多 3 个问题，每题 2-6 个选项；multiple 为 true 表示可多选；界面会自动提供「自定义输入」，不需要自己加「其他」选项。",
       "提问块之后不要再输出任何内容。如果用户消息里已经包含「用户补充信息」，或信息已经足够，则直接分析，禁止再次提问。"
     ].join("\n");
-    const messages = [{ role: "system", content: `${scene.system}\n\n（以上场景说明只提供事实边界与专业规则；回答的篇幅与结构以下面的「回答协议」为准。）\n\n${answerProtocol}\n\n${ASK_PROTOCOL}` }, { role: "user", content: prompt }];
+    const messages = [{
+      role: "system",
+      content: wantsReport
+        ? `${reportSkill.buildReportSystem(reportPack.instructions, reportTemplate)}${specContext ? "\n\n（用户问题中的口径词已由平台解析，见用户消息里的「口径解析」。）" : ""}`
+        : `${scene.system}\n\n（以上场景说明只提供事实边界与专业规则；回答的篇幅与结构以下面的「回答协议」为准。）\n\n${answerProtocol}\n\n${ASK_PROTOCOL}`
+    }, { role: "user", content: prompt }];
 
     /* 流式模式：SSE 逐段转发给前端 */
     if (streaming) {
       // SSE 已在工具阶段之前打开（见上方），这里沿用同一条连接
       const send = sseSend;
       const heartbeat = sseHeartbeat;
-      if (send) send({ status: "正在生成回答…" });
+      if (send) send({ status: wantsReport ? `正在撰写「${reportTemplate?.name || "报告"}」…` : "正在生成回答…" });
       const reasoningOptions = {};
       // 只在该模型声明支持的档位里透传 reasoning_effort：不支持的模型直接不带这个参数
       const modelReasoning = modelCapabilityFor(model).reasoning;
@@ -3063,7 +3099,8 @@ async function handleRequest(req, res) {
       }
       clearInterval(heartbeat);
       const streamNumericCheck = checkNumericGrounding(result.content || "", evidence, question);
-      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: streamNumericCheck, status: "ok" });
+      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: streamNumericCheck, status: "ok", extra: reportAudit });
+      saveLedger(result.content);
       send({
         done: true,
         meta: {
@@ -3098,7 +3135,8 @@ async function handleRequest(req, res) {
       }
       const content = result.data?.choices?.[0]?.message?.content || "";
       const plainNumericCheck = checkNumericGrounding(content, evidence, question);
-      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.data.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: plainNumericCheck, status: "ok" });
+      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.data.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: plainNumericCheck, status: "ok", extra: reportAudit });
+      saveLedger(content);
       return sendJson(res, 200, {
         report: content,
         meta: {

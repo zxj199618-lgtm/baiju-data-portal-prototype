@@ -358,6 +358,34 @@ describe("浏览器端到端", () => {
     }
   }));
 
+  test("报告按需生成：默认是简短回答；点「整理成报告」选模板后，基于已有事实生成报告卡片，不再取数", async t => withPage(t, async page => {
+    harness.relay.requests.length = 0;
+    harness.relay.toolScript = [{ calls: [{ id: "rq1", type: "function", function: { name: "query_metric", arguments: JSON.stringify({ metric: "cost", table: "权益-账号维度消耗统计表" }) } }] }];
+    harness.relay.report = "近 7 天消耗 44 万元。";
+    try {
+      await login(page, "林金维");
+      await appVisible(page);
+      await page.getByPlaceholder(/输入分析问题/).fill("权益近 7 天消耗多少");
+      await page.keyboard.press("Enter");
+      const makeReport = page.locator('[data-test="make-report"]').first();
+      await makeReport.waitFor({ timeout: 20000 });
+      assert.equal(await page.locator(".portal-vue-ai-report-card").count(), 0, "默认不是报告卡片");
+
+      harness.relay.requests.length = 0;
+      harness.relay.report = "# 权益投放周报\n\n## 本周概览\n\n近 7 天消耗 44 万元，较上期基本持平，各部门表现稳定，未发现需要立即处理的异常。\n\n## 口径说明\n\n时间窗为近 7 天，范围为全部部门。";
+      await makeReport.click();
+      await page.locator('[data-test="report-template-weekly"]').click();
+      await page.locator(".portal-vue-ai-report-card").first().waitFor({ timeout: 20000 });
+      assert.equal(harness.relay.requests.filter(request => request.tools).length, 0, "整理成报告不应再取数");
+      const systemPrompt = harness.relay.requests.at(-1).messages.find(message => message.role === "system").content;
+      assert.match(systemPrompt, /## 报告模板：周报/);
+      assert.match(await page.locator("#analysisWorkbenchView").innerText(), /基于对话里 1 次已核实的取数/);
+    } finally {
+      harness.relay.report = "默认测试回答";
+      harness.relay.toolScript = [];
+    }
+  }));
+
   test("同源登录后令牌只在 httpOnly cookie 里：localStorage 与 document.cookie 都看不到，刷新后仍是登录态，退出后失效", async t => withPage(t, async page => {
     await login(page, "李雨航");
     await appVisible(page);
