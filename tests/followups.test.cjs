@@ -84,6 +84,30 @@ describe("按这一轮做了什么生成", () => {
   });
 });
 
+describe("线上暴露的质量问题", () => {
+  test("套餐口径（自营 / 三方）不写进问题的范围里：只保留部门 / 账号口径", () => {
+    const list = suggest(evidenceOf(["query_metric", { metric: "cost", table: equity.TABLE_NAME }]),
+      { question: "任哥自营消耗", resolvedTerms: [{ term: "任哥", kind: "部门口径" }, { term: "自营", kind: "套餐口径" }], role: "ops" });
+    assert.ok(texts(list).every(text => !/任哥、自营/.test(text)), texts(list).join(" | "));
+    assert.ok(texts(list).filter(text => !/整理成/.test(text)).every(text => text.startsWith("任哥")), texts(list).join(" | "));
+  });
+
+  test("这一轮已经看过 / 用户刚问过的指标，不再作为「相关指标」推荐", () => {
+    const evidence = evidenceOf(["query_metric", { metric: "roi_self", table: equity.TABLE_NAME }], ["query_metric", { metric: "cost", table: equity.TABLE_NAME }]);
+    const list = suggest(evidence, { question: "近 7 天自营 ROI 和消耗怎么样", role: "ops" });
+    assert.ok(!texts(list).some(text => /自营 ROI 怎么样？/.test(text)), texts(list).join(" | "));
+  });
+
+  test("以问题的主指标（第一次取数）为准；任何一次取数里用过的分组 / 筛选维度都不再推荐", () => {
+    const evidence = evidenceOf(
+      ["query_metric", { metric: "cost", table: equity.TABLE_NAME, filters: [{ field: "department", values: ["伯都-权益"] }] }],
+      ["query_metric", { metric: "roi_self", table: equity.TABLE_NAME, group: "account_id" }]);
+    const list = suggest(evidence, { question: "伯都消耗", role: "ops" });
+    assert.ok(texts(list).every(text => !/各部门|各账号/.test(text)), texts(list).join(" | "));
+    assert.ok(texts(list).some(text => /消耗/.test(text)), "主指标是第一次取数的消耗");
+  });
+});
+
 describe("只推平台能回答的", () => {
   test("每条涉及的指标都存在，涉及的维度都在该表可用的维度里", () => {
     const metrics = ["cost", "roi_self", "roi_third", "sign_rate", "success_users", "cost_per_success_user", "net_retention_rate", "pay_amount"];

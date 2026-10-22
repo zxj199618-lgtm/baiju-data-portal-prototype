@@ -656,6 +656,23 @@
         "output": "report",
         "maxUngrounded": 8
       }
+    },
+    {
+      "id": "eq-merchant-auto-route",
+      "title": "没有任何关键词的「按商户看收入」：自动交给权益包的拦截规则，直接说明做不到，不调用模型",
+      "question": "按商户看一下这周的收入",
+      "user": "林金维",
+      "scenario": "general",
+      "skillId": "general-analyst",
+      "tables": [],
+      "expect": {
+        "plannedSkill": "equity-union-analyst",
+        "mustMatch": [
+          "(做不到|无法)",
+          "明细表"
+        ],
+        "maxTokens": 5
+      }
     }
   ]
 }

@@ -2949,6 +2949,14 @@ async function handleRequest(req, res) {
     let planSource = isRouting ? planner.sourceOfReason(routed.reason, false) : "manual";
     let planConfidence = null, plannedOutput = "", plannerTokens = 0, planAttempts = null;
     const domainSkills = usableDomainSkills(user);
+    /* 没命中关键词时，先看有没有哪个规范包的「拦截规则」认得这句话（例如「按商户看收入」）：命中就交给它，让它说明做不到的原因并给出替代问法，不必再花一次模型判断 */
+    if (isRouting && /^未命中关键词/.test(routed.reason || "")) {
+      for (const entry of domainSkills) {
+        const pack = skillPacks.get(entry.id);
+        const hit = pack && skillPack.matchGuards(pack.spec, question).find(guard => guard.mode === "block");
+        if (hit) { routed = { skill: entry, reason: `命中规范规则「${hit.id}」` }; planSource = "keyword"; break; }
+      }
+    }
     if (isRouting && body.planner !== false && planner.needsModelPlanning(routed, domainSkills)) {
       openStream();
       if (sseSend) sseSend({ status: "正在判断用什么技能…" });

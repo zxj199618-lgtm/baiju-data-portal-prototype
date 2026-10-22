@@ -86,6 +86,18 @@ describe("规划层", () => {
     assert.equal(plannerCalls().length, 0);
   });
 
+  test("拦截规则也参与路由：「按商户看收入」没有关键词，但被权益包的拦截规则认出，直接交给它拦截并给替代问法，不再花一次模型判断", async () => {
+    reset('{"skill":"warehouse-analyst","confidence":0.99,"reason":"不该被调用"}');
+    const result = await auto("按商户看一下这周的收入");
+    assert.equal(plannerCalls().length, 0);
+    const started = result.events.find(event => event.started);
+    assert.equal(started.routedSkill.id, PACK);
+    assert.equal(started.plan.source, "keyword");
+    assert.match(started.plan.reason, /命中规范规则「merchant-channel」/);
+    assert.equal(result.done.meta.toolMode, "guard:merchant-channel");
+    assert.equal(result.done.meta.suggestions.length, 3);
+  });
+
   test("planner=false 可以关闭判断（评测与排查用）", async () => {
     reset('{"skill":"equity-union-analyst","confidence":0.9}');
     const result = await auto(NO_KEYWORD, { planner: false });

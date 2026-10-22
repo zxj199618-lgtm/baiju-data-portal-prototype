@@ -60,8 +60,14 @@ function suggestFollowUps({ evidence, question = "", resolvedTerms = [], output 
     return candidates.slice(0, MAX_SUGGESTIONS);
   }
 
-  const scope = (resolvedTerms || []).map(item => item.term).filter(Boolean).join("、");
-  const latest = context.attributions.at(-1) || context.queries.at(-1) || null;
+  // 范围只取部门 / 账号口径（任哥、存量）；「自营 / 三方」是套餐口径，已经体现在指标里，不再重复写进问题
+  const scope = (resolvedTerms || []).filter(item => item.kind !== "套餐口径").map(item => item.term).filter(Boolean).join("、");
+  // 以问题的主指标为准：做了归因就用归因的指标，否则用第一次取数（后面的取数多是顺带看的）
+  const latest = context.attributions.at(-1) || context.queries[0] || null;
+  const everything = [...context.queries, ...context.attributions];
+  const usedMetricIds = new Set(everything.map(item => item.data.指标));
+  const usedGroups = new Set(everything.map(item => item.args.group || item.data.分组?.字段).filter(Boolean));
+  const usedFilterFields = new Set(everything.flatMap(item => (item.args.filters || []).map(filter => filter.field)));
   if (latest) {
     const data = latest.data;
     const info = semantic?.metricInfo?.(data.指标) || { id: data.指标, name: data.名称 || data.指标 };
@@ -71,8 +77,6 @@ function suggestFollowUps({ evidence, question = "", resolvedTerms = [], output 
     const prefix = `${scope}${windowText}`;
     const table = data.表名;
     const dimensionsAvailable = semantic?.dimensionsOf?.(info.id, table) || null;
-    const usedGroup = latest.args.group || data.分组?.字段 || "";
-    const usedFilterFields = new Set((latest.args.filters || []).map(item => item.field));
     const label = field => DIMENSION_LABELS[field] || field;
     const mentionedInQuestion = text => question.includes(text);
 
@@ -93,7 +97,7 @@ function suggestFollowUps({ evidence, question = "", resolvedTerms = [], output 
       // 按维度拆开看：选该表确实有、本轮还没用过的维度
       if (dimensionsAvailable) {
         const order = [...(config.dimensionOrder || []), ...DEFAULT_DIMENSION_ORDER];
-        const dimension = order.find(field => dimensionsAvailable.includes(field) && field !== usedGroup && !usedFilterFields.has(field));
+        const dimension = order.find(field => dimensionsAvailable.includes(field) && !usedGroups.has(field) && !usedFilterFields.has(field));
         if (dimension && !mentionedInQuestion(`各${label(dimension)}`)) add("group", `${prefix}各${label(dimension)}的${name}对比`);
       }
       // 趋势
@@ -102,6 +106,7 @@ function suggestFollowUps({ evidence, question = "", resolvedTerms = [], output 
       for (const relatedKey of (config.relatedMetrics?.[info.id] || [])) {
         const related = semantic?.metricInfo?.(relatedKey);
         if (!related || !semantic.dimensionsOf(related.id, table)) continue;
+        if (usedMetricIds.has(related.id) || question.includes(related.name)) continue; // 这一轮已经看过 / 用户刚问过的指标不再推荐
         add("related", `${prefix}${related.name}怎么样？`);
       }
       add("report", /周|week/i.test(question) ? "把上面的分析整理成周报" : "把上面的分析整理成报告");
