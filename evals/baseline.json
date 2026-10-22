@@ -1482,6 +1482,101 @@
       "tools": [
         "get_lineage"
       ]
+    },
+    {
+      "id": "plan-no-keyword",
+      "title": "规划：没有任何关键词，也能判断出是权益投放并按它的口径取数",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "规划选中了 equity-union-analyst",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "调用了应调用的工具",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 /(ROI|回本)/",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 6 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 56566,
+      "latencyMs": 127530,
+      "tools": [
+        "list_metrics",
+        "list_metrics",
+        "query_metric",
+        "query_metric",
+        "list_metrics",
+        "query_metric",
+        "query_metric",
+        "query_metric",
+        "query_metric",
+        "query_metric",
+        "query_metric",
+        "query_metric"
+      ]
+    },
+    {
+      "id": "plan-report-intent",
+      "title": "规划：说「拿去给领导汇报」没有关键词，也要判断出要报告",
+      "model": "qwen3.8-max-0902",
+      "user": "林金维",
+      "passed": true,
+      "checks": [
+        {
+          "name": "HTTP 状态",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "规划选中了 equity-union-analyst",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "输出形式是 report",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "证据外的数字不超过 8 个",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "tokens": 75411,
+      "latencyMs": 259701,
+      "tools": [
+        "list_metrics",
+        "get_schema",
+        "list_metrics",
+        "list_metrics",
+        "list_metrics",
+        "list_metrics",
+        "list_metrics",
+        "list_metrics",
+        "list_metrics",
+        "query_metric",
+        "query_metric",
+        "query_metric"
+      ]
     }
   ],
   "summary": {
