@@ -331,7 +331,20 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
     return { ok: true, data };
   }
 
-  return { warnings, listMetrics, query, attribute, metricCount: metrics.size };
+  /** 指标的基本信息（推荐问题等需要校验「平台确实支持」的地方用） */
+  function metricInfo(key) {
+    const metric = findMetric(key);
+    return metric ? { id: metric.id, name: metric.name, type: metric.type, unit: metric.unit || "" } : null;
+  }
+
+  /** 指标在某张表上可用的分组维度；指标不在这张表上返回 null */
+  function dimensionsOf(key, tableName) {
+    const metric = findMetric(key);
+    if (!metric || !tablesOf(metric).includes(tableName)) return null;
+    return [...tableConfig.get(tableName).dimensions];
+  }
+
+  return { warnings, listMetrics, query, attribute, metricInfo, dimensionsOf, metricCount: metrics.size };
 }
 
 module.exports = { createSemanticLayer };

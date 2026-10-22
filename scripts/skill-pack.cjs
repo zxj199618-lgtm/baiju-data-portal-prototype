@@ -90,7 +90,7 @@ function matchGuards(spec, question) {
   const text = String(question || "");
   return (Array.isArray(spec?.guards) ? spec.guards : []).filter(guard =>
     (guard.patterns || []).some(pattern => { try { return new RegExp(pattern).test(text); } catch { return false; } })
-  ).map(guard => ({ id: guard.id, mode: guard.mode === "block" ? "block" : "warn", message: guard.message || "", answer: guard.answer || guard.message || "" }));
+  ).map(guard => ({ id: guard.id, mode: guard.mode === "block" ? "block" : "warn", message: guard.message || "", answer: guard.answer || guard.message || "", suggest: Array.isArray(guard.suggest) ? guard.suggest.slice(0, 3) : [] }));
 }
 
 /** 给模型的上下文：已解析的口径、需要处理的歧义、提示类规则 */
@@ -151,7 +151,7 @@ function buildAnswerProtocol(role) {
     "4. 数字只来自工具结果或证据；没有数据支撑的原因只能写成「待验证的假设」，不下因果结论。",
     "5. 做不到就直说缺什么、换什么表或方法可以做到，不用估算值填空。",
     "6. 追问沿用上文已确定的时间、范围和筛选，除非用户明确改了。",
-    "7. 结尾最多一句「还可以继续看：…」给出 1 到 2 个顺着问题自然的下一步，不要列清单。",
+    "7. 结尾不要写「还可以继续看…」之类的下一步建议：界面会自动给出推荐问题。",
     `## 使用者角色\n${ROLE_STYLE[role] || ROLE_STYLE.general}`
   ].join("\n");
 }

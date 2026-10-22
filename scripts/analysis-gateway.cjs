@@ -41,6 +41,7 @@ const equitySample = require("./equity-sample.cjs");
 const skillPack = require("./skill-pack.cjs");
 const reportSkill = require("./report-skill.cjs");
 const planner = require("./planner.cjs");
+const followups = require("./followups.cjs");
 const { createEvidenceLedger } = require("./evidence-ledger.cjs");
 
 const RELAY_BASE_URL = process.env.RELAY_BASE_URL || "https://simindapi.modelgs.com";
@@ -1950,6 +1951,7 @@ function sanitizeHistoryMessage(msg) {
     requestId: String(msg?.requestId || "").slice(0, 80),
     feedback: RATINGS.includes(msg?.feedback) ? msg.feedback : "",
     leadMsg: String(msg?.leadMsg || "").slice(0, 300),
+    suggestions: (Array.isArray(msg?.suggestions) ? msg.suggestions : []).slice(0, 3).map(item => String(item?.text ?? item ?? "").slice(0, 60)).filter(Boolean),
     skillId: /^[A-Za-z0-9_-]{1,60}$/.test(String(msg?.skillId || "")) ? String(msg.skillId) : "",
     terms: (Array.isArray(msg?.terms) ? msg.terms : []).slice(0, 6).map(term => String(term).slice(0, 20)),
     plan: msg?.plan && typeof msg.plan === "object" ? {
@@ -3024,7 +3026,8 @@ async function handleRequest(req, res) {
       const blockMeta = {
         skill: skill.name, skillVersion: skill.version, scenario: scene.label, toolMode: `guard:${blockedBy.id}`, toolCalls: [],
         model, tablesUsed: [], deniedTables: denied, latencyMs: Date.now() - started, usage: null, requestId,
-        numericCheck: null, totalTokens: plannerTokens, ...packMeta
+        numericCheck: null, totalTokens: plannerTokens, ...packMeta,
+        suggestions: followups.suggestFollowUps({ evidence: [], question, guards: packGuards, spec: packEntry?.spec || {}, semantic: semanticLayer })
       };
       finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: blockMeta.toolMode, toolCalls: [], tablesUsed: [], usage: null, extraTokens: plannerTokens, latencyMs: blockMeta.latencyMs, numericCheck: null, status: "ok" });
       blockMeta.usageToday = { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) };
@@ -3042,6 +3045,11 @@ async function handleRequest(req, res) {
     let evidence = buildEvidenceOverride || buildEvidence(evidenceTables, portalContext);
     if (reuseOnly) evidence = priorLedger.flatMap(entry => entry.evidence);
     const reportAudit = { plan: plan.source, planSkill: plan.skillId, ...(wantsReport ? { output: "report", template: reportTemplate?.id || "", basedOn: priorLedger.length } : {}) };
+    /* 回答后的推荐问题：按这一轮实际用到的工具确定性生成，只推平台能回答的（不额外调用模型） */
+    const suggestionsFor = () => followups.suggestFollowUps({
+      evidence, question, resolvedTerms: packMeta.resolvedTerms || [], output: wantsReport ? "report" : "answer", templates: reportPack?.spec.templates || [],
+      currentTemplate: reportTemplate?.id || "", role: answerRole, guards: packGuards, spec: packEntry?.spec || {}, semantic: semanticLayer
+    });
     /* 把这次取到的事实存进证据账本，之后「整理成报告」直接用，不用重新取数 */
     const saveLedger = answerText => evidenceLedger.save({
       requestId, scope, user, question, model, skill: skill.name, pack: packEntry?.id || "", resolvedTerms: packMeta.resolvedTerms,
@@ -3182,7 +3190,7 @@ async function handleRequest(req, res) {
           usage: result.usage || null, requestId,
           warning: result.stalled ? "上游中断，以上为已生成内容" : "",
           numericCheck: streamNumericCheck, totalTokens: tokensOf(result.usage) + toolTokens,
-          usageToday: { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) }, ...packMeta
+          usageToday: { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) }, ...packMeta, suggestions: suggestionsFor()
         }
       });
       return res.end();
@@ -3218,7 +3226,7 @@ async function handleRequest(req, res) {
           deniedTables: denied, latencyMs: Date.now() - started,
           usage: result.data.usage || null, requestId,
           numericCheck: plainNumericCheck, totalTokens: tokensOf(result.data.usage) + toolTokens,
-          usageToday: { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) }, ...packMeta
+          usageToday: { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) }, ...packMeta, suggestions: suggestionsFor()
         }
       });
     } catch (error) {

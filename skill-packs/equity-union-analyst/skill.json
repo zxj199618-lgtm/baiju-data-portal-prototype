@@ -181,7 +181,12 @@
           "(按|分|拆|各|每个|哪个).{0,6}(商户|支付渠道|支付通道)",
           "(商户|支付渠道|支付通道).{0,6}(拆|分布|排名|占比|对比|统计)"
         ],
-        "answer": "这个表做不到按商户或支付渠道拆分：商户、商户名称、支付渠道三列在视图里是固定的空值，不能筛选，也不能分组。\n\n要看这个维度，需要换成明细表（例如 dwd_equity_shop_profit_detail_f_d），目前平台还没有接入。我可以先按部门、账号、套餐或媒体帮你拆，需要的话告诉我看哪个维度。"
+        "answer": "这个表做不到按商户或支付渠道拆分：商户、商户名称、支付渠道三列在视图里是固定的空值，不能筛选，也不能分组。\n\n要看这个维度，需要换成明细表（例如 dwd_equity_shop_profit_detail_f_d），目前平台还没有接入。我可以先按部门、账号、套餐或媒体帮你拆，需要的话告诉我看哪个维度。",
+        "suggest": [
+          "近 7 天各部门的实付收入对比",
+          "近 7 天各账号的消耗对比",
+          "近 7 天各套餐类型的成功用户数"
+        ]
       },
       {
         "id": "hourly-conversion",
@@ -244,6 +249,57 @@
     ],
     "tables": [
       "权益-账号维度消耗统计表"
-    ]
+    ],
+    "followUps": {
+      "relatedMetrics": {
+        "cost": [
+          "roi_self",
+          "cost_per_success_user"
+        ],
+        "roi_self": [
+          "roi_third",
+          "sign_rate"
+        ],
+        "roi_third": [
+          "roi_self",
+          "cost_per_success_user"
+        ],
+        "sign_rate": [
+          "sign_success_rate",
+          "net_retention_rate"
+        ],
+        "sign_success_rate": [
+          "sign_rate"
+        ],
+        "success_users": [
+          "cost_per_success_user"
+        ],
+        "cost_per_success_user": [
+          "roi_third",
+          "success_users"
+        ],
+        "pay_amount": [
+          "roi_self"
+        ],
+        "report_reward": [
+          "roi_third"
+        ],
+        "net_retention_rate": [
+          "sign_rate"
+        ]
+      },
+      "dimensionOrder": [
+        "department",
+        "account_id",
+        "platform_name",
+        "commodity_classify"
+      ],
+      "sql": true,
+      "starters": [
+        "任哥近 7 天的消耗和自营 ROI 怎么样？",
+        "近 7 天各部门的消耗对比",
+        "近 7 天自营签约率为什么下滑？"
+      ]
+    }
   }
 }

@@ -413,6 +413,41 @@ describe("浏览器端到端", () => {
     }
   }));
 
+  test("推荐问题：首屏先推平台能回答的；回答下面出现推荐问题，点一下就是一次提问，只显示在最后一条回答下", async t => withPage(t, async page => {
+    harness.relay.requests.length = 0;
+    harness.relay.toolScript = [{ calls: [{ id: "f1", type: "function", function: { name: "query_metric", arguments: JSON.stringify({ metric: "roi_self", table: "权益-账号维度消耗统计表" }) } }] }];
+    harness.relay.report = "近 7 天自营 ROI 约 1.0。";
+    try {
+      await login(page, "林金维");
+      await appVisible(page);
+      await page.getByText("＋ 新的分析").first().click(); // 同账号在本文件前面的用例里已有历史，先开一个空白会话才会显示首屏推荐
+      await page.locator('[data-test="ai-starter"]').filter({ hasText: "任哥近 7 天的消耗和自营 ROI" }).first().waitFor({ timeout: 15000 }); // 表权限异步加载
+      const starters = await page.locator('[data-test="ai-starter"]').allTextContents();
+      assert.ok(!starters.some(text => /超过目标值/.test(text)), "首屏不推荐平台回答不了的问题");
+
+      await page.getByPlaceholder(/输入分析问题/).fill("权益近 7 天自营 ROI 怎么样");
+      await page.keyboard.press("Enter");
+      const followups = page.locator('[data-test="ai-followups"]').first();
+      await followups.waitFor({ timeout: 20000 });
+      const chips = await followups.locator('[data-test="ai-followup"]').allTextContents();
+      assert.ok(chips.length >= 2 && chips.length <= 3, chips.join(" | "));
+      assert.ok(chips.some(text => /各部门的自营 ROI 对比/.test(text)), chips.join(" | "));
+
+      harness.relay.requests.length = 0;
+      harness.relay.toolScript = [];
+      harness.relay.report = "各部门对比如下。";
+      await followups.locator('[data-test="ai-followup"]').filter({ hasText: "各部门的自营 ROI 对比" }).click();
+      await page.locator("#analysisWorkbenchView").getByText("各部门对比如下。").first().waitFor({ timeout: 20000 });
+      await page.locator('[data-test="ai-followups"]').first().waitFor({ timeout: 20000 });
+      const asked = harness.relay.requests.find(request => request.tools).messages.find(message => message.role === "user").content;
+      assert.match(asked, /各部门的自营 ROI 对比/);
+      assert.equal(await page.locator('[data-test="ai-followups"]').count(), 1, "旧回答下面的推荐问题要收起，只保留最后一条");
+    } finally {
+      harness.relay.report = "默认测试回答";
+      harness.relay.toolScript = [];
+    }
+  }));
+
   test("同源登录后令牌只在 httpOnly cookie 里：localStorage 与 document.cookie 都看不到，刷新后仍是登录态，退出后失效", async t => withPage(t, async page => {
     await login(page, "李雨航");
     await appVisible(page);

@@ -15,6 +15,7 @@ COPY scripts/skill-pack.cjs ./skill-pack.cjs
 COPY scripts/report-skill.cjs ./report-skill.cjs
 COPY scripts/evidence-ledger.cjs ./evidence-ledger.cjs
 COPY scripts/planner.cjs ./planner.cjs
+COPY scripts/followups.cjs ./followups.cjs
 COPY semantic ./semantic
 COPY skill-packs ./skill-packs
 COPY index.html share.html ./
