@@ -164,6 +164,18 @@ ok "服务器代码已更新到 $COMMIT"
 # ---------------------------------------------------------------------------
 # 4. 服务器：重建容器
 # ---------------------------------------------------------------------------
+log "备份线上数据（重建前）"
+if run_remote "set -euo pipefail
+cd '$DEPLOY_PATH'
+CID=\$($DEPLOY_DOCKER compose ${COMPOSE_ARGS[*]} ps -q '$DEPLOY_SERVICE')
+[ -n \"\$CID\" ]
+mkdir -p backups && chmod 700 backups
+OUT=backups/gateway-data-\$(date +%Y%m%d-%H%M%S).tar.gz
+$DEPLOY_DOCKER exec \"\$CID\" tar -czf - -C /app data > \"\$OUT\"
+chmod 600 \"\$OUT\"
+ls -1t backups/gateway-data-*.tar.gz | tail -n +15 | xargs -r rm -f --
+echo \"\$OUT\"" >/dev/null 2>&1; then ok "数据已备份到服务器 backups/（保留最近 14 份）"; else warn "数据备份失败，继续发版（可稍后手动备份）"; fi
+
 log "重建并重启容器（${DEPLOY_SERVICE}）"
 run_remote "set -euo pipefail
 cd '$DEPLOY_PATH'

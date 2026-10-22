@@ -18,6 +18,7 @@ services:
       PORTAL_DEMO_LOGIN_PASSWORD: "${PORTAL_DEMO_LOGIN_PASSWORD:-}"
       PORTAL_GLOBAL_DAILY_TOKEN_LIMIT: "${PORTAL_GLOBAL_DAILY_TOKEN_LIMIT:-}"
       DEFAULT_MODEL: "${DEFAULT_MODEL:-}"
+      AUDIT_MAX_BYTES: "${AUDIT_MAX_BYTES:-}"
       DATA_DIR: "/app/data"
     volumes:
       - gateway-data:/app/data

@@ -8,3 +8,7 @@ baiju-data-portal-feishu-standalone.html
 .deploy.env
 data/
 evals/results/
+scratch/
+.playwright-mcp/
+.video_agent/
+backups/

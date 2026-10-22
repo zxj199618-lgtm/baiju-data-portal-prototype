@@ -140,10 +140,21 @@ function createAuth(dataDir) {
     return match ? verifyToken(match[1].trim()) : null;
   }
 
+  /** 从 Cookie 头取出会话令牌（浏览器端同源使用 httpOnly cookie，页面脚本读不到） */
+  function tokenFromCookie(req) {
+    const match = String(req.headers.cookie || "").match(/(?:^|;\s*)gxt_session=([^;]+)/);
+    return match ? match[1].trim() : "";
+  }
+
+  function userFromCookie(req) {
+    const token = tokenFromCookie(req);
+    return token ? verifyToken(token) : null;
+  }
+
   return {
     setPassword, bootstrapAccounts, checkPassword,
     isLocked, recordFailure, clearFailures,
-    issueToken, verifyToken, userFromRequest
+    issueToken, verifyToken, userFromRequest, userFromCookie
   };
 }
 

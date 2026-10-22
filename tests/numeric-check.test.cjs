@@ -37,6 +37,11 @@ describe("数字回查（单元）", () => {
     assert.deepEqual(result.ungrounded, []);
   });
 
+  test("个位数计数（3 个指标、第 2 步）不参与校验，多位数或带小数的仍然检查", () => {
+    const result = checkNumericGrounding("共 3 个指标、分 4 步，第 2 步最关键；另有 12 个异常、1.5 次波动。", evidence, "");
+    assert.deepEqual(result.ungrounded, ["12", "1.5"]);
+  });
+
   test("省略年份的日期（08-25、8/25、8月25日）不参与校验，但像 10-20 这样的区间外数字仍然检查", () => {
     const result = checkNumericGrounding("08-25 至 08-31 对比 08-18 至 08-24，8/25 与 8月31日也是日期，另有 9999 次。", evidence, "");
     assert.deepEqual(result.ungrounded, ["9999"]);

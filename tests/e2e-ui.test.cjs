@@ -331,6 +331,21 @@ describe("浏览器端到端", () => {
     }
   }));
 
+  test("同源登录后令牌只在 httpOnly cookie 里：localStorage 与 document.cookie 都看不到，刷新后仍是登录态，退出后失效", async t => withPage(t, async page => {
+    await login(page, "李雨航");
+    await appVisible(page);
+    const exposed = await page.evaluate(() => ({ stored: localStorage.getItem("portalAuthToken"), cookie: document.cookie }));
+    assert.equal(exposed.stored, null, "同源模式下不应把令牌存进 localStorage");
+    assert.doesNotMatch(exposed.cookie, /gxt_session/, "cookie 必须是 httpOnly，脚本读不到");
+    await page.reload();
+    await appVisible(page);
+    assert.ok((await page.context().cookies()).some(cookie => cookie.name === "gxt_session" && cookie.httpOnly));
+    await page.locator(".portal-vue-user").first().click();
+    await page.getByRole("menuitem", { name: "退出系统" }).click();
+    await page.locator("#gatewayLoginForm").waitFor();
+    assert.ok(!(await page.context().cookies()).some(cookie => cookie.name === "gxt_session" && cookie.value), "退出后 cookie 应被清除");
+  }));
+
   test("页头菜单「修改密码」：输入旧密码和新密码后，旧密码失效、新密码可用（正式环境）", async t => {
     if (skipReason) return t.skip(skipReason);
     const plain = await startHarness();

@@ -67,6 +67,8 @@ curl http://localhost:8787/v1/models
 docker compose exec analysis-gateway node gateway-auth.cjs set-password 曾祥竞 新密码
 ```
 
+- **会话令牌**：页面由网关同源托管时（线上默认），登录后令牌只放在 `httpOnly` cookie（`gxt_session`，`SameSite=Lax`，HTTPS 下带 `Secure`），
+  页面脚本读不到，localStorage 里只有账号名；cookie 身份的写请求会校验 `Origin`（防 CSRF）。跨域访问网关（本地开发、独立 HTML）仍用 `Authorization: Bearer` 令牌。`POST /v1/auth/logout` 清除 cookie。
 - 登录页默认是「密码登录」，会记住上次登录的账号（不记密码；浏览器自带的密码管理器可以自动填充）。
 - **本地演示登录**：本机开发时设置 `PORTAL_DEMO_LOGIN_PASSWORD=<账号共用密码>`，登录页会出现账号快捷按钮，点一下自动填密码并登录。
   这会把密码公开给任何访问者，默认关闭；设置后（本机或线上演示环境）会同时：不做「连续输错锁定」（否则任何人都能把演示账号锁死）、
@@ -104,6 +106,10 @@ docker compose exec analysis-gateway node gateway-auth.cjs set-password 曾祥�
 - **运营中心**（管理员）：用量与配额、审计日志（按类型 / 账号 / 状态筛选）、回答反馈（好评 / 差评与按模型 / Skill 汇总）、账号管理、默认模型。
 - 审计日志 `DATA_DIR/analysis-audit.jsonl`（每行一条 JSON）：每次分析（谁、问题前 300 字、模型、Skill、工具模式、表、token、耗时、结果）、
   每次工具调用（含被拒绝的）、密码修改、权限变更。
+- 审计日志超过 8MB（环境变量 `AUDIT_MAX_BYTES` 可调）自动换新文件，旧的按时间命名留档，只保留最近 5 份。
+- **健康检查**：`GET /healthz`（无需登录）；Dockerfile 自带 `HEALTHCHECK`，`docker ps` 能看到 healthy / unhealthy。
+- **数据备份**：`bash scripts/deploy.sh` 在重建容器前会把数据卷打包到服务器项目目录的 `backups/`（保留最近 14 份，权限 600，已加入 `.gitignore`）；
+  数据在宿主机目录时也可用 `scripts/backup-data.sh` 配合 crontab。备份里含密钥与密码哈希，不要提交到 Git。
 - 回答反馈：界面回答下方的 👍 / 👎（👎 可附原因），`POST /v1/feedback`；只能评价自己的分析。管理员 `GET /v1/feedback` 查看明细与按模型 / Skill 的汇总。
 
 ### 评测

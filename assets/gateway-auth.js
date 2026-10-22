@@ -1,7 +1,8 @@
 /**
  * 网关登录态（浏览器端）
  *
- * - 账号密码登录 POST /v1/auth/login，令牌存 localStorage（仅本机浏览器；12 小时过期）
+ * - 账号密码登录 POST /v1/auth/login：页面与网关同源时令牌只存在 httpOnly cookie（脚本读不到，12 小时过期），
+ *   localStorage 里只留账号名和「已登录」标记；跨域访问网关（本地开发等）才把令牌存 localStorage 并带 Authorization 头
  * - 所有发往网关 /v1/ 的请求自动带 Authorization 头；返回 401 时回到登录页
  * - 必须在 portal-bridge.js 之前加载：启动时没有令牌就不进入系统
  */
@@ -23,6 +24,8 @@
     return "http://localhost:8787";
   }
 
+  const nativeFetch = window.fetch.bind(window);
+
   const VISITOR_KEY = "portalVisitorId";
 
   /** 每个浏览器一个随机访客 id（只在网关开启演示登录时才被采用，用来让共用演示账号的访客互相隔离） */
@@ -37,19 +40,27 @@
     } catch (error) { return ""; }
   }
 
+  /** 页面与网关同源（网关托管页面时 PORTAL_GATEWAY_BASE 为空串）：用 httpOnly cookie，不在页面里保存令牌 */
+  function sameOriginGateway() {
+    const base = gatewayBase();
+    return base === "" || base === location.origin;
+  }
+
   function readStorage(key) {
     try { return localStorage.getItem(key) || ""; } catch (error) { return ""; }
   }
 
   function writeSession(token, name) {
     try {
-      localStorage.setItem(TOKEN_KEY, token);
+      if (token) localStorage.setItem(TOKEN_KEY, token); else localStorage.removeItem(TOKEN_KEY);
       localStorage.setItem(USER_KEY, name);
       localStorage.setItem(FLAG_KEY, "1");
     } catch (error) { /* 隐私模式下无法保存，登录只在本页有效 */ }
   }
 
   function clearSession() {
+    // 同时让网关清掉 cookie（cookie 是 httpOnly，只能由服务端清除）
+    try { if (sameOriginGateway()) nativeFetch(`${gatewayBase()}/v1/auth/logout`, { method: "POST" }).catch(() => {}); } catch (error) { /* 忽略 */ }
     try {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
@@ -72,24 +83,24 @@
 
   // 对外暴露给页面脚本（退出登录时清除令牌）
   window.portalAuth = {
-    token: () => readStorage(TOKEN_KEY),
+    // 页面脚本只用它判断「是否已登录」：同源模式下令牌在 httpOnly cookie 里，这里返回占位值
+    token: () => readStorage(TOKEN_KEY) || (sameOriginGateway() && readStorage(FLAG_KEY) ? "cookie" : ""),
     user: () => readStorage(USER_KEY),
     clear: clearSession
   };
 
   // 启动：没有令牌就不保留「已登录」标记，让页面停在登录页
-  if (!readStorage(TOKEN_KEY)) clearSession();
+  if (!window.portalAuth.token()) clearSession();
 
   // 给网关请求自动加令牌；过期或无效（401）时清除登录态并回到登录页
-  const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
     const url = typeof input === "string" ? input : (input && input.url) || "";
     const base = gatewayBase();
     const isGateway = base ? url.startsWith(base + "/v1/") : url.startsWith("/v1/");
     if (!isGateway) return nativeFetch(input, init);
     const headers = new Headers(init.headers || {});
-    const token = readStorage(TOKEN_KEY);
-    if (token) headers.set("Authorization", `Bearer ${token}`);
+    const token = window.portalAuth.token();
+    if (token && token !== "cookie") headers.set("Authorization", `Bearer ${token}`);
     const visitor = visitorId();
     if (visitor) headers.set("X-Visitor-Id", visitor);
     return nativeFetch(input, { ...init, headers }).then(response => {
@@ -173,7 +184,7 @@
           if (error) { error.textContent = data.error || "登录失败"; error.hidden = false; }
           return;
         }
-        writeSession(data.token, data.user.name);
+        writeSession(sameOriginGateway() ? "" : data.token, data.user.name);
         try { localStorage.setItem(LAST_NAME_KEY, data.user.name); } catch (storageError) { /* 忽略 */ }
         // 重新加载，让启动流程以已登录身份进入系统（保留 #page= 等地址）
         location.reload();

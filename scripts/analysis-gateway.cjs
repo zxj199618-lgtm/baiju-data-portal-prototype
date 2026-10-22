@@ -769,9 +769,25 @@ function readAuditTail(maxBytes = 4 * 1024 * 1024) {
   } catch { return []; } finally { if (fd !== undefined) fs.closeSync(fd); }
 }
 
+const AUDIT_MAX_BYTES = Number(process.env.AUDIT_MAX_BYTES) || 8 * 1024 * 1024;
+const AUDIT_KEEP_ARCHIVES = 5;
+
+/** 审计日志超过上限就换新文件，旧的按时间命名留档（只留最近几份），避免单个文件无限增长 */
+function rotateAuditIfNeeded() {
+  let size = 0;
+  try { size = fs.statSync(AUDIT_FILE).size; } catch { return; }
+  if (size < AUDIT_MAX_BYTES) return;
+  const archive = AUDIT_FILE.replace(/\.jsonl$/, `.${new Date().toISOString().replace(/[:.]/g, "-")}.jsonl`);
+  fs.renameSync(AUDIT_FILE, archive);
+  const prefix = path.basename(AUDIT_FILE, ".jsonl") + ".";
+  const archives = fs.readdirSync(DATA_DIR).filter(name => name.startsWith(prefix) && name.endsWith(".jsonl")).sort();
+  archives.slice(0, Math.max(0, archives.length - AUDIT_KEEP_ARCHIVES)).forEach(name => { try { fs.unlinkSync(path.join(DATA_DIR, name)); } catch { /* 删除失败下次再试 */ } });
+}
+
 function appendAuditEntry(entry) {
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
+    rotateAuditIfNeeded();
     fs.appendFileSync(AUDIT_FILE, JSON.stringify({ at: new Date().toISOString(), ...entry }) + "\n");
   } catch (error) {
     console.warn("[audit] 写入失败：", error.message);
@@ -1957,6 +1973,12 @@ function corsHeadersFor(res) {
   return headers;
 }
 
+/** 会话 cookie：httpOnly（脚本读不到）、SameSite=Lax；经 HTTPS 访问时加 Secure。maxAge 为 0 表示清除 */
+function sessionCookie(req, token, maxAgeSeconds = 12 * 3600) {
+  const secure = req.socket?.encrypted || String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https";
+  return `gxt_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure ? "; Secure" : ""}`;
+}
+
 function sendJson(res, status, data) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
@@ -2093,7 +2115,7 @@ async function relayChatStream(model, payload, onEvent) {
 
 /* 公开接口：登录本身，以及同事通过链接打开的分享报告（只读） */
 function isPublicApi(method, pathname) {
-  return (method === "POST" && pathname === "/v1/auth/login") || (method === "GET" && pathname === "/v1/auth/demo") || (method === "GET" && /^\/v1\/shares\/[a-f0-9]+$/.test(pathname));
+  return (method === "POST" && pathname === "/v1/auth/login") || (method === "POST" && pathname === "/v1/auth/logout") || (method === "GET" && pathname === "/v1/auth/demo") || (method === "GET" && /^\/v1\/shares\/[a-f0-9]+$/.test(pathname));
 }
 
 /* 管理类接口：AI 中心（供应商、模型配置、Skill 管理）、表数据与权限的写操作，以及供应商明细读取 */
@@ -2111,7 +2133,12 @@ async function handleRequest(req, res) {
 
   /* 身份闸门：除公开接口外，所有 /v1/ 接口都要求有效令牌；管理类接口再要求管理员角色 */
   if (url.pathname.startsWith("/v1/") && !isPublicApi(req.method, url.pathname)) {
-    const username = auth.userFromRequest(req);
+    let username = auth.userFromRequest(req);
+    // 没有 Authorization 头时才用 httpOnly cookie（带了无效令牌就是无效，不回退到 cookie）；cookie 会被浏览器自动携带，所以写操作要确认来源（CSRF）
+    if (!username && !req.headers.authorization) {
+      username = auth.userFromCookie(req);
+      if (username && !["GET", "HEAD"].includes(req.method) && req.headers.origin && resolveCorsOrigin(req) !== req.headers.origin) return sendJson(res, 403, { error: "请求来源不被允许" });
+    }
     // 账号被停用后，已经签发的令牌下一次请求就失效（不用等令牌过期）
     if (!username || !accountStore.isActive(username)) return sendJson(res, 401, { error: username && accountStore.has(username) ? "账号已停用，请联系管理员" : "请先登录" });
     const role = roleOf(username);
@@ -2123,6 +2150,8 @@ async function handleRequest(req, res) {
 
   /* 本地演示登录：仅当显式设置了 PORTAL_DEMO_LOGIN_PASSWORD 才开启，登录页会据此给出账号快捷按钮并自动填密码。
      它会把这个密码公开给任何访问者，所以默认关闭，只能用于本机；服务器部署不要设置。 */
+  if (req.method === "GET" && url.pathname === "/healthz") return sendJson(res, 200, { ok: true, uptimeSeconds: Math.round(process.uptime()) });
+
   if (req.method === "GET" && url.pathname === "/v1/auth/demo") {
     if (!DEMO_LOGIN_PASSWORD) return sendJson(res, 404, { error: "未开启演示登录" });
     return sendJson(res, 200, { accounts: accountStore.activeNames().map(name => ({ name, role: roleOf(name) })), password: DEMO_LOGIN_PASSWORD });
@@ -2142,7 +2171,14 @@ async function handleRequest(req, res) {
     auth.clearFailures(name);
     // 密码正确但账号已停用：明确告知（此时已证明是账号主人，不算泄露账号是否存在）
     if (!accountStore.isActive(name)) return sendJson(res, 403, { error: "账号已停用，请联系管理员" });
-    return sendJson(res, 200, { token: auth.issueToken(name), user: { name, role: roleOf(name), group: orgStore.groupOf(name) } });
+    const token = auth.issueToken(name);
+    res.setHeader("Set-Cookie", sessionCookie(req, token));
+    return sendJson(res, 200, { token, user: { name, role: roleOf(name), group: orgStore.groupOf(name) } });
+  }
+
+  if (req.method === "POST" && url.pathname === "/v1/auth/logout") {
+    res.setHeader("Set-Cookie", sessionCookie(req, "", 0));
+    return sendJson(res, 200, { ok: true });
   }
 
   if (req.method === "GET" && url.pathname === "/v1/auth/me") {
