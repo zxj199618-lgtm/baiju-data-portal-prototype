@@ -40,6 +40,8 @@ async function checkCase({ testCase, defaults, response, elapsedMs, truth }) {
   const toolNames = (meta.toolCalls || []).map(call => call.tool);
   const tokens = Number(meta.totalTokens) || Number(meta.usage?.total_tokens) || 0;
 
+  if (expect.plannedSkill) add(`规划选中了 ${expect.plannedSkill}`, meta.plan?.skillId === expect.plannedSkill, `实际选了 ${meta.plan?.skillId || "（无）"}（来源 ${meta.plan?.source || "—"}：${meta.plan?.reason || ""}）`);
+  if (expect.output) add(`输出形式是 ${expect.output}`, (meta.plan?.output || "answer") === expect.output, `实际 ${meta.plan?.output || "answer"}`);
   if (expect.anyTool) add("调用了应调用的工具", expect.anyTool.some(name => toolNames.includes(name)), `期望其中之一 ${expect.anyTool.join("/")}，实际 ${toolNames.join("、") || "无"}`);
   if (expect.askUser) add("先向用户提问", /```ask/.test(report), "报告里没有 ```ask 问题卡片");
   (expect.mustMatch || []).forEach(pattern => add(`包含 /${pattern}/`, new RegExp(pattern).test(report), "报告里没有匹配的内容"));

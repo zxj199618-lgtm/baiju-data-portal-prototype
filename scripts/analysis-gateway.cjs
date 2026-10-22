@@ -40,6 +40,7 @@ const { createAccountStore } = require("./account-store.cjs");
 const equitySample = require("./equity-sample.cjs");
 const skillPack = require("./skill-pack.cjs");
 const reportSkill = require("./report-skill.cjs");
+const planner = require("./planner.cjs");
 const { createEvidenceLedger } = require("./evidence-ledger.cjs");
 
 const RELAY_BASE_URL = process.env.RELAY_BASE_URL || "https://simindapi.modelgs.com";
@@ -1209,6 +1210,42 @@ function pickAutoSkill(router, user, question, stickySkillId = "") {
   return { skill: fallback, reason: "未命中关键词，使用兜底技能" };
 }
 
+/** 该用户可用的业务技能（排除「通用分析」路由和输出类技能），带上规范包里写的适用 / 不适用，供规划与界面「换一个」使用 */
+function usableDomainSkills(user) {
+  return loadSkillRegistry()
+    .filter(item => item.kind !== "router" && item.kind !== "output" && item.id !== "numa-warehouse" && item.enabled !== false && (!item.grayUsers?.length || item.grayUsers.includes(user)))
+    .map(item => ({ ...item, useWhen: skillPacks.get(item.id)?.spec.useWhen, notFor: skillPacks.get(item.id)?.spec.notFor }));
+}
+
+const PLANNER_TIMEOUT_MS = 12000;
+const PLANNER_MODEL = process.env.PORTAL_PLANNER_MODEL || "";
+
+/** 关键词拿不准（落到兜底）时，用一次便宜的模型调用判断技能与输出形式；失败、超时或不够确定都返回 null，调用方保留原来的结果 */
+async function planWithModel({ question, domainSkills, conversationTurns, requestedModel }) {
+  const { rows } = await collectModels();
+  const callable = rows.filter(row => row.callable && row.enabled).map(row => row.id);
+  const first = planner.pickPlannerModel({ requested: requestedModel, preferred: PLANNER_MODEL, callable });
+  const candidates = [...new Set([first, requestedModel])];
+  const described = planner.describeSkills(domainSkills);
+  const prompt = planner.buildPlannerPrompt({ question, skills: described, conversation: conversationTurns.slice(-2) });
+  let tokens = 0;
+  for (const model of candidates) {
+    let result;
+    try {
+      result = await Promise.race([
+        relayChat(model, { messages: [{ role: "user", content: prompt }] }),
+        new Promise(resolve => setTimeout(() => resolve({ ok: false, status: 0, timeout: true }), PLANNER_TIMEOUT_MS))
+      ]);
+    } catch { continue; }
+    tokens += tokensOf(result.data?.usage);
+    if (!result.ok) continue;
+    const plan = planner.parsePlannerReply(result.data?.choices?.[0]?.message?.content || "", described.map(item => item.id));
+    if (planner.acceptPlan(plan)) return { ...plan, model, tokens };
+    return { rejected: true, tokens };
+  }
+  return { rejected: true, tokens };
+}
+
 /* 内置包定义：SKILL.md + 工具 + 字段元数据，首次启动落盘安装 */
 function installBuiltinPackages() {
   fs.mkdirSync(SKILLS_DIR, { recursive: true });
@@ -1911,6 +1948,11 @@ function sanitizeHistoryMessage(msg) {
     leadMsg: String(msg?.leadMsg || "").slice(0, 300),
     skillId: /^[A-Za-z0-9_-]{1,60}$/.test(String(msg?.skillId || "")) ? String(msg.skillId) : "",
     terms: (Array.isArray(msg?.terms) ? msg.terms : []).slice(0, 6).map(term => String(term).slice(0, 20)),
+    plan: msg?.plan && typeof msg.plan === "object" ? {
+      skillId: String(msg.plan.skillId || "").slice(0, 60), skillName: String(msg.plan.skillName || "").slice(0, 40), source: String(msg.plan.source || "").slice(0, 12),
+      reason: String(msg.plan.reason || "").slice(0, 100), output: msg.plan.output === "report" ? "report" : "answer", template: String(msg.plan.template || "").slice(0, 20),
+      alternatives: (Array.isArray(msg.plan.alternatives) ? msg.plan.alternatives : []).slice(0, 6).map(item => ({ id: String(item?.id || "").slice(0, 60), name: String(item?.name || "").slice(0, 40) }))
+    } : undefined,
     resolved: (Array.isArray(msg?.resolved) ? msg.resolved : []).slice(0, 6).map(item => ({ term: String(item?.term || "").slice(0, 20), kind: String(item?.kind || "").slice(0, 20), means: String(item?.means || "").slice(0, 80), carried: item?.carried === true })),
     trailMsg: String(msg?.trailMsg || "").slice(0, 300),
     streaming: false
@@ -2886,7 +2928,33 @@ async function handleRequest(req, res) {
     const isRouting = Boolean(routerEntry) && (body.skillId === ROUTER_SKILL_ID || (!body.skillId && scenario === "general"));
     const conversationTurns = skillPack.sanitizeConversation(body.conversation);
     const stickySkillId = [...conversationTurns].reverse().find(turn => turn.skillId)?.skillId || "";
-    const routed = isRouting ? pickAutoSkill(routerEntry, user, question, stickySkillId) : null;
+    /* 流式请求尽早打开 SSE：规划、取数阶段界面都能看到进度，而不是长时间没有任何反应 */
+    const streaming = body.stream === true;
+    let sseSend = null, sseHeartbeat = null;
+    const openStream = () => {
+      if (!streaming || sseSend) return;
+      res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache", Connection: "keep-alive", ...corsHeadersFor(res) });
+      sseSend = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+      sseHeartbeat = setInterval(() => res.write(": hb\n\n"), 5000);
+      res.on("close", () => clearInterval(sseHeartbeat));
+    };
+    /* 规划：手动选择 > 关键词 / 沿用上一轮 > 都没把握时用一次便宜的模型判断；每次决定都带来源和理由，界面上看得见也能改 */
+    let routed = isRouting ? pickAutoSkill(routerEntry, user, question, stickySkillId) : null;
+    let planSource = isRouting ? planner.sourceOfReason(routed.reason, false) : "manual";
+    let planConfidence = null, plannedOutput = "", plannerTokens = 0;
+    const domainSkills = usableDomainSkills(user);
+    if (isRouting && body.planner !== false && planner.needsModelPlanning(routed, domainSkills)) {
+      openStream();
+      if (sseSend) sseSend({ status: "正在判断用什么技能…" });
+      try {
+        const decided = await planWithModel({ question, domainSkills, conversationTurns, requestedModel: model });
+        plannerTokens += decided.tokens || 0;
+        if (!decided.rejected) {
+          routed = { skill: domainSkills.find(item => item.id === decided.skillId), reason: `智能判断：${decided.reason || "按问题内容判断"}` };
+          planSource = "model"; planConfidence = decided.confidence; plannedOutput = decided.output;
+        }
+      } catch (error) { console.warn("[planner] 判断失败，沿用关键词结果：", error.message); }
+    }
     const targetSkillId = isRouting ? (routed.skill?.id || "") : body.skillId;
     const registrySkill = targetSkillId
       ? loadSkillRegistry().find(item => item.id === targetSkillId && item.enabled !== false && (!item.grayUsers?.length || item.grayUsers.includes(user)))
@@ -2932,36 +3000,43 @@ async function handleRequest(req, res) {
         guards: packGuards.map(guard => guard.id)
       };
     }
+    /* 报告是按需调用的输出 Skill：只有用户明确要报告（或点了「整理成报告」，或规划判断出来）才走；基于对话里已经取到的事实写，不重新取数。output=answer 表示用户明确不要报告 */
+    const reportPack = skillPacks.get("report-writer") || null;
+    const wantsReport = Boolean(reportPack) && (body.output === "report" || (body.output !== "answer" && (reportSkill.detectReportIntent(question) || plannedOutput === "report")));
+    const reportTemplate = wantsReport ? reportSkill.pickTemplate(reportPack.spec.templates, body.template, question) : null;
+    const priorLedger = wantsReport ? evidenceLedger.loadMany(conversationTurns.map(turn => turn.requestId).filter(Boolean).slice(-4), scope) : [];
+    const reuseOnly = wantsReport && priorLedger.length > 0 && (body.output === "report" || reportSkill.wantsReuse(question));
+    if (wantsReport) packMeta = { ...packMeta, output: "report", template: reportTemplate?.id || "", basedOn: priorLedger.map(entry => entry.requestId) };
+    /* 本次怎么做的：用了哪个技能、输出什么形式、为什么；界面展示，也可以在界面上改 */
+    const plan = planner.buildPlan({
+      skill: registrySkill || { id: "", title: scene.label }, source: planSource, reason: isRouting ? routed?.reason : "你选择了该技能", confidence: planConfidence,
+      output: wantsReport ? "report" : "answer", template: reportTemplate?.id || "", alternatives: domainSkills
+    });
+    packMeta = { ...packMeta, plan };
     /* 做不到的需求（例如按商户拆分）：直接给出明确答复与替代方案，不调用模型 */
     const blockedBy = packGuards.find(guard => guard.mode === "block");
     if (blockedBy) {
       const blockMeta = {
         skill: skill.name, skillVersion: skill.version, scenario: scene.label, toolMode: `guard:${blockedBy.id}`, toolCalls: [],
         model, tablesUsed: [], deniedTables: denied, latencyMs: Date.now() - started, usage: null, requestId,
-        numericCheck: null, totalTokens: 0, ...packMeta
+        numericCheck: null, totalTokens: plannerTokens, ...packMeta
       };
-      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: blockMeta.toolMode, toolCalls: [], tablesUsed: [], usage: null, extraTokens: 0, latencyMs: blockMeta.latencyMs, numericCheck: null, status: "ok" });
+      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: blockMeta.toolMode, toolCalls: [], tablesUsed: [], usage: null, extraTokens: plannerTokens, latencyMs: blockMeta.latencyMs, numericCheck: null, status: "ok" });
       blockMeta.usageToday = { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) };
-      if (body.stream === true) {
-        res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache", Connection: "keep-alive", ...corsHeadersFor(res) });
-        res.write(`data: ${JSON.stringify({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [] })}\n\n`);
-        res.write(`data: ${JSON.stringify({ delta: blockedBy.answer })}\n\n`);
-        res.write(`data: ${JSON.stringify({ done: true, meta: blockMeta })}\n\n`);
+      if (streaming) {
+        openStream();
+        sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [], plan });
+        sseSend({ delta: blockedBy.answer });
+        sseSend({ done: true, meta: blockMeta });
+        clearInterval(sseHeartbeat);
         return res.end();
       }
       return sendJson(res, 200, { report: blockedBy.answer, meta: blockMeta });
     }
     const isAttributionRequest = targetSkillId === ATTRIBUTION_SKILL_ID || scenario === "attribution";
-    /* 报告是按需调用的输出 Skill：只有用户明确要报告（或点了「整理成报告」）才走；基于对话里已经取到的事实写，不重新取数 */
-    const reportPack = skillPacks.get("report-writer") || null;
-    const wantsReport = Boolean(reportPack) && (body.output === "report" || reportSkill.detectReportIntent(question));
-    const reportTemplate = wantsReport ? reportSkill.pickTemplate(reportPack.spec.templates, body.template, question) : null;
-    const priorLedger = wantsReport ? evidenceLedger.loadMany(conversationTurns.map(turn => turn.requestId).filter(Boolean).slice(-4), scope) : [];
-    const reuseOnly = wantsReport && priorLedger.length > 0 && (body.output === "report" || reportSkill.wantsReuse(question));
-    if (wantsReport) packMeta = { ...packMeta, output: "report", template: reportTemplate?.id || "", basedOn: priorLedger.map(entry => entry.requestId) };
     let evidence = buildEvidenceOverride || buildEvidence(evidenceTables, portalContext);
     if (reuseOnly) evidence = priorLedger.flatMap(entry => entry.evidence);
-    const reportAudit = wantsReport ? { output: "report", template: reportTemplate?.id || "", basedOn: priorLedger.length } : {};
+    const reportAudit = { plan: plan.source, planSkill: plan.skillId, ...(wantsReport ? { output: "report", template: reportTemplate?.id || "", basedOn: priorLedger.length } : {}) };
     /* 把这次取到的事实存进证据账本，之后「整理成报告」直接用，不用重新取数 */
     const saveLedger = answerText => evidenceLedger.save({
       requestId, scope, user, question, model, skill: skill.name, pack: packEntry?.id || "", resolvedTerms: packMeta.resolvedTerms,
@@ -2970,20 +3045,10 @@ async function handleRequest(req, res) {
     /* 工具取数：模型自己决定查什么，权限在工具里逐次校验；未调用工具或模型不支持时回到原证据方式 */
     let toolMode = "off";
     let toolCalls = [];
-    let toolTokens = 0;
-    /* 流式请求在工具阶段就打开 SSE，让界面实时看到「正在查询 / 调用了哪个工具」，而不是长时间无响应 */
-    const streaming = body.stream === true;
-    let sseSend = null, sseHeartbeat = null;
+    let toolTokens = plannerTokens;
     if (streaming) {
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-        ...corsHeadersFor(res)
-      });
-      sseSend = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
-      sseHeartbeat = setInterval(() => res.write(": hb\n\n"), 5000);
-      sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [], ...(wantsReport ? { output: "report", template: reportTemplate?.name || "" } : {}) });
+      openStream();
+      sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [], plan, ...(wantsReport ? { output: "report", template: reportTemplate?.name || "" } : {}) });
     }
     if (reuseOnly) {
       toolMode = `reuse:${priorLedger.length}`;

@@ -386,6 +386,33 @@ describe("浏览器端到端", () => {
     }
   }));
 
+  test("规划可见可改：没有关键词时模型判断技能，回答上方显示「本次用了什么」；点「换一个 → 改为生成报告」按报告重答", async t => withPage(t, async page => {
+    harness.relay.requests.length = 0;
+    harness.relay.toolScript = [];
+    harness.relay.report = body => (String(body.messages[0]?.content || "").includes("规划助手")
+      ? '{"skill":"equity-union-analyst","output":"answer","confidence":0.9,"reason":"问的是各部门回本，属于权益投放"}'
+      : body.messages[0].content.includes("报告撰写助手") ? "# 各部门回本报告\n\n## 概览\n\n各部门整体回本情况稳定，近 7 天自营 ROI 在 1 上下波动，没有需要立即处理的异常。\n\n## 口径\n\n时间窗为近 7 天，范围为全部部门。" : "各部门整体回本稳定，自营 ROI 约 1.0。");
+    try {
+      await login(page, "林金维");
+      await appVisible(page);
+      await page.getByPlaceholder(/输入分析问题/).fill("帮我看下各部门的回本情况怎么样");
+      await page.keyboard.press("Enter");
+      const plan = page.locator('[data-test="ai-plan"]').first();
+      await plan.waitFor({ timeout: 20000 });
+      assert.match(await plan.textContent(), /权益投放分析 · 回答/);
+      assert.match(await plan.textContent(), /问的是各部门回本，属于权益投放/);
+      assert.equal(await page.locator(".portal-vue-ai-report-card").count(), 0);
+
+      await plan.locator('[data-test="plan-change"]').click();
+      await page.locator('[data-test="plan-to-report"]').click();
+      await page.locator(".portal-vue-ai-report-card").first().waitFor({ timeout: 20000 });
+      const reportRequest = harness.relay.requests.filter(request => !request.tools && String(request.messages[0].content).includes("报告撰写助手")).at(-1);
+      assert.ok(reportRequest, "改为报告后应调用报告生成");
+    } finally {
+      harness.relay.report = "默认测试回答";
+    }
+  }));
+
   test("同源登录后令牌只在 httpOnly cookie 里：localStorage 与 document.cookie 都看不到，刷新后仍是登录态，退出后失效", async t => withPage(t, async page => {
     await login(page, "李雨航");
     await appVisible(page);

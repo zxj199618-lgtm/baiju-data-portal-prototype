@@ -623,6 +623,39 @@
         ],
         "maxUngrounded": 3
       }
+    },
+    {
+      "id": "plan-no-keyword",
+      "title": "规划：没有任何关键词，也能判断出是权益投放并按它的口径取数",
+      "question": "帮我看下各部门近 7 天的回本情况",
+      "user": "林金维",
+      "scenario": "general",
+      "skillId": "general-analyst",
+      "tables": [],
+      "expect": {
+        "plannedSkill": "equity-union-analyst",
+        "anyTool": [
+          "query_metric"
+        ],
+        "mustMatch": [
+          "(ROI|回本)"
+        ],
+        "maxUngrounded": 6
+      }
+    },
+    {
+      "id": "plan-report-intent",
+      "title": "规划：说「拿去给领导汇报」没有关键词，也要判断出要报告",
+      "question": "各部门近 7 天的情况，我要整理好拿去给领导汇报",
+      "user": "林金维",
+      "scenario": "general",
+      "skillId": "general-analyst",
+      "tables": [],
+      "expect": {
+        "plannedSkill": "equity-union-analyst",
+        "output": "report",
+        "maxUngrounded": 8
+      }
     }
   ]
 }
