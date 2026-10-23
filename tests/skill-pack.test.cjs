@@ -105,7 +105,8 @@ describe("给模型的上下文", () => {
   test("回答协议：答案优先、不写长报告；按角色调整关注点", () => {
     const optimizer = pack.buildAnswerProtocol(pack.roleForGroup("优化师"));
     assert.match(optimizer, /答案优先/);
-    assert.match(optimizer, /不要为了完整写成长报告/);
+    assert.match(optimizer, /不要写成报告/);
+    assert.match(optimizer, /300 字加一张表/);
     assert.match(optimizer, /可以马上执行的动作/);
     assert.match(pack.buildAnswerProtocol(pack.roleForGroup("数据分析师")), /SQL/);
     assert.match(pack.buildAnswerProtocol(pack.roleForGroup("运营组")), /业务语言/);

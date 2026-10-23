@@ -1264,10 +1264,10 @@ function installBuiltinPackages() {
           { key: "granularity", label: "汇总粒度", question: "结果按什么粒度汇总？", hint: "决定输出结果的分组维度，可同时选多个。", multiple: true, options: ["按天", "按周", "按渠道", "按计划", "不汇总"] }
         ]
       }, assetScope: "按业务线检索已授权的表与字段", responseContract: ["引用表和字段", "指标口径与时间范围", "证据限制"],
-      instructions: "你是观星台数据平台的数据查询与指标解答助手。未指定数据表时，先依据业务线范围检索用户有权限的表和字段。\n规则：\n1. 只基于提供的聚合统计、明细样例和字段注释分析，所有数字必须来自证据，不编造。\n2. 引用字段时用反引号；结论必须说明引用表、指标口径与时间范围。\n3. 样本明细有限时，基于聚合统计下结论，并标注「基于聚合口径」。\n4. 报告使用 Markdown，包含：一句话回答、引用数据资产、关键数据、口径说明、证据限制。" },
+      instructions: "你是观星台数据平台的数据查询与指标解答助手。未指定数据表时，先依据业务线范围检索用户有权限的表和字段。\n规则：\n1. 只基于提供的聚合统计、明细样例和字段注释分析，所有数字必须来自证据，不编造。\n2. 引用字段时用反引号；结论必须说明引用表、指标口径与时间范围。\n3. 样本明细有限时，基于聚合统计下结论，并标注「基于聚合口径」。\n4. 先用一两句话直接回答，再用必要的表格给出关键数据；引用表、指标口径、时间范围用一行说明，证据不足的地方说明限制。不要写成报告，也不要用「#」标题分章节。" },
     { id: "lineage-analyst", name: "数据血缘与变更影响 Skill", source: "maxcompute-warehouse-analyst", version: "v1.3-portal", scenarioKey: "lineage", icon: "🔗", title: "数据血缘与变更影响", displayDesc: "上下游依赖与影响面", sort: 20,
       clarification: { enabled: false, question: "", options: [] }, assetScope: "引用表、字段与下游依赖", responseContract: ["直接影响", "间接影响", "待核对项"],
-      instructions: "你是观星台数据平台的血缘分析助手。\n基于提供的表上下游血缘证据，输出 Markdown 报告：一、上游表清单；二、本表在数仓链路中的位置；三、下游影响面；四、变更风险与注意事项。\n只把明确给出的血缘写成确定关系；证据不足时标注「待核对，非确定引用」。" },
+      instructions: "你是观星台数据平台的血缘分析助手。\n基于提供的表上下游血缘证据回答：先一句话说明上下游关系和最大的影响面，再按需用短列表列出上游表、下游影响面和变更风险；不要写成报告。\n只把明确给出的血缘写成确定关系；证据不足时标注「待核对，非确定引用」。" },
     { id: "asset-qa", name: "数据资产问答 Skill", source: "asset-qa", version: "v1.0-portal", scenarioKey: "asset", icon: "📚", title: "数据资产问答", displayDesc: "有哪些表、口径、负责人", sort: 30,
       clarification: { enabled: false, question: "", options: [] }, assetScope: "全部已授权数据资产", responseContract: ["推荐表", "关键字段", "负责人"],
       instructions: "你是观星台数据平台的资产问答助手。\n基于提供的表资产清单回答用户问题，输出：相关表清单、各表口径说明、负责人、推荐用法。\n只推荐清单内的表；清单外的可能性标注「权限外，未纳入」。" },
@@ -1350,6 +1350,9 @@ function installBuiltinPackages() {
     } catch (error) { console.warn(`[skills] 工具脚本更新失败 ${file}：${error.message}`); }
   };
   defs.forEach(def => writeToolIfChanged(path.join(skillDir(def.id), "tools", "evidence.cjs"), EVIDENCE_TOOL_SOURCE));
+  // 各技能的 SKILL.md（提示词）同样以代码为准、每次启动对齐；只改文件，不动后台里配置过的追问 / 启停 / 灰度
+  defs.forEach(def => writeToolIfChanged(path.join(skillDir(def.id), "SKILL.md"), def.instructions));
+  writeToolIfChanged(path.join(skillDir(warehouseDef.id), "SKILL.md"), warehouseDef.instructions);
   writeToolIfChanged(path.join(skillDir(warehouseDef.id), "tools", "warehouse-evidence.cjs"), WAREHOUSE_EVIDENCE_TOOL);
   installSkillPacks(registry);
   ensureRouterSkill(registry);
@@ -2040,15 +2043,14 @@ const skills = {
           "1. 只基于提供的聚合统计、明细样例和字段注释分析，所有数字必须来自证据，不编造。",
           "2. 引用字段时用反引号；结论必须能追溯到证据中的具体数字。",
           "3. 样本明细有限时，基于聚合统计下结论，并标注「基于聚合口径」。",
-          "4. 报告使用 Markdown，包含：一句话结论、数据概览、关键发现（含具体数字与对比）、风险与建议、证据限制。"
+          "4. 先给一句话结论，再用必要的表格和 2 到 3 条关键发现（带具体数字与对比）说明；有风险或建议时简短写出，证据不足的地方说明限制。不要写成报告，也不要用「#」标题分章节。"
         ].join("\n")
       },
       lineage: {
         label: "数据血缘分析",
         system: [
           "你是观星台数据平台的血缘分析助手。",
-          "基于提供的表上下游血缘证据，输出 Markdown 报告：",
-          "一、上游表清单（表名、角色、关联方式）；二、本表在数仓链路中的位置；三、下游影响面；四、变更风险与注意事项。",
+          "基于提供的表上下游血缘证据回答：先一句话说明上下游关系和最大的影响面，再按需用短列表列出上游表、下游影响面和变更风险；不要写成报告。",
           "只把明确给出的血缘写成确定关系；证据不足时标注「待核对，非确定引用」。"
         ].join("\n")
       },
@@ -2966,7 +2968,9 @@ async function handleRequest(req, res) {
         planAttempts = decided.attempts || null;
         if (!decided.rejected) {
           routed = { skill: domainSkills.find(item => item.id === decided.skillId), reason: `智能判断：${decided.reason || "按问题内容判断"}` };
-          planSource = "model"; planConfidence = decided.confidence; plannedOutput = decided.output;
+          planSource = "model"; planConfidence = decided.confidence;
+          // 要不要出报告是更重的决定：模型判断必须很确定（≥0.8）才采用，否则按简短回答
+          plannedOutput = decided.output === "report" && decided.confidence >= 0.8 ? "report" : "answer";
         }
       } catch (error) { console.warn("[planner] 判断失败，沿用关键词结果：", error.message); }
     }

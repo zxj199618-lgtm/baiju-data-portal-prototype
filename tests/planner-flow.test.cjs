@@ -120,6 +120,14 @@ describe("规划层", () => {
     assert.equal(typed.done.meta.output, undefined, "即使文字里有「周报」，界面上明确选了回答就不出报告");
   });
 
+  test("规划判断「要报告」但把握不大（< 0.8）：按简短回答，不出报告", async () => {
+    reset('{"skill":"equity-union-analyst","output":"report","confidence":0.7,"reason":"可能要汇报"}');
+    const result = await auto("各部门这周的整体情况，要发给领导看");
+    assert.equal(result.done.meta.plan.source, "model");
+    assert.equal(result.done.meta.plan.output, "answer");
+    assert.equal(result.done.meta.output, undefined);
+  });
+
   test("手动指定输出形式 output=report 与规划无关：直接按报告", async () => {
     reset("{}");
     const result = await harness.analyzeStream("林金维", { skillId: PACK, scenario: "equity", toolMode: false, question: "近 7 天消耗", output: "report", template: "weekly" });

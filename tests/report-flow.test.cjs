@@ -134,6 +134,19 @@ describe("按需报告", () => {
     assert.match(userOf(finalStep), /表证据/);
   });
 
+  test("普通提问不会被写成报告：内置技能的提示词是答案优先，不再要求「Markdown 报告」", async () => {
+    reset();
+    for (const id of ["warehouse-analyst", "lineage-analyst"]) {
+      const text = fs.readFileSync(path.join(harness.dataDir, "skills", id, "SKILL.md"), "utf8");
+      assert.doesNotMatch(text, /Markdown 报告/, id);
+    }
+    const result = await harness.analyzeStream("林金维", { skillId: "warehouse-analyst", scenario: "data-query", toolMode: false, question: "帮我生成各个保险的数据对比" });
+    assert.equal(result.done.meta.output, undefined);
+    const system = harness.relay.requests.at(-1).messages.find(message => message.role === "system").content;
+    assert.doesNotMatch(system, /Markdown 报告|报告使用 Markdown/);
+    assert.match(system, /不要写成报告/);
+  });
+
   test("报告模板清单：登录即可读取", async () => {
     const templates = (await harness.call("GET", "/v1/report/templates", { token: await harness.tokenFor("谭嘉颖") })).data;
     assert.deepEqual(templates.map(item => item.id), ["general", "weekly", "review", "definition"]);

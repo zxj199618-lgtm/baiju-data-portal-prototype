@@ -968,8 +968,8 @@
               const allLines=String(full).split(/\r?\n/).map(line=>line.replace(/[#*`|>]/g,"").trim()).filter(Boolean);
               const lead=allLines.slice(0,2).join("；").slice(0,120);
               const trail=(allLines.slice(2).map(line=>line.replace(/^[-•\d、.\s]+/,"").trim()).filter(line=>line.length>6&&!line.startsWith("证据限制")&&!line.includes("证据限制")).pop()||"分析详情、指标口径与上下游血缘见报告全文。").slice(0,80);
-              // 只有篇幅长、带标题结构的内容才当「报告」归档成卡片；一般的回答（含表格与几段文字）直接显示在对话里
-              const isReport=!errorMsg&&!askFound&&(meta?.output==="report"?full.trim().length>=40:(full.trim().length>=900&&/^#{1,3}\s/m.test(full)));
+              // 只有用户明确要报告（服务端判定 output=report）才归档成报告卡片；其余回答不论长短都直接显示在对话里
+              const isReport=!errorMsg&&!askFound&&meta?.output==="report"&&full.trim().length>=40;
               liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
               liveMsg.requestId=meta?.requestId||"";
               if(liveMsg.requestId)this.loadReportTemplates();
