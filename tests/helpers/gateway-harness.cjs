@@ -44,6 +44,11 @@ function startFakeRelay(state) {
         if (req.method === "POST" && req.url.startsWith("/v1/chat/completions")) {
           const body = JSON.parse(raw || "{}");
           state.requests.push(body);
+          // 模拟上游不支持推理 / 思考参数（返回 400），用来验证网关会去掉参数重试
+          if (state.rejectThinking && (body.reasoning_effort || body.enable_thinking !== undefined || body.thinking)) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            return res.end(JSON.stringify({ error: { message: "Unsupported parameter: reasoning" } }));
+          }
           // 可编程的假模型：respond(body) 返回 { calls } 发起工具调用，或 { content } 直接作答；返回 undefined 则走默认逻辑
           const scripted = body.tools && typeof state.respond === "function" ? state.respond(body) : undefined;
           if (scripted?.calls) {

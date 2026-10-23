@@ -56,7 +56,9 @@
             "title": "口径与数据范围",
             "guide": "时间窗、范围、套餐、数据截止日期、草稿口径与风险提示。"
           }
-        ]
+        ],
+        "maxChars": 700,
+        "maxTables": 2
       },
       {
         "id": "weekly",
@@ -87,7 +89,9 @@
             "title": "口径说明",
             "guide": "时间窗、范围、口径限制与待确认项。"
           }
-        ]
+        ],
+        "maxChars": 900,
+        "maxTables": 2
       },
       {
         "id": "review",
@@ -118,7 +122,9 @@
             "title": "口径与数据缺口",
             "guide": "口径限制、缺失的数据、需要业务确认的事项。"
           }
-        ]
+        ],
+        "maxChars": 900,
+        "maxTables": 2
       },
       {
         "id": "definition",
@@ -145,7 +151,9 @@
             "title": "待确认",
             "guide": "草稿口径与需要数据团队确认的点。"
           }
-        ]
+        ],
+        "maxChars": 800,
+        "maxTables": 2
       }
     ]
   }

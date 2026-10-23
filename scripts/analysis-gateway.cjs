@@ -42,6 +42,7 @@ const skillPack = require("./skill-pack.cjs");
 const reportSkill = require("./report-skill.cjs");
 const planner = require("./planner.cjs");
 const followups = require("./followups.cjs");
+const { lightweightThinking } = require("./thinking-control.cjs");
 const { createEvidenceLedger } = require("./evidence-ledger.cjs");
 
 const RELAY_BASE_URL = process.env.RELAY_BASE_URL || "https://simindapi.modelgs.com";
@@ -1219,6 +1220,8 @@ function usableDomainSkills(user) {
 }
 
 const PLANNER_TIMEOUT_MS = 20000;
+/* 报告是把已有事实排版成文，不需要深度推理（推理 token 常占一半以上耗时）：默认压低 / 关闭模型思考；PORTAL_REPORT_THINKING=on 可恢复默认 */
+const REPORT_LIGHT_THINKING = process.env.PORTAL_REPORT_THINKING !== "on";
 const PLANNER_MODEL = process.env.PORTAL_PLANNER_MODEL || "";
 
 /** 关键词拿不准（落到兜底）时，用一次便宜的模型调用判断技能与输出形式；失败、超时或不够确定都返回 null，调用方保留原来的结果 */
@@ -3006,12 +3009,14 @@ async function handleRequest(req, res) {
     const answerRole = skillPack.roleForGroup(orgStore.groupOf(user));
     const answerProtocol = skillPack.buildAnswerProtocol(answerRole);
     const conversationContext = skillPack.buildConversationContext(conversationTurns);
-    let specContext = "", packGuards = [], packMeta = { role: answerRole };
+    let specContext = "", reportSpecContext = "", packGuards = [], packMeta = { role: answerRole };
     if (packEntry) {
       const carried = [...conversationTurns].reverse().find(turn => turn.terms?.length)?.terms || [];
       const resolution = skillPack.resolveTerms(packEntry.spec, question, carried);
       packGuards = skillPack.matchGuards(packEntry.spec, question);
       specContext = skillPack.buildSpecContext({ resolution, guards: packGuards, spec: packEntry.spec });
+      // 报告用的精简版：只留口径解析、歧义和提示，不带「缺省值」这类只对取数有用的内容
+      reportSpecContext = skillPack.buildSpecContext({ resolution, guards: packGuards, spec: { ...packEntry.spec, defaults: null } });
       packMeta = {
         role: answerRole, pack: packEntry.id,
         resolvedTerms: resolution.resolved.map(({ term, kind, means, carried: isCarried }) => ({ term, kind, means, carried: isCarried })),
@@ -3134,13 +3139,14 @@ async function handleRequest(req, res) {
       }
     }
     if (isAttributionRequest) attachAttribution(evidence, evidenceTables, question);
+    /* 报告的提示词要精简：事实已经在下面，不需要重复前几轮的回答摘要、场景名、数据表说明、门户配置说明和取数用的缺省值 */
     const prompt = [
-      conversationContext,
+      wantsReport ? skillPack.buildConversationContext(conversationTurns, { answers: false }) : conversationContext,
       `## 用户问题\n${question}`,
-      specContext,
-      `## 分析场景\n${scene.label}`,
-      referenced.length ? `## 引用数据表\n${referenced.join("、")}` : scopedCandidates.length ? `## 业务线范围\n${businessLine || "已选择业务线"}；候选数据表：${scopedCandidates.join("、")}` : "## 引用数据表\n（未指定，以下为当前用户权限内全部表的概览，深度分析请引用具体表）",
-      "## 门户配置说明\n表证据中的「枚举值」「字段备注」「标签配置」「维表数据样例」来自门户的表管理、字典管理、标签管理与维表管理配置，分析时优先据此解释编码取值与口径；与网关注释冲突时以门户配置为准。",
+      wantsReport ? reportSpecContext : specContext,
+      wantsReport ? "" : `## 分析场景\n${scene.label}`,
+      wantsReport ? "" : referenced.length ? `## 引用数据表\n${referenced.join("、")}` : scopedCandidates.length ? `## 业务线范围\n${businessLine || "已选择业务线"}；候选数据表：${scopedCandidates.join("、")}` : "## 引用数据表\n（未指定，以下为当前用户权限内全部表的概览，深度分析请引用具体表）",
+      wantsReport ? "" : "## 门户配置说明\n表证据中的「枚举值」「字段备注」「标签配置」「维表数据样例」来自门户的表管理、字典管理、标签管理与维表管理配置，分析时优先据此解释编码取值与口径；与网关注释冲突时以门户配置为准。",
       denied.length ? `## 权限提示\n以下表未授权，未纳入分析：${denied.join("、")}` : "",
       wantsReport && priorLedger.length ? reportSkill.buildFactsSection(priorLedger) : "",
       reuseOnly ? "" : `## 表证据（唯一事实来源，所有数字必须来自这里）\n${JSON.stringify(wantsReport && priorLedger.length ? evidence.filter(item => !priorLedger.some(entry => entry.evidence.includes(item))) : evidence, null, 1)}`
@@ -3172,6 +3178,7 @@ async function handleRequest(req, res) {
       const modelReasoning = modelCapabilityFor(model).reasoning;
       if (REASONING_LEVELS.includes(reasoningEffort) && modelReasoning.levels.includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
       if (Number.isFinite(maxTokens) && maxTokens >= 256) reasoningOptions.max_completion_tokens = Math.floor(maxTokens);
+      if (wantsReport && REPORT_LIGHT_THINKING) Object.assign(reasoningOptions, lightweightThinking(model, modelReasoning));
       let result = await relayChatStream(model, { messages, ...reasoningOptions }, evt => {
         if (evt.delta) send({ delta: evt.delta });
         if (evt.reasoning) send({ reasoning: evt.reasoning });
@@ -3195,7 +3202,7 @@ async function handleRequest(req, res) {
         done: true,
         meta: {
           skill: skill.name, skillVersion: skill.version, scenario: scene.label, toolMode, toolCalls,
-          model, reasoningEffort: reasoningOptions.reasoning_effort || "default",
+          model, reasoningEffort: reasoningOptions.reasoning_effort || (reasoningOptions.enable_thinking === false || reasoningOptions.thinking ? "off" : "default"),
           maxTokens: reasoningOptions.max_completion_tokens || null,
           tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名),
           deniedTables: denied, latencyMs: Date.now() - started,
@@ -3212,6 +3219,7 @@ async function handleRequest(req, res) {
     const modelReasoning = modelCapabilityFor(model).reasoning;
     if (REASONING_LEVELS.includes(reasoningEffort) && modelReasoning.levels.includes(reasoningEffort)) reasoningOptions.reasoning_effort = reasoningEffort;
     if (Number.isFinite(maxTokens) && maxTokens >= 256) reasoningOptions.max_completion_tokens = Math.floor(maxTokens);
+    if (wantsReport && REPORT_LIGHT_THINKING) Object.assign(reasoningOptions, lightweightThinking(model, modelReasoning));
     const hasReasoningOptions = Object.keys(reasoningOptions).length > 0;
     try {
       let result = await relayChat(model, { messages, ...reasoningOptions });
@@ -3232,7 +3240,7 @@ async function handleRequest(req, res) {
         meta: {
           skill: skill.name, skillVersion: skill.version, scenario: scene.label, toolMode, toolCalls,
           model, skillRuntime: registrySkill ? ("package:" + registrySkill.id) : "builtin", skillFallback: runtimeError || "",
-          reasoningEffort: hasReasoningOptions ? (reasoningOptions.reasoning_effort || "default") : "default",
+          reasoningEffort: reasoningOptions.reasoning_effort || (reasoningOptions.enable_thinking === false || reasoningOptions.thinking ? "off" : "default"),
           maxTokens: reasoningOptions.max_completion_tokens || null,
           tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名),
           deniedTables: denied, latencyMs: Date.now() - started,

@@ -47,22 +47,68 @@ function buildTemplateSection(template) {
   return [
     `## 报告模板：${template.name}`,
     "按下面的章节组织（没有内容的章节直接省略，不要写「暂无」）：",
-    ...template.sections.map((section, index) => `${index + 1}. ${section.title}：${section.guide}`)
-  ].join("\n");
+    ...template.sections.map((section, index) => `${index + 1}. ${section.title}：${section.guide}`),
+    template.maxChars ? `篇幅：全文不超过 ${template.maxChars} 字，表格最多 ${template.maxTables || 2} 个，每个章节只写最重要的 2 到 3 点。` : ""
+  ].filter(Boolean).join("\n");
 }
 
-/** 把已取得的事实（来自证据账本或本次取数）整理成给模型的事实段：每次取数一块，带问题、口径词和结果 */
+/**
+ * 给模型看的事实要精简：去掉每次取数都重复的长说明（口径说明、负责人、读法）、空值，
+ * 把重复的口径状态和提示合并成一段放在最后。数字原样保留（账本里存的原件不变，数字回查仍用原件）。
+ */
+function compactEvidence(evidence) {
+  const caveats = new Set();
+  const draftMetrics = new Set();
+  const clean = value => {
+    if (Array.isArray(value)) return value.map(clean).filter(item => item !== undefined);
+    if (value && typeof value === "object") {
+      const out = {};
+      for (const [key, inner] of Object.entries(value)) {
+        const cleaned = clean(inner);
+        if (cleaned === undefined || cleaned === null || cleaned === "" || (Array.isArray(cleaned) && !cleaned.length) || (typeof cleaned === "object" && !Array.isArray(cleaned) && !Object.keys(cleaned).length)) continue;
+        out[key] = cleaned;
+      }
+      return out;
+    }
+    return value;
+  };
+  const items = (Array.isArray(evidence) ? evidence : []).map(item => {
+    const result = item && item.结果 && typeof item.结果 === "object" && !Array.isArray(item.结果) ? { ...item.结果 } : item?.结果;
+    if (result && typeof result === "object" && !Array.isArray(result)) {
+      if (typeof result.提示 === "string") { caveats.add(result.提示); delete result.提示; }
+      delete result.读法;
+      if (result.口径 && typeof result.口径 === "object") {
+        const scope = { ...result.口径 };
+        if (/草稿/.test(String(scope.状态 || ""))) draftMetrics.add(result.名称 || result.指标 || "");
+        delete scope.说明; delete scope.负责人; delete scope.状态;
+        result.口径 = scope;
+      }
+    }
+    return clean({ ...item, 结果: result });
+  });
+  return { items, caveats: [...caveats], draftMetrics: [...draftMetrics].filter(Boolean) };
+}
+
+/** 把已取得的事实（来自证据账本或本次取数）整理成给模型的事实段：每次取数一块，带问题、口径词和精简后的结果，最后合并口径提示 */
 function buildFactsSection(entries) {
   if (!entries?.length) return "";
-  return [
-    "## 已核实的取数事实（报告里的数字只能来自这里）",
-    ...entries.map((entry, index) => [
+  const caveats = new Set();
+  const drafts = new Set();
+  const blocks = entries.map((entry, index) => {
+    const compact = compactEvidence(entry.evidence);
+    compact.caveats.forEach(item => caveats.add(item));
+    compact.draftMetrics.forEach(item => drafts.add(item));
+    return [
       `### 第 ${index + 1} 次取数：${entry.question}`,
       entry.resolvedTerms?.length ? `口径词：${entry.resolvedTerms.map(item => `${item.term}（${item.means}）`).join("；")}` : "",
-      entry.answer ? `当时的回答摘要：${entry.answer}` : "",
-      `事实：${JSON.stringify(entry.evidence)}`
-    ].filter(Boolean).join("\n"))
-  ].join("\n\n");
+      `事实：${JSON.stringify(compact.items)}`
+    ].filter(Boolean).join("\n");
+  });
+  const notes = [
+    ...[...caveats].map(item => `- ${item}`),
+    drafts.size ? `- 草稿口径（待数据团队确认）：${[...drafts].join("、")}` : ""
+  ].filter(Boolean);
+  return ["## 已核实的取数事实（报告里的数字只能来自这里）", ...blocks, notes.length ? `### 口径提示（对所有事实适用）\n${notes.join("\n")}` : ""].filter(Boolean).join("\n\n");
 }
 
 /** 报告的写作要求（替代对话用的回答协议）；rules 是 report-writer 的 SKILL.md */
@@ -75,4 +121,4 @@ function buildReportSystem(rules, template) {
   ].filter(Boolean).join("\n\n");
 }
 
-module.exports = { detectReportIntent, wantsReuse, pickTemplate, buildTemplateSection, buildFactsSection, buildReportSystem };
+module.exports = { detectReportIntent, wantsReuse, pickTemplate, buildTemplateSection, buildFactsSection, buildReportSystem, compactEvidence };

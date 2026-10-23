@@ -201,10 +201,10 @@ function sanitizeConversation(input, { maxTurns = 3, maxAnswerChars = 600 } = {}
   })).filter(turn => turn.question);
 }
 
-function buildConversationContext(turns) {
+function buildConversationContext(turns, { answers = true } = {}) {
   if (!turns?.length) return "";
   return ["## 对话上下文（用户在追问时，沿用这里已确定的时间、范围、筛选和指标；只有用户明确改变时才更换）",
-    ...turns.map((turn, index) => `第 ${index + 1} 轮 用户：${turn.question}${turn.answer ? `\n第 ${index + 1} 轮 回答摘要：${turn.answer}` : ""}`)].join("\n");
+    ...turns.map((turn, index) => `第 ${index + 1} 轮 用户：${turn.question}${answers && turn.answer ? `\n第 ${index + 1} 轮 回答摘要：${turn.answer}` : ""}`)].join("\n");
 }
 
 module.exports = {

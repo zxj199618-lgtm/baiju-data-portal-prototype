@@ -130,6 +130,12 @@ docker compose exec analysis-gateway node gateway-auth.cjs set-password 曾祥�
 - 界面上回答上方显示「本次：权益投放分析 · 回答 · 理由」，点「换一个」可以**改用别的技能重新回答**，或**在回答与报告之间切换**（改成报告时沿用对话里已有的事实）。用户手动选择了技能时不显示。
 - 请求参数：`planner: false` 关闭判断；`output: "answer"` 明确不要报告（优先于文字里的「周报」等说法）；`output: "report"` 明确要报告。
 
+### 报告提速
+
+- 报告慢的主因不是提示词，而是**模型的思考**：线上实测周报输入只有约 5,000 tokens，但输出里 78% 是推理 token。写报告是把已有事实排版成文，所以**生成报告时默认压低 / 关闭模型思考**（`scripts/thinking-control.cjs`）：声明了 low 档的模型用 `reasoning_effort=low`，千问用 `enable_thinking=false`，智谱 / Kimi / DeepSeek / 豆包等用 `thinking: {type: "disabled"}`，不认识的模型不改变行为；上游拒绝这些参数时自动去掉重试。`PORTAL_REPORT_THINKING=on` 可恢复默认思考。`meta.reasoningEffort` 会显示 `low` / `off`。
+- **限定篇幅**：每个模板有字数上限（通用 700、周报 900、复盘 900、口径说明 800，表格最多 2 个），写进提示词——输出越短越快。
+- **精简提示词与事实**：报告提示词不再带场景名、数据表说明、门户配置说明、取数用的缺省值和前几轮的回答摘要；事实去掉每次取数都重复的口径说明 / 负责人 / 读法和空值，重复的口径提示与草稿口径合并成一段（账本里存的原件不变，数字回查仍用原件）。
+
 ### 可组合的工具：归因与血缘
 
 - 工具箱里除了取数（`list_metrics` / `query_metric`），还有 **`attribute_change`**（指标为什么变了）和 **`get_lineage`**（上下游血缘），在任何技能的对话里都能被模型按需调用，和权益口径等知识包组合使用。
