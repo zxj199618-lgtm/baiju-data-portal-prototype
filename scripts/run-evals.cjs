@@ -4,7 +4,7 @@
  *
  * 用法：
  *   EVAL_PASSWORD=<账号密码> node scripts/run-evals.cjs --base http://localhost:8787 --models gpt-5.6-sol,gpt-6-sol
- *   选项：--cases evals/cases.json  --filter <id 子串>  --out evals/results  --baseline evals/baseline.json
+ *   选项：--cases evals/cases.json  --filter <id 子串>  --out evals/results  --baseline evals/baseline.json  --loop-thinking off|on（取数循环是否关闭思考，对比评测用）
  *   退出码：有用例失败、或相对基线出现回退（基线里通过、现在失败）时为 1。
  *
  * 判分尽量不靠字符串：「标准答案」由平台按口径算出（POST /v1/metrics/query，用有权限的管理员账号取），
@@ -74,7 +74,7 @@ async function checkCase({ testCase, defaults, response, elapsedMs, truth }) {
 /**
  * @param {{ baseUrl: string, password: string, cases: object, models?: string[], filter?: string, truthUser?: string, log?: Function }} options
  */
-async function runEvals({ baseUrl, password, cases, models = [], filter = "", truthUser = "曾祥竞", log = () => {} }) {
+async function runEvals({ baseUrl, password, cases, models = [], filter = "", truthUser = "曾祥竞", loopThinking = "", log = () => {} }) {
   const defaults = cases.defaults || {};
   const tokens = {};
   const login = async name => {
@@ -112,7 +112,7 @@ async function runEvals({ baseUrl, password, cases, models = [], filter = "", tr
         response = await http(baseUrl, "/v1/analyze", {
           method: "POST",
           token: await login(user),
-          body: { question: testCase.question, scenario: testCase.scenario || defaults.scenario || "single", skillId: testCase.skillId || "", tables: testCase.tables || [], conversation: testCase.conversation || [], model, stream: false }
+          body: { question: testCase.question, scenario: testCase.scenario || defaults.scenario || "single", skillId: testCase.skillId || "", tables: testCase.tables || [], conversation: testCase.conversation || [], model, stream: false, ...(loopThinking ? { loopThinking } : {}) }
         });
       } catch (error) {
         response = { status: 0, data: { error: error.message } };
@@ -165,6 +165,7 @@ async function main() {
     cases: JSON.parse(fs.readFileSync(casesFile, "utf8")),
     models: args.models ? args.models.split(",").map(item => item.trim()).filter(Boolean) : [],
     filter: args.filter || "",
+    loopThinking: args["loop-thinking"] || "",
     truthUser: process.env.EVAL_ADMIN || "曾祥竞",
     log: console.log
   });

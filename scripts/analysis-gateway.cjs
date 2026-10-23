@@ -829,7 +829,7 @@ function providerSupportsTools(modelId) {
   return Boolean(route) && !isAnthropicProtocol(route.provider.protocol);
 }
 
-async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEvent = () => {}, systemExtra = "", contextBlock = "", defaultTables = [], maxSteps = TOOL_MAX_STEPS, maxCalls = TOOL_MAX_CALLS }) {
+async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEvent = () => {}, systemExtra = "", contextBlock = "", defaultTables = [], maxSteps = TOOL_MAX_STEPS, maxCalls = TOOL_MAX_CALLS, lightThinking = {} }) {
   const messages = [
     { role: "system", content: `你是观星台数据分析助手。需要数据时调用工具：先用 search_tables 找表，用 get_schema 看口径。问业务指标（消耗、CPA、点击率、ROI 等）时优先用 list_metrics 与 query_metric，口径由平台统一定义；只有表里没有定义口径的数值字段才用 run_metric。问「为什么涨 / 跌 / 变了」时，先用 query_metric 确认总体变化，再用 attribute_change 定位原因（结构效应、效率效应与各组贡献由平台算好，直接解释）；问上下游、变更影响时用 get_lineage。只引用工具返回的数字；工具返回错误时如实说明，不要猜测。数据足够后停止调用工具。问题缺少关键信息（口径、时间范围、业务线、拆解维度）且无法从数据推断时，调用 ask_user 提问，不要猜测。${systemExtra ? `\n\n${systemExtra}` : ""}` },
     { role: "user", content: `${contextBlock ? `${contextBlock}\n\n` : ""}## 用户问题\n${question}\n## 提示\n${hints.length ? `用户指定的数据表：${hints.join("、")}` : defaultTables.length ? `本 Skill 默认使用的数据表：${defaultTables.join("、")}，无需再搜索，直接用 list_metrics / query_metric 取数。` : "用户未指定数据表，请先搜索候选表。"}` }
@@ -838,7 +838,9 @@ async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEven
   let calls = 0, steps = 0, tokens = 0;
   while (steps < maxSteps) {
     steps += 1;
-    const result = await relayChat(model, { messages, tools: toolkit.schemas, tool_choice: "auto" });
+    let result = await relayChat(model, { messages, tools: toolkit.schemas, tool_choice: "auto", ...lightThinking });
+    // 上游不认识「关闭思考」的参数：去掉重试一次，之后的步骤也不再带
+    if (!result.ok && Object.keys(lightThinking).length) { tokens += tokensOf(result.data?.usage); lightThinking = {}; result = await relayChat(model, { messages, tools: toolkit.schemas, tool_choice: "auto" }); }
     tokens += tokensOf(result.data?.usage);
     if (!result.ok) return { used: false, reason: `工具调用不可用（${result.status}）`, tokens };
     const message = result.data?.choices?.[0]?.message;
@@ -1222,6 +1224,8 @@ function usableDomainSkills(user) {
 const PLANNER_TIMEOUT_MS = 20000;
 /* 报告是把已有事实排版成文，不需要深度推理（推理 token 常占一半以上耗时）：默认压低 / 关闭模型思考；PORTAL_REPORT_THINKING=on 可恢复默认 */
 const REPORT_LIGHT_THINKING = process.env.PORTAL_REPORT_THINKING !== "on";
+/* 取数循环（选工具、取数）同样不需要深度推理：每一步都思考会让一次提问多花几十秒。PORTAL_LOOP_THINKING=off 关闭（评测对比后再默认开启）；请求里可用 loopThinking 覆盖，评测用 */
+const LOOP_LIGHT_THINKING_DEFAULT = process.env.PORTAL_LOOP_THINKING === "off";
 const PLANNER_MODEL = process.env.PORTAL_PLANNER_MODEL || "";
 
 /** 关键词拿不准（落到兜底）时，用一次便宜的模型调用判断技能与输出形式；失败、超时或不够确定都返回 null，调用方保留原来的结果 */
@@ -3096,6 +3100,7 @@ async function handleRequest(req, res) {
         loop = await runAnalysisToolLoop({
           model, question, hints: referenced, toolkit, onToolEvent: ev => { if (sseSend) sseSend({ tool: ev }); },
           systemExtra: loopSystemExtra, contextBlock: conversationContext, defaultTables: packTables,
+          lightThinking: (body.loopThinking ? body.loopThinking === "off" : LOOP_LIGHT_THINKING_DEFAULT) ? lightweightThinking(model, modelCapabilityFor(model).reasoning) : {},
           ...(packEntry ? { maxSteps: 6, maxCalls: 12 } : {})
         });
       } catch (error) {

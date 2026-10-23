@@ -118,4 +118,32 @@ describe("报告请求本身", () => {
       harness.relay.report = "默认测试回答";
     }
   });
+
+  test("取数循环：loopThinking=off 时每一步带「轻量思考」参数；默认不带；上游拒绝时去掉重试且之后的步骤不再带", async () => {
+    harness.relay.requests.length = 0;
+    harness.relay.toolScript = [call("query_metric", { metric: "cost", table: TABLE })];
+    await harness.analyzeStream("林金维", { skillId: PACK, scenario: "equity", question: "近 7 天消耗", reasoningEffort: "high", loopThinking: "off" });
+    const lightStep = harness.relay.requests.find(request => request.tools);
+    assert.ok(lightStep.reasoning_effort === "low" || lightStep.enable_thinking === false || lightStep.thinking?.type === "disabled", JSON.stringify(lightStep.reasoning_effort));
+
+    harness.relay.requests.length = 0;
+    harness.relay.toolScript = [call("query_metric", { metric: "cost", table: TABLE })];
+    await harness.analyzeStream("林金维", { skillId: PACK, scenario: "equity", question: "近 7 天消耗" });
+    const defaultStep = harness.relay.requests.find(request => request.tools);
+    assert.equal(defaultStep.enable_thinking, undefined);
+    assert.equal(defaultStep.reasoning_effort, undefined, "默认保持原来的行为");
+
+    harness.relay.requests.length = 0;
+    harness.relay.rejectThinking = true;
+    harness.relay.toolScript = [call("query_metric", { metric: "cost", table: TABLE })];
+    try {
+      const result = await harness.analyzeStream("林金维", { skillId: PACK, scenario: "equity", question: "近 7 天消耗", loopThinking: "off" });
+      assert.equal(result.status, 200);
+      assert.ok(result.done.meta.toolCalls.some(item => item.tool === "query_metric" && item.ok), "被拒绝后重试，工具仍然被调用");
+      const toolRequests = harness.relay.requests.filter(request => request.tools);
+      assert.ok(toolRequests.length >= 2 && toolRequests.at(-1).reasoning_effort === undefined && toolRequests.at(-1).enable_thinking === undefined);
+    } finally {
+      harness.relay.rejectThinking = false;
+    }
+  });
 });
