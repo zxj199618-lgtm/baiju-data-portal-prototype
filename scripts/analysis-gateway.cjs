@@ -831,7 +831,7 @@ function providerSupportsTools(modelId) {
 
 async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEvent = () => {}, systemExtra = "", contextBlock = "", defaultTables = [], maxSteps = TOOL_MAX_STEPS, maxCalls = TOOL_MAX_CALLS, lightThinking = {} }) {
   const messages = [
-    { role: "system", content: `你是观星台数据分析助手。需要数据时调用工具：先用 search_tables 找表，用 get_schema 看口径。问业务指标（消耗、CPA、点击率、ROI 等）时优先用 list_metrics 与 query_metric，口径由平台统一定义；只有表里没有定义口径的数值字段才用 run_metric。问「为什么涨 / 跌 / 变了」时，先用 query_metric 确认总体变化，再用 attribute_change 定位原因（结构效应、效率效应与各组贡献由平台算好，直接解释）；问上下游、变更影响时用 get_lineage。只引用工具返回的数字；工具返回错误时如实说明，不要猜测。数据足够后停止调用工具。问题缺少关键信息（口径、时间范围、业务线、拆解维度）且无法从数据推断时，调用 ask_user 提问，不要猜测。${systemExtra ? `\n\n${systemExtra}` : ""}` },
+    { role: "system", content: `你是观星台数据分析助手。需要数据时调用工具：先用 search_tables 找表，用 get_schema 看口径。问业务指标（消耗、CPA、点击率、ROI 等）时优先用 list_metrics 与 query_metric，口径由平台统一定义；只有表里没有定义口径的数值字段才用 run_metric。问「为什么涨 / 跌 / 变了」时，先用 query_metric 确认总体变化，再用 attribute_change 定位原因（结构效应、效率效应与各组贡献由平台算好，直接解释）；问上下游、变更影响时用 get_lineage。问题里只要涉及具体数值（多少、是多少、几个、多高、怎么样、对比），必须先调用工具取数再回答，不能只凭口径说明或记忆作答；同一句话里既问数值又问概念（例如「一共多少、是去重的吗」），也要先取数，再顺带解释概念。只引用工具返回的数字；工具返回错误时如实说明，不要猜测。数据足够后停止调用工具。问题缺少关键信息（口径、时间范围、业务线、拆解维度）且无法从数据推断时，调用 ask_user 提问，不要猜测。${systemExtra ? `\n\n${systemExtra}` : ""}` },
     { role: "user", content: `${contextBlock ? `${contextBlock}\n\n` : ""}## 用户问题\n${question}\n## 提示\n${hints.length ? `用户指定的数据表：${hints.join("、")}` : defaultTables.length ? `本 Skill 默认使用的数据表：${defaultTables.join("、")}，无需再搜索，直接用 list_metrics / query_metric 取数。` : "用户未指定数据表，请先搜索候选表。"}` }
   ];
   const evidence = [];
