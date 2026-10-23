@@ -146,4 +146,16 @@ describe("报告请求本身", () => {
       harness.relay.rejectThinking = false;
     }
   });
+
+  test("loopThinking=after-first：第一步保留思考，之后的步骤才带轻量思考参数", async () => {
+    harness.relay.requests.length = 0;
+    harness.relay.toolScript = [call("list_metrics", {}), call("query_metric", { metric: "cost", table: TABLE })];
+    await harness.analyzeStream("林金维", { skillId: PACK, scenario: "equity", question: "近 7 天消耗", reasoningEffort: "high", loopThinking: "after-first" });
+    const steps = harness.relay.requests.filter(request => request.tools);
+    assert.ok(steps.length >= 3, `循环至少三步，实际 ${steps.length}`);
+    const light = request => request.reasoning_effort === "low" || request.enable_thinking === false || request.thinking?.type === "disabled";
+    assert.equal(light(steps[0]), false, "第一步不带");
+    assert.equal(light(steps[1]), true, "第二步起带");
+    assert.equal(light(steps[2]), true);
+  });
 });
