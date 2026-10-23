@@ -119,7 +119,7 @@ describe("报告请求本身", () => {
     }
   });
 
-  test("取数循环：loopThinking=off 时每一步带「轻量思考」参数；默认不带；上游拒绝时去掉重试且之后的步骤不再带", async () => {
+  test("取数循环：loopThinking=off 时每一步带「轻量思考」参数；on 不带；上游拒绝时去掉重试且之后的步骤不再带", async () => {
     harness.relay.requests.length = 0;
     harness.relay.toolScript = [call("query_metric", { metric: "cost", table: TABLE })];
     await harness.analyzeStream("林金维", { skillId: PACK, scenario: "equity", question: "近 7 天消耗", reasoningEffort: "high", loopThinking: "off" });
@@ -128,10 +128,10 @@ describe("报告请求本身", () => {
 
     harness.relay.requests.length = 0;
     harness.relay.toolScript = [call("query_metric", { metric: "cost", table: TABLE })];
-    await harness.analyzeStream("林金维", { skillId: PACK, scenario: "equity", question: "近 7 天消耗" });
+    await harness.analyzeStream("林金维", { skillId: PACK, scenario: "equity", question: "近 7 天消耗", loopThinking: "on" });
     const defaultStep = harness.relay.requests.find(request => request.tools);
     assert.equal(defaultStep.enable_thinking, undefined);
-    assert.equal(defaultStep.reasoning_effort, undefined, "默认保持原来的行为");
+    assert.equal(defaultStep.reasoning_effort, undefined, "on 模式保持原来的行为");
 
     harness.relay.requests.length = 0;
     harness.relay.rejectThinking = true;

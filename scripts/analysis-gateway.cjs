@@ -1225,10 +1225,10 @@ const PLANNER_TIMEOUT_MS = 20000;
 /* 报告是把已有事实排版成文，不需要深度推理（推理 token 常占一半以上耗时）：默认压低 / 关闭模型思考；PORTAL_REPORT_THINKING=on 可恢复默认 */
 const REPORT_LIGHT_THINKING = process.env.PORTAL_REPORT_THINKING !== "on";
 /* 取数循环（选工具、取数）的后续步骤不需要深度推理：每一步都思考会让一次提问多花几十秒。
-   PORTAL_LOOP_THINKING：on（默认，不改变行为）/ after-first（第一步保留思考、决定怎么查之后的步骤关闭）/ off（每一步都关闭，
+   PORTAL_LOOP_THINKING：after-first（默认：第一步保留思考、决定怎么查之后的步骤关闭）/ on（每一步都保留思考，即原来的行为）/ off（每一步都关闭，
    线上评测里会让「该不该先取数、两种口径都查」这类指令遵循略有下降，不建议）。请求里可用 loopThinking 覆盖，评测用 */
 const LOOP_THINKING_MODES = ["on", "after-first", "off"];
-const LOOP_THINKING_DEFAULT = LOOP_THINKING_MODES.includes(process.env.PORTAL_LOOP_THINKING) ? process.env.PORTAL_LOOP_THINKING : "on";
+const LOOP_THINKING_DEFAULT = LOOP_THINKING_MODES.includes(process.env.PORTAL_LOOP_THINKING) ? process.env.PORTAL_LOOP_THINKING : "after-first";
 const PLANNER_MODEL = process.env.PORTAL_PLANNER_MODEL || "";
 
 /** 关键词拿不准（落到兜底）时，用一次便宜的模型调用判断技能与输出形式；失败、超时或不够确定都返回 null，调用方保留原来的结果 */
