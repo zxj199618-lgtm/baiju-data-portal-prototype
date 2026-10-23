@@ -37,6 +37,11 @@ describe("数字回查（单元）", () => {
     assert.deepEqual(result.ungrounded, []);
   });
 
+  test("日期区间写法（8.25-8.31、8.25～8.31）不当数字；单独的小数仍然检查", () => {
+    const result = checkNumericGrounding("近 7 天（8.25-8.31）对比前 7 天（8.18～8.24），ROI 为 8.25。", evidence, "");
+    assert.deepEqual(result.ungrounded, ["8.25"]);
+  });
+
   test("个位数计数（3 个指标、第 2 步）不参与校验，多位数或带小数的仍然检查", () => {
     const result = checkNumericGrounding("共 3 个指标、分 4 步，第 2 步最关键；另有 12 个异常、1.5 次波动。", evidence, "");
     assert.deepEqual(result.ungrounded, ["12", "1.5"]);
