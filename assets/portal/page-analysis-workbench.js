@@ -197,7 +197,7 @@
                     <el-button v-for="text in starterSuggests" :key="text" size="small" round data-test="ai-starter" @click="input = text">{{ text }}</el-button>
                   </div>
                 </div>
-                <div v-for="(msg, index) in activeSession.messages" :key="index" v-show="!isEmptyMsg(msg)" class="portal-vue-ai-message" :class="[msg.role, { 'is-ask': !!msg.ask }]">
+                <template v-for="(msg, index) in activeSession.messages" :key="index"><div v-if="msg.contextReset" class="portal-vue-ai-context-reset" data-test="ai-context-reset"><span>已切换到「{{ msg.contextReset.to.join("、") }}」，之前针对「{{ msg.contextReset.from.join("、") }}」的对话不再作为上下文</span></div><div v-show="!isEmptyMsg(msg)" class="portal-vue-ai-message" :class="[msg.role, { 'is-ask': !!msg.ask }]">
                   <span v-if="msg.role === 'assistant'" class="portal-vue-ai-avatar">灵</span>
                   <div v-if="msg.ask" class="portal-vue-ai-ask" :class="'is-' + msg.ask.status">
                     <div class="portal-vue-ai-ask-head">
@@ -250,7 +250,7 @@
                     <template v-else-if="msg.html"><div v-if="msg.plan && msg.plan.source && msg.plan.source !== 'manual' && !msg.streaming" class="portal-vue-ai-plan" data-test="ai-plan"><span class="portal-vue-ai-plan-label">本次</span><span class="portal-vue-ai-plan-chip">{{ msg.plan.skillName || '通用分析' }} · {{ msg.plan.output === 'report' ? '报告' : '回答' }}</span><span class="portal-vue-ai-plan-reason">{{ planReasonText(msg.plan) }}</span><el-dropdown trigger="click" @command="command => changePlan(msg, command)"><button type="button" class="portal-vue-ai-plan-change" data-test="plan-change">换一个</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="alt in (msg.plan.alternatives || [])" :key="alt.id" :command="'skill:' + alt.id">改用「{{ alt.name }}」重新回答</el-dropdown-item><el-dropdown-item v-if="msg.plan.output !== 'report'" command="output:report" :divided="!!(msg.plan.alternatives || []).length" data-test="plan-to-report">改为生成报告</el-dropdown-item><el-dropdown-item v-else command="output:answer" :divided="!!(msg.plan.alternatives || []).length">改为简短回答</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div><div class="portal-vue-ai-report-body" v-html="msg.html"></div><p v-if="msg.meta" class="portal-vue-ai-report-meta">{{ msg.meta }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button><el-dropdown trigger="click" @command="templateId => requestReport(msg, templateId)"><button type="button" class="portal-vue-ai-make-report" data-test="make-report" title="把这段对话里已核实的数据整理成报告">📝 整理成报告</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="template in reportTemplates" :key="template.id" :command="template.id" :data-test="'report-template-' + template.id">{{ template.name }}<span class="portal-vue-ai-make-report-desc">{{ template.when }}</span></el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><button v-for="text in msg.suggestions" :key="text" type="button" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</button></div></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
-                </div>
+                </div></template>
                 <div v-if="thinking" class="portal-vue-ai-message assistant"><span class="portal-vue-ai-avatar">灵</span><div class="portal-vue-ai-bubble portal-vue-ai-thinking"><p class="portal-vue-muted">正在基于你有权限的数据表进行分析<i></i><i></i><i></i></p></div></div>
               </div>
               <div v-if="!assetView" class="portal-vue-ai-input">
@@ -940,6 +940,7 @@
                   liveMsg.resolved=Array.isArray(evt.resolved)?evt.resolved:[];
                   liveMsg.skillId=evt.routedSkill?.id||this.activeSkill?.id||"";
                   liveMsg.plan=evt.plan||null;
+                  liveMsg.contextReset=evt.contextReset||undefined;
                 }
                 if(evt.status){
                   lastTextAt=Date.now();
@@ -1035,7 +1036,7 @@
           if(msg.role==="user"){
             const text=(msg.lines||[]).join(" ").trim();
             if(!text||/^(已补充信息|跳过补充)/.test(text))return;
-            pending={question:text,answer:"",skillId:"",terms:[],requestId:""};
+            pending={question:text,answer:"",skillId:"",terms:[],requestId:"",tables:[...(msg.refs||[])]};
             turns.push(pending);
           }else if(pending&&!msg.ask){
             const answer=msg.reportId?[msg.leadMsg,msg.trailMsg].filter(Boolean).join(" "):(msg.html?plain(msg.html):(msg.lines||[]).join(" "));

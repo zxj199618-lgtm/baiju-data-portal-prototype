@@ -479,6 +479,8 @@
 .portal-vue-ai-composer { border: 1px solid #dcdfe6; border-radius: 12px; background: #fff; transition: border-color .15s, box-shadow .15s; }
 
 /* 灵犀智析：底部交互式澄清面板（多问、A/B/C 选项、逐题推进） */
+.portal-vue-ai-context-reset { display: flex; align-items: center; gap: 10px; margin: 8px 0 14px; color: #8a94a6; font-size: 12px; }
+.portal-vue-ai-context-reset::before, .portal-vue-ai-context-reset::after { content: ""; flex: 1; height: 1px; background: #e3e8f0; }
 .portal-vue-ai-confirms { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .portal-vue-ai-composer:focus-within { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(22,119,255,.08); }
 .portal-vue-ai-composer .el-textarea__inner { border: 0; box-shadow: none; background: transparent; padding: 8px 14px 2px; font-size: 13.5px; }

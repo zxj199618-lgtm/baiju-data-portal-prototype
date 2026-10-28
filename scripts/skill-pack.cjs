@@ -197,18 +197,40 @@ function sanitizeConversation(input, { maxTurns = 3, maxAnswerChars = 600 } = {}
     answer: String(turn?.answer || "").replace(/```[\s\S]*?```/g, " ").replace(/\s+/g, " ").trim().slice(0, maxAnswerChars),
     skillId: /^[A-Za-z0-9_-]{1,60}$/.test(String(turn?.skillId || "")) ? String(turn.skillId) : "",
     requestId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(String(turn?.requestId || "")) ? String(turn.requestId) : "",
-    terms: (Array.isArray(turn?.terms) ? turn.terms : []).slice(0, 6).map(term => String(term).slice(0, 20))
+    terms: (Array.isArray(turn?.terms) ? turn.terms : []).slice(0, 6).map(term => String(term).slice(0, 20)),
+    tables: (Array.isArray(turn?.tables) ? turn.tables : []).slice(0, 8).map(name => String(name).slice(0, 60))
   })).filter(turn => turn.question);
 }
 
-function buildConversationContext(turns, { answers = true } = {}) {
-  if (!turns?.length) return "";
-  return ["## 对话上下文（用户在追问时，沿用这里已确定的时间、范围、筛选和指标；只有用户明确改变时才更换）",
-    ...turns.map((turn, index) => `第 ${index + 1} 轮 用户：${turn.question}${answers && turn.answer ? `\n第 ${index + 1} 轮 回答摘要：${turn.answer}` : ""}`)].join("\n");
+/**
+ * 表边界：对话中切换了数据表，切表之前的轮次（问题、回答摘要、沿用的技能与口径词、证据账本）都不再作为上下文，
+ * 否则旧表的数字和口径会被当成新表的事实。从最近一轮往前找第一个与本次所选表没有交集的轮次，它和它之前的全部丢弃。
+ * 本次没选表、或旧轮次没记录表时无法判断，不当作切表。返回 { turns, reset }，reset 为 { from, to } 或 null。
+ */
+function applyTableBoundary(turns, currentTables) {
+  const current = (Array.isArray(currentTables) ? currentTables : []).filter(Boolean);
+  if (!turns?.length || !current.length) return { turns: turns || [], reset: null };
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    const used = turns[index].tables || [];
+    if (used.length && !used.some(name => current.includes(name))) {
+      // 只有「刚刚切」的这一轮才提示；之后在新表上继续追问，旧轮次照样丢弃但不再重复提示
+      return { turns: turns.slice(index + 1), reset: index === turns.length - 1 ? { from: used, to: current } : null };
+    }
+  }
+  return { turns, reset: null };
+}
+
+function buildConversationContext(turns, { answers = true, reset = null } = {}) {
+  const notice = reset
+    ? `## 数据表已切换\n用户已切换到「${(reset.to || []).join("、")}」，此前对话针对「${(reset.from || []).join("、")}」，其中的数字、时间、筛选和指标口径不适用于当前这张表；一律重新取数确认，不要引用之前的数字。`
+    : "";
+  if (!turns?.length) return notice;
+  return [notice, "## 对话上下文（用户在追问时，仅在同一张表内沿用这里已确定的时间、范围、筛选和指标；用户明确改变，或数据表不同，就不要沿用）",
+    ...turns.map((turn, index) => `第 ${index + 1} 轮 用户：${turn.question}${answers && turn.answer ? `\n第 ${index + 1} 轮 回答摘要：${turn.answer}` : ""}`)].filter(Boolean).join("\n");
 }
 
 module.exports = {
   loadPacks, resolveTerms, matchGuards, buildSpecContext,
   roleForGroup, buildAnswerProtocol, createReferenceTool, referenceIndex,
-  sanitizeConversation, buildConversationContext
+  sanitizeConversation, applyTableBoundary, buildConversationContext
 };

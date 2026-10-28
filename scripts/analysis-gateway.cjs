@@ -1974,6 +1974,10 @@ function sanitizeHistoryMessage(msg) {
     } : undefined,
     resolved: (Array.isArray(msg?.resolved) ? msg.resolved : []).slice(0, 6).map(item => ({ term: String(item?.term || "").slice(0, 20), kind: String(item?.kind || "").slice(0, 20), means: String(item?.means || "").slice(0, 80), carried: item?.carried === true })),
     trailMsg: String(msg?.trailMsg || "").slice(0, 300),
+    contextReset: msg?.contextReset && typeof msg.contextReset === "object" ? {
+      from: (Array.isArray(msg.contextReset.from) ? msg.contextReset.from : []).slice(0, 8).map(name => String(name).slice(0, 60)),
+      to: (Array.isArray(msg.contextReset.to) ? msg.contextReset.to : []).slice(0, 8).map(name => String(name).slice(0, 60))
+    } : undefined,
     streaming: false
   };
 }
@@ -2944,7 +2948,10 @@ async function handleRequest(req, res) {
     /* 通用分析：按问题关键词与用户可用技能自动转交；其余请求按 skillId 直接执行 */
     const routerEntry = loadSkillRegistry().find(item => item.id === ROUTER_SKILL_ID);
     const isRouting = Boolean(routerEntry) && (body.skillId === ROUTER_SKILL_ID || (!body.skillId && scenario === "general"));
-    const conversationTurns = skillPack.sanitizeConversation(body.conversation);
+    /* 切换了数据表：切表之前的对话（含沿用的技能、口径词、证据账本）都不再作为上下文 */
+    const boundary = skillPack.applyTableBoundary(skillPack.sanitizeConversation(body.conversation), referenced);
+    const conversationTurns = boundary.turns;
+    const contextReset = boundary.reset;
     const stickySkillId = [...conversationTurns].reverse().find(turn => turn.skillId)?.skillId || "";
     /* 流式请求尽早打开 SSE：规划、取数阶段界面都能看到进度，而不是长时间没有任何反应 */
     const streaming = body.stream === true;
@@ -3015,7 +3022,7 @@ async function handleRequest(req, res) {
     /* 回答协议（所有技能）+ 规范包上下文（术语解析、拦截规则）+ 会话上下文 */
     const answerRole = skillPack.roleForGroup(orgStore.groupOf(user));
     const answerProtocol = skillPack.buildAnswerProtocol(answerRole);
-    const conversationContext = skillPack.buildConversationContext(conversationTurns);
+    const conversationContext = skillPack.buildConversationContext(conversationTurns, { reset: contextReset });
     let specContext = "", reportSpecContext = "", packGuards = [], packMeta = { role: answerRole };
     if (packEntry) {
       const carried = [...conversationTurns].reverse().find(turn => turn.terms?.length)?.terms || [];
@@ -3043,7 +3050,7 @@ async function handleRequest(req, res) {
       skill: registrySkill || { id: "", title: scene.label }, source: planSource, reason: isRouting ? routed?.reason : "你选择了该技能", confidence: planConfidence,
       output: wantsReport ? "report" : "answer", template: reportTemplate?.id || "", alternatives: domainSkills
     });
-    packMeta = { ...packMeta, plan: planAttempts ? { ...plan, diagnostics: planAttempts } : plan };
+    packMeta = { ...packMeta, plan: planAttempts ? { ...plan, diagnostics: planAttempts } : plan, ...(contextReset ? { contextReset } : {}) };
     /* 做不到的需求（例如按商户拆分）：直接给出明确答复与替代方案，不调用模型 */
     const blockedBy = packGuards.find(guard => guard.mode === "block");
     if (blockedBy) {
@@ -3057,7 +3064,7 @@ async function handleRequest(req, res) {
       blockMeta.usageToday = { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) };
       if (streaming) {
         openStream();
-        sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [], plan });
+        sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [], plan, ...(contextReset ? { contextReset } : {}) });
         sseSend({ delta: blockedBy.answer });
         sseSend({ done: true, meta: blockMeta });
         clearInterval(sseHeartbeat);
@@ -3085,7 +3092,7 @@ async function handleRequest(req, res) {
     let toolTokens = plannerTokens;
     if (streaming) {
       openStream();
-      sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [], plan, ...(wantsReport ? { output: "report", template: reportTemplate?.name || "" } : {}) });
+      sseSend({ started: true, scenario: scene.label, model, routedSkill: routed?.skill ? { id: routed.skill.id, name: routed.skill.title || routed.skill.name } : null, routeReason: routed?.reason || "", resolved: packMeta.resolvedTerms || [], plan, ...(contextReset ? { contextReset } : {}), ...(wantsReport ? { output: "report", template: reportTemplate?.name || "" } : {}) });
     }
     if (reuseOnly) {
       toolMode = `reuse:${priorLedger.length}`;
@@ -3152,7 +3159,7 @@ async function handleRequest(req, res) {
     if (isAttributionRequest) attachAttribution(evidence, evidenceTables, question);
     /* 报告的提示词要精简：事实已经在下面，不需要重复前几轮的回答摘要、场景名、数据表说明、门户配置说明和取数用的缺省值 */
     const prompt = [
-      wantsReport ? skillPack.buildConversationContext(conversationTurns, { answers: false }) : conversationContext,
+      wantsReport ? skillPack.buildConversationContext(conversationTurns, { answers: false, reset: contextReset }) : conversationContext,
       `## 用户问题\n${question}`,
       wantsReport ? reportSpecContext : specContext,
       wantsReport ? "" : `## 分析场景\n${scene.label}`,
