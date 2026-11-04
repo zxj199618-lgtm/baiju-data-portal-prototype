@@ -62,7 +62,7 @@
               <el-tabs v-model="activeTab"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane label="看板权限" name="boards"></el-tab-pane><el-tab-pane label="表权限" name="tables"></el-tab-pane><el-tab-pane label="管理范围" name="scope"></el-tab-pane></el-tabs>
               <div v-show="activeTab==='menus'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><strong>菜单权限（查看 / 编辑）</strong><p class="portal-vue-muted" style="margin:0">「查看」决定菜单是否可见，「编辑」决定该菜单内能否新增/修改/删除；勾选编辑会自动带上查看。带权限组名称的项由该权限组授予，个人配置中不可取消。</p></div><div v-for="section in state.nav" :key="section.group" class="portal-vue-permission-block"><strong v-if="permItems(section).length>1">{{ section.group }}</strong><div v-for="item in permItems(section)" :key="item.name" class="portal-vue-menu-row"><span class="portal-vue-menu-name" :class="{'portal-vue-menu-name-parent': permItems(section).length===1}">{{ item.name }}</span><span class="portal-vue-menu-checks"><el-checkbox class="portal-vue-view-check" :model-value="selectedMenus.includes(item.name)" :disabled="isMenuLocked(item)" @change="value=>togglePersonalView(item.name,value)"><span>查看</span><el-tag v-if="isMenuLocked(item)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><el-checkbox class="portal-vue-edit-check" :model-value="selectedMenuEdits.includes(item.name)" :disabled="isMenuEditLocked(item)" @change="value=>togglePersonalEdit(item.name,value)"><span>编辑</span><el-tag v-if="isMenuEditLocked(item)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></span></div></div></div>
               <div v-show="activeTab==='boards'" class="portal-vue-permission-grid"><div v-for="group in boardGroups" :key="group.category" class="portal-vue-permission-block"><strong>{{ group.category }}</strong><el-checkbox v-for="board in group.boards" :key="board.name" v-model="selectedBoards" :value="board.name" :disabled="isBoardLocked(board)" style="display:flex;margin:8px 0"><span>{{ board.name }}</span><el-tag v-if="isBoardDirect(board)" size="small" type="warning" effect="plain" class="portal-vue-lock-tag" :title="'来自「看板管理 - 可查看用户」直接授权，取消勾选并保存即收回'">直接授权</el-tag><el-tag v-else-if="isBoardLocked(board)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></div></div>
-              <div v-show="activeTab==='tables'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><el-checkbox :model-value="allTablesSelected" :indeterminate="tablesIndeterminate" :disabled="groupAllTables" @change="toggleAllTables"><span>全部数据表</span><el-tag v-if="groupAllTables" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><p class="portal-vue-muted" style="margin:6px 0 0">{{ inherited ? '带权限组名称标签的数据表由权限组授予，不可取消；其余数据表可以按需追加。未勾选任何数据表时，该用户无法在灵犀智析发起分析。' : '未加入权限组，可自由配置个人数据表权限；未勾选任何数据表时，该用户无法在灵犀智析发起分析。' }}</p></div><div v-for="group in tableGroups" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><el-checkbox v-for="table in group.tables" :key="table.cnName" v-model="selectedTables" :value="table.cnName" :disabled="isTableLocked(table)" style="display:flex;margin:8px 0"><span>{{ table.cnName }}</span><el-tag v-if="isTableLocked(table)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></div></div>
+              <div v-show="activeTab==='tables'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><el-checkbox :model-value="allTablesSelected" :indeterminate="tablesIndeterminate" :disabled="groupAllTables" @change="toggleAllTables"><span>全部数据表</span><el-tag v-if="groupAllTables" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><p class="portal-vue-muted" style="margin:6px 0 0">{{ inherited ? '带权限组名称标签的数据表由权限组授予，不可取消；其余数据表可以按需追加。未勾选任何数据表时，该用户无法在灵犀智析发起分析。' : '未加入权限组，可自由配置个人数据表权限；未勾选任何数据表时，该用户无法在灵犀智析发起分析。' }}</p></div><div v-for="group in tableGroups" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><div v-for="table in group.tables" :key="table.cnName" class="portal-vue-table-perm"><div class="portal-vue-table-perm-row"><el-checkbox v-model="selectedTables" :value="table.cnName" :disabled="isTableLocked(table)" style="display:flex;margin:8px 0"><span>{{ table.cnName }}</span><el-tag v-if="isTableLocked(table)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><span v-if="fieldTagVisible(table)" class="portal-vue-field-tag" :class="{partial:hiddenCount(table)>0,open:expandedTable===table.cnName}" data-test="field-tag" :aria-expanded="expandedTable===table.cnName" role="button" tabindex="0" @click="toggleFieldPanel(table)" @keydown.enter.prevent="toggleFieldPanel(table)" @keydown.space.prevent="toggleFieldPanel(table)">{{ fieldLabel(table) }}</span></div><div v-if="fieldTagVisible(table)&&expandedTable===table.cnName" class="portal-vue-field-panel" data-test="field-panel"><el-checkbox :model-value="hiddenCount(table)===0" :indeterminate="hiddenCount(table)>0&&hiddenCount(table)<tableFields(table).length" :disabled="isTableLocked(table)&&!groupHiddenOf(table).length" @change="value=>toggleAllFields(table,value)">全选</el-checkbox><div class="portal-vue-field-panel-list"><div v-for="field in tableFields(table)" :key="field.name" class="portal-vue-field-panel-item" :data-field="field.name"><el-checkbox :model-value="fieldChecked(table,field.name)" :disabled="fieldLocked(table,field.name)" @change="value=>toggleField(table,field.name,value)">{{ field.name }}<el-tag v-if="fieldLocked(table,field.name)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><em>{{ field.type }}</em><small :title="field.comment">{{ field.comment }}</small></div></div></div></div></div></div>
               <div v-show="activeTab==='scope'" class="portal-vue-permission-grid">
                 <div class="portal-vue-permission-block" style="grid-column:1/-1">
                   <div class="portal-vue-scope-head"><el-checkbox v-model="scopeAll">全部用户（不受部门限制）</el-checkbox><span class="portal-vue-muted">候选范围来自系统用户的部门与成员：选中部门=该部门及下级部门所有人自动纳入，也可以直接勾选具体成员</span></div>
@@ -80,7 +80,7 @@
         </div>
       </el-config-provider>
     `,
-    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],selectedTables:[],selectedScope:[],scopeAll:false}),
+    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],selectedTables:[],selectedScope:[],scopeAll:false,personalHidden:{},personalGranted:{},expandedTable:""}),
     computed:{
       user(){refreshTick.value;return state.users[bridge.getActiveUserIndex()]||state.users[0];},
       group(){refreshTick.value;return state.groups.find(group=>group.name===this.user?.group);},
@@ -102,9 +102,15 @@
       scopeSummary(){if(this.scopeAll)return `已配置为「全部用户」：该用户在「用户管理」里可以看到全部 ${state.users.length} 名用户。`;const scope=this.selectedScope.filter(Boolean);if(!scope.length)return "未配置任何部门或成员：该用户在「用户管理」里只能看到自己。";return `已选择 ${manageScopeSummary({ manageScope: scope })}：该用户在「用户管理」里可以看到范围内 ${this.scopeUserCount} 名用户（含自己）。`;},
       boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
       tableGroups(){const groups=[];state.assets.forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
+      // 门户管理员与「全部数据表」的权限组不限制字段，不显示字段面板
+      fieldPanelsEnabled(){return this.user?.group!=="门户管理员"&&!this.groupAllTables;},
       allTableNames(){return state.assets.map(table=>table.cnName);},
       allTablesSelected(){return this.selectedTables.length>0&&this.selectedTables.length>=this.allTableNames.length;},
       tablesIndeterminate(){return this.selectedTables.length>0&&this.selectedTables.length<this.allTableNames.length;}
+    },
+    watch:{
+      // 取消勾选某张表 = 收回该表上的个人字段设置
+      selectedTables(list){const keep=new Set(list);[this.personalHidden,this.personalGranted].forEach(map=>Object.keys(map).forEach(name=>{if(!keep.has(name))delete map[name];}));if(this.expandedTable&&!keep.has(this.expandedTable))this.expandedTable="";}
     },
     mounted(){this.pageHandler=event=>{if(event.detail?.page==="配置权限")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
@@ -115,6 +121,30 @@
       isBoardLocked(board){return this.inherited&&this.groupBoardNames.has(board.name);},
       isBoardDirect(board){return this.directBoardNames.has(board.name);},
       isTableLocked(table){return this.inherited&&this.groupTableNames.has(table.cnName);},
+      tableFields(table){return table.fields||[];},
+      groupHiddenOf(table){return this.isTableLocked(table)?(this.group?.hiddenFields?.[table.cnName]||[]):[];},
+      // 当前对该用户隐藏的字段：组授予的表 = 组隐藏 − 个人追加；个人追加的表 = 个人取消勾选的
+      effectiveHiddenOf(table){if(this.isTableLocked(table)){const granted=this.personalGranted[table.cnName]||[];return this.groupHiddenOf(table).filter(name=>!granted.includes(name));}return this.personalHidden[table.cnName]||[];},
+      hiddenCount(table){return this.effectiveHiddenOf(table).length;},
+      fieldTagVisible(table){return this.fieldPanelsEnabled&&this.selectedTables.includes(table.cnName)&&this.tableFields(table).length>0;},
+      fieldLabel(table){const fields=this.tableFields(table);const hidden=this.hiddenCount(table);return hidden?`字段 ${fields.length-hidden}/${fields.length}`:"全部字段";},
+      fieldLocked(table,fieldName){return this.isTableLocked(table)&&!this.groupHiddenOf(table).includes(fieldName);},
+      fieldChecked(table,fieldName){return !this.effectiveHiddenOf(table).includes(fieldName);},
+      toggleFieldPanel(table){this.expandedTable=this.expandedTable===table.cnName?"":table.cnName;},
+      setFieldMap(map,name,list){if(list.length)map[name]=list;else delete map[name];},
+      toggleField(table,fieldName,checked){
+        if(this.fieldLocked(table,fieldName))return;
+        const name=table.cnName;
+        if(this.isTableLocked(table)){const list=[...(this.personalGranted[name]||[])];const index=list.indexOf(fieldName);if(checked&&index<0)list.push(fieldName);else if(!checked&&index>=0)list.splice(index,1);this.setFieldMap(this.personalGranted,name,list);return;}
+        const list=[...(this.personalHidden[name]||[])];const index=list.indexOf(fieldName);
+        if(checked&&index>=0)list.splice(index,1);else if(!checked&&index<0)list.push(fieldName);
+        this.setFieldMap(this.personalHidden,name,list);
+      },
+      toggleAllFields(table,checked){
+        const name=table.cnName;
+        if(this.isTableLocked(table))this.setFieldMap(this.personalGranted,name,checked?[...this.groupHiddenOf(table)]:[]);
+        else this.setFieldMap(this.personalHidden,name,checked?[]:this.tableFields(table).map(field=>field.name));
+      },
       togglePersonalView(name,checked){
         if(this.isMenuLocked({name}))return;
         const index=this.selectedMenus.indexOf(name);
@@ -136,6 +166,11 @@
         this.selectedBoards=[...new Set([...this.groupBoardNames,...this.directBoardNames,...personalBoards])];
         const personalTables=(Array.isArray(this.user?.tableGrants)?this.user.tableGrants:[]).filter(name=>name!=="全部数据表");
         this.selectedTables=[...new Set([...this.groupTableNames,...personalTables])];
+        // 个人字段设置回显：只保留仍勾选的表；组授予的表上只有组隐藏的字段才可追加
+        const cloneMap=map=>Object.fromEntries(Object.entries(map||{}).map(([table,list])=>[table,Array.isArray(list)?[...list]:[]]).filter(([table,list])=>list.length&&this.selectedTables.includes(table)));
+        this.personalHidden=cloneMap(this.user?.fieldHidden);
+        this.personalGranted=cloneMap(this.user?.fieldGrants);
+        this.expandedTable="";
         this.selectedScope=manageScopeOf(this.user);
         this.scopeAll=Boolean(this.user?.manageScopeAll);
       },
@@ -164,10 +199,21 @@
         this.user.tableGrants=personalTables;
         this.user.manageScope=[...this.selectedScope.filter(Boolean)];
         this.user.manageScopeAll=Boolean(this.scopeAll);
+        // 字段设置只保留仍在保存范围内的表：组授予的表只存追加字段（限于组隐藏的字段），个人追加的表只存取消勾选的字段
+        const hiddenFields={},grantedFields={};
+        this.selectedTables.forEach(name=>{
+          const table=state.assets.find(item=>item.cnName===name);
+          if(!table||!this.fieldPanelsEnabled)return;
+          if(groupTables.has(name)){const allowed=this.group?.hiddenFields?.[name]||[];const list=(this.personalGranted[name]||[]).filter(field=>allowed.includes(field));if(list.length)grantedFields[name]=list;}
+          else{const names=table.fields.map(field=>field.name);const list=(this.personalHidden[name]||[]).filter(field=>names.includes(field));if(list.length)hiddenFields[name]=list;}
+        });
+        this.user.fieldHidden=hiddenFields;
+        this.user.fieldGrants=grantedFields;
         const effectiveTables=[...new Set([...groupTables,...personalTables])];
-        const payload=personalTables.length?(effectiveTables.length>=this.allTableNames.length?["全部数据表"]:effectiveTables):[];
+        const hasPersonalFields=Object.keys(hiddenFields).length>0||Object.keys(grantedFields).length>0;
+        const payload=personalTables.length||hasPersonalFields?(effectiveTables.length>=this.allTableNames.length?["全部数据表"]:effectiveTables):[];
         let persisted=false;
-        try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables:payload})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}
+        try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables:payload,hiddenFields,grantedFields})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}
         notify(`${this.user.name} 的权限配置已保存（管理范围：${manageScopeSummary(this.user)}；个人追加：菜单查看 ${personalMenus.length} / 菜单编辑 ${personalMenuEdits.length} / 看板 ${personalBoards.length} / 表 ${personalTables.length} 项；权限组权限保持不变）${persisted?"，已同步到分析网关":"（本地演示，网关未连接）"}`);
         this.back();
       }

@@ -561,10 +561,10 @@ describe("浏览器端到端", () => {
 
       // 勾选「全部数据表」只补齐其余表，已隐藏的字段仍然隐藏；其他表全部字段勾选
       await page.locator("label", { hasText: "全部数据表" }).first().click();
-      assert.equal(await page.locator(".portal-vue-table-perm-row input[type=checkbox]:checked").count(), target.tableCount, "所有表都应被勾选");
+      assert.equal(await page.locator("#permissionGroupView .portal-vue-table-perm-row input[type=checkbox]:checked").count(), target.tableCount, "所有表都应被勾选");
       assert.equal((await tag.textContent()).trim(), `字段 ${target.total - 1}/${target.total}`);
-      assert.equal(await page.locator('[data-test="field-tag"]').count(), target.taggedCount, "每张有字段的表都应显示字段标签");
-      const others = await page.locator('[data-test="field-tag"]').allTextContents();
+      assert.equal(await page.locator('#permissionGroupView [data-test="field-tag"]').count(), target.taggedCount, "每张有字段的表都应显示字段标签");
+      const others = await page.locator('#permissionGroupView [data-test="field-tag"]').allTextContents();
       assert.equal(others.filter(text => text.trim() === "全部字段").length, target.taggedCount - 1);
     } finally {
       // 恢复：清掉隐藏字段，避免影响共用同一网关的后续用例（隐藏字段会让指标不可用），失败也会执行
@@ -575,5 +575,104 @@ describe("浏览器端到端", () => {
       }
     }
     assert.deepEqual((await serverGroup()).hiddenFields, {});
+  }));
+  // 同样放在最后：会写入个人字段设置与权限组隐藏字段，finally 里全部恢复
+  test("字段权限 · 用户页：组授予表上被组隐藏的字段可个人追加、其余字段锁定；个人追加的表可取消字段；保存带上 grantedFields / hiddenFields 并可回显", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const userName = "李雨航";
+    const adminView = async () => (await harness.call("GET", "/v1/permissions", { token: admin })).data.users.find(user => user.name === userName);
+    const openTables = async index => {
+      await page.evaluate(i => { window.portalVueBridge.setActiveUserIndex(i); window.portalVueBridge.setPage("配置权限"); }, index);
+      await page.getByRole("tab", { name: /表权限/ }).click();
+    };
+    const rowOf = name => page.locator("#permissionConfigView .portal-vue-table-perm").filter({ has: page.getByText(name, { exact: true }) }).first();
+    const save = async () => {
+      const [request] = await Promise.all([
+        page.waitForRequest(req => req.method() === "PUT" && req.url().includes("/v1/permissions/")),
+        page.getByRole("button", { name: "保存权限" }).click()
+      ]);
+      return request.postDataJSON();
+    };
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      const target = await page.evaluate(async name => {
+        const api = window.portalVueModuleApi;
+        const state = api.state;
+        const group = state.groups.find(item => item.name === "数据分析师");
+        const groupAsset = state.assets.find(item => item.fields.length > 2 && group.tables.includes(item.cnName));
+        const personalAsset = state.assets.find(item => item.fields.length > 2 && !group.tables.includes(item.cnName));
+        group.hiddenFields = { [groupAsset.cnName]: [groupAsset.fields[0].name] };
+        group.confirmedFields = { [groupAsset.cnName]: groupAsset.fields.map(field => field.name) };
+        await api.orgSync.push();
+        await new Promise(resolve => setTimeout(resolve, 800));
+        return {
+          index: state.users.findIndex(user => user.name === name),
+          groupTable: groupAsset.cnName, groupTotal: groupAsset.fields.length, hidden: groupAsset.fields[0].name, visible: groupAsset.fields[1].name,
+          personalTable: personalAsset.cnName, personalTotal: personalAsset.fields.length, personalField: personalAsset.fields[0].name
+        };
+      }, userName);
+      assert.ok(target.index >= 0);
+      await openTables(target.index);
+
+      // 组授予的表：被组隐藏的字段不勾选但可勾；组可见的字段灰色锁定并带权限组名
+      const groupRow = rowOf(target.groupTable);
+      const groupTag = groupRow.locator('[data-test="field-tag"]');
+      assert.equal((await groupTag.textContent()).trim(), `字段 ${target.groupTotal - 1}/${target.groupTotal}`);
+      await groupTag.click();
+      const groupItem = field => groupRow.locator(`[data-test="field-panel"] [data-field="${field}"]`);
+      assert.equal(await groupItem(target.hidden).locator("input[type=checkbox]").isChecked(), false);
+      assert.equal(await groupItem(target.hidden).locator("input[type=checkbox]").isDisabled(), false);
+      assert.equal(await groupItem(target.visible).locator("input[type=checkbox]").isChecked(), true);
+      assert.equal(await groupItem(target.visible).locator("input[type=checkbox]").isDisabled(), true);
+      assert.match(await groupItem(target.visible).textContent(), /数据分析师/, "锁定字段应显示权限组名");
+      await groupItem(target.hidden).locator("label").click();
+      assert.equal((await groupTag.textContent()).trim(), "全部字段");
+
+      // 个人追加的表：默认全部字段，取消一个字段后变为 n-1/n
+      await rowOf(target.personalTable).locator(".el-checkbox").first().click();
+      const personalTag = rowOf(target.personalTable).locator('[data-test="field-tag"]');
+      assert.equal((await personalTag.textContent()).trim(), "全部字段");
+      await personalTag.click();
+      await rowOf(target.personalTable).locator(`[data-field="${target.personalField}"] label`).click();
+      assert.equal((await personalTag.textContent()).trim(), `字段 ${target.personalTotal - 1}/${target.personalTotal}`);
+
+      const body = await save();
+      assert.deepEqual(body.grantedFields, { [target.groupTable]: [target.hidden] });
+      assert.deepEqual(body.hiddenFields, { [target.personalTable]: [target.personalField] });
+      assert.ok(body.tables.includes(target.personalTable) && body.tables.includes(target.groupTable));
+      let view;
+      for (let attempt = 0; attempt < 20; attempt += 1) { view = await adminView(); if (view.grantedFields[target.groupTable]) break; await page.waitForTimeout(300); }
+      assert.deepEqual(view.grantedFields, { [target.groupTable]: [target.hidden] });
+      assert.deepEqual(view.hiddenFields, { [target.personalTable]: [target.personalField] });
+      assert.ok(!view.effectiveHiddenFields[target.groupTable]?.includes(target.hidden), "追加后该字段对用户有效可见");
+
+      // 回显：重新打开页面，两种设置都还在；取消个人追加的表会同时清掉它的字段设置
+      await page.evaluate(() => window.portalVueBridge.setPage("用户管理"));
+      await openTables(target.index);
+      assert.equal((await rowOf(target.groupTable).locator('[data-test="field-tag"]').textContent()).trim(), "全部字段");
+      assert.equal((await rowOf(target.personalTable).locator('[data-test="field-tag"]').textContent()).trim(), `字段 ${target.personalTotal - 1}/${target.personalTotal}`);
+      await rowOf(target.personalTable).locator(".el-checkbox").first().click();
+      assert.equal(await rowOf(target.personalTable).locator('[data-test="field-tag"]').count(), 0);
+      const second = await save();
+      assert.deepEqual(second.hiddenFields, {});
+      assert.deepEqual(second.grantedFields, { [target.groupTable]: [target.hidden] });
+      assert.ok(!second.tables.includes(target.personalTable));
+
+      // 门户管理员不显示字段面板
+      await openTables(await page.evaluate(() => window.portalVueModuleApi.state.users.findIndex(user => user.group === "门户管理员")));
+      assert.equal(await page.locator('#permissionConfigView [data-test="field-tag"]').count(), 0);
+    } finally {
+      // 恢复：清掉个人覆盖与权限组隐藏字段，避免影响共用网关的后续用例
+      if (!skipReason) {
+        await harness.call("PUT", `/v1/permissions/${encodeURIComponent(userName)}`, { token: admin, body: { tables: [] } });
+        const org = (await harness.call("GET", "/v1/org", { token: admin })).data;
+        const groups = org.groups.map(group => ({ ...group, hiddenFields: {} }));
+        if (groups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups } });
+      }
+    }
+    const after = await adminView();
+    assert.deepEqual(after.hiddenFields, {});
+    assert.deepEqual(after.grantedFields, {});
   }));
 });
