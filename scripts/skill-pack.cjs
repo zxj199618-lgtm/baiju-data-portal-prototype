@@ -14,7 +14,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { redactLines, mentionsHidden } = require("./field-scope.cjs");
+const { redactLines, redactLiterals, mentionsHidden } = require("./field-scope.cjs");
 
 const MAX_REFERENCE_CHARS = 24000;
 
@@ -193,15 +193,24 @@ function referenceIndex(pack) {
 /**
  * 当前用户在规范包的表上有被隐藏的字段时，返回脱敏后的规范包副本（不改原对象）：
  * - SKILL.md、参考资料、资料标题、拦截规则的答复 / 提示 / 建议、缺省值：提到隐藏字段的整行替换为「（已隐藏）」；
- * - 术语表：filter.field 被隐藏的口径整条去掉（不再给出筛选和枚举值）；有歧义的词去掉这类选项，不足两个选项时整条去掉；其余文字同样逐行脱敏。
+ * - 术语表：filter.field 被隐藏的口径整条去掉（不再给出筛选和枚举值）；有歧义的词去掉这类选项，不足两个选项时整条去掉；其余文字同样逐行脱敏；
+ * - 被去掉的口径的取值与口径词（如「任哥」「投放一部-权益一组」）：上述所有文本里含有它们的行也整行替换（字面子串，宁多勿漏）。
  * hiddenNames 为空时原样返回。
  */
 function scopePack(pack, hiddenNames) {
   const names = [...(hiddenNames || [])].map(name => String(name ?? "").trim()).filter(Boolean);
   if (!pack || !names.length) return pack;
-  const red = text => (typeof text === "string" ? redactLines(text, names) : text);
-  const hiddenFilter = filter => Boolean(filter && names.includes(String(filter.field ?? "").trim()));
+  const hiddenFilter = filter => Boolean(filter && names.map(name => name.toLowerCase()).includes(String(filter.field ?? "").trim().toLowerCase()));
   const spec = pack.spec || {};
+  /* 先从将被去掉的口径里收集它们的取值与口径词（含去掉连字符的写法），文本里提到的整行同样脱敏，避免取值经静态资料泄露 */
+  const literals = new Set();
+  const addValues = filter => (filter.values || []).forEach(value => { const text = String(value ?? "").trim(); if (text) { literals.add(text); literals.add(text.replace(/[-－—_\s]/g, "")); } });
+  (Array.isArray(spec.glossary) ? spec.glossary : []).forEach(entry => {
+    if (hiddenFilter(entry.filter)) { addValues(entry.filter); (entry.terms || []).forEach(term => literals.add(String(term ?? "").trim())); }
+    (entry.options || []).forEach(option => { if (hiddenFilter(option.filter)) addValues(option.filter); });
+  });
+  const literalList = [...literals].filter(text => text.length >= 2);
+  const red = text => (typeof text === "string" ? redactLiterals(redactLines(text, names), literalList) : text);
   const glossary = (Array.isArray(spec.glossary) ? spec.glossary : []).flatMap(entry => {
     if (hiddenFilter(entry.filter)) return [];
     if (entry.ambiguous) {

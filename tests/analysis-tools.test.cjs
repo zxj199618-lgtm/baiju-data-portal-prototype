@@ -538,32 +538,49 @@ describe("字段权限（经网关）", () => {
     await saveGroups({});
   });
 
-  test("规范包：隐藏 department / cash_cost 后，SKILL.md、read_reference、口径解析、工具结果与响应都不含它们；管理员照常", async () => {
+  test("规范包：隐藏 department / cash_cost 后，SKILL.md、read_reference、口径解析、工具结果与响应都不含它们及其取值 / 口径词；管理员照常", async () => {
     const EQ = "权益-账号维度消耗统计表";
-    const NAMES = /(^|[^A-Za-z0-9_])(department|cash_cost)(?![A-Za-z0-9_])/;
+    const NAMES = /(^|[^A-Za-z0-9_])(department|cash_cost)(?![A-Za-z0-9_])/i;
+    const LITERALS = ["任哥", "小炭", "达人部门", "伯都", "投放一部-权益一组", "投放一部-权益二组", "达人部门-权益", "伯都-权益", "投放一部权益一组"];
     const script = () => [
       { calls: ["metrics", "table-schema", "playbook", "sql-templates"].map((name, index) => toolCall(`rr${index}`, "read_reference", { name })) },
-      { calls: [toolCall("e1", "get_schema", { table: EQ }), toolCall("e2", "list_metrics", {}), toolCall("e3", "get_sample_rows", { table: EQ })] }
+      // 不取样例行：其他可见列（如 account_id）的真实取值里本来就有「任哥二组-1」这类写法，那是可见数据，不是规范包文本
+      { calls: [toolCall("e1", "get_schema", { table: EQ }), toolCall("e2", "list_metrics", {}), toolCall("e3", "get_lineage", { table: EQ })] }
     ];
-    const body = streamBody("任哥近 7 天消耗怎么样？白驹呢", [EQ], { skillId: "equity-union-analyst" });
+    const body = question => streamBody(question, [EQ], { skillId: "equity-union-analyst" });
+    const scan = (text, literals) => {
+      const hit = text.match(NAMES);
+      assert.equal(hit, null, `不应出现隐藏字段名：…${hit ? text.slice(Math.max(0, hit.index - 80), hit.index + 40) : ""}…`);
+      const found = literals.filter(value => text.includes(value));
+      assert.deepEqual(found, [], `隐藏字段的取值与口径词不应出现：${found.map(value => text.slice(Math.max(0, text.indexOf(value) - 60), text.indexOf(value) + 30)).join(" | ")}`);
+    };
     await saveGroups({ [EQ]: ["department", "cash_cost"] });
+
+    // 问题本身不含口径词：整段文本（发给模型的全部请求 + SSE 响应）既不含字段名，也不含它的取值与口径词
     requests = [];
     toolScript = script();
-    const result = await analyzeStream(await tokenFor("谭嘉颖"), body);
+    const result = await analyzeStream(await tokenFor("谭嘉颖"), body("近 7 天消耗怎么样？白驹呢"));
     assert.equal(result.status, 200);
     assert.equal(result.done.meta.toolMode, "used:7");
     const text = JSON.stringify(requests) + JSON.stringify(result.events);
-    const hit = text.match(NAMES);
-    assert.equal(hit, null, `不应出现隐藏字段名：…${hit ? text.slice(Math.max(0, hit.index - 80), hit.index + 40) : ""}…`);
-    assert.equal((result.done.meta.resolvedTerms || []).some(item => item.term === "任哥"), false, "按隐藏字段筛选的口径不解析");
     assert.match(text, /read_reference/);
+    scan(text, LITERALS);
+
+    // 用户自己说了「任哥」：该口径不解析，平台也不补出它的筛选与取值（问题原文里的「任哥」不算）
+    requests = [];
+    toolScript = script();
+    const asked = await analyzeStream(await tokenFor("谭嘉颖"), body("任哥近 7 天消耗怎么样？"));
+    assert.equal((asked.done.meta.resolvedTerms || []).some(item => item.term === "任哥"), false, "按隐藏字段筛选的口径不解析");
+    scan(JSON.stringify(requests) + JSON.stringify(asked.events), LITERALS.filter(value => value !== "任哥"));
 
     await saveGroups({});
     requests = [];
     toolScript = script();
-    const admin = await analyzeStream(await tokenFor("曾祥竞"), body);
+    const admin = await analyzeStream(await tokenFor("曾祥竞"), body("任哥近 7 天消耗怎么样？白驹呢"));
     assert.equal(admin.status, 200);
-    assert.match(JSON.stringify(requests), NAMES, "不受限用户拿到完整资料");
+    const adminText = JSON.stringify(requests);
+    assert.match(adminText, NAMES, "不受限用户拿到完整资料");
+    assert.ok(adminText.includes("投放一部-权益一组"));
     assert.ok((admin.done.meta.resolvedTerms || []).some(item => item.term === "任哥"));
   });
 

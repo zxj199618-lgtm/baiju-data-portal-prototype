@@ -176,3 +176,20 @@ describe("字段权限：规范包按隐藏字段脱敏（scopePack）", () => {
     assert.ok(pack.resolveTerms(equity.spec, "任哥近 7 天消耗", []).resolved.some(item => item.term === "任哥"));
   });
 });
+
+describe("字段权限：规范包按隐藏字段的取值与口径词脱敏", () => {
+  const LITERALS = ["任哥", "小炭", "达人部门", "伯都", "投放一部-权益一组", "投放一部-权益二组", "达人部门-权益", "伯都-权益"];
+  test("隐藏 department 后，SKILL.md、参考资料、口径上下文都不含这些取值与口径词；未隐藏时都在", () => {
+    const raw = [equity.instructions, ...equity.references.map(item => item.content)].join("\n");
+    assert.ok(LITERALS.filter(text => raw.includes(text)).length >= 4, "测试前提：原始资料提到这些取值");
+    const scoped = pack.scopePack(equity, ["department"]);
+    const tool = pack.createReferenceTool(scoped);
+    const outputs = equity.references.map(item => JSON.stringify(tool.execute(JSON.stringify({ name: item.name }))));
+    const resolution = pack.resolveTerms(scoped.spec, "任哥和白驹近 7 天消耗", []);
+    const text = [scoped.instructions, ...outputs, JSON.stringify(tool.schema), pack.buildSpecContext({ resolution, guards: pack.matchGuards(scoped.spec, "任哥按商户拆"), spec: scoped.spec }), JSON.stringify(resolution), JSON.stringify(scoped.spec.guards)].join("\n");
+    assert.deepEqual(LITERALS.filter(value => text.includes(value)), []);
+    assert.equal(/投放一部权益一组/.test(text), false, "去掉连字符的写法也不出现");
+    assert.ok(scoped.instructions.length > 200 && scoped.references.every(item => item.content.length > 500), "其余内容保留");
+  });
+});
+

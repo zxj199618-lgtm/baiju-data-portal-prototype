@@ -116,3 +116,17 @@ test('redactLines 逐行替换提到隐藏字段的行；mentionsHidden 按完�
   assert.equal(mentionsHidden('cash_cost_x', ['cash_cost']), false);
   assert.deepEqual([...hiddenNamesOf({ t: [' a '], u: ['b'] }, ['t', 'v'])], ['a']);
 });
+
+test('字段名匹配不区分大小写（redactLines / mentionsHidden / 血缘）', () => {
+  const { redactLines, mentionsHidden } = require('../scripts/field-scope.cjs');
+  assert.equal(redactLines('按 DEPARTMENT 拆\nDepartment 维度\nok', ['department']), '（已隐藏）\n（已隐藏）\nok');
+  assert.equal(mentionsHidden('Cash_Cost 合计', ['cash_cost']), true);
+  const out = scopeTables([{ cnName: 't', fields: [{ name: 'department' }], agg: {}, lineage: { upstream: [{ table: 'x', join: 'LEFT JOIN · DEPARTMENT' }] } }], { t: ['department'] });
+  assert.equal(out[0].lineage.upstream[0].join, '（已隐藏）');
+});
+
+test('redactLiterals 逐行按字面子串替换', () => {
+  const { redactLiterals } = require('../scripts/field-scope.cjs');
+  assert.equal(redactLiterals("WHEN '投放一部-权益一组' THEN '任哥'\n其他\n任哥 = 一组", ['投放一部-权益一组', '任哥']), '（已隐藏）\n其他\n（已隐藏）');
+  assert.equal(redactLiterals('abc', []), 'abc');
+});

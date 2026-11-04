@@ -20,12 +20,12 @@ function isHidden(hidden, table, field) {
 }
 
 const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/** 文本里是否以完整标识符的形式提到某个隐藏字段（media_source 不匹配 media_source_v2）；names 为数组或 Set */
+/** 文本里是否以完整标识符的形式提到某个隐藏字段（不区分大小写；media_source 不匹配 media_source_v2）；names 为数组或 Set */
 function mentionsHidden(text, names) {
   if (typeof text !== 'string' || !text || !names) return false;
   for (const raw of names) {
     const name = norm(raw);
-    if (name && new RegExp(`(^|[^A-Za-z0-9_])${escapeRe(name)}(?![A-Za-z0-9_])`).test(text)) return true;
+    if (name && new RegExp(`(^|[^A-Za-z0-9_])${escapeRe(name)}(?![A-Za-z0-9_])`, 'i').test(text)) return true;
   }
   return false;
 }
@@ -37,6 +37,14 @@ function redactLines(text, names) {
   const list = [...(names || [])].map(norm).filter(Boolean);
   if (!list.length) return text;
   return text.split('\n').map((line) => (mentionsHidden(line, list) ? REDACTED : line)).join('\n');
+}
+
+/** 逐行脱敏（字面子串）：含任一 literal 的整行替换为「（已隐藏）」；用于隐藏字段的取值、口径词等非标识符文本 */
+function redactLiterals(text, literals) {
+  if (typeof text !== 'string' || !text) return text;
+  const list = [...(literals || [])].map(norm).filter(Boolean);
+  if (!list.length) return text;
+  return text.split('\n').map((line) => (list.some((item) => line.includes(item)) ? REDACTED : line)).join('\n');
 }
 
 /** 某几张表上被隐藏的字段名合集 */
@@ -89,4 +97,4 @@ function scopeRowsOf(rowsOf, hidden) {
   };
 }
 
-module.exports = { scopeTables, scopeRowsOf, isHidden, mentionsAny, mentionsHidden, redactLines, hiddenNamesOf, REDACTED };
+module.exports = { scopeTables, scopeRowsOf, isHidden, mentionsAny, mentionsHidden, redactLines, redactLiterals, hiddenNamesOf, REDACTED };
