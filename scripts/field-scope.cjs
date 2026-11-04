@@ -20,13 +20,30 @@ function isHidden(hidden, table, field) {
 }
 
 const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/** 文本里是否以完整标识符的形式提到某个隐藏字段（media_source 不匹配 media_source_v2） */
-function mentionsAny(text, s) {
-  if (typeof text !== 'string' || !text) return false;
-  for (const name of s) {
-    if (new RegExp(`(^|[^A-Za-z0-9_])${escapeRe(name)}(?![A-Za-z0-9_])`).test(text)) return true;
+/** 文本里是否以完整标识符的形式提到某个隐藏字段（media_source 不匹配 media_source_v2）；names 为数组或 Set */
+function mentionsHidden(text, names) {
+  if (typeof text !== 'string' || !text || !names) return false;
+  for (const raw of names) {
+    const name = norm(raw);
+    if (name && new RegExp(`(^|[^A-Za-z0-9_])${escapeRe(name)}(?![A-Za-z0-9_])`).test(text)) return true;
   }
   return false;
+}
+const mentionsAny = mentionsHidden;
+
+/** 逐行脱敏：提到任一隐藏字段的整行替换为「（已隐藏）」，其余行原样 */
+function redactLines(text, names) {
+  if (typeof text !== 'string' || !text) return text;
+  const list = [...(names || [])].map(norm).filter(Boolean);
+  if (!list.length) return text;
+  return text.split('\n').map((line) => (mentionsHidden(line, list) ? REDACTED : line)).join('\n');
+}
+
+/** 某几张表上被隐藏的字段名合集 */
+function hiddenNamesOf(hidden, tableNames) {
+  const out = new Set();
+  for (const t of tableNames || []) { const s = hiddenSet(hidden, t); if (s) s.forEach((n) => out.add(n)); }
+  return out;
 }
 
 /** 血缘条目的说明文字（join / role）提到隐藏字段时整段替换为「（已隐藏）」；表名不动 */
@@ -72,4 +89,4 @@ function scopeRowsOf(rowsOf, hidden) {
   };
 }
 
-module.exports = { scopeTables, scopeRowsOf, isHidden, mentionsAny, REDACTED };
+module.exports = { scopeTables, scopeRowsOf, isHidden, mentionsAny, mentionsHidden, redactLines, hiddenNamesOf, REDACTED };

@@ -144,3 +144,35 @@ describe("会话上下文", () => {
     assert.equal(pack.buildConversationContext([]), "");
   });
 });
+
+describe("字段权限：规范包按隐藏字段脱敏（scopePack）", () => {
+  const HIDDEN = ["department", "cash_cost"];
+  const leaks = text => HIDDEN.filter(name => new RegExp(`(^|[^A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(text));
+  test("原始资料里确实提到这些字段（测试前提）", () => {
+    const all = [equity.instructions, ...equity.references.map(item => item.content), JSON.stringify(equity.spec.glossary)].join("\n");
+    assert.deepEqual(leaks(all).sort(), [...HIDDEN].sort());
+  });
+
+  test("SKILL.md、read_reference、术语解析与口径上下文都不含隐藏字段；无隐藏字段时原样", () => {
+    const scoped = pack.scopePack(equity, HIDDEN);
+    assert.deepEqual(leaks(scoped.instructions), []);
+    const tool = pack.createReferenceTool(scoped);
+    for (const item of equity.references) {
+      const out = tool.execute(JSON.stringify({ name: item.name }));
+      assert.equal(out.ok, true);
+      assert.deepEqual(leaks(JSON.stringify(out)), [], item.name);
+    }
+    assert.deepEqual(leaks(JSON.stringify(tool.schema)), []);
+    // 「任哥」的口径是 department 筛选：被隐藏后不解析，也不给出枚举值
+    const resolution = pack.resolveTerms(scoped.spec, "任哥近 7 天消耗，白驹呢", []);
+    assert.equal(resolution.resolved.some(item => item.term === "任哥"), false);
+    const context = pack.buildSpecContext({ resolution, guards: pack.matchGuards(scoped.spec, "任哥按商户拆"), spec: scoped.spec });
+    assert.deepEqual(leaks(context + JSON.stringify(resolution)), []);
+    assert.equal(/投放一部-权益一组/.test(context + JSON.stringify(resolution)), false, "隐藏字段的枚举值不出现");
+    // 账号口径（account_id 未隐藏）照常解析
+    assert.ok(pack.resolveTerms(scoped.spec, "存量近 7 天", []).resolved.some(item => item.filter?.field === "account_id"));
+    // 不受限：原样
+    assert.equal(pack.scopePack(equity, []), equity);
+    assert.ok(pack.resolveTerms(equity.spec, "任哥近 7 天消耗", []).resolved.some(item => item.term === "任哥"));
+  });
+});

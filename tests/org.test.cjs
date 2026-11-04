@@ -243,7 +243,7 @@ describe("字段权限：个人覆盖与有效隐藏字段（经网关）", () =
     assert.equal(result.status, 200, JSON.stringify(result.data));
   };
   const putOverride = async body => harness.call("PUT", `/v1/permissions/${encodeURIComponent("谭嘉颖")}`, { token: await harness.tokenFor("曾祥竞"), body });
-  const me = async name => (await harness.call("GET", "/v1/auth/me", { token: await harness.tokenFor(name) })).data;
+  const effective = async name => (await harness.call("GET", "/v1/permissions", { token: await harness.tokenFor("曾祥竞") })).data.users.find(item => item.name === name).effectiveHiddenFields;
 
   test("hiddenFields / grantedFields 形状非法返回 400", async () => {
     const tables = ["广告计划日报表", "广告账户日报", "媒体消耗汇总"];
@@ -266,8 +266,8 @@ describe("字段权限：个人覆盖与有效隐藏字段（经网关）", () =
 
   test("有效隐藏字段：组授予的表 = 组隐藏 − 个人追加；只由个人授予的表 = 个人隐藏；管理员为空", async () => {
     await saveGroups({ 广告计划日报表: ["plan_name", "campaign_id"], 广告账户日报: ["balance"] });
-    assert.deepEqual((await me("谭嘉颖")).hiddenFields, { 广告计划日报表: ["plan_name", "campaign_id"], 广告账户日报: ["balance"] });
-    assert.deepEqual((await me("曾祥竞")).hiddenFields, {});
+    assert.deepEqual(await effective("谭嘉颖"), { 广告计划日报表: ["plan_name", "campaign_id"], 广告账户日报: ["balance"] });
+    assert.deepEqual(await effective("曾祥竞"), {});
 
     const saved = await putOverride({
       tables: ["广告计划日报表", "广告账户日报", "媒体消耗汇总"],
@@ -275,7 +275,7 @@ describe("字段权限：个人覆盖与有效隐藏字段（经网关）", () =
       hiddenFields: { 媒体消耗汇总: ["media_source"] }
     });
     assert.equal(saved.status, 200, JSON.stringify(saved.data));
-    assert.deepEqual((await me("谭嘉颖")).hiddenFields, { 广告计划日报表: ["plan_name"], 广告账户日报: ["balance"], 媒体消耗汇总: ["media_source"] });
+    assert.deepEqual(await effective("谭嘉颖"), { 广告计划日报表: ["plan_name"], 广告账户日报: ["balance"], 媒体消耗汇总: ["media_source"] });
 
     const list = await harness.call("GET", "/v1/permissions", { token: await harness.tokenFor("曾祥竞") });
     const entry = list.data.users.find(item => item.name === "谭嘉颖");
@@ -306,6 +306,37 @@ describe("字段权限：个人覆盖与有效隐藏字段（经网关）", () =
     assert.equal(denied.data.error.replace("用户订单明细", "?"), missing.data.error.replace("根本不存在的表", "?"));
     const admin = await harness.call("GET", route("广告计划日报表"), { token: await harness.tokenFor("曾祥竞") });
     assert.ok(admin.text.includes("campaign_id"));
+    await saveGroups({});
+  });
+
+  test("普通用户的 /v1/auth/me、/v1/permissions、/v1/org 不含自己被隐藏的字段名；管理员仍能看到", async () => {
+    await saveGroups({ 广告计划日报表: ["plan_name", "campaign_id"] });
+    const userToken = await harness.tokenFor("谭嘉颖");
+    for (const route of ["/v1/auth/me", "/v1/permissions", "/v1/org"]) {
+      const result = await harness.call("GET", route, { token: userToken });
+      assert.equal(result.status, 200, route);
+      assert.equal(/plan_name|campaign_id/.test(result.text), false, `${route}: ${result.text.slice(0, 300)}`);
+    }
+    assert.equal(Object.prototype.hasOwnProperty.call((await harness.call("GET", "/v1/auth/me", { token: userToken })).data, "hiddenFields"), false);
+    const ownGroup = (await harness.call("GET", "/v1/org", { token: userToken })).data.groups[0];
+    assert.equal(ownGroup.name, "优化师");
+    assert.equal("hiddenFields" in ownGroup || "confirmedFields" in ownGroup, false);
+    const adminToken = await harness.tokenFor("曾祥竞");
+    assert.match((await harness.call("GET", "/v1/permissions", { token: adminToken })).text, /campaign_id/);
+    assert.match((await harness.call("GET", "/v1/org", { token: adminToken })).text, /campaign_id/);
+    await saveGroups({});
+  });
+
+  test("/v1/catalog 按用户的视图生成：被隐藏的日期字段不再给出时间范围，表清单不变", async () => {
+    await saveGroups({ 广告计划日报表: ["stat_date"] });
+    const user = await harness.call("GET", "/v1/catalog", { token: await harness.tokenFor("谭嘉颖") });
+    const admin = await harness.call("GET", "/v1/catalog", { token: await harness.tokenFor("曾祥竞") });
+    assert.deepEqual(user.data.tables.map(item => item.name), admin.data.tables.map(item => item.name));
+    const pick = (result, name) => result.data.tables.find(item => item.name === name);
+    assert.ok(pick(admin, "广告计划日报表").range);
+    assert.equal(pick(user, "广告计划日报表").range, null);
+    assert.equal(pick(user, "广告计划日报表").rows, pick(admin, "广告计划日报表").rows);
+    assert.deepEqual(pick(user, "广告账户日报"), pick(admin, "广告账户日报"));
     await saveGroups({});
   });
 

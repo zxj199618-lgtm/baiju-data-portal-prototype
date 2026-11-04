@@ -419,7 +419,7 @@ describe("字段权限（经网关）", () => {
   const groupsWith = hiddenFields => [
     group("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心"] }),
     group("投放组长", ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"]),
-    group("优化师", ["广告计划日报表", "广告账户日报"], { hiddenFields }),
+    group("优化师", ["广告计划日报表", "广告账户日报", "权益-账号维度消耗统计表"], { hiddenFields }),
     group("数据分析师", ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"]),
     group("只读访客", [])
   ];
@@ -536,6 +536,48 @@ describe("字段权限（经网关）", () => {
     assert.match(prompt, /归因计算/);
     assert.equal(prompt.includes("plan_name"), false, "被隐藏的维度不参与归因");
     await saveGroups({});
+  });
+
+  test("规范包：隐藏 department / cash_cost 后，SKILL.md、read_reference、口径解析、工具结果与响应都不含它们；管理员照常", async () => {
+    const EQ = "权益-账号维度消耗统计表";
+    const NAMES = /(^|[^A-Za-z0-9_])(department|cash_cost)(?![A-Za-z0-9_])/;
+    const script = () => [
+      { calls: ["metrics", "table-schema", "playbook", "sql-templates"].map((name, index) => toolCall(`rr${index}`, "read_reference", { name })) },
+      { calls: [toolCall("e1", "get_schema", { table: EQ }), toolCall("e2", "list_metrics", {}), toolCall("e3", "get_sample_rows", { table: EQ })] }
+    ];
+    const body = streamBody("任哥近 7 天消耗怎么样？白驹呢", [EQ], { skillId: "equity-union-analyst" });
+    await saveGroups({ [EQ]: ["department", "cash_cost"] });
+    requests = [];
+    toolScript = script();
+    const result = await analyzeStream(await tokenFor("谭嘉颖"), body);
+    assert.equal(result.status, 200);
+    assert.equal(result.done.meta.toolMode, "used:7");
+    const text = JSON.stringify(requests) + JSON.stringify(result.events);
+    const hit = text.match(NAMES);
+    assert.equal(hit, null, `不应出现隐藏字段名：…${hit ? text.slice(Math.max(0, hit.index - 80), hit.index + 40) : ""}…`);
+    assert.equal((result.done.meta.resolvedTerms || []).some(item => item.term === "任哥"), false, "按隐藏字段筛选的口径不解析");
+    assert.match(text, /read_reference/);
+
+    await saveGroups({});
+    requests = [];
+    toolScript = script();
+    const admin = await analyzeStream(await tokenFor("曾祥竞"), body);
+    assert.equal(admin.status, 200);
+    assert.match(JSON.stringify(requests), NAMES, "不受限用户拿到完整资料");
+    assert.ok((admin.done.meta.resolvedTerms || []).some(item => item.term === "任哥"));
+  });
+
+  test("内置 Skill 包不引用表时，只给有权限的表的证据", async () => {
+    await saveGroups({});
+    for (const skillId of ["warehouse-analyst", "numa-warehouse"]) {
+      requests = [];
+      toolScript = [];
+      const result = await analyzeStream(await tokenFor("谭嘉颖"), streamBody("有哪些表", [], { toolMode: false, skillId }));
+      assert.equal(result.status, 200, skillId);
+      const prompt = requests.at(-1).messages.find(message => message.role === "user").content;
+      assert.match(prompt, /广告计划日报表/, skillId);
+      for (const name of ["用户订单明细", "dwd_user_order_detail", "渠道归因明细", "用户画像标签明细表"]) assert.equal(prompt.includes(name), false, `${skillId} 不应含无权表 ${name}`);
+    }
   });
 
   test("个人 grantedFields 把组里隐藏的字段追加回来后，该用户能看到", async () => {

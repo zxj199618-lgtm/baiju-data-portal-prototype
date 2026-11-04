@@ -106,3 +106,13 @@ test('isHidden 两侧都去掉首尾空格比较', () => {
   assert.equal(isHidden({ t: [' a '] }, 't', 'a'), true);
   assert.equal(isHidden({ t: ['a'] }, 't', ' a'), true);
 });
+
+test('redactLines 逐行替换提到隐藏字段的行；mentionsHidden 按完整标识符匹配', () => {
+  const { redactLines, mentionsHidden, hiddenNamesOf } = require('../scripts/field-scope.cjs');
+  const text = 'a\nWHERE department IN (1)\ndepartment_v2 ok\n部门说明';
+  assert.equal(redactLines(text, ['department']), 'a\n（已隐藏）\ndepartment_v2 ok\n部门说明');
+  assert.equal(redactLines(text, []), text);
+  assert.equal(mentionsHidden('x cash_cost', new Set(['cash_cost'])), true);
+  assert.equal(mentionsHidden('cash_cost_x', ['cash_cost']), false);
+  assert.deepEqual([...hiddenNamesOf({ t: [' a '], u: ['b'] }, ['t', 'v'])], ['a']);
+});

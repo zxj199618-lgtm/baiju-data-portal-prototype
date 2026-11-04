@@ -34,7 +34,7 @@ const { computeAttribution, parseWindowDays } = require("./attribution-calc.cjs"
 const { createAnalysisToolkit } = require("./analysis-tools.cjs");
 const { createUsageTracker } = require("./usage-quota.cjs");
 const { createSemanticLayer } = require("./semantic-layer.cjs");
-const { scopeTables, scopeRowsOf, isHidden } = require("./field-scope.cjs");
+const { scopeTables, scopeRowsOf, isHidden, hiddenNamesOf } = require("./field-scope.cjs");
 const { createFeedbackStore, RATINGS } = require("./feedback-store.cjs");
 const { createOrgStore } = require("./org-store.cjs");
 const { createAccountStore } = require("./account-store.cjs");
@@ -668,8 +668,9 @@ function persistSampleRows(cnName, rows) {
 
 const NUMERIC = /DECIMAL|BIGINT|INT/;
 
-/* rowsOfFn / hidden：按当前用户字段权限裁剪后的取数函数与隐藏字段（见 scopeFor）；不传时为原始数据 */
-function aggregateEvidence(table, rowsOfFn = rowsOf, hidden = {}) {
+/* rowsOfFn / hidden：按当前用户字段权限裁剪后的取数函数与隐藏字段（见 scopeFor）；必须显式传入 */
+function aggregateEvidence(table, rowsOfFn, hidden) {
+  if (typeof rowsOfFn !== "function" || !hidden) throw new Error("aggregateEvidence 需要显式的取数视图");
   const rows = rowsOfFn(table.cnName);
   const { dateKey = "", groupBy = [], metric = "" } = table.agg || {};
   const result = { 行数: rows.length };
@@ -738,7 +739,8 @@ function aggregateEvidence(table, rowsOfFn = rowsOf, hidden = {}) {
   return result;
 }
 
-function recentRows(table, rowsOfFn = rowsOf, count = 8) {
+function recentRows(table, rowsOfFn, count = 8) {
+  if (typeof rowsOfFn !== "function") throw new Error("recentRows 需要显式的取数视图");
   return rowsOfFn(table.cnName).slice(-count);
 }
 
@@ -872,8 +874,8 @@ async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEven
 }
 
 /* 指标异动归因：维度贡献由代码确定性计算（attribution-calc.cjs），写入每张表的证据「归因计算」，模型只负责解释 */
-function attachAttribution(evidence, tableNames, question = "", view = null) {
-  const { tables: viewTables, rowsOf: viewRowsOf, hidden = {} } = view || { tables, rowsOf };
+function attachAttribution(evidence, tableNames, question, view) {
+  const { tables: viewTables, rowsOf: viewRowsOf, hidden } = requireView(view, "attachAttribution");
   const days = parseWindowDays(question);
   const targets = tableNames.map(name => viewTables.find(table => table.cnName === name)).filter(Boolean).slice(0, 3);
   if (!targets.length) {
@@ -899,9 +901,15 @@ function attachAttribution(evidence, tableNames, question = "", view = null) {
   });
 }
 
-/* view：scopeFor(用户) 的结果（只含有权限的表，字段已按字段权限裁剪）；不传时为原始全部表（仅内部使用） */
-function buildEvidence(cnNames, portalContext = [], view = null) {
-  const { tables: viewTables, rowsOf: viewRowsOf, hidden = {} } = view || { tables, rowsOf };
+/** 取数视图必须显式传入：面向用户传 scopeFor(用户)；管理员 / 内部用途需要原始数据时显式传 { tables, rowsOf, hidden: {} }，避免以后的调用方不小心用到原始数据 */
+function requireView(view, name) {
+  if (!view || !Array.isArray(view.tables) || typeof view.rowsOf !== "function" || !view.hidden) throw new Error(`${name} 需要显式的取数视图`);
+  return view;
+}
+
+/* view：scopeFor(用户) 的结果（只含有权限的表，字段已按字段权限裁剪） */
+function buildEvidence(cnNames, portalContext, view) {
+  const { tables: viewTables, rowsOf: viewRowsOf, hidden } = requireView(view, "buildEvidence");
   const selected = cnNames.length ? viewTables.filter(table => cnNames.includes(table.cnName)) : viewTables;
   return selected.map(table => {
     const total = viewRowsOf(table.cnName).length;
@@ -2409,7 +2417,7 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/v1/auth/me") {
-    return sendJson(res, 200, { name: req.session.name, role: req.session.role, group: orgStore.groupOf(req.session.name), tables: userTables(req.session.name), hiddenFields: hiddenFieldsFor(req.session.name) });
+    return sendJson(res, 200, { name: req.session.name, role: req.session.role, group: orgStore.groupOf(req.session.name), tables: userTables(req.session.name) });
   }
 
   // 修改自己的密码：需要旧密码；旧密码连续输错同样会被临时锁定
@@ -2751,7 +2759,8 @@ async function handleRequest(req, res) {
       accounts: admin ? accountStore.names() : [req.session.name],
       customized: org.customized,
       // 还没有管理员保存过时不下发组配置，界面继续使用自带的默认配置
-      groups: org.customized ? (admin ? org.groups : org.groups.filter(group => group.name === own)) : [],
+      // 普通用户只拿到自己的组，且去掉 hiddenFields / confirmedFields（其中有被隐藏的字段名）
+      groups: org.customized ? (admin ? org.groups : org.groups.filter(group => group.name === own).map(({ hiddenFields: _hidden, confirmedFields: _confirmed, ...rest }) => rest)) : [],
       userGroups: admin ? org.userGroups : { [req.session.name]: own }
     };
   };
@@ -2930,10 +2939,15 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/v1/catalog") {
+    /* 表清单不变；有权限的表用该用户的裁剪视图（被隐藏的日期字段不再给出时间范围），管理员用原始定义 */
+    const view = req.session.role === "admin" ? null : scopeFor(req.session.name);
     return sendJson(res, 200, {
-      tables: tables.map(table => {
-        const rows = rowsOf(table.cnName);
-        const dates = rows.length && table.agg.dateKey ? rows.map(row => String(row[table.agg.dateKey]).slice(0, 10)).sort() : [];
+      tables: tables.map(raw => {
+        const scoped = view?.tables.find(item => item.cnName === raw.cnName);
+        const table = scoped || raw;
+        const rows = scoped ? view.rowsOf(raw.cnName) : rowsOf(raw.cnName);
+        const dateKey = table.agg?.dateKey || "";
+        const dates = rows.length && dateKey ? rows.map(row => String(row[dateKey]).slice(0, 10)).sort() : [];
         return { name: table.cnName, physical: `${table.database}.${table.table}`, desc: table.desc, owner: table.owner, rows: rows.length, range: dates.length ? [dates[0], dates[dates.length - 1]] : null };
       })
     });
@@ -2970,17 +2984,22 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, {
       groups: org.groups.map(group => ({ name: group.name, tables: group.tables })),
       // 普通用户只能看到自己的有效权限，全员清单仅管理员可见
-      users: (req.session.role === "admin" ? accountStore.names() : [req.session.name]).map(name => ({
-        name, group: org.userGroups[name],
-        groupTables: org.groups.find(item => item.name === org.userGroups[name])?.tables || [],
-        override: overrides[name] || null,
-        effectiveTables: userTables(name),
-        // 字段权限：个人覆盖的两项、所属组的隐藏字段，以及合并后的有效隐藏字段
-        hiddenFields: overrides[name]?.hiddenFields || {},
-        grantedFields: overrides[name]?.grantedFields || {},
-        groupHiddenFields: orgStore.hiddenFieldsOf(name),
-        effectiveHiddenFields: hiddenFieldsFor(name)
-      }))
+      users: (req.session.role === "admin" ? accountStore.names() : [req.session.name]).map(name => {
+        const base = { name, group: org.userGroups[name], groupTables: org.groups.find(item => item.name === org.userGroups[name])?.tables || [], effectiveTables: userTables(name) };
+        // 普通用户看自己时不下发任何被隐藏的字段名（包括个人覆盖里的 hiddenFields）
+        if (req.session.role !== "admin") {
+          const { hiddenFields: _hidden, ...ownOverride } = overrides[name] || {};
+          return { ...base, override: overrides[name] ? ownOverride : null, grantedFields: overrides[name]?.grantedFields || {} };
+        }
+        return {
+          ...base, override: overrides[name] || null,
+          // 字段权限：个人覆盖的两项、所属组的隐藏字段，以及合并后的有效隐藏字段（仅管理员可见）
+          hiddenFields: overrides[name]?.hiddenFields || {},
+          grantedFields: overrides[name]?.grantedFields || {},
+          groupHiddenFields: orgStore.hiddenFieldsOf(name),
+          effectiveHiddenFields: hiddenFieldsFor(name)
+        };
+      })
     });
   }
 
@@ -3106,15 +3125,19 @@ async function handleRequest(req, res) {
       : null;
     let skill = null, scene = null, runtimeError = "";
     /* 规范包：核心规则直接作为场景提示词，数据通过工具循环取（不再跑证据脚本） */
-    const packEntry = registrySkill ? skillPacks.get(registrySkill.id) || null : null;
+    /* 规范包按当前用户在其表上的隐藏字段脱敏（SKILL.md、参考资料、术语表、拦截规则），之后所有用到规范包的地方都用这份 */
+    const rawPackEntry = registrySkill ? skillPacks.get(registrySkill.id) || null : null;
+    const packEntry = rawPackEntry ? skillPack.scopePack(rawPackEntry, hiddenNamesOf(fieldScope.hidden, rawPackEntry.spec?.tables || [])) : null;
     if (packEntry) {
       skill = { name: registrySkill.name, version: registrySkill.version };
       scene = { label: registrySkill.title || registrySkill.name, system: packEntry.instructions };
     } else if (registrySkill) {
-      /* 内置包的证据脚本直接读原始表定义与数据：当前用户有被隐藏的字段时不运行它，改用平台按权限裁剪后的证据 */
-      const toolRun = Object.keys(fieldScope.hidden).length
-        ? { ok: true, result: { evidence: buildEvidence(referenced.length ? referenced : scopedCandidates, portalContext, fieldScope) } }
-        : await runSkillTool(registrySkill, "evidence", { tables: referenced.length ? referenced : scopedCandidates, question, businessLine });
+      /* 内置包的证据脚本直接读原始表定义与数据，且表清单为空时会返回全部表：
+         当前用户有被隐藏的字段、或没有指定任何表时不运行它，改用平台按权限裁剪后的证据（只含有权限的表） */
+      const toolTables = referenced.length ? referenced : scopedCandidates;
+      const toolRun = Object.keys(fieldScope.hidden).length || !toolTables.length
+        ? { ok: true, result: { evidence: buildEvidence(toolTables, portalContext, fieldScope) } }
+        : await runSkillTool(registrySkill, "evidence", { tables: toolTables, question, businessLine });
       if (toolRun.ok && Array.isArray(toolRun.result.evidence)) {
         const instructions = skillInstructions(registrySkill.id);
         skill = { name: registrySkill.name, version: registrySkill.version };

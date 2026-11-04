@@ -14,6 +14,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { redactLines, mentionsHidden } = require("./field-scope.cjs");
 
 const MAX_REFERENCE_CHARS = 24000;
 
@@ -187,6 +188,42 @@ function referenceIndex(pack) {
   return ["## 可按需读取的参考资料（用 read_reference 工具）", ...pack.references.map(item => `- ${item.name}：${item.title}${item.when ? `（${item.when}）` : ""}`)].join("\n");
 }
 
+/* ================= 字段权限：规范包脱敏 ================= */
+
+/**
+ * 当前用户在规范包的表上有被隐藏的字段时，返回脱敏后的规范包副本（不改原对象）：
+ * - SKILL.md、参考资料、资料标题、拦截规则的答复 / 提示 / 建议、缺省值：提到隐藏字段的整行替换为「（已隐藏）」；
+ * - 术语表：filter.field 被隐藏的口径整条去掉（不再给出筛选和枚举值）；有歧义的词去掉这类选项，不足两个选项时整条去掉；其余文字同样逐行脱敏。
+ * hiddenNames 为空时原样返回。
+ */
+function scopePack(pack, hiddenNames) {
+  const names = [...(hiddenNames || [])].map(name => String(name ?? "").trim()).filter(Boolean);
+  if (!pack || !names.length) return pack;
+  const red = text => (typeof text === "string" ? redactLines(text, names) : text);
+  const hiddenFilter = filter => Boolean(filter && names.includes(String(filter.field ?? "").trim()));
+  const spec = pack.spec || {};
+  const glossary = (Array.isArray(spec.glossary) ? spec.glossary : []).flatMap(entry => {
+    if (hiddenFilter(entry.filter)) return [];
+    if (entry.ambiguous) {
+      const options = (entry.options || []).filter(option => !hiddenFilter(option.filter)).map(option => ({ ...option, label: red(option.label), desc: red(option.desc) }));
+      if (options.length < 2) return [];
+      return [{ ...entry, options, ask: red(entry.ask), handling: red(entry.handling) }];
+    }
+    return [{ ...entry, means: red(entry.means) }];
+  });
+  const guards = (Array.isArray(spec.guards) ? spec.guards : []).map(guard => ({
+    ...guard, message: red(guard.message), answer: red(guard.answer),
+    suggest: Array.isArray(guard.suggest) ? guard.suggest.filter(item => !mentionsHidden(String(item), names)) : guard.suggest
+  }));
+  const defaults = spec.defaults && typeof spec.defaults === "object" ? Object.fromEntries(Object.entries(spec.defaults).map(([key, value]) => [key, red(String(value))])) : spec.defaults;
+  return {
+    ...pack,
+    instructions: red(pack.instructions || ""),
+    references: (pack.references || []).map(item => ({ ...item, title: red(item.title), when: red(item.when), content: red(item.content) })),
+    spec: { ...spec, glossary, guards, defaults }
+  };
+}
+
 /* ================= 5. 会话上下文 ================= */
 
 /** 把客户端传来的最近几轮对话整理成上下文；只保留文本，截断长度，丢掉提问卡片与代码块 */
@@ -230,7 +267,7 @@ function buildConversationContext(turns, { answers = true, reset = null } = {}) 
 }
 
 module.exports = {
-  loadPacks, resolveTerms, matchGuards, buildSpecContext,
+  loadPacks, resolveTerms, matchGuards, buildSpecContext, scopePack,
   roleForGroup, buildAnswerProtocol, createReferenceTool, referenceIndex,
   sanitizeConversation, applyTableBoundary, buildConversationContext
 };
