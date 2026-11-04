@@ -55,6 +55,36 @@ describe("推荐问题", () => {
     assert.ok(texts(none.done.meta).every(text => /权益|近 7 天|任哥/.test(text)), texts(none.done.meta).join(" | "));
   });
 
+  test("字段权限：隐藏 department 后，起步问题与拦截替代问法都不含它的取值与口径词（任哥等）；不受限时照旧", async () => {
+    const admin = await harness.tokenFor("曾祥竞");
+    const group = (name, tables, extra = {}) => ({ name, desc: "", menus: ["灵犀智析"], menuEdits: [], boards: [], tables, status: "启用", ...extra });
+    // 与网关默认的权限组一致，只给投放组长加隐藏字段
+    const setHidden = async hiddenFields => {
+      const groups = [
+        group("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心"] }),
+        group("投放组长", ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报", TABLE], { hiddenFields }),
+        group("优化师", ["广告计划日报表", "广告账户日报", TABLE]),
+        group("数据分析师", ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细", TABLE]),
+        group("只读访客", [])
+      ];
+      const saved = await harness.call("PUT", "/v1/org", { token: admin, body: { groups } });
+      assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    };
+    const LITERALS = /任哥|小炭|达人部门|伯都|投放一部|department/;
+    const run = async (question, extra = {}) => { reset(); return texts((await harness.analyzeStream("林金维", { skillId: PACK, scenario: "equity", question, ...extra })).done.meta); };
+    try {
+      await setHidden({ [TABLE]: ["department"] });
+      for (const [question, extra] of [["你好", { toolMode: false }], ["按商户看一下这周的收入", {}]]) {
+        const list = await run(question, extra);
+        assert.ok(list.length >= 1, `${question}：仍有推荐`);
+        assert.deepEqual(list.filter(text => LITERALS.test(text)), [], `${question}：${list.join(" | ")}`);
+      }
+    } finally {
+      await setHidden({});
+    }
+    assert.ok((await run("你好", { toolMode: false })).some(text => text.includes("任哥")), "不受限时起步问题照旧");
+  });
+
   test("推荐的问题是平台真的能回答的：把「按部门拆开看」翻成查询，能取到数", async () => {
     reset();
     harness.relay.toolScript = [call("query_metric", { metric: "roi_self", table: TABLE })];

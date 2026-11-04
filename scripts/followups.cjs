@@ -120,7 +120,7 @@ function suggestFollowUps({ evidence, question = "", resolvedTerms = [], output 
   }
   if (context.usedLineage) add("generic", "这张表有哪些指标可以看？");
   if (!candidates.length) {
-    (config.starters || ["有哪些指标可以看？"]).slice(0, MAX_SUGGESTIONS).forEach(text => add("generic", text));
+    (config.starters?.length ? config.starters : ["有哪些指标可以看？"]).slice(0, MAX_SUGGESTIONS).forEach(text => add("generic", text));
   }
 
   // 去掉和刚才的问题几乎一样的；按角色排序；报告类最多 1 个；取前 3 个

@@ -211,6 +211,8 @@ function scopePack(pack, hiddenNames) {
   });
   const literalList = [...literals].filter(text => text.length >= 2);
   const red = text => (typeof text === "string" ? redactLiterals(redactLines(text, names), literalList) : text);
+  // 推荐问题（起步问题、拦截后的替代问法）整条给用户看：提到隐藏字段名或其取值 / 口径词的直接去掉
+  const leaks = text => mentionsHidden(String(text ?? ""), names) || literalList.some(item => String(text ?? "").includes(item));
   const glossary = (Array.isArray(spec.glossary) ? spec.glossary : []).flatMap(entry => {
     if (hiddenFilter(entry.filter)) return [];
     if (entry.ambiguous) {
@@ -222,14 +224,17 @@ function scopePack(pack, hiddenNames) {
   });
   const guards = (Array.isArray(spec.guards) ? spec.guards : []).map(guard => ({
     ...guard, message: red(guard.message), answer: red(guard.answer),
-    suggest: Array.isArray(guard.suggest) ? guard.suggest.filter(item => !mentionsHidden(String(item), names)) : guard.suggest
+    suggest: Array.isArray(guard.suggest) ? guard.suggest.filter(item => !leaks(item)) : guard.suggest
   }));
+  const followUps = spec.followUps && typeof spec.followUps === "object" && Array.isArray(spec.followUps.starters)
+    ? { ...spec.followUps, starters: spec.followUps.starters.filter(item => !leaks(item)) }
+    : spec.followUps;
   const defaults = spec.defaults && typeof spec.defaults === "object" ? Object.fromEntries(Object.entries(spec.defaults).map(([key, value]) => [key, red(String(value))])) : spec.defaults;
   return {
     ...pack,
     instructions: red(pack.instructions || ""),
     references: (pack.references || []).map(item => ({ ...item, title: red(item.title), when: red(item.when), content: red(item.content) })),
-    spec: { ...spec, glossary, guards, defaults }
+    spec: { ...spec, glossary, guards, defaults, ...(followUps === undefined ? {} : { followUps }) }
   };
 }
 
