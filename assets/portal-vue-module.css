@@ -337,6 +337,18 @@
 .portal-vue-board-range-toolbar { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 12px; color: #98a2b3; font-size: 12px; }
 .portal-vue-permission-card-title { display: block; color: #293241; font-size: 15px; line-height: 20px; }
 .portal-vue-board-checks { margin-left: 0; }
+.portal-vue-table-perm { min-width: 0; }
+.portal-vue-table-perm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.portal-vue-field-tag { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 0 8px; border-radius: 10px; background: #f0f3f8; color: #5b6578; font-size: 12px; line-height: 20px; cursor: pointer; user-select: none; }
+.portal-vue-field-tag.partial { background: #e8f1ff; color: #1677ff; }
+.portal-vue-field-tag.open { box-shadow: 0 0 0 1px #1677ff inset; }
+.portal-vue-field-dot { width: 6px; height: 6px; border-radius: 50%; background: #f5222d; }
+.portal-vue-field-new { color: #f5222d; }
+.portal-vue-field-panel { margin: 4px 0 8px 24px; padding: 8px 10px; border: 1px solid #e1e7f0; border-radius: 6px; background: #fafbfd; }
+.portal-vue-field-panel-list { max-height: 220px; overflow-y: auto; }
+.portal-vue-field-panel-item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.portal-vue-field-panel-item em { flex: none; color: #8a94a6; font-size: 12px; font-style: normal; }
+.portal-vue-field-panel-item small { min-width: 0; overflow: hidden; color: #8a94a6; text-overflow: ellipsis; white-space: nowrap; }
 .portal-vue-member-panel { min-width: 0; }
 .portal-vue-member-drawer .el-drawer__body { padding: 12px 20px 20px; }
 .portal-vue-member-toolbar { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 12px; }

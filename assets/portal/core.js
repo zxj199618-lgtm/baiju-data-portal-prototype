@@ -62,12 +62,19 @@
      登录后读取服务端保存的配置并应用到界面；管理员修改（经 notify）后防抖保存回服务端。
      服务端据此判断数据表权限与管理员角色，并校验内容（例如不能把最后一个管理员降级）。
      服务端拒绝保存时，界面回退到服务端当前配置，避免「界面上改了但实际没生效」。 */
+  /** 字段映射只保留已授权表的键；「全部数据表」的组不能带字段设置。服务端对显式传入的映射整体替换并严格校验，所以每个组都要带上（默认 {}） */
+  function pruneFieldMap(map, tables) {
+    const result = {};
+    if (!Array.isArray(tables) || tables.includes("全部数据表")) return result;
+    Object.entries(map || {}).forEach(([table, fields]) => { if (tables.includes(table) && Array.isArray(fields) && fields.length) result[table] = [...fields]; });
+    return result;
+  }
   const orgSync = {
     role: "", accounts: [], ready: false, timer: null, lastSnapshot: "",
     snapshot() {
       const userGroups = {};
       this.accounts.forEach(name => { const user = state.users.find(item => item.name === name); if (user) userGroups[name] = user.group; });
-      const groups = state.groups.map(group => ({ name: group.name, desc: group.desc, status: group.status, menus: group.menus, menuEdits: group.menuEdits, boards: group.boards, tables: group.tables }));
+      const groups = state.groups.map(group => ({ name: group.name, desc: group.desc, status: group.status, menus: group.menus, menuEdits: group.menuEdits, boards: group.boards, tables: group.tables, hiddenFields: pruneFieldMap(group.hiddenFields, group.tables), confirmedFields: pruneFieldMap(group.confirmedFields, group.tables) }));
       return { groups, userGroups };
     },
     async load() {

@@ -508,4 +508,55 @@ describe("浏览器端到端", () => {
     assert.deepEqual(result.groups, ["门户管理员", "门户管理员"], "界面应回退到服务端配置");
     assert.match(result.toast, /至少需要保留一个/);
   }));
+
+  // 放在最后：保存权限组会把界面里的整套组配置写回服务端（之后服务端以界面保存的为准），会影响其他用例的表范围
+  test("字段权限 · 权限组页：表行出现「全部字段」标签，取消字段后变为「字段 n-1/n」，保存后服务端带上 hiddenFields", async t => withPage(t, async page => {
+    await login(page, "曾祥竞");
+    await appVisible(page);
+    await page.evaluate(() => window.portalVueBridge.setPage("权限组"));
+    await page.waitForSelector("#permissionGroupView .portal-vue-group-card");
+    const target = await page.evaluate(() => {
+      const state = window.portalVueModuleApi.state;
+      const index = state.groups.findIndex(group => group.name === "数据分析师");
+      const granted = state.groups[index].tables;
+      // 只用组里本来就授权的表，避免改动该组的表范围而影响后面共用网关的用例
+      const asset = state.assets.find(item => item.fields.length > 1 && (granted.includes("全部数据表") || granted.includes(item.cnName)));
+      return { index, table: asset.cnName, total: asset.fields.length, field: asset.fields[0].name };
+    });
+    assert.ok(target.index >= 0);
+    await page.locator("#permissionGroupView .portal-vue-group-card").nth(target.index).click();
+    await page.getByRole("tab", { name: /数据表权限/ }).click();
+    const row = page.locator(".portal-vue-table-perm", { has: page.locator(`label[title="${target.table}"]`) }).first();
+    await row.scrollIntoViewIfNeeded();
+    assert.equal(await row.locator("input[type=checkbox]").first().isChecked(), true, "该表应已被权限组授权");
+    const tag = row.locator('[data-test="field-tag"]');
+    assert.equal((await tag.textContent()).trim(), "全部字段");
+    await tag.click();
+    const panel = row.locator('[data-test="field-panel"]');
+    await panel.waitFor();
+    await panel.locator(".portal-vue-field-panel-item label").first().click();
+    assert.equal((await tag.textContent()).trim(), `字段 ${target.total - 1}/${target.total}`);
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    const saved = await page.evaluate(({ index }) => JSON.parse(JSON.stringify(window.portalVueModuleApi.state.groups[index])), target);
+    assert.deepEqual(saved.hiddenFields[target.table], [target.field]);
+    assert.ok(Array.isArray(saved.confirmedFields[target.table]));
+    // 防抖保存到服务端
+    const admin = await harness.tokenFor("曾祥竞");
+    await page.waitForTimeout(1500);
+    const org = await harness.call("GET", "/v1/org", { token: admin });
+    const serverGroup = org.data.groups.find(group => group.name === "数据分析师");
+    assert.deepEqual(serverGroup.hiddenFields[target.table], [target.field]);
+
+    // 恢复：重新勾上该字段并保存，避免影响本文件后面共用同一网关的用例（隐藏字段会让指标不可用）
+    await panel.locator(".portal-vue-field-panel-item label").first().click();
+    assert.equal((await tag.textContent()).trim(), "全部字段");
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    let restored;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await page.waitForTimeout(500);
+      restored = await harness.call("GET", "/v1/org", { token: admin });
+      if (!Object.keys(restored.data.groups.find(group => group.name === "数据分析师").hiddenFields).length) break;
+    }
+    assert.deepEqual(restored.data.groups.find(group => group.name === "数据分析师").hiddenFields, {});
+  }));
 });

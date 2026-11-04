@@ -16,6 +16,8 @@
   } = window.PortalVue;
 
 
+  const cloneMap = map => Object.fromEntries(Object.entries(map || {}).map(([table, list]) => [table, Array.isArray(list) ? [...list] : []]));
+
   const PermissionGroupApp = {
     template: `
       <el-config-provider :locale="locale">
@@ -65,7 +67,7 @@
                 <div class="portal-vue-permission-card-grid portal-vue-board-card-grid">
                   <article v-for="group in tableGroups" :key="group.source" class="portal-vue-group-permission-card">
                     <strong class="portal-vue-permission-card-title">{{ group.source }}</strong>
-                    <div class="portal-vue-child-checks portal-vue-board-checks"><el-checkbox v-for="table in group.tables" :key="table.cnName" :title="table.cnName" :model-value="selectedTables.includes(table.cnName)" @change="value=>toggleTable(table.cnName,value)">{{ table.cnName }}</el-checkbox></div>
+                    <div class="portal-vue-child-checks portal-vue-board-checks"><div v-for="table in group.tables" :key="table.cnName" class="portal-vue-table-perm"><div class="portal-vue-table-perm-row"><el-checkbox :title="table.cnName" :model-value="selectedTables.includes(table.cnName)" @change="value=>toggleTable(table.cnName,value)">{{ table.cnName }}</el-checkbox><span v-if="fieldTagVisible(table.cnName)" class="portal-vue-field-tag" :class="{partial:hiddenOf(table.cnName).length,open:expandedTable===table.cnName}" data-test="field-tag" role="button" tabindex="0" @click="toggleFieldPanel(table.cnName)" @keydown.enter="toggleFieldPanel(table.cnName)"><i v-if="newFieldCount(table.cnName)" class="portal-vue-field-dot" :title="'新增 '+newFieldCount(table.cnName)+' 个字段，请确认'"></i><span v-if="newFieldCount(table.cnName)" class="portal-vue-field-new">新增 {{ newFieldCount(table.cnName) }} 个字段，请确认</span>{{ fieldLabel(table.cnName) }}</span></div><div v-if="fieldTagVisible(table.cnName)&&expandedTable===table.cnName" class="portal-vue-field-panel" data-test="field-panel"><el-checkbox :model-value="!hiddenOf(table.cnName).length" :indeterminate="hiddenOf(table.cnName).length>0&&hiddenOf(table.cnName).length<tableFields(table.cnName).length" @change="value=>toggleAllFields(table.cnName,value)">全选</el-checkbox><div class="portal-vue-field-panel-list"><div v-for="field in tableFields(table.cnName)" :key="field.name" class="portal-vue-field-panel-item"><el-checkbox :model-value="!hiddenOf(table.cnName).includes(field.name)" @change="value=>toggleField(table.cnName,field.name,value)">{{ field.name }}</el-checkbox><em>{{ field.type }}</em><small :title="field.comment">{{ field.comment }}</small></div></div></div></div></div>
                   </article>
                 </div>
                 <p class="portal-vue-muted" style="margin-top:12px">未勾选任何数据表时，该权限组成员无法在灵犀智析发起分析和调用数据 API。</p>
@@ -89,7 +91,7 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({state,selectedIndex:0,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],allBoards:false,selectedTables:[],dirty:false,formVisible:false,editingIndex:-1,groupForm:{},memberDrawer:false,memberVisible:false,memberSelection:[]}),
+    data:()=>({state,selectedIndex:0,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],allBoards:false,selectedTables:[],hiddenFields:{},confirmedFields:{},expandedTable:"",dirty:false,formVisible:false,editingIndex:-1,groupForm:{},memberDrawer:false,memberVisible:false,memberSelection:[]}),
     computed:{
       activeGroup(){refreshTick.value;return state.groups[this.selectedIndex]||state.groups[0];},
       boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
@@ -99,6 +101,9 @@
       allTablesSelected(){return this.selectedTables.length>0&&this.selectedTables.length>=this.allTableNames.length;},
       tablesIndeterminate(){return this.selectedTables.length>0&&this.selectedTables.length<this.allTableNames.length;},
       tableBadge(){return this.selectedTables.length;},
+      hasHiddenFields(){return Object.values(this.hiddenFields).some(list=>list.length);},
+      // 管理员组与「全部数据表」不能限制字段；非管理员拿不到字段配置，也不显示
+      fieldPanelsEnabled(){return this.canEdit("权限组")&&this.activeGroup?.name!=="门户管理员"&&(!this.allTablesSelected||this.hasHiddenFields);},
       activeGroupUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return groupName?state.users.filter(user=>user.group===groupName):[];},
       availableUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return state.users.filter(user=>user.group!==groupName&&user.status!=="已停用");}
     },
@@ -109,7 +114,7 @@
       avatarText(name){return String(name||"用").slice(0,1);},
       avatarStyle(name){const colors=["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"];const seed=[...String(name||"")].reduce((total,char)=>total+char.charCodeAt(0),0);return{background:colors[seed%colors.length],color:"#fff"};},
       selectGroup(index){this.selectedIndex=index;this.activeTab="menus";this.memberDrawer=false;this.loadGroup();},
-      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.selectedMenuEdits=[...(group.menuEdits||[])];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);const tablesGrant=group.tables||[];this.selectedTables=tablesGrant.includes("全部数据表")?[...this.allTableNames]:state.assets.filter(table=>tablesGrant.includes(table.cnName)).map(table=>table.cnName);this.dirty=false;},
+      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.selectedMenuEdits=[...(group.menuEdits||[])];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);const tablesGrant=group.tables||[];this.selectedTables=tablesGrant.includes("全部数据表")?[...this.allTableNames]:state.assets.filter(table=>tablesGrant.includes(table.cnName)).map(table=>table.cnName);this.hiddenFields=cloneMap(group.hiddenFields);this.confirmedFields=cloneMap(group.confirmedFields);this.expandedTable="";this.dirty=false;},
       permItems(section){return menuGrantItems(section);},
       sectionNames(section){const items=this.permItems(section);return items.length===1?[items[0].name]:[section.group,...items.map(item=>item.name)];},
       sectionChecked(section){const names=this.sectionNames(section);return names.every(name=>this.selectedMenus.includes(name));},
@@ -125,9 +130,18 @@
       // 勾选「全部看板」后逐项放开：分类下的看板仍不可单独操作，但应显示为已勾选，避免看起来像没授权
       boardChecked(name){return this.allBoards||this.selectedBoards.includes(name);},
       toggleBoard(name,checked){const index=this.selectedBoards.indexOf(name);if(checked&&index<0)this.selectedBoards.push(name);else if(!checked&&index>=0)this.selectedBoards.splice(index,1);this.dirty=true;},
-      toggleAllTables(value){this.selectedTables=value?[...this.allTableNames]:[];this.dirty=true;},
-      toggleTable(name,checked){const index=this.selectedTables.indexOf(name);if(checked&&index<0)this.selectedTables.push(name);else if(!checked&&index>=0)this.selectedTables.splice(index,1);this.dirty=true;},
-      saveGroup(){this.activeGroup.menus=[...this.selectedMenus];this.activeGroup.menuEdits=[...this.selectedMenuEdits];this.activeGroup.boards=this.allBoards?["全部看板"]:[...this.selectedBoards];this.activeGroup.tables=this.selectedTables.length>=this.allTableNames.length?["全部数据表"]:[...this.selectedTables];this.dirty=false;notify("权限组配置已保存");},
+      toggleAllTables(value){this.selectedTables=value?[...this.allTableNames]:[];this.hiddenFields={};this.confirmedFields={};if(value)this.allTableNames.forEach(name=>{this.confirmedFields[name]=this.tableFields(name).map(field=>field.name);});this.expandedTable="";this.dirty=true;},
+      toggleTable(name,checked){const index=this.selectedTables.indexOf(name);if(checked&&index<0){this.selectedTables.push(name);delete this.hiddenFields[name];this.confirmedFields[name]=this.tableFields(name).map(field=>field.name);}else if(!checked&&index>=0){this.selectedTables.splice(index,1);delete this.hiddenFields[name];delete this.confirmedFields[name];if(this.expandedTable===name)this.expandedTable="";}this.dirty=true;},
+      tableFields(name){return state.assets.find(table=>table.cnName===name)?.fields||[];},
+      hiddenOf(name){return this.hiddenFields[name]||[];},
+      fieldTagVisible(name){return this.fieldPanelsEnabled&&this.selectedTables.includes(name)&&this.tableFields(name).length>0;},
+      fieldLabel(name){const fields=this.tableFields(name);const hidden=this.hiddenOf(name);if(!hidden.length)return "全部字段";return `字段 ${fields.filter(field=>!hidden.includes(field.name)).length}/${fields.length}`;},
+      // 仅在已有确认记录时提醒（没有记录说明还没确认过基线，首次保存会补上）
+      newFieldCount(name){const confirmed=this.confirmedFields[name];if(!Array.isArray(confirmed))return 0;return this.tableFields(name).filter(field=>!confirmed.includes(field.name)).length;},
+      toggleFieldPanel(name){if(this.expandedTable===name){this.expandedTable="";return;}this.expandedTable=name;if(this.newFieldCount(name)){this.confirmedFields[name]=this.tableFields(name).map(field=>field.name);this.dirty=true;}},
+      toggleAllFields(name,checked){if(checked)delete this.hiddenFields[name];else this.hiddenFields[name]=this.tableFields(name).map(field=>field.name);this.dirty=true;},
+      toggleField(name,fieldName,checked){const hidden=[...this.hiddenOf(name)];const index=hidden.indexOf(fieldName);if(checked&&index>=0)hidden.splice(index,1);else if(!checked&&index<0)hidden.push(fieldName);if(hidden.length)this.hiddenFields[name]=hidden;else delete this.hiddenFields[name];this.dirty=true;},
+      saveGroup(){this.activeGroup.menus=[...this.selectedMenus];this.activeGroup.menuEdits=[...this.selectedMenuEdits];this.activeGroup.boards=this.allBoards?["全部看板"]:[...this.selectedBoards];const hiddenFields={};const confirmedFields={};this.selectedTables.forEach(name=>{if(this.hiddenOf(name).length)hiddenFields[name]=[...this.hiddenOf(name)];confirmedFields[name]=Array.isArray(this.confirmedFields[name])?[...this.confirmedFields[name]]:this.tableFields(name).map(field=>field.name);});this.activeGroup.hiddenFields=hiddenFields;this.activeGroup.confirmedFields=confirmedFields;this.hiddenFields=cloneMap(hiddenFields);this.confirmedFields=cloneMap(confirmedFields);this.activeGroup.tables=this.selectedTables.length>=this.allTableNames.length&&!Object.keys(hiddenFields).length?["全部数据表"]:[...this.selectedTables];this.dirty=false;notify("权限组配置已保存");},
       openMemberDialog(){this.memberSelection=[];this.memberVisible=true;},
       addMembers(){if(!this.memberSelection.length)return;const groupName=this.activeGroup?.name;if(!groupName)return;const selected=new Set(this.memberSelection);let count=0;state.users.forEach(user=>{if(selected.has(user.feishu||user.name)){user.group=groupName;if(user.status!=="已停用")user.status="启用";count+=1;}});this.memberVisible=false;this.memberSelection=[];notify(`已添加 ${count} 名成员到「${groupName}」`);},
       async removeMember(user){const groupName=this.activeGroup?.name;if(!groupName||!await confirmAction("移除权限组成员",`确认将「${user.name}」从「${groupName}」移除？`))return;user.group="未分配";if(user.status!=="已停用")user.status="未分配权限组";notify(`已从「${groupName}」移除 ${user.name}`);},
