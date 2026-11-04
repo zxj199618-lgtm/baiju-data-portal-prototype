@@ -640,7 +640,7 @@ describe("浏览器端到端", () => {
       const body = await save();
       assert.deepEqual(body.grantedFields, { [target.groupTable]: [target.hidden] });
       assert.deepEqual(body.hiddenFields, { [target.personalTable]: [target.personalField] });
-      assert.ok(body.tables.includes(target.personalTable) && body.tables.includes(target.groupTable));
+      assert.ok(body.tables.includes(target.personalTable) && !body.tables.includes(target.groupTable), "只提交个人追加的表");
       let view;
       for (let attempt = 0; attempt < 20; attempt += 1) { view = await adminView(); if (view.grantedFields[target.groupTable]) break; await page.waitForTimeout(300); }
       assert.deepEqual(view.grantedFields, { [target.groupTable]: [target.hidden] });

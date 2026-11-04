@@ -209,9 +209,8 @@
         });
         this.user.fieldHidden=hiddenFields;
         this.user.fieldGrants=grantedFields;
-        const effectiveTables=[...new Set([...groupTables,...personalTables])];
-        const hasPersonalFields=Object.keys(hiddenFields).length>0||Object.keys(grantedFields).length>0;
-        const payload=personalTables.length||hasPersonalFields?(effectiveTables.length>=this.allTableNames.length?["全部数据表"]:effectiveTables):[];
+        // 个人覆盖只存个人追加的表（逐表列出，不用「全部数据表」）；组授予的表由网关实时按权限组计算
+        const payload=personalTables;
         let persisted=false;
         try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables:payload,hiddenFields,grantedFields})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}
         notify(`${this.user.name} 的权限配置已保存（管理范围：${manageScopeSummary(this.user)}；个人追加：菜单查看 ${personalMenus.length} / 菜单编辑 ${personalMenuEdits.length} / 看板 ${personalBoards.length} / 表 ${personalTables.length} 项；权限组权限保持不变）${persisted?"，已同步到分析网关":"（本地演示，网关未连接）"}`);

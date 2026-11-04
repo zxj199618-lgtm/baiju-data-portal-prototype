@@ -2056,11 +2056,18 @@ function saveHistory(userName, box) {
   fs.renameSync(tmp, HISTORY_FILE);
 }
 
+/** 个人覆盖里个人追加的表（「全部数据表」展开为全部）；覆盖只存个人追加的部分，组授予的表实时跟随权限组 */
+function personalTablesOf(override) {
+  const list = Array.isArray(override?.tables) ? override.tables : [];
+  return list.includes("全部数据表") ? [...allTableNames] : list.filter(name => allTableNames.includes(name));
+}
+
 function userTables(userName) {
   if (!accountStore.has(userName)) return [];
-  const override = loadPermissionOverrides()[userName];
-  if (override) return override.tables.includes("全部数据表") ? [...allTableNames] : [...override.tables];
-  return orgStore.tablesOf(userName);
+  const groupTables = orgStore.tablesOf(userName);
+  const personal = personalTablesOf(loadPermissionOverrides()[userName]);
+  const union = new Set([...groupTables, ...personal]);
+  return allTableNames.filter(name => union.has(name));
 }
 
 /* ================= 字段权限：全系统唯一的判断来源 ================= */
@@ -2107,13 +2114,13 @@ function scopeFor(userName) {
   };
 }
 
-/** 个人覆盖里的字段映射 { 表名: [字段名] }：表必须在该覆盖授予的表内；每表最多 200 个、每个 60 字符以内的非空字符串；存储去空格、去重 */
+/** 个人覆盖里的字段映射 { 表名: [字段名] }：表必须在 tableKeys 内（追加字段 = 组授予的表，个人隐藏 = 个人追加的表）；每表最多 200 个、每个 60 字符以内的非空字符串；存储去空格、去重 */
 function overrideFieldMap(raw, tableKeys, label) {
   if (raw === null) return { ok: true, value: {} };
   if (typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: `${label}格式不正确，应为 { 表名: [字段名] }` };
   const value = {};
   for (const [table, fields] of Object.entries(raw)) {
-    if (!tableKeys.includes(table)) return { ok: false, error: `${label}包含未授予该用户的数据表：${table}` };
+    if (!tableKeys.includes(table)) return { ok: false, error: `${label}包含不适用的数据表：${table}（${label === "个人追加字段" ? "只能在权限组授予的表上追加" : "只能在个人追加的表上隐藏"}）` };
     if (!Array.isArray(fields) || fields.length > 200) return { ok: false, error: `${label}「${table}」的字段列表格式不正确（最多 200 个）` };
     for (const field of fields) {
       if (typeof field !== "string" || !field.trim() || field.trim().length > 60) return { ok: false, error: `${label}「${table}」的字段名必须是 60 字符以内的非空字符串` };
@@ -3012,24 +3019,32 @@ async function handleRequest(req, res) {
     const invalid = tableList.filter(name => name !== "全部数据表" && !allTableNames.includes(name));
     if (invalid.length) return sendJson(res, 400, { error: `未知数据表：${invalid.join("、")}` });
     const overrides = loadPermissionOverrides();
-    const tableKeys = tableList.includes("全部数据表") ? allTableNames : tableList;
-    /* 字段映射：不带时沿用已保存的值（只保留仍授予的表），避免只改表的保存把个人字段设置清空 */
-    const fieldsFor = (key, label) => {
-      if (body[key] !== undefined) return overrideFieldMap(body[key], tableKeys, label);
-      const stored = overrides[userName]?.[key];
+    /* 个人覆盖只存个人追加的表：去掉所属组当前已授予的表（组授予全部表时个人表为空）；组的表实时跟随权限组 */
+    const groupTables = orgStore.tablesOf(userName);
+    const groupAll = groupTables.length > 0 && allTableNames.every(name => groupTables.includes(name));
+    const personalTables = groupAll ? [] : tableList.includes("全部数据表")
+      ? ["全部数据表"]
+      : [...new Set(tableList)].filter(name => !groupTables.includes(name));
+    const personalKeys = personalTablesOf({ tables: personalTables }).filter(name => !groupTables.includes(name));
+    // 不带任何字段映射的「tables: []」= 恢复为只用权限组（删除个人覆盖）
+    const reset = !tableList.length && body.hiddenFields === undefined && body.grantedFields === undefined;
+    /* 字段映射：不带时沿用已保存的值（只保留仍适用的表），避免只改表的保存把个人字段设置清空 */
+    const fieldsFor = (key, label, keys) => {
+      if (body[key] !== undefined) return overrideFieldMap(body[key], keys, label);
+      const stored = reset ? null : overrides[userName]?.[key];
       const value = {};
-      for (const table of tableKeys) { const list = fieldList(stored, table); if (list.length) value[table] = list; }
+      for (const table of keys) { const list = fieldList(stored, table); if (list.length) value[table] = list; }
       return { ok: true, value };
     };
-    const hiddenOutcome = fieldsFor("hiddenFields", "个人隐藏字段");
+    const hiddenOutcome = fieldsFor("hiddenFields", "个人隐藏字段", personalKeys);
     if (!hiddenOutcome.ok) return sendJson(res, 400, { error: hiddenOutcome.error });
-    const grantedOutcome = fieldsFor("grantedFields", "个人追加字段");
+    const grantedOutcome = fieldsFor("grantedFields", "个人追加字段", groupTables);
     if (!grantedOutcome.ok) return sendJson(res, 400, { error: grantedOutcome.error });
-    if (!tableList.length) delete overrides[userName];
-    else overrides[userName] = { tables: tableList, hiddenFields: hiddenOutcome.value, grantedFields: grantedOutcome.value, updatedAt: new Date().toISOString() };
+    if (!personalTables.length && !Object.keys(hiddenOutcome.value).length && !Object.keys(grantedOutcome.value).length) delete overrides[userName];
+    else overrides[userName] = { tables: personalTables, hiddenFields: hiddenOutcome.value, grantedFields: grantedOutcome.value, updatedAt: new Date().toISOString() };
     savePermissionOverrides(overrides);
     appendAuditEntry({
-      type: "permission-change", user: req.session.name, target: userName, tables: tableList.length,
+      type: "permission-change", user: req.session.name, target: userName, tables: personalTables.length,
       hiddenFields: Object.values(hiddenOutcome.value).reduce((sum, list) => sum + list.length, 0),
       grantedFields: Object.values(grantedOutcome.value).reduce((sum, list) => sum + list.length, 0)
     });
