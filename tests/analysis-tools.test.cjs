@@ -11,6 +11,7 @@ const net = require("node:net");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
 const { createAnalysisToolkit } = require("../scripts/analysis-tools.cjs");
+const { scopeTables, scopeRowsOf } = require("../scripts/field-scope.cjs");
 
 const ROOT = path.join(__dirname, "..");
 const MODEL = "gpt-5.4-mini";
@@ -128,6 +129,64 @@ describe("工具箱（单元）", () => {
     assert.equal(entries[0].ok, true);
     assert.equal(entries[1].ok, false);
     assert.equal(entries[1].table, "媒体消耗汇总");
+  });
+});
+
+
+/* ---------- 字段权限（单元）：用 scopeTables / scopeRowsOf 裁剪后的表与行构造工具箱 ---------- */
+
+describe("字段权限：裁剪后的工具箱（单元）", () => {
+  const SECRET = "secret_margin";
+  const fieldTables = [{
+    cnName: "利润日报", desc: "利润日报", owner: "测试",
+    fields: [
+      { name: "stat_date", type: "DATE", comment: "日期" },
+      { name: "media_source", type: "VARCHAR", comment: "媒体" },
+      { name: "cost", type: "DECIMAL(18,2)", comment: "消耗" },
+      { name: SECRET, type: "DECIMAL(18,2)", comment: "内部毛利额" }
+    ],
+    agg: { dateKey: "stat_date", groupBy: ["media_source", SECRET], metric: "cost" },
+    lineage: { upstream: [{ table: "dwd_profit", role: "毛利来源", join: `LEFT JOIN · ${SECRET}` }], downstream: [] }
+  }];
+  const fieldRows = { 利润日报: [{ stat_date: ANCHOR, media_source: "巨量", cost: 10, [SECRET]: 3 }, { stat_date: shift(ANCHOR, -7), media_source: "快手", cost: 5, [SECRET]: 1 }] };
+  const hidden = { 利润日报: [SECRET] };
+  const scopedKit = (audit = () => {}) => createAnalysisToolkit({
+    userName: "受限用户", allowedTables: ["利润日报"], tables: scopeTables(fieldTables, hidden),
+    rowsOf: scopeRowsOf(name => fieldRows[name] || [], hidden), audit
+  });
+
+  test("search_tables 用被隐藏字段的注释关键词搜不到该表（未裁剪时能搜到）", () => {
+    const raw = createAnalysisToolkit({ userName: "x", allowedTables: ["利润日报"], tables: fieldTables, rowsOf: name => fieldRows[name] || [] });
+    assert.equal(raw.execute("search_tables", JSON.stringify({ keyword: "内部毛利" })).data.总数, 1);
+    assert.equal(scopedKit().execute("search_tables", JSON.stringify({ keyword: "内部毛利" })).data.总数, 0);
+    assert.equal(scopedKit().execute("search_tables", JSON.stringify({ keyword: SECRET })).data.总数, 0);
+  });
+
+  test("get_schema 的字段与口径、get_sample_rows 的行、get_lineage 都不含该字段", () => {
+    const kit = scopedKit();
+    const schema = kit.execute("get_schema", JSON.stringify({ table: "利润日报" }));
+    assert.equal(schema.ok, true);
+    assert.deepEqual(schema.data.字段.map(field => field.name), ["stat_date", "media_source", "cost"]);
+    assert.deepEqual(schema.data.口径.可用分组, ["media_source"]);
+    const sample = kit.execute("get_sample_rows", JSON.stringify({ table: "利润日报" }));
+    assert.equal(sample.data.样例.length, 2);
+    sample.data.样例.forEach(row => assert.equal(Object.prototype.hasOwnProperty.call(row, SECRET), false));
+    const lineage = kit.execute("get_lineage", JSON.stringify({ table: "利润日报" }));
+    for (const outcome of [schema, sample, lineage]) assert.equal(outcome.content.includes(SECRET), false, outcome.content);
+  });
+
+  test("run_metric 以被隐藏字段做指标 / 分组，错误与乱写字段名同一文案模板", () => {
+    const kit = scopedKit();
+    const same = (hiddenArgs, bogusArgs, name) => {
+      const a = kit.execute("run_metric", JSON.stringify(hiddenArgs));
+      const b = kit.execute("run_metric", JSON.stringify(bogusArgs));
+      assert.equal(a.ok, false);
+      assert.equal(b.ok, false);
+      assert.equal(a.error.replace(SECRET, "X"), b.error.replace(name, "X"));
+    };
+    same({ table: "利润日报", metric: SECRET }, { table: "利润日报", metric: "no_such_col" }, "no_such_col");
+    same({ table: "利润日报", group: SECRET }, { table: "利润日报", group: "no_such_col" }, "no_such_col");
+    assert.equal(kit.execute("run_metric", JSON.stringify({ table: "利润日报", group: "media_source" })).ok, true);
   });
 });
 
@@ -347,5 +406,149 @@ describe("工具取数（经网关）", () => {
     const result = await analyzeStream(await tokenFor("曾祥竞"), streamBody("广告计划表", ["广告计划日报表"], { toolMode: false }));
     assert.equal(result.done.meta.toolMode, "off");
     assert.equal(requests.some(body => body.tools), false);
+  });
+});
+
+/* ---------- 字段权限（经网关）：隐藏字段在工具、证据、推荐问题、审计里都不出现 ---------- */
+
+describe("字段权限（经网关）", () => {
+  const X = "campaign_id";
+  const X_VALUE = /CMP\d{3}/;
+  const TABLE = "广告计划日报表";
+  const group = (name, tables, extra = {}) => ({ name, desc: "", menus: ["灵犀智析"], menuEdits: [], boards: [], tables, status: "启用", ...extra });
+  const groupsWith = hiddenFields => [
+    group("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心"] }),
+    group("投放组长", ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"]),
+    group("优化师", ["广告计划日报表", "广告账户日报"], { hiddenFields }),
+    group("数据分析师", ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"]),
+    group("只读访客", [])
+  ];
+  const saveGroups = async hiddenFields => {
+    const result = await call("PUT", "/v1/org", { token: await tokenFor("曾祥竞"), body: { groups: groupsWith(hiddenFields) } });
+    assert.equal(result.status, 200, JSON.stringify(result.data));
+  };
+  const auditText = () => fs.readFileSync(path.join(dataDir, "analysis-audit.jsonl"), "utf8");
+  const leakFree = (label, text) => {
+    assert.equal(text.includes(X), false, `${label} 不应出现隐藏字段名`);
+    assert.equal(X_VALUE.test(text), false, `${label} 不应出现隐藏字段的取值`);
+  };
+  // 不带隐藏字段名作参数的一组工具调用：模型拿到的每一段结果都要扫描
+  const probeCalls = () => [
+    { calls: [toolCall("f1", "search_tables", { keyword: "" }), toolCall("f2", "get_schema", { table: TABLE }), toolCall("f3", "get_sample_rows", { table: TABLE })] },
+    { calls: [toolCall("f4", "run_metric", { table: TABLE, group: "media_source" }), toolCall("f5", "get_lineage", { table: TABLE }), toolCall("f6", "list_metrics", {})] },
+    { calls: [toolCall("f7", "query_metric", { metric: "cost", table: TABLE, group: "media_source" }), toolCall("f8", "attribute_change", { metric: "cost", table: TABLE })] }
+  ];
+
+  // 最后一次带工具的请求里包含了本轮所有工具结果（之前的请求是它的前缀）
+  const toolMessagesOf = () => [...requests].reverse().find(body => body.tools && body.messages.some(message => message.role === "tool")).messages.filter(message => message.role === "tool");
+
+  after(async () => { await saveGroups({}); });
+
+  test("隐藏字段后：工具结果、最终提示词、SSE 响应与审计的整段文本都不含该字段；恢复后立即可见", async () => {
+    await saveGroups({ [TABLE]: [X] });
+    const auditBefore = auditText().length;
+    requests = [];
+    toolScript = probeCalls();
+    const result = await analyzeStream(await tokenFor("谭嘉颖"), streamBody("近 7 天消耗怎么样？", [TABLE]));
+    assert.equal(result.status, 200);
+    assert.equal(result.done.meta.toolMode, "used:8");
+    const toolMessages = toolMessagesOf();
+    assert.equal(toolMessages.length, 8);
+    const schema = JSON.parse(toolMessages[1].content);
+    assert.equal(schema.ok, true);
+    assert.ok(schema.data.字段.some(field => field.name === "plan_id"), "其余字段照常可见");
+    leakFree("发给模型的全部请求", JSON.stringify(requests));
+    leakFree("SSE 响应", JSON.stringify(result.events));
+    leakFree("本次审计", auditText().slice(auditBefore));
+
+    // 管理员看得到（管理员组不受限）
+    requests = [];
+    toolScript = [{ calls: [toolCall("a1", "get_schema", { table: TABLE })] }];
+    await analyzeStream(await tokenFor("曾祥竞"), streamBody("字段？", [TABLE]));
+    assert.ok(JSON.stringify(requests).includes(X), "管理员不受字段权限影响");
+
+    await saveGroups({});
+    requests = [];
+    toolScript = [{ calls: [toolCall("r1", "get_schema", { table: TABLE })] }];
+    await analyzeStream(await tokenFor("谭嘉颖"), streamBody("字段？", [TABLE]));
+    const restored = JSON.parse(toolMessagesOf()[0].content);
+    assert.ok(restored.data.字段.some(field => field.name === X), "恢复 hiddenFields 后立即可见");
+  });
+
+  test("以隐藏字段做分组：run_metric / query_metric 的错误与乱写字段名同一文案", async () => {
+    await saveGroups({ [TABLE]: [X] });
+    requests = [];
+    toolScript = [{ calls: [
+      toolCall("g1", "run_metric", { table: TABLE, group: X }), toolCall("g2", "run_metric", { table: TABLE, group: "zz_nope" }),
+      toolCall("g3", "query_metric", { metric: "cost", table: TABLE, group: X }), toolCall("g4", "query_metric", { metric: "cost", table: TABLE, group: "zz_nope" })
+    ] }];
+    await analyzeStream(await tokenFor("谭嘉颖"), streamBody("按广告组拆", [TABLE]));
+    const [a, b, c, d] = toolMessagesOf().map(message => JSON.parse(message.content));
+    assert.equal(a.ok, false);
+    assert.equal(a.error.replace(X, "?"), b.error.replace("zz_nope", "?"));
+    assert.equal(c.ok, false);
+    assert.equal(c.error.replace(X, "?"), d.error.replace("zz_nope", "?"));
+    assert.equal(c.error.split("可用分组")[1].includes(X), false, "可用分组列表里不含隐藏字段");
+    await saveGroups({});
+  });
+
+  test("证据方式（不走工具）：portalContext 里带隐藏字段，证据与推荐问题仍不含它", async () => {
+    await saveGroups({ [TABLE]: [X] });
+    requests = [];
+    toolScript = [];
+    const portalContext = [{
+      cnName: TABLE, desc: "门户说明", fields: [{ name: X, comment: "广告组", dict: "广告组字典" }, { name: ` ${X} `, comment: "带空格" }, { name: "media_source", comment: "媒体", dict: "媒体字典" }],
+      dictEnums: [{ name: "广告组字典", items: ["CMP001=一组"] }, { name: "媒体字典", items: ["1=巨量"] }],
+      tagConfig: { 名称: "标签", 标签字段: [X, "media_source"] },
+      dimensionRows: [{ [X]: "CMP001", media_source: "巨量" }]
+    }];
+    const result = await analyzeStream(await tokenFor("谭嘉颖"), streamBody("看看这张表", [TABLE], { toolMode: false, portalContext }));
+    assert.equal(result.status, 200);
+    const prompt = requests.at(-1).messages.find(message => message.role === "user").content;
+    assert.match(prompt, /media_source/, "可见字段照常进入证据");
+    assert.match(prompt, /1=巨量/);
+    leakFree("证据提示词", JSON.stringify(requests));
+    leakFree("SSE 响应（含推荐问题）", JSON.stringify(result.events));
+
+    // 归因场景同样走裁剪视图
+    requests = [];
+    const attribution = await analyzeStream(await tokenFor("谭嘉颖"), streamBody("为什么消耗涨了", [TABLE], { toolMode: false, scenario: "attribution" }));
+    assert.equal(attribution.status, 200);
+    leakFree("归因证据", JSON.stringify(requests));
+    await saveGroups({});
+  });
+
+  test("内置 Skill 包（证据脚本读原始数据）与归因：有隐藏字段时同样不含它，被隐藏的分组维度不参与归因", async () => {
+    await saveGroups({ [TABLE]: [X, "plan_name"] });
+    for (const skillId of ["warehouse-analyst", "numa-warehouse", "lineage-analyst"]) {
+      requests = [];
+      toolScript = [];
+      const result = await analyzeStream(await tokenFor("谭嘉颖"), streamBody("看看这张表", [TABLE], { toolMode: false, skillId }));
+      assert.equal(result.status, 200, skillId);
+      leakFree(`技能 ${skillId} 的证据`, JSON.stringify(requests));
+      assert.equal(JSON.stringify(requests).includes("plan_name"), false, skillId);
+      assert.match(requests.at(-1).messages.find(message => message.role === "user").content, /media_source/, `${skillId} 仍有可见字段的证据`);
+    }
+    requests = [];
+    const attribution = await analyzeStream(await tokenFor("谭嘉颖"), streamBody("为什么消耗涨了", [TABLE], { toolMode: false, scenario: "attribution" }));
+    assert.equal(attribution.status, 200);
+    const prompt = requests.at(-1).messages.find(message => message.role === "user").content;
+    assert.match(prompt, /归因计算/);
+    assert.equal(prompt.includes("plan_name"), false, "被隐藏的维度不参与归因");
+    await saveGroups({});
+  });
+
+  test("个人 grantedFields 把组里隐藏的字段追加回来后，该用户能看到", async () => {
+    await saveGroups({ [TABLE]: [X] });
+    const admin = await tokenFor("曾祥竞");
+    const put = await call("PUT", `/v1/permissions/${encodeURIComponent("谭嘉颖")}`, { token: admin, body: { tables: ["广告计划日报表", "广告账户日报"], grantedFields: { [TABLE]: [X] } } });
+    assert.equal(put.status, 200, JSON.stringify(put.data));
+    requests = [];
+    toolScript = [{ calls: [toolCall("p1", "get_schema", { table: TABLE })] }];
+    await analyzeStream(await tokenFor("谭嘉颖"), streamBody("字段？", [TABLE]));
+    const schema = JSON.parse(toolMessagesOf()[0].content);
+    assert.ok(schema.data.字段.some(field => field.name === X));
+    assert.equal((await call("PUT", `/v1/permissions/${encodeURIComponent("谭嘉颖")}`, { token: admin, body: { tables: [] } })).status, 200);
+    await saveGroups({});
   });
 });

@@ -224,3 +224,105 @@ describe("组织与权限（经网关）", () => {
     assert.equal((await harness.call("GET", "/v1/auth/me", { token: await harness.tokenFor("曾祥竞") })).data.role, "admin");
   });
 });
+
+describe("字段权限：个人覆盖与有效隐藏字段（经网关）", () => {
+  let harness;
+  before(async () => { harness = await startHarness(); });
+  after(async () => { await harness.stop(); });
+
+  const fullGroup = (name, tables, extra = {}) => ({ name, desc: "", menus: ["灵犀智析"], menuEdits: [], boards: [], tables, status: "启用", ...extra });
+  const saveGroups = async optimizerHidden => {
+    const groups = [
+      fullGroup("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心"] }),
+      fullGroup("投放组长", ["广告计划日报表"]),
+      fullGroup("优化师", ["广告计划日报表", "广告账户日报"], { hiddenFields: optimizerHidden }),
+      fullGroup("数据分析师", ["广告计划日报表"]),
+      fullGroup("只读访客", [])
+    ];
+    const result = await harness.call("PUT", "/v1/org", { token: await harness.tokenFor("曾祥竞"), body: { groups } });
+    assert.equal(result.status, 200, JSON.stringify(result.data));
+  };
+  const putOverride = async body => harness.call("PUT", `/v1/permissions/${encodeURIComponent("谭嘉颖")}`, { token: await harness.tokenFor("曾祥竞"), body });
+  const me = async name => (await harness.call("GET", "/v1/auth/me", { token: await harness.tokenFor(name) })).data;
+
+  test("hiddenFields / grantedFields 形状非法返回 400", async () => {
+    const tables = ["广告计划日报表", "广告账户日报", "媒体消耗汇总"];
+    for (const bad of [
+      { hiddenFields: ["plan_name"] },
+      { hiddenFields: { 媒体消耗汇总: "media_source" } },
+      { grantedFields: { 广告计划日报表: [5] } },
+      { grantedFields: { 广告计划日报表: ["x".repeat(61)] } },
+      { grantedFields: { 广告计划日报表: ["  "] } },
+      { hiddenFields: { 媒体消耗汇总: Array.from({ length: 201 }, (_, i) => `f${i}`) } },
+      { hiddenFields: { 不存在的表: ["a"] } },
+      { hiddenFields: { 用户订单明细: ["a"] } }
+    ]) {
+      const result = await putOverride({ tables, ...bad });
+      assert.equal(result.status, 400, JSON.stringify(bad));
+    }
+    assert.equal((await putOverride({ tables, grantedFields: { 广告计划日报表: ["x".repeat(60)] } })).status, 200);
+    assert.equal((await putOverride({ tables: [] })).status, 200);
+  });
+
+  test("有效隐藏字段：组授予的表 = 组隐藏 − 个人追加；只由个人授予的表 = 个人隐藏；管理员为空", async () => {
+    await saveGroups({ 广告计划日报表: ["plan_name", "campaign_id"], 广告账户日报: ["balance"] });
+    assert.deepEqual((await me("谭嘉颖")).hiddenFields, { 广告计划日报表: ["plan_name", "campaign_id"], 广告账户日报: ["balance"] });
+    assert.deepEqual((await me("曾祥竞")).hiddenFields, {});
+
+    const saved = await putOverride({
+      tables: ["广告计划日报表", "广告账户日报", "媒体消耗汇总"],
+      grantedFields: { 广告计划日报表: [" campaign_id "] },
+      hiddenFields: { 媒体消耗汇总: ["media_source"] }
+    });
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    assert.deepEqual((await me("谭嘉颖")).hiddenFields, { 广告计划日报表: ["plan_name"], 广告账户日报: ["balance"], 媒体消耗汇总: ["media_source"] });
+
+    const list = await harness.call("GET", "/v1/permissions", { token: await harness.tokenFor("曾祥竞") });
+    const entry = list.data.users.find(item => item.name === "谭嘉颖");
+    assert.deepEqual(entry.grantedFields, { 广告计划日报表: ["campaign_id"] }, "个人追加的字段名存储时去掉空格");
+    assert.deepEqual(entry.hiddenFields, { 媒体消耗汇总: ["media_source"] });
+    assert.deepEqual(entry.groupHiddenFields, { 广告计划日报表: ["plan_name", "campaign_id"], 广告账户日报: ["balance"] });
+
+    // 只改表、不带字段映射（现有界面的保存方式）：沿用已保存的字段设置；被取消的表的设置一并丢弃
+    assert.equal((await putOverride({ tables: ["广告计划日报表", "广告账户日报"] })).status, 200);
+    const after = (await harness.call("GET", "/v1/permissions", { token: await harness.tokenFor("曾祥竞") })).data.users.find(item => item.name === "谭嘉颖");
+    assert.deepEqual(after.grantedFields, { 广告计划日报表: ["campaign_id"] });
+    assert.deepEqual(after.hiddenFields, {});
+    assert.ok(harness.readJsonLines("analysis-audit.jsonl").some(item => item.type === "permission-change" && item.target === "谭嘉颖"), "保存个人权限写审计");
+    assert.equal((await putOverride({ tables: [] })).status, 200);
+  });
+
+  test("GET /v1/table-rows：普通用户只能读有权限的表，且不含被隐藏的列；管理员不受影响", async () => {
+    await saveGroups({ 广告计划日报表: ["campaign_id"] });
+    const route = name => `/v1/table-rows?name=${encodeURIComponent(name)}&limit=3`;
+    const user = await harness.call("GET", route("广告计划日报表"), { token: await harness.tokenFor("谭嘉颖") });
+    assert.equal(user.status, 200);
+    assert.ok(user.data.rows.length > 0);
+    assert.equal(user.text.includes("campaign_id"), false);
+    assert.equal(/CMP\d{3}/.test(user.text), false);
+    const denied = await harness.call("GET", route("用户订单明细"), { token: await harness.tokenFor("谭嘉颖") });
+    const missing = await harness.call("GET", route("根本不存在的表"), { token: await harness.tokenFor("谭嘉颖") });
+    assert.equal(denied.status, 404);
+    assert.equal(denied.data.error.replace("用户订单明细", "?"), missing.data.error.replace("根本不存在的表", "?"));
+    const admin = await harness.call("GET", route("广告计划日报表"), { token: await harness.tokenFor("曾祥竞") });
+    assert.ok(admin.text.includes("campaign_id"));
+    await saveGroups({});
+  });
+
+  test("/v1/metrics 与 /v1/metrics/query 按用户的隐藏字段裁剪", async () => {
+    await saveGroups({ 广告计划日报表: ["plan_name"] });
+    const userToken = await harness.tokenFor("谭嘉颖");
+    const adminToken = await harness.tokenFor("曾祥竞");
+    const userMetrics = await harness.call("GET", "/v1/metrics", { token: userToken });
+    const adminMetrics = await harness.call("GET", "/v1/metrics", { token: adminToken });
+    assert.equal(userMetrics.status, 200);
+    assert.ok(JSON.stringify(adminMetrics.data).includes("plan_name"));
+    assert.equal(JSON.stringify(userMetrics.data).includes("plan_name"), false);
+    const hiddenGroup = await harness.call("POST", "/v1/metrics/query", { token: userToken, body: { metric: "cost", table: "广告计划日报表", group: "plan_name" } });
+    const bogusGroup = await harness.call("POST", "/v1/metrics/query", { token: userToken, body: { metric: "cost", table: "广告计划日报表", group: "zz_nope" } });
+    assert.equal(hiddenGroup.status, 400);
+    assert.equal(hiddenGroup.data.error.replace("plan_name", "?"), bogusGroup.data.error.replace("zz_nope", "?"));
+    assert.equal((await harness.call("POST", "/v1/metrics/query", { token: adminToken, body: { metric: "cost", table: "广告计划日报表", group: "plan_name" } })).status, 200);
+    await saveGroups({});
+  });
+});

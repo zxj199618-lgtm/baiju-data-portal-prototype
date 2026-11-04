@@ -34,6 +34,7 @@ const { computeAttribution, parseWindowDays } = require("./attribution-calc.cjs"
 const { createAnalysisToolkit } = require("./analysis-tools.cjs");
 const { createUsageTracker } = require("./usage-quota.cjs");
 const { createSemanticLayer } = require("./semantic-layer.cjs");
+const { scopeTables, scopeRowsOf, isHidden } = require("./field-scope.cjs");
 const { createFeedbackStore, RATINGS } = require("./feedback-store.cjs");
 const { createOrgStore } = require("./org-store.cjs");
 const { createAccountStore } = require("./account-store.cjs");
@@ -667,8 +668,9 @@ function persistSampleRows(cnName, rows) {
 
 const NUMERIC = /DECIMAL|BIGINT|INT/;
 
-function aggregateEvidence(table) {
-  const rows = rowsOf(table.cnName);
+/* rowsOfFn / hidden：按当前用户字段权限裁剪后的取数函数与隐藏字段（见 scopeFor）；不传时为原始数据 */
+function aggregateEvidence(table, rowsOfFn = rowsOf, hidden = {}) {
+  const rows = rowsOfFn(table.cnName);
   const { dateKey = "", groupBy = [], metric = "" } = table.agg || {};
   const result = { 行数: rows.length };
   if (!rows.length) return result;
@@ -683,7 +685,9 @@ function aggregateEvidence(table) {
 
   const sums = {};
   numericKeys.forEach(key => { sums[key] = round(sumOf(rows, key)); });
-  if (sums.cost && sums.activate_cnt) sums.cpa = round(sums.cost / sums.activate_cnt);
+  // 派生的 cpa / roi：对应字段被隐藏时不额外给出
+  const derivedVisible = name => !isHidden(hidden, table.cnName, name);
+  if (sums.cost && sums.activate_cnt && derivedVisible("cpa")) sums.cpa = round(sums.cost / sums.activate_cnt);
   if (Object.keys(sums).length) result.整体合计 = sums;
 
   const groupKey = Array.isArray(groupBy) ? groupBy[0] : groupBy;
@@ -713,13 +717,13 @@ function aggregateEvidence(table) {
         stat.前7天 = priorSum;
         stat.环比 = priorSum ? `${round(((recentSum - priorSum) / priorSum) * 100, 1)}%` : "—";
         if (recentSum && priorSum) {
-          if (metric === "cost" && numericKeys.includes("activate_cnt")) {
+          if (metric === "cost" && numericKeys.includes("activate_cnt") && derivedVisible("cpa")) {
             const recentCpa = sumOf(recent, "cost") / Math.max(1, sumOf(recent, "activate_cnt"));
             const priorCpa = sumOf(prior, "cost") / Math.max(1, sumOf(prior, "activate_cnt"));
             stat.近7天CPA = round(recentCpa);
             stat.CPA环比 = round(((recentCpa - priorCpa) / priorCpa) * 100, 1) + "%";
           }
-          if (metric === "cost" && numericKeys.includes("revenue")) {
+          if (metric === "cost" && numericKeys.includes("revenue") && derivedVisible("roi")) {
             const recentRoi = sumOf(recent, "revenue") / Math.max(1, recentSum);
             const priorRoi = sumOf(prior, "revenue") / Math.max(1, priorSum);
             stat.近7天ROI = round(recentRoi);
@@ -734,8 +738,8 @@ function aggregateEvidence(table) {
   return result;
 }
 
-function recentRows(table, count = 8) {
-  return rowsOf(table.cnName).slice(-count);
+function recentRows(table, rowsOfFn = rowsOf, count = 8) {
+  return rowsOfFn(table.cnName).slice(-count);
 }
 
 /* 语义层：指标口径定义在 semantic/metrics.json（开发时在仓库根目录，镜像里与网关同级），启动时对照表结构校验 */
@@ -868,20 +872,22 @@ async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEven
 }
 
 /* 指标异动归因：维度贡献由代码确定性计算（attribution-calc.cjs），写入每张表的证据「归因计算」，模型只负责解释 */
-function attachAttribution(evidence, tableNames, question = "") {
+function attachAttribution(evidence, tableNames, question = "", view = null) {
+  const { tables: viewTables, rowsOf: viewRowsOf, hidden = {} } = view || { tables, rowsOf };
   const days = parseWindowDays(question);
-  const targets = tableNames.map(name => tables.find(table => table.cnName === name)).filter(Boolean).slice(0, 3);
+  const targets = tableNames.map(name => viewTables.find(table => table.cnName === name)).filter(Boolean).slice(0, 3);
   if (!targets.length) {
     evidence.push({ 归因计算: { available: false, reason: "所选数据表不在门户表目录中，无法归因" } });
     return;
   }
   targets.forEach(table => {
     const agg = table.agg || {};
-    const result = computeAttribution(rowsOf(table.cnName), {
+    const result = computeAttribution(viewRowsOf(table.cnName), {
       dateKey: agg.dateKey || "",
       metric: agg.metric || "",
       dimensions: (agg.groupBy || []).filter(Boolean),
-      activateKey: "activate_cnt",
+      // 激活数或 CPA 被隐藏时不做 CPA 拆解
+      activateKey: isHidden(hidden, table.cnName, "activate_cnt") || isHidden(hidden, table.cnName, "cpa") ? "" : "activate_cnt",
       days
     });
     let item = evidence.find(entry => entry.表名 === table.cnName);
@@ -893,10 +899,12 @@ function attachAttribution(evidence, tableNames, question = "") {
   });
 }
 
-function buildEvidence(cnNames, portalContext = []) {
-  const selected = cnNames.length ? tables.filter(table => cnNames.includes(table.cnName)) : tables;
+/* view：scopeFor(用户) 的结果（只含有权限的表，字段已按字段权限裁剪）；不传时为原始全部表（仅内部使用） */
+function buildEvidence(cnNames, portalContext = [], view = null) {
+  const { tables: viewTables, rowsOf: viewRowsOf, hidden = {} } = view || { tables, rowsOf };
+  const selected = cnNames.length ? viewTables.filter(table => cnNames.includes(table.cnName)) : viewTables;
   return selected.map(table => {
-    const total = rowsOf(table.cnName).length;
+    const total = viewRowsOf(table.cnName).length;
     const evidence = {
       表名: table.cnName,
       物理表: `${table.database}.${table.table}`,
@@ -905,30 +913,43 @@ function buildEvidence(cnNames, portalContext = []) {
       字段: table.fields.map(field => `${field.name} ${field.type} — ${field.comment}`)
     };
     /* 门户配置（表管理/字典/标签/维表）由前端自动随请求传入，优先级高于网关内置注释 */
-    const portal = portalContext.find(item => item.cnName === table.cnName);
+    const portal = (Array.isArray(portalContext) ? portalContext : []).find(item => item && item.cnName === table.cnName);
     if (portal) {
+      /* 门户配置来自请求体：被隐藏的字段（及只属于它的字典、标签字段、维表列）一律去掉，不信任前端 */
+      const hiddenHere = name => isHidden(hidden, table.cnName, name);
+      const portalFields = Array.isArray(portal.fields) ? portal.fields.filter(field => field && typeof field === "object") : [];
+      const visibleFields = portalFields.filter(field => !hiddenHere(field.name));
+      const visibleDicts = new Set(visibleFields.map(field => field.dict).filter(Boolean));
+      const hiddenDicts = new Set(portalFields.filter(field => hiddenHere(field.name)).map(field => field.dict).filter(dict => dict && !visibleDicts.has(dict)));
       if (portal.desc) evidence.说明 = portal.desc;
       if (portal.externalName) evidence.对外表名 = portal.externalName;
       if (portal.bizLine) evidence.业务线 = portal.bizLine;
-      if (Array.isArray(portal.fields) && portal.fields.length) {
-        evidence.字段 = portal.fields.map(field => {
+      if (visibleFields.length) {
+        evidence.字段 = visibleFields.map(field => {
           let text = `${field.name} — ${field.comment || ""}`;
           if (field.remark) text += `；备注：${field.remark}`;
           if (field.dict) text += `；枚举字典：${field.dict}`;
           return text;
         });
       }
-      if (portal.dictEnums?.length) evidence.枚举值 = portal.dictEnums.map(dict => `${dict.name}: ${dict.items.join("、")}`);
-      if (portal.tagConfig) evidence.标签配置 = portal.tagConfig;
-      if (Array.isArray(portal.dimensionRows) && portal.dimensionRows.length) evidence.维表数据样例 = portal.dimensionRows;
+      const dictEnums = Array.isArray(portal.dictEnums) ? portal.dictEnums.filter(dict => dict && !hiddenDicts.has(dict.name)) : [];
+      if (dictEnums.length) evidence.枚举值 = dictEnums.map(dict => `${dict.name}: ${(Array.isArray(dict.items) ? dict.items : []).join("、")}`);
+      if (portal.tagConfig) {
+        const tagConfig = { ...portal.tagConfig };
+        if (Array.isArray(tagConfig.标签字段)) tagConfig.标签字段 = tagConfig.标签字段.filter(name => !hiddenHere(name));
+        evidence.标签配置 = tagConfig;
+      }
+      if (Array.isArray(portal.dimensionRows) && portal.dimensionRows.length) {
+        evidence.维表数据样例 = portal.dimensionRows.map(row => (row && typeof row === "object" ? Object.fromEntries(Object.entries(row).filter(([key]) => !hiddenHere(key))) : row));
+      }
     }
     if (cnNames.length) {
-      evidence.聚合统计 = aggregateEvidence(table);
-      evidence.最近明细样例 = recentRows(table);
+      evidence.聚合统计 = aggregateEvidence(table, viewRowsOf, hidden);
+      evidence.最近明细样例 = recentRows(table, viewRowsOf);
     } else {
       evidence.行数 = total;
     }
-    if (table.lineage.upstream.length || table.lineage.downstream.length) evidence.血缘 = table.lineage;
+    if (table.lineage?.upstream?.length || table.lineage?.downstream?.length) evidence.血缘 = table.lineage;
     return evidence;
   });
 }
@@ -2034,6 +2055,67 @@ function userTables(userName) {
   return orgStore.tablesOf(userName);
 }
 
+/* ================= 字段权限：全系统唯一的判断来源 ================= */
+
+const ownKey = (object, key) => Boolean(object) && typeof object === "object" && Object.prototype.hasOwnProperty.call(object, key);
+const fieldList = (map, table) => (ownKey(map, table) && Array.isArray(map[table]) ? map[table] : []).map(name => String(name ?? "").trim()).filter(Boolean);
+
+/**
+ * 某账号被隐藏的字段 { 表名: [字段] }（字段名已去掉首尾空格）：
+ * - 该表由所属组授予：组 hiddenFields[表] 减去个人覆盖 grantedFields[表]；
+ * - 该表只由个人覆盖授予：个人覆盖 hiddenFields[表]（默认无）；
+ * - 门户管理员 / 未知账号：{}。
+ */
+function hiddenFieldsFor(userName) {
+  if (!accountStore.has(userName) || orgStore.isAdmin(userName)) return {};
+  const override = loadPermissionOverrides()[userName] || null;
+  const groupTables = orgStore.tablesOf(userName);
+  const groupHidden = orgStore.hiddenFieldsOf(userName);
+  const result = {};
+  for (const table of userTables(userName)) {
+    let list;
+    if (groupTables.includes(table)) {
+      const granted = new Set(fieldList(override?.grantedFields, table));
+      list = fieldList(groupHidden, table).filter(name => !granted.has(name));
+    } else {
+      list = fieldList(override?.hiddenFields, table);
+    }
+    list = [...new Set(list)];
+    if (list.length) result[table] = list;
+  }
+  return result;
+}
+
+/** 当前用户的权限视图：只含有权限的表，表定义与数据行去掉被隐藏的字段；语义层叠加同一份隐藏字段。所有面向用户的取数都走它 */
+function scopeFor(userName) {
+  const hidden = hiddenFieldsFor(userName);
+  const allowed = new Set(userTables(userName));
+  const scopedRows = scopeRowsOf(rowsOf, hidden);
+  return {
+    hidden,
+    tables: scopeTables(tables.filter(table => allowed.has(table.cnName)), hidden),
+    rowsOf: name => (allowed.has(name) ? scopedRows(name) : []),
+    semantic: semanticLayer.scoped(hidden)
+  };
+}
+
+/** 个人覆盖里的字段映射 { 表名: [字段名] }：表必须在该覆盖授予的表内；每表最多 200 个、每个 60 字符以内的非空字符串；存储去空格、去重 */
+function overrideFieldMap(raw, tableKeys, label) {
+  if (raw === null) return { ok: true, value: {} };
+  if (typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: `${label}格式不正确，应为 { 表名: [字段名] }` };
+  const value = {};
+  for (const [table, fields] of Object.entries(raw)) {
+    if (!tableKeys.includes(table)) return { ok: false, error: `${label}包含未授予该用户的数据表：${table}` };
+    if (!Array.isArray(fields) || fields.length > 200) return { ok: false, error: `${label}「${table}」的字段列表格式不正确（最多 200 个）` };
+    for (const field of fields) {
+      if (typeof field !== "string" || !field.trim() || field.trim().length > 60) return { ok: false, error: `${label}「${table}」的字段名必须是 60 字符以内的非空字符串` };
+    }
+    const cleaned = [...new Set(fields.map(field => field.trim()))];
+    if (cleaned.length) value[table] = cleaned;
+  }
+  return { ok: true, value };
+}
+
 /* ================= Skill 注册表 ================= */
 
 const skills = {
@@ -2327,7 +2409,7 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/v1/auth/me") {
-    return sendJson(res, 200, { name: req.session.name, role: req.session.role, group: orgStore.groupOf(req.session.name), tables: userTables(req.session.name) });
+    return sendJson(res, 200, { name: req.session.name, role: req.session.role, group: orgStore.groupOf(req.session.name), tables: userTables(req.session.name), hiddenFields: hiddenFieldsFor(req.session.name) });
   }
 
   // 修改自己的密码：需要旧密码；旧密码连续输错同样会被临时锁定
@@ -2685,7 +2767,7 @@ async function handleRequest(req, res) {
   // 语义层：当前用户有权限的业务指标与口径（校验警告只给管理员看）
   if (req.method === "GET" && url.pathname === "/v1/metrics") {
     return sendJson(res, 200, {
-      metrics: semanticLayer.listMetrics(userTables(req.session.name), url.searchParams.get("keyword") || ""),
+      metrics: scopeFor(req.session.name).semantic.listMetrics(userTables(req.session.name), url.searchParams.get("keyword") || ""),
       ...(req.session.role === "admin" ? { warnings: semanticLayer.warnings } : {})
     });
   }
@@ -2693,7 +2775,7 @@ async function handleRequest(req, res) {
   // 按口径直接查询指标（与 query_metric 工具同一套计算与权限）：供评测取「标准答案」，也可给界面或外部调用
   if (req.method === "POST" && url.pathname === "/v1/metrics/query") {
     const body = await readBody(req, 20000);
-    const outcome = semanticLayer.query({ metric: body.metric, table: body.table, group: body.group, days: body.days, filters: body.filters, allowedTables: userTables(req.session.name) });
+    const outcome = scopeFor(req.session.name).semantic.query({ metric: body.metric, table: body.table, group: body.group, days: body.days, filters: body.filters, allowedTables: userTables(req.session.name) });
     return sendJson(res, outcome.ok ? 200 : 400, outcome.ok ? outcome.data : { error: outcome.error });
   }
 
@@ -2860,9 +2942,11 @@ async function handleRequest(req, res) {
   if (req.method === "GET" && url.pathname === "/v1/table-rows") {
     const name = url.searchParams.get("name") || "";
     const limit = Number(url.searchParams.get("limit") || 0);
-    const table = tables.find(item => item.cnName === name);
+    /* 管理员读原始表；普通用户只能读有权限的表（无权与不存在同一提示），字段与行按字段权限裁剪 */
+    const view = req.session.role === "admin" ? { tables, rowsOf } : scopeFor(req.session.name);
+    const table = view.tables.find(item => item.cnName === name);
     if (!table) return sendJson(res, 404, { error: `表不存在：${name}` });
-    const rows = rowsOf(name);
+    const rows = view.rowsOf(name);
     return sendJson(res, 200, {
       name, total: rows.length,
       fields: table.fields,
@@ -2890,7 +2974,12 @@ async function handleRequest(req, res) {
         name, group: org.userGroups[name],
         groupTables: org.groups.find(item => item.name === org.userGroups[name])?.tables || [],
         override: overrides[name] || null,
-        effectiveTables: userTables(name)
+        effectiveTables: userTables(name),
+        // 字段权限：个人覆盖的两项、所属组的隐藏字段，以及合并后的有效隐藏字段
+        hiddenFields: overrides[name]?.hiddenFields || {},
+        grantedFields: overrides[name]?.grantedFields || {},
+        groupHiddenFields: orgStore.hiddenFieldsOf(name),
+        effectiveHiddenFields: hiddenFieldsFor(name)
       }))
     });
   }
@@ -2904,10 +2993,28 @@ async function handleRequest(req, res) {
     const invalid = tableList.filter(name => name !== "全部数据表" && !allTableNames.includes(name));
     if (invalid.length) return sendJson(res, 400, { error: `未知数据表：${invalid.join("、")}` });
     const overrides = loadPermissionOverrides();
+    const tableKeys = tableList.includes("全部数据表") ? allTableNames : tableList;
+    /* 字段映射：不带时沿用已保存的值（只保留仍授予的表），避免只改表的保存把个人字段设置清空 */
+    const fieldsFor = (key, label) => {
+      if (body[key] !== undefined) return overrideFieldMap(body[key], tableKeys, label);
+      const stored = overrides[userName]?.[key];
+      const value = {};
+      for (const table of tableKeys) { const list = fieldList(stored, table); if (list.length) value[table] = list; }
+      return { ok: true, value };
+    };
+    const hiddenOutcome = fieldsFor("hiddenFields", "个人隐藏字段");
+    if (!hiddenOutcome.ok) return sendJson(res, 400, { error: hiddenOutcome.error });
+    const grantedOutcome = fieldsFor("grantedFields", "个人追加字段");
+    if (!grantedOutcome.ok) return sendJson(res, 400, { error: grantedOutcome.error });
     if (!tableList.length) delete overrides[userName];
-    else overrides[userName] = { tables: tableList, updatedAt: new Date().toISOString() };
+    else overrides[userName] = { tables: tableList, hiddenFields: hiddenOutcome.value, grantedFields: grantedOutcome.value, updatedAt: new Date().toISOString() };
     savePermissionOverrides(overrides);
-    return sendJson(res, 200, { user: userName, effectiveTables: userTables(userName) });
+    appendAuditEntry({
+      type: "permission-change", user: req.session.name, target: userName, tables: tableList.length,
+      hiddenFields: Object.values(hiddenOutcome.value).reduce((sum, list) => sum + list.length, 0),
+      grantedFields: Object.values(grantedOutcome.value).reduce((sum, list) => sum + list.length, 0)
+    });
+    return sendJson(res, 200, { user: userName, effectiveTables: userTables(userName), hiddenFields: hiddenFieldsFor(userName) });
   }
 
   if (req.method === "POST" && url.pathname === "/v1/analyze") {
@@ -2926,6 +3033,8 @@ async function handleRequest(req, res) {
     }
 
     const allowed = userTables(user);
+    /* 字段权限视图：本次请求里所有面向模型 / 用户的取数（工具、证据、归因、推荐问题）都只用它 */
+    const fieldScope = scopeFor(user);
     const wanted = requestedTables.length ? requestedTables.slice(0, 3) : [];
     const referenced = wanted.filter(name => allowed.includes(name));
     const denied = wanted.filter(name => !allowed.includes(name));
@@ -3002,7 +3111,10 @@ async function handleRequest(req, res) {
       skill = { name: registrySkill.name, version: registrySkill.version };
       scene = { label: registrySkill.title || registrySkill.name, system: packEntry.instructions };
     } else if (registrySkill) {
-      const toolRun = await runSkillTool(registrySkill, "evidence", { tables: referenced.length ? referenced : scopedCandidates, question, businessLine });
+      /* 内置包的证据脚本直接读原始表定义与数据：当前用户有被隐藏的字段时不运行它，改用平台按权限裁剪后的证据 */
+      const toolRun = Object.keys(fieldScope.hidden).length
+        ? { ok: true, result: { evidence: buildEvidence(referenced.length ? referenced : scopedCandidates, portalContext, fieldScope) } }
+        : await runSkillTool(registrySkill, "evidence", { tables: referenced.length ? referenced : scopedCandidates, question, businessLine });
       if (toolRun.ok && Array.isArray(toolRun.result.evidence)) {
         const instructions = skillInstructions(registrySkill.id);
         skill = { name: registrySkill.name, version: registrySkill.version };
@@ -3058,7 +3170,7 @@ async function handleRequest(req, res) {
         skill: skill.name, skillVersion: skill.version, scenario: scene.label, toolMode: `guard:${blockedBy.id}`, toolCalls: [],
         model, tablesUsed: [], deniedTables: denied, latencyMs: Date.now() - started, usage: null, requestId,
         numericCheck: null, totalTokens: plannerTokens, ...packMeta,
-        suggestions: followups.suggestFollowUps({ evidence: [], question, guards: packGuards, spec: packEntry?.spec || {}, semantic: semanticLayer })
+        suggestions: followups.suggestFollowUps({ evidence: [], question, guards: packGuards, spec: packEntry?.spec || {}, semantic: fieldScope.semantic })
       };
       finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: blockMeta.toolMode, toolCalls: [], tablesUsed: [], usage: null, extraTokens: plannerTokens, latencyMs: blockMeta.latencyMs, numericCheck: null, status: "ok" });
       blockMeta.usageToday = { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) };
@@ -3073,13 +3185,13 @@ async function handleRequest(req, res) {
       return sendJson(res, 200, { report: blockedBy.answer, meta: blockMeta });
     }
     const isAttributionRequest = targetSkillId === ATTRIBUTION_SKILL_ID || scenario === "attribution";
-    let evidence = buildEvidenceOverride || buildEvidence(evidenceTables, portalContext);
+    let evidence = buildEvidenceOverride || buildEvidence(evidenceTables, portalContext, fieldScope);
     if (reuseOnly) evidence = priorLedger.flatMap(entry => entry.evidence);
     const reportAudit = { plan: plan.source, planSkill: plan.skillId, ...(wantsReport ? { output: "report", template: reportTemplate?.id || "", basedOn: priorLedger.length } : {}) };
     /* 回答后的推荐问题：按这一轮实际用到的工具确定性生成，只推平台能回答的（不额外调用模型） */
     const suggestionsFor = () => followups.suggestFollowUps({
       evidence, question, resolvedTerms: packMeta.resolvedTerms || [], output: wantsReport ? "report" : "answer", templates: reportPack?.spec.templates || [],
-      currentTemplate: reportTemplate?.id || "", role: answerRole, guards: packGuards, spec: packEntry?.spec || {}, semantic: semanticLayer
+      currentTemplate: reportTemplate?.id || "", role: answerRole, guards: packGuards, spec: packEntry?.spec || {}, semantic: fieldScope.semantic
     });
     /* 把这次取到的事实存进证据账本，之后「整理成报告」直接用，不用重新取数 */
     const saveLedger = answerText => evidenceLedger.save({
@@ -3099,7 +3211,7 @@ async function handleRequest(req, res) {
       if (sseSend) sseSend({ status: `基于对话里已核实的 ${priorLedger.length} 次取数整理报告…` });
     } else if (body.toolMode !== false && !isAttributionRequest && providerSupportsTools(model)) {
       const referenceTool = packEntry ? skillPack.createReferenceTool(packEntry) : null;
-      const toolkit = createAnalysisToolkit({ userName: user, allowedTables: allowed, tables, rowsOf, audit: appendAuditEntry, allowAsk: !question.includes("用户补充信息"), semantic: semanticLayer, extraTools: referenceTool ? [{ ...referenceTool, maxChars: 26000 }] : [] });
+      const toolkit = createAnalysisToolkit({ userName: user, allowedTables: allowed, tables: fieldScope.tables, rowsOf: fieldScope.rowsOf, audit: appendAuditEntry, allowAsk: !question.includes("用户补充信息"), semantic: fieldScope.semantic, extraTools: referenceTool ? [{ ...referenceTool, maxChars: 26000 }] : [] });
       const loopSystemExtra = [
         packEntry?.instructions, packEntry ? skillPack.referenceIndex(packEntry) : "", specContext,
         wantsReport ? `## 本次要生成报告\n先把写「${reportTemplate?.name || "报告"}」需要的事实取全（口径、时间窗、对比期、必要的拆分维度），取完就停止，不要写报告正文。${priorLedger.length ? "对话里已经取过的事实不用重复取。" : ""}` : answerProtocol
@@ -3156,7 +3268,7 @@ async function handleRequest(req, res) {
         toolMode = `fallback:${loop.reason || "no-tool-call"}`;
       }
     }
-    if (isAttributionRequest) attachAttribution(evidence, evidenceTables, question);
+    if (isAttributionRequest) attachAttribution(evidence, evidenceTables, question, fieldScope);
     /* 报告的提示词要精简：事实已经在下面，不需要重复前几轮的回答摘要、场景名、数据表说明、门户配置说明和取数用的缺省值 */
     const prompt = [
       wantsReport ? skillPack.buildConversationContext(conversationTurns, { answers: false, reset: contextReset }) : conversationContext,
