@@ -61,3 +61,48 @@ test('isHidden', () => {
   assert.equal(isHidden({}, 't', 'a'), false);
   assert.equal(isHidden(undefined, 't', 'a'), false);
 });
+
+test('scopeTables 血缘 join / role 提到隐藏字段时整段替换为「（已隐藏）」，其余不动', () => {
+  const tables = [{
+    cnName: '计划表', fields: [{ name: 'media_source', type: 'VARCHAR' }, { name: 'cost', type: 'DECIMAL' }],
+    agg: { dateKey: '', groupBy: ['media_source'], metric: 'cost' },
+    lineage: {
+      upstream: [
+        { table: 'dim_media_source', role: '媒体来源维表', join: 'LEFT JOIN · media_source' },
+        { table: 'dwd_a', role: '按 media_source 关联的账户表', join: 'INNER JOIN · 账户+日' },
+        { table: 'dwd_b', role: '成本明细（cost_detail 不是 cost 本身？）', join: 'LEFT JOIN · media_source_v2' }
+      ],
+      downstream: [{ table: 'ads_x', role: '汇总 media_source' }]
+    }
+  }];
+  const out = scopeTables(tables, { 计划表: [' media_source '] });
+  const up = out[0].lineage.upstream;
+  assert.equal(up[0].join, '（已隐藏）');
+  assert.equal(up[0].role, '媒体来源维表');
+  assert.equal(up[0].table, 'dim_media_source', '表名不是字段名，不替换');
+  assert.equal(up[1].role, '（已隐藏）');
+  assert.equal(up[1].join, 'INNER JOIN · 账户+日');
+  assert.equal(up[2].join, 'LEFT JOIN · media_source_v2', '只按完整标识符匹配');
+  assert.equal(out[0].lineage.downstream[0].role, '（已隐藏）');
+  assert.equal(JSON.stringify(out).includes('· media_source"'), false);
+  assert.equal(tables[0].lineage.upstream[0].join, 'LEFT JOIN · media_source', '不改入参');
+  assert.deepEqual(out[0].fields.map((f) => f.name), ['cost'], '存储时去掉首尾空格，比较一致');
+});
+
+test('hidden 的表名查找只看自有属性（原型链上的键不算）', () => {
+  const tables = [{ cnName: 'constructor', fields: [{ name: 'a' }, { name: 'length' }], agg: {}, lineage: {} },
+    { cnName: 'toString', fields: [{ name: 'a' }], agg: {}, lineage: {} }];
+  const out = scopeTables(tables, {});
+  assert.equal(out[0].fields.length, 2);
+  assert.equal(out[1].fields.length, 1);
+  assert.equal(isHidden({}, 'constructor', 'length'), false);
+  assert.equal(isHidden({}, '__proto__', 'a'), false);
+  const rowsOf = () => [{ a: 1, length: 2 }];
+  assert.equal(scopeRowsOf(rowsOf, {}), rowsOf);
+  assert.deepEqual(scopeRowsOf(rowsOf, { other: ['a'] })('constructor'), [{ a: 1, length: 2 }]);
+});
+
+test('isHidden 两侧都去掉首尾空格比较', () => {
+  assert.equal(isHidden({ t: [' a '] }, 't', 'a'), true);
+  assert.equal(isHidden({ t: ['a'] }, 't', ' a'), true);
+});
