@@ -99,13 +99,38 @@ describe("组织存储（单元）", () => {
 
   test("取消表授权时清除该表的 hiddenFields 与 confirmedFields", () => {
     store.save({ groups: [admin(), group("分析师", { tables: ["表甲", "表乙"], hiddenFields: { 表甲: ["a"], 表乙: ["b"] }, confirmedFields: { 表甲: ["a"], 表乙: ["b"] } })] });
-    store.save({ groups: [admin(), group("分析师", { tables: ["表乙"] })] });
+    store.save({ groups: [admin(), group("分析师", { tables: ["表乙"], hiddenFields: { 表乙: ["b"] }, confirmedFields: { 表乙: ["b"] } })] });
     const analyst = store.effective().groups.find(item => item.name === "分析师");
     assert.equal(Object.keys(analyst.hiddenFields || {}).includes("表甲"), false);
     assert.equal(Object.keys(analyst.confirmedFields || {}).includes("表甲"), false);
     const raw = JSON.parse(fs.readFileSync(path.join(dir, "org.json"), "utf8"));
-    assert.equal(JSON.stringify(raw).includes("\"b\""), false);
-    assert.deepEqual(store.hiddenFieldsOf("乙"), {});
+    assert.equal(JSON.stringify(raw).includes("\"a\""), false);
+    assert.deepEqual(store.hiddenFieldsOf("乙"), { 表乙: ["b"] });
+  });
+
+  test("保存权限组时不带 hiddenFields / confirmedFields 会沿用已保存的值", () => {
+    store.save({ groups: [admin(), group("分析师", { tables: ["表甲"], hiddenFields: { 表甲: ["phone"] }, confirmedFields: { 表甲: ["phone"] } })] });
+    assert.equal(store.save({ groups: [admin(), group("分析师", { tables: ["表甲", "表乙"], desc: "改了描述" })] }).ok, true);
+    const analyst = store.effective().groups.find(item => item.name === "分析师");
+    assert.deepEqual(analyst.hiddenFields, { 表甲: ["phone"] });
+    assert.deepEqual(analyst.confirmedFields, { 表甲: ["phone"] });
+    assert.deepEqual(store.hiddenFieldsOf("乙"), { 表甲: ["phone"] });
+  });
+
+  test("显式传 {} 会清空 hiddenFields 与 confirmedFields", () => {
+    store.save({ groups: [admin(), group("分析师", { tables: ["表甲"], hiddenFields: { 表甲: ["phone"] }, confirmedFields: { 表甲: ["phone"] } })] });
+    store.save({ groups: [admin(), group("分析师", { tables: ["表甲"], hiddenFields: {}, confirmedFields: {} })] });
+    const analyst = store.effective().groups.find(item => item.name === "分析师");
+    assert.deepEqual(analyst.hiddenFields, {});
+    assert.deepEqual(analyst.confirmedFields, {});
+  });
+
+  test("沿用旧值时，同一次保存里被移除授权的表的键会被丢弃", () => {
+    store.save({ groups: [admin(), group("分析师", { tables: ["表甲", "表乙"], hiddenFields: { 表甲: ["a"], 表乙: ["b"] }, confirmedFields: { 表甲: ["a"], 表乙: ["b"] } })] });
+    assert.equal(store.save({ groups: [admin(), group("分析师", { tables: ["表乙"] })] }).ok, true);
+    const analyst = store.effective().groups.find(item => item.name === "分析师");
+    assert.deepEqual(analyst.hiddenFields, { 表乙: ["b"] });
+    assert.deepEqual(analyst.confirmedFields, { 表乙: ["b"] });
   });
 
   test("字段名必须是 60 字符以内的非空字符串", () => {

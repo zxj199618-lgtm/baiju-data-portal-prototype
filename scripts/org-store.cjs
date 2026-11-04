@@ -93,18 +93,36 @@ function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts: a
         const tables = list(raw?.tables, 100, 60);
         const unknown = tables.filter(table => table !== ALL_TABLES && !tableNames.includes(table));
         if (unknown.length) return { ok: false, error: `权限组「${name}」包含未知数据表：${unknown.join("、")}` };
-        if (raw?.hiddenFields && typeof raw.hiddenFields === "object" && Object.keys(raw.hiddenFields).length) {
-          if (name === ADMIN_GROUP) return { ok: false, error: `「${ADMIN_GROUP}」组不允许设置隐藏字段` };
-          if (tables.includes(ALL_TABLES)) return { ok: false, error: `包含「${ALL_TABLES}」的权限组「${name}」不允许设置隐藏字段` };
+        const stored = current.groups.find(item => item.name === name);
+        // 客户端没传该字段（现有界面不带）时沿用已保存的值，只按新的 tables 过滤；显式传（含 {}）则整体替换并严格校验
+        const carry = map => {
+          const kept = {};
+          if (name !== ADMIN_GROUP && !tables.includes(ALL_TABLES)) {
+            for (const [table, fields] of Object.entries(map || {})) if (tables.includes(table) && Array.isArray(fields) && fields.length) kept[table] = [...fields];
+          }
+          return kept;
+        };
+        let hiddenValue, confirmedValue;
+        if (raw?.hiddenFields === undefined) hiddenValue = carry(stored?.hiddenFields);
+        else {
+          if (raw.hiddenFields && typeof raw.hiddenFields === "object" && Object.keys(raw.hiddenFields).length) {
+            if (name === ADMIN_GROUP) return { ok: false, error: `「${ADMIN_GROUP}」组不允许设置隐藏字段` };
+            if (tables.includes(ALL_TABLES)) return { ok: false, error: `包含「${ALL_TABLES}」的权限组「${name}」不允许设置隐藏字段` };
+          }
+          const hidden = fieldMap(raw.hiddenFields, tables, name, "隐藏字段");
+          if (!hidden.ok) return hidden;
+          hiddenValue = hidden.value;
         }
-        const hidden = fieldMap(raw?.hiddenFields, tables, name, "隐藏字段");
-        if (!hidden.ok) return hidden;
-        const confirmed = fieldMap(raw?.confirmedFields, tables, name, "已确认字段");
-        if (!confirmed.ok) return confirmed;
+        if (raw?.confirmedFields === undefined) confirmedValue = carry(stored?.confirmedFields);
+        else {
+          const confirmed = fieldMap(raw.confirmedFields, tables, name, "已确认字段");
+          if (!confirmed.ok) return confirmed;
+          confirmedValue = confirmed.value;
+        }
         groups.push({
           name, desc: text(raw?.desc, 200), status: text(raw?.status, 10) || "启用",
           menus: list(raw?.menus, 200, 40), menuEdits: list(raw?.menuEdits, 200, 40), boards: list(raw?.boards, 300, 80), tables,
-          hiddenFields: hidden.value, confirmedFields: confirmed.value
+          hiddenFields: hiddenValue, confirmedFields: confirmedValue
         });
       }
     }
