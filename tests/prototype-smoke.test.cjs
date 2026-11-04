@@ -219,6 +219,7 @@ assert(!portalVue.includes(':disabled="allBoards" :model-value="selectedBoards.i
 assert(portalVue.includes(':title="board.name"') && portalVue.includes(':title="table.cnName"'), "权限组看板/数据表勾选项应带 title 悬浮全文，长名称不丢信息");
 assert(/\.portal-vue-child-checks \.el-checkbox__label \{[^}]*white-space:\s*normal/.test(portalCss), "长看板/表名应允许换行展示（Element Plus 默认 nowrap 会顶出卡片边界）");
 assert(portalVue.includes("全部字段") && portalVue.includes("`字段 ${") && portalVue.includes("个字段，请确认") && portalVue.includes("hiddenFields") && portalVue.includes("confirmedFields"), "权限组页表权限应有字段标签（全部字段 / 字段 n/m）、字段面板与新增字段提醒，并保存 hiddenFields / confirmedFields");
+assert(portalVue.includes("有隐藏字段时按表名授权，新增数据表不会自动获得权限") && portalVue.includes(':aria-expanded="expandedTable===table.cnName"'), "有隐藏字段时给出按表名授权的提示，字段标签带 aria-expanded");
 assert(portalVue.includes("pruneFieldMap(group.hiddenFields, group.tables)") && portalVue.includes("pruneFieldMap(group.confirmedFields, group.tables)"), "保存权限组快照必须总是带上 hiddenFields / confirmedFields（缺省会沿用旧值），并去掉已取消授权表的键");
 assert(portalVue.includes("myTables"), "灵犀智析应按权限组展示可用数据表");
 assert(portalVue.includes("权限组权限不可关闭") && portalVue.includes("isMenuLocked(item)") && portalVue.includes("isBoardLocked(board)") && portalVue.includes("isTableLocked(table)"), "配置个人权限时权限组已授予的菜单/看板/表权限应锁定，不允许关闭");
