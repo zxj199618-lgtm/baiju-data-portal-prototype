@@ -20,9 +20,9 @@
 ```
 
 - 只存被取消的字段。
-- 保存校验：表必须在该组 `tables` 内；字段必须真实存在于该表；管理员组与「全部数据表」不允许有 `hiddenFields`。
+- 保存校验：表必须在该组 `tables` 内；字段名为 ≤60 字符的非空字符串（不要求在网关表定义里存在：界面字段列表来自门户资产，可能与网关定义漂移，隐藏不存在的字段无害）；管理员组与「全部数据表」不允许有 `hiddenFields`。
 - 表被取消授权时，该表的 `hiddenFields` 一并清除。
-- `org-store.cjs` 新增 `hiddenFieldsOf(账号, 表名)`，返回不可见字段集合（组的 hiddenFields 扣除个人追加）。它是全系统唯一判断来源，与 `tablesOf` 平级。
+- `org-store.cjs` 新增 `hiddenFieldsOf(账号)`，返回该账号所属组的隐藏字段映射；个人覆盖（保存在网关 `user-permissions.json`）里的 `grantedFields`（组里被取消、个人追加回来）与 `hiddenFields`（个人追加表上取消的）在网关 `hiddenFieldsFor(账号)` 里合并，它是全系统唯一判断来源。权限组另存 `confirmedFields`，用于「新增字段提醒」。
 
 ## 服务端强制：入口处一次裁剪
 网关每次请求用 `hiddenFieldsOf` 生成当前用户的「权限视图」：
