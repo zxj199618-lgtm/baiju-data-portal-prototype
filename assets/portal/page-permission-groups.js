@@ -75,7 +75,7 @@
                 </div>
                 <p v-if="hasHiddenFields" class="portal-vue-muted" style="margin-top:12px" data-test="hidden-fields-hint">有隐藏字段时按表名授权，新增数据表不会自动获得权限</p>
                 <p class="portal-vue-muted" style="margin-top:12px">未勾选任何数据表时，该权限组成员无法在灵犀智析发起分析和调用数据 API。</p>
-                <p class="portal-vue-muted" style="margin-top:6px" data-test="field-perm-history-hint">字段权限只对之后的新对话生效，已产生的历史记录与报告不会被追溯清除。</p>
+                <p class="portal-vue-muted" style="margin-top:6px" data-test="field-perm-history-hint">字段权限只对之后的请求生效；已取到的证据、历史记录与报告不会被追溯清除。</p>
               </section>
             </div>
           </section>
