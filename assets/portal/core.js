@@ -354,6 +354,38 @@
     // 页面可能部署在 GitHub Pages，网关固定跑在本机 8787；远程部署时用 localStorage.portalGatewayBase 覆盖。
     return "http://localhost:8787";
   })();
+  /* ===== 字段权限面板的字段来源：网关真实表定义（字段权限按它生效，仅管理员可取）；网关不可达 / 未登录时退回门户资产里的字段 ===== */
+  const gatewayFields = reactive({ loaded: false, tables: {} });
+  let gatewayFieldsPending = null;
+  /** 打开权限页时取一次并缓存；返回 Promise<boolean>：本次是否新取到了网关字段 */
+  function loadGatewayFields() {
+    if (gatewayFields.loaded || !window.portalAuth?.token()) return Promise.resolve(false);
+    if (gatewayFieldsPending) return gatewayFieldsPending;
+    gatewayFieldsPending = (async () => {
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/table-fields`);
+        if (!response.ok) return false;
+        const data = await response.json();
+        if (!data?.tables || typeof data.tables !== "object" || Array.isArray(data.tables)) return false;
+        gatewayFields.tables = data.tables;
+        gatewayFields.loaded = true;
+        refreshTick.value += 1;
+        return true;
+      } catch (error) { return false; /* 网关未启动时用门户资产里的字段 */ } finally { gatewayFieldsPending = null; }
+    })();
+    return gatewayFieldsPending;
+  }
+  /** 字段面板里某表的字段：取到网关字段后只用网关的定义（网关没有的表没有字段可配） */
+  function permissionFieldsOf(name) {
+    if (gatewayFields.loaded) return Object.prototype.hasOwnProperty.call(gatewayFields.tables, name) && Array.isArray(gatewayFields.tables[name]) ? gatewayFields.tables[name] : [];
+    return state.assets.find(table => table.cnName === name)?.fields || [];
+  }
+  /** 权限页可授权的表：门户资产，加上只在网关里有定义的表 */
+  function permissionTables() {
+    const list = [...state.assets];
+    if (gatewayFields.loaded) Object.keys(gatewayFields.tables).forEach(name => { if (!list.some(table => table.cnName === name)) list.push({ cnName: name, source: "分析网关" }); });
+    return list;
+  }
   const MODEL_REASONING_CHOICES = [
     { value: "low", label: "快速" },
     { value: "medium", label: "标准" },
@@ -466,6 +498,7 @@
     isImageIconValue,
     isOverviewItem,
     isUserScopeItem,
+    loadGatewayFields,
     loginUser,
     loginUserName,
     manageScopeOf,
@@ -475,6 +508,8 @@
     notify,
     orgSync,
     paginate,
+    permissionFieldsOf,
+    permissionTables,
     reactive,
     refreshTick,
     scopeMatched,

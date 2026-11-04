@@ -8,9 +8,12 @@
   const {
     confirmAction,
     ep,
+    loadGatewayFields,
     menuGrantItems,
     mount,
     notify,
+    permissionFieldsOf,
+    permissionTables,
     refreshTick,
     state
   } = window.PortalVue;
@@ -98,8 +101,8 @@
       activeGroup(){refreshTick.value;return state.groups[this.selectedIndex]||state.groups[0];},
       boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
       boardBadge(){if(this.allBoards)return state.boards.filter(board=>board.status==="已上线").length;return this.selectedBoards.length;},
-      tableGroups(){const groups=[];state.assets.forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
-      allTableNames(){return state.assets.map(table=>table.cnName);},
+      tableGroups(){const groups=[];permissionTables().forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
+      allTableNames(){return permissionTables().map(table=>table.cnName);},
       allTablesSelected(){return this.selectedTables.length>0&&this.selectedTables.length>=this.allTableNames.length;},
       tablesIndeterminate(){return this.selectedTables.length>0&&this.selectedTables.length<this.allTableNames.length;},
       tableBadge(){return this.selectedTables.length;},
@@ -109,14 +112,16 @@
       activeGroupUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return groupName?state.users.filter(user=>user.group===groupName):[];},
       availableUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return state.users.filter(user=>user.group!==groupName&&user.status!=="已停用");}
     },
-    mounted(){this.loadGroup();this.primaryHandler=event=>{if(event.detail?.page==="权限组")this.openCreate();};window.addEventListener("portal:primary-action",this.primaryHandler);},
-    beforeUnmount(){window.removeEventListener("portal:primary-action",this.primaryHandler);},
+    mounted(){this.loadGroup();this.primaryHandler=event=>{if(event.detail?.page==="权限组")this.openCreate();};window.addEventListener("portal:primary-action",this.primaryHandler);this.pageHandler=event=>{if(event.detail?.page==="权限组")this.loadFields();};window.addEventListener("portal:page-change",this.pageHandler);this.loadFields();},
+    beforeUnmount(){window.removeEventListener("portal:primary-action",this.primaryHandler);window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
       userCount(name){return state.users.filter(user=>user.group===name).length;},
       avatarText(name){return String(name||"用").slice(0,1);},
       avatarStyle(name){const colors=["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"];const seed=[...String(name||"")].reduce((total,char)=>total+char.charCodeAt(0),0);return{background:colors[seed%colors.length],color:"#fff"};},
+      // 字段面板以网关的真实字段为准：首次取到后（未改动时）按新的字段来源重新载入当前组
+      loadFields(){loadGatewayFields().then(changed=>{if(changed&&!this.dirty)this.loadGroup();});},
       selectGroup(index){this.selectedIndex=index;this.activeTab="menus";this.memberDrawer=false;this.loadGroup();},
-      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.selectedMenuEdits=[...(group.menuEdits||[])];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);const tablesGrant=group.tables||[];this.selectedTables=tablesGrant.includes("全部数据表")?[...this.allTableNames]:state.assets.filter(table=>tablesGrant.includes(table.cnName)).map(table=>table.cnName);this.hiddenFields=cloneMap(group.hiddenFields);this.confirmedFields=cloneMap(group.confirmedFields);this.expandedTable="";this.dirty=false;},
+      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.selectedMenuEdits=[...(group.menuEdits||[])];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);const tablesGrant=group.tables||[];this.selectedTables=tablesGrant.includes("全部数据表")?[...this.allTableNames]:this.allTableNames.filter(name=>tablesGrant.includes(name));this.hiddenFields=cloneMap(group.hiddenFields);this.confirmedFields=cloneMap(group.confirmedFields);this.expandedTable="";this.dirty=false;},
       permItems(section){return menuGrantItems(section);},
       sectionNames(section){const items=this.permItems(section);return items.length===1?[items[0].name]:[section.group,...items.map(item=>item.name)];},
       sectionChecked(section){const names=this.sectionNames(section);return names.every(name=>this.selectedMenus.includes(name));},
@@ -134,7 +139,7 @@
       toggleBoard(name,checked){const index=this.selectedBoards.indexOf(name);if(checked&&index<0)this.selectedBoards.push(name);else if(!checked&&index>=0)this.selectedBoards.splice(index,1);this.dirty=true;},
       toggleAllTables(value){if(value){const already=new Set(this.selectedTables);this.selectedTables=[...this.allTableNames];this.allTableNames.forEach(name=>{if(already.has(name))return;delete this.hiddenFields[name];this.confirmedFields[name]=this.tableFields(name).map(field=>field.name);});}else{this.selectedTables=[];this.hiddenFields={};this.confirmedFields={};this.expandedTable="";}this.dirty=true;},
       toggleTable(name,checked){const index=this.selectedTables.indexOf(name);if(checked&&index<0){this.selectedTables.push(name);delete this.hiddenFields[name];this.confirmedFields[name]=this.tableFields(name).map(field=>field.name);}else if(!checked&&index>=0){this.selectedTables.splice(index,1);delete this.hiddenFields[name];delete this.confirmedFields[name];if(this.expandedTable===name)this.expandedTable="";}this.dirty=true;},
-      tableFields(name){return state.assets.find(table=>table.cnName===name)?.fields||[];},
+      tableFields(name){return permissionFieldsOf(name);},
       hiddenOf(name){return this.hiddenFields[name]||[];},
       fieldTagVisible(name){return this.fieldPanelsEnabled&&this.selectedTables.includes(name)&&this.tableFields(name).length>0;},
       fieldLabel(name){const fields=this.tableFields(name);const hidden=this.hiddenOf(name);if(!hidden.length)return "全部字段";return `字段 ${fields.filter(field=>!hidden.includes(field.name)).length}/${fields.length}`;},

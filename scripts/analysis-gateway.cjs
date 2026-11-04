@@ -14,7 +14,8 @@
  *  POST /v1/providers/:id/refresh  — 用已保存配置重新拉取并写入模型列表
  *  GET  /v1/catalog                — 数据表目录（表名/说明/行数/时间范围）
  *  GET  /v1/permissions            — 全部用户的有效表权限
- *  PUT  /v1/permissions/:user      — 保存单个用户的表权限覆盖
+ *  PUT  /v1/permissions/:user      — 保存单个用户的个人覆盖（只存个人追加的表与字段设置）
+ *  GET  /v1/table-fields           — 网关真实表定义的字段（仅管理员，供字段权限面板）
  *  POST /v1/analyze                — 分析：权限校验 → 聚合证据 → 调模型生成报告
  *
  * 数据：首次启动生成 14 张表的模拟数据（约 5000+ 行，含趋势故事线），
@@ -2362,7 +2363,7 @@ function isPublicApi(method, pathname) {
 
 /* 管理类接口：AI 中心（供应商、模型配置、Skill 管理）、表数据与权限的写操作，以及供应商明细读取 */
 function requiresAdmin(method, pathname) {
-  if (method === "GET") return pathname === "/v1/providers" || pathname === "/v1/model-config" || pathname === "/v1/usage/all" || pathname === "/v1/feedback" || pathname === "/v1/accounts" || pathname === "/v1/audit";
+  if (method === "GET") return pathname === "/v1/providers" || pathname === "/v1/model-config" || pathname === "/v1/usage/all" || pathname === "/v1/feedback" || pathname === "/v1/accounts" || pathname === "/v1/audit" || pathname === "/v1/table-fields";
   return /^\/v1\/(providers|model-config|default-model|table-rows|permissions|quota|org|accounts|skills\/upload)(\/|$)/.test(pathname) || /^\/v1\/skills\/[^/]+\/config$/.test(pathname);
 }
 
@@ -2942,6 +2943,13 @@ async function handleRequest(req, res) {
       contextLimit: capability.contextLimit,
       reasoning: capability.reasoning,
       capabilityConfigured: capability.configured
+    });
+  }
+
+  if (req.method === "GET" && url.pathname === "/v1/table-fields") {
+    /* 仅管理员：网关真实表定义的字段，供权限组 / 用户权限页的字段面板使用（字段权限按这份定义生效） */
+    return sendJson(res, 200, {
+      tables: Object.fromEntries(tables.map(table => [table.cnName, (table.fields || []).map(field => ({ name: String(field.name), type: String(field.type || ""), comment: String(field.comment || "") }))]))
     });
   }
 

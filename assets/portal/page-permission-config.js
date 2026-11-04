@@ -11,11 +11,14 @@
     analysisGatewayBase,
     bridge,
     expandMenuNames,
+    loadGatewayFields,
     manageScopeOf,
     manageScopeSummary,
     menuGrantItems,
     mount,
     notify,
+    permissionFieldsOf,
+    permissionTables,
     refreshTick,
     scopeMatched,
     state
@@ -91,7 +94,7 @@
       groupBoardNames(){const grants=this.group?.boards||[];if(grants.includes("全部看板"))return new Set(this.onlineBoardNames);const names=new Set();state.boards.filter(board=>board.status==="已上线"&&(grants.includes(board.name)||grants.includes(board.category))).forEach(board=>names.add(board.name));return names;},
       // 看板管理里「可查看用户」直接授权给该用户的看板（与权限组授权取并集，单独打标签）
       directBoardNames(){refreshTick.value;const name=this.user?.name;if(!name)return new Set();return new Set(state.boards.filter(board=>board.status==="已上线"&&Array.isArray(board.users)&&board.users.includes(name)).map(board=>board.name));},
-      groupTableNames(){const grants=this.group?.tables||[];if(grants.includes("全部数据表"))return new Set(this.allTableNames);return new Set(state.assets.filter(table=>grants.includes(table.cnName)).map(table=>table.cnName));},
+      groupTableNames(){const grants=this.group?.tables||[];if(grants.includes("全部数据表"))return new Set(this.allTableNames);return new Set(this.allTableNames.filter(name=>grants.includes(name)));},
       groupAllTables(){return (this.group?.tables||[]).includes("全部数据表");},
       lockedTotal(){return this.groupMenuNames.size+this.groupBoardNames.size+this.groupTableNames.size;},
       personalTotal(){return (this.user?.menuGrants||[]).length+(this.user?.boardGrants||[]).length+(this.user?.tableGrants||[]).filter(name=>name!=="全部数据表").length;},
@@ -101,10 +104,10 @@
       scopeUserCount(){return this.scopePreview.length;},
       scopeSummary(){if(this.scopeAll)return `已配置为「全部用户」：该用户在「用户管理」里可以看到全部 ${state.users.length} 名用户。`;const scope=this.selectedScope.filter(Boolean);if(!scope.length)return "未配置任何部门或成员：该用户在「用户管理」里只能看到自己。";return `已选择 ${manageScopeSummary({ manageScope: scope })}：该用户在「用户管理」里可以看到范围内 ${this.scopeUserCount} 名用户（含自己）。`;},
       boardGroups(){return state.categories.filter(category=>category!=="全部").map(category=>({category,boards:state.boards.filter(board=>board.category===category&&board.status==="已上线")})).filter(group=>group.boards.length);},
-      tableGroups(){const groups=[];state.assets.forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
+      tableGroups(){const groups=[];permissionTables().forEach(table=>{let group=groups.find(item=>item.source===table.source);if(!group){group={source:table.source,tables:[]};groups.push(group);}group.tables.push(table);});return groups;},
       // 门户管理员与「全部数据表」的权限组不限制字段，不显示字段面板
       fieldPanelsEnabled(){return this.user?.group!=="门户管理员"&&!this.groupAllTables;},
-      allTableNames(){return state.assets.map(table=>table.cnName);},
+      allTableNames(){return permissionTables().map(table=>table.cnName);},
       allTablesSelected(){return this.selectedTables.length>0&&this.selectedTables.length>=this.allTableNames.length;},
       tablesIndeterminate(){return this.selectedTables.length>0&&this.selectedTables.length<this.allTableNames.length;}
     },
@@ -112,7 +115,7 @@
       // 取消勾选某张表 = 收回该表上的个人字段设置
       selectedTables(list){const keep=new Set(list);[this.personalHidden,this.personalGranted].forEach(map=>Object.keys(map).forEach(name=>{if(!keep.has(name))delete map[name];}));if(this.expandedTable&&!keep.has(this.expandedTable))this.expandedTable="";}
     },
-    mounted(){this.pageHandler=event=>{if(event.detail?.page==="配置权限")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
+    mounted(){this.pageHandler=event=>{if(event.detail?.page==="配置权限")this.open();};window.addEventListener("portal:page-change",this.pageHandler);this.open();},
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
       permItems(section){return menuGrantItems(section);},
@@ -121,7 +124,7 @@
       isBoardLocked(board){return this.inherited&&this.groupBoardNames.has(board.name);},
       isBoardDirect(board){return this.directBoardNames.has(board.name);},
       isTableLocked(table){return this.inherited&&this.groupTableNames.has(table.cnName);},
-      tableFields(table){return table.fields||[];},
+      tableFields(table){return permissionFieldsOf(table.cnName);},
       groupHiddenOf(table){return this.isTableLocked(table)?(this.group?.hiddenFields?.[table.cnName]||[]):[];},
       // 当前对该用户隐藏的字段：组授予的表 = 组隐藏 − 个人追加；个人追加的表 = 个人取消勾选的
       effectiveHiddenOf(table){if(this.isTableLocked(table)){const granted=this.personalGranted[table.cnName]||[];return this.groupHiddenOf(table).filter(name=>!granted.includes(name));}return this.personalHidden[table.cnName]||[];},
@@ -157,6 +160,8 @@
         if(checked){if(index<0)this.selectedMenuEdits.push(name);if(!this.selectedMenus.includes(name))this.selectedMenus.push(name);}
         else if(index>=0)this.selectedMenuEdits.splice(index,1);
       },
+      // 打开页面：先按现有字段来源回显；首次取到网关的真实字段后再按它重新回显
+      open(){this.load();loadGatewayFields().then(changed=>{if(changed)this.load();});},
       load(){
         const personalMenus=Array.isArray(this.user?.menuGrants)?this.user.menuGrants:[];
         this.selectedMenus=[...new Set([...this.groupMenuNames,...personalMenus])];
@@ -202,10 +207,10 @@
         // 字段设置只保留仍在保存范围内的表：组授予的表只存追加字段（限于组隐藏的字段），个人追加的表只存取消勾选的字段
         const hiddenFields={},grantedFields={};
         this.selectedTables.forEach(name=>{
-          const table=state.assets.find(item=>item.cnName===name);
-          if(!table||!this.fieldPanelsEnabled)return;
+          const fields=permissionFieldsOf(name);
+          if(!fields.length||!this.fieldPanelsEnabled)return;
           if(groupTables.has(name)){const allowed=this.group?.hiddenFields?.[name]||[];const list=(this.personalGranted[name]||[]).filter(field=>allowed.includes(field));if(list.length)grantedFields[name]=list;}
-          else{const names=table.fields.map(field=>field.name);const list=(this.personalHidden[name]||[]).filter(field=>names.includes(field));if(list.length)hiddenFields[name]=list;}
+          else{const names=fields.map(field=>field.name);const list=(this.personalHidden[name]||[]).filter(field=>names.includes(field));if(list.length)hiddenFields[name]=list;}
         });
         this.user.fieldHidden=hiddenFields;
         this.user.fieldGrants=grantedFields;

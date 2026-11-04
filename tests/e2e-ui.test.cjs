@@ -527,15 +527,25 @@ describe("浏览器端到端", () => {
       await appVisible(page);
       await page.evaluate(() => window.portalVueBridge.setPage("权限组"));
       await page.waitForSelector("#permissionGroupView .portal-vue-group-card");
-      const target = await page.evaluate(() => {
-        const state = window.portalVueModuleApi.state;
+      const target = await page.evaluate(async () => {
+        // 字段面板以网关的真实字段为准（/v1/table-fields），不是门户资产里的演示字段
+        const api = window.PortalVue;
+        await api.loadGatewayFields();
+        const state = api.state;
+        const fieldsOf = name => api.permissionFieldsOf(name);
+        const list = api.permissionTables();
         const index = state.groups.findIndex(group => group.name === "数据分析师");
         const granted = state.groups[index].tables;
         // 只用组里本来就授权的表，避免改动该组的表范围而影响后面共用网关的用例
-        const asset = state.assets.find(item => item.fields.length > 1 && (granted.includes("全部数据表") || granted.includes(item.cnName)));
-        return { index, table: asset.cnName, total: asset.fields.length, field: asset.fields[0].name, tableCount: state.assets.length, taggedCount: state.assets.filter(item => item.fields.length).length };
+        const asset = list.find(item => fieldsOf(item.cnName).length > 1 && (granted.includes("全部数据表") || granted.includes(item.cnName)));
+        return {
+          index, table: asset.cnName, total: fieldsOf(asset.cnName).length, field: fieldsOf(asset.cnName)[0].name, tableCount: list.length, taggedCount: list.filter(item => fieldsOf(item.cnName).length).length,
+          orderFields: fieldsOf("用户订单明细").map(field => field.name), portalOrderFields: (state.assets.find(item => item.cnName === "用户订单明细")?.fields || []).map(field => field.name)
+        };
       });
       assert.ok(target.index >= 0);
+      assert.ok(target.orderFields.includes("user_id") && !target.orderFields.includes("metric_value"), `应取到网关字段：${target.orderFields}`);
+      assert.notDeepEqual(target.orderFields, target.portalOrderFields, "前提：门户演示字段与网关字段不同");
       await page.locator("#permissionGroupView .portal-vue-group-card").nth(target.index).click();
       await page.getByRole("tab", { name: /数据表权限/ }).click();
       const row = page.locator(".portal-vue-table-perm", { has: page.locator(`label[title="${target.table}"]`) }).first();
@@ -566,6 +576,11 @@ describe("浏览器端到端", () => {
       assert.equal(await page.locator('#permissionGroupView [data-test="field-tag"]').count(), target.taggedCount, "每张有字段的表都应显示字段标签");
       const others = await page.locator('#permissionGroupView [data-test="field-tag"]').allTextContents();
       assert.equal(others.filter(text => text.trim() === "全部字段").length, target.taggedCount - 1);
+      // 用户订单明细：面板里列的是网关的真实字段，不是门户的演示字段
+      const orderRow = page.locator(".portal-vue-table-perm", { has: page.locator('label[title="用户订单明细"]') }).first();
+      await orderRow.locator('[data-test="field-tag"]').click();
+      const orderNames = (await orderRow.locator('[data-test="field-panel"] .portal-vue-field-panel-item').evaluateAll(items => items.map(item => item.querySelector("label")?.textContent.trim())));
+      assert.deepEqual(orderNames, target.orderFields);
     } finally {
       // 恢复：清掉隐藏字段，避免影响共用同一网关的后续用例（隐藏字段会让指标不可用），失败也会执行
       if (!skipReason) {
@@ -599,9 +614,12 @@ describe("浏览器端到端", () => {
       const target = await page.evaluate(async name => {
         const api = window.portalVueModuleApi;
         const state = api.state;
+        // 字段来源与界面一致：网关的真实字段
+        await window.PortalVue.loadGatewayFields();
+        const withFields = window.PortalVue.permissionTables().map(item => ({ cnName: item.cnName, fields: window.PortalVue.permissionFieldsOf(item.cnName) }));
         const group = state.groups.find(item => item.name === "数据分析师");
-        const groupAsset = state.assets.find(item => item.fields.length > 2 && group.tables.includes(item.cnName));
-        const personalAsset = state.assets.find(item => item.fields.length > 2 && !group.tables.includes(item.cnName));
+        const groupAsset = withFields.find(item => item.fields.length > 2 && group.tables.includes(item.cnName));
+        const personalAsset = withFields.find(item => item.fields.length > 2 && !group.tables.includes(item.cnName));
         group.hiddenFields = { [groupAsset.cnName]: [groupAsset.fields[0].name] };
         group.confirmedFields = { [groupAsset.cnName]: groupAsset.fields.map(field => field.name) };
         await api.orgSync.push();

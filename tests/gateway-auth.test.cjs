@@ -181,6 +181,21 @@ describe("管理员闸门", () => {
     await call("PUT", `/v1/permissions/${encodeURIComponent(ANALYST)}`, { token: adminToken, body: { tables: [] } });
   });
 
+  test("GET /v1/table-fields：只给管理员，返回网关真实表定义的字段（与门户演示字段不同）", async () => {
+    assert.equal((await call("GET", "/v1/table-fields", { token: await tokenFor(ANALYST) })).status, 403);
+    assert.equal((await call("GET", "/v1/table-fields")).status, 401);
+    const result = await call("GET", "/v1/table-fields", { token: await tokenFor(ADMIN) });
+    assert.equal(result.status, 200);
+    const order = result.data.tables["用户订单明细"];
+    assert.ok(Array.isArray(order) && order.length > 0);
+    for (const field of order) assert.deepEqual(Object.keys(field).sort(), ["comment", "name", "type"]);
+    const names = order.map(field => field.name);
+    assert.ok(names.includes("user_id") && names.includes("order_amount"), names.join(","));
+    assert.equal(names.includes("metric_value"), false, "不是门户里的演示字段");
+    assert.ok(result.data.tables["RTA 请求小时监控表"].length > 0);
+    assert.ok(result.data.tables["权益-账号维度消耗统计表"].length > 0);
+  });
+
   test("未登录不能修改用户权限", async () => {
     const result = await call("PUT", `/v1/permissions/${encodeURIComponent(ANALYST)}`, { body: { tables: ["全部数据表"] } });
     assert.equal(result.status, 401);
