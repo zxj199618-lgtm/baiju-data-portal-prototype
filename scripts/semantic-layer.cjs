@@ -8,6 +8,7 @@
  */
 
 const { additiveAttribution, ratioAttribution } = require("./attribution-calc.cjs");
+const { isHidden } = require("./field-scope.cjs");
 
 const NUMERIC = /DECIMAL|BIGINT|INT|DOUBLE|FLOAT/i;
 const MAX_GROUPS = 10;
@@ -90,7 +91,20 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
     return mergeFilters([...own, ...metricBaseFilters(metrics.get(metric.numerator)), ...metricBaseFilters(metrics.get(metric.denominator))]);
   }
 
-  const tablesOf = metric => (metric.type === "ratio" ? metric.shared : Object.keys(metric.fields));
+  /** 字段权限：指标在该表上的取值字段（比率含分子分母及其依赖）或该表日期字段被隐藏 → 该表上不可用 */
+  function blocked(metric, tableName, hidden) {
+    if (!hidden) return false;
+    const config = tableConfig.get(tableName);
+    if (config && isHidden(hidden, tableName, config.dateField)) return true;
+    if (metric.type === "sum") return isHidden(hidden, tableName, metric.fields[tableName]);
+    return blocked(metrics.get(metric.numerator), tableName, hidden) || blocked(metrics.get(metric.denominator), tableName, hidden);
+  }
+  /** 该表对当前用户可见的维度（被隐藏的维度视同不存在） */
+  const visibleDimensions = (tableName, hidden) => tableConfig.get(tableName).dimensions.filter(name => !isHidden(hidden, tableName, name));
+  /** 固定筛选的说明：不列出被隐藏字段（筛选本身仍生效） */
+  const fixedEcho = (fixedFilters, tableName, hidden) => fixedFilters.filter(({ field }) => !isHidden(hidden, tableName, field)).map(({ field, values }) => ({ 字段: field, 取值: values }));
+
+  const tablesOf = (metric, hidden) => (metric.type === "ratio" ? metric.shared : Object.keys(metric.fields)).filter(name => !blocked(metric, name, hidden));
 
   /** 某张表上指标的数值：求和型汇总字段；比率型 = 分子和 ÷ 分母和 × scale（分母为 0 返回 null） */
   function valueOn(metric, tableName, rows) {
@@ -104,11 +118,11 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
   const round = (value, digits) => (value === null || value === undefined || !Number.isFinite(value) ? null : Number(value.toFixed(digits)));
 
   /** 列出用户有权限的指标：只显示至少有一张有权限表的指标，且只列出有权限的表 */
-  function listMetrics(allowedTables, keyword = "") {
+  function listMetrics(allowedTables, keyword = "", hidden) {
     const allowed = new Set(allowedTables);
     const needle = String(keyword || "").trim().toLowerCase();
     return [...metrics.values()]
-      .map(metric => ({ metric, usable: tablesOf(metric).filter(name => allowed.has(name)) }))
+      .map(metric => ({ metric, usable: tablesOf(metric, hidden).filter(name => allowed.has(name)) }))
       .filter(({ metric, usable }) => usable.length && (!needle || [metric.id, metric.name, metric.description, ...(metric.aliases || [])].join(" ").toLowerCase().includes(needle)))
       .map(({ metric, usable }) => ({
         指标: metric.id,
@@ -117,16 +131,16 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
         单位: metric.unit || "",
         口径: metric.description,
         口径状态: metric.reviewed ? "已确认" : "草稿（待数据团队确认）",
-        可用表: usable.map(name => ({ 表名: name, 可用分组: tableConfig.get(name).dimensions }))
+        可用表: usable.map(name => ({ 表名: name, 可用分组: visibleDimensions(name, hidden) }))
       }));
   }
 
   /** 查询与归因共用的准备步骤：解析指标 / 表 / 筛选（含固定筛选）、取窗口内的行。出错返回 { error }，没有数据返回 { empty } */
-  function prepare({ metric: metricKey, table: requestedTable, group, days, filters, allowedTables }) {
+  function prepare({ metric: metricKey, table: requestedTable, group, days, filters, allowedTables }, hidden) {
     const metric = findMetric(metricKey);
     if (!metric) return { error: `未找到指标：${metricKey || "（未指定）"}，请先用 list_metrics 查看可用指标` };
     const allowed = new Set(allowedTables);
-    const candidates = tablesOf(metric).filter(name => allowed.has(name));
+    const candidates = tablesOf(metric, hidden).filter(name => allowed.has(name));
     if (!candidates.length) return { error: `没有可用的数据表支持指标「${metric.name}」（或无权访问）` };
     let tableName = String(requestedTable || "");
     if (!tableName) {
@@ -135,7 +149,8 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
     }
     if (!candidates.includes(tableName)) return { error: `数据表不存在、无权访问或不支持该指标：${tableName}` };
 
-    const config = tableConfig.get(tableName);
+    // 被隐藏的维度从可用维度中去掉：用它分组 / 筛选 / 归因，与乱写字段名的提示一致
+    const config = { ...tableConfig.get(tableName), dimensions: visibleDimensions(tableName, hidden) };
     if (group && !config.dimensions.includes(group)) return { error: `该表不支持按 ${group} 分组，可用分组：${config.dimensions.join("、") || "无"}` };
     // 筛选：只允许该表声明过的文本维度，按「字段 = 任一取值」过滤；多个筛选之间是「且」
     const activeFilters = [];
@@ -151,6 +166,7 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
     const effectiveFilters = mergeFilters([...fixedFilters, ...activeFilters]);
     const emptied = effectiveFilters.find(filter => !filter.values.length);
     if (emptied) {
+      if (isHidden(hidden, tableName, emptied.field)) return { error: `指标「${metric.name}」在该表上不可用` };
       const fixed = fixedFilters.find(filter => filter.field === emptied.field);
       return { error: `指标「${metric.name}」只适用于 ${emptied.field} = ${(fixed?.values || []).join("、")}，你指定的筛选与它冲突` };
     }
@@ -169,8 +185,8 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
   }
 
   /** 查询指标：最近 N 天 vs 前 N 天，可按一个维度拆分。table 缺省时仅在唯一可选表时自动选择 */
-  function query({ metric: metricKey, table: requestedTable, group, days, filters, daily, allowedTables }) {
-    const prepared = prepare({ metric: metricKey, table: requestedTable, group, days, filters, allowedTables });
+  function query({ metric: metricKey, table: requestedTable, group, days, filters, daily, allowedTables }, hidden) {
+    const prepared = prepare({ metric: metricKey, table: requestedTable, group, days, filters, allowedTables }, hidden);
     if (prepared.error) return { ok: false, error: prepared.error };
     if (prepared.empty) return { ok: true, data: prepared.empty };
     const { metric, tableName, config, activeFilters, fixedFilters, windowDays, anchor, windows, currentRows, priorRows } = prepared;
@@ -194,7 +210,8 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
       ...change(currentTotal, priorTotal)
     };
     if (activeFilters.length) data.筛选 = activeFilters.map(({ field, values }) => ({ 字段: field, 取值: values }));
-    if (fixedFilters.length) data.口径.固定筛选 = fixedFilters.map(({ field, values }) => ({ 字段: field, 取值: values }));
+    const fixedShown = fixedEcho(fixedFilters, tableName, hidden);
+    if (fixedShown.length) data.口径.固定筛选 = fixedShown;
     if (metric.caveat) data.提示 = metric.caveat;
     data.数据截止日期 = anchor;
 
@@ -245,8 +262,8 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
    *   再加上「分母为零的分组的影响」，三者之和严格等于比率的总变化（每个维度都核对一次）。
    * 维度按「前几名能解释多少变化」从高到低排序，最值得先看的排在最前面。
    */
-  function attribute({ metric: metricKey, table: requestedTable, dimensions, days, filters, allowedTables }) {
-    const prepared = prepare({ metric: metricKey, table: requestedTable, days, filters, allowedTables });
+  function attribute({ metric: metricKey, table: requestedTable, dimensions, days, filters, allowedTables }, hidden) {
+    const prepared = prepare({ metric: metricKey, table: requestedTable, days, filters, allowedTables }, hidden);
     if (prepared.error) return { ok: false, error: prepared.error };
     if (prepared.empty) return { ok: true, data: prepared.empty };
     const { metric, tableName, config, activeFilters, fixedFilters, windowDays, anchor, windows, currentRows, priorRows } = prepared;
@@ -286,7 +303,8 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
       数据截止日期: anchor
     };
     if (activeFilters.length) data.筛选 = activeFilters.map(({ field, values }) => ({ 字段: field, 取值: values }));
-    if (fixedFilters.length) data.口径.固定筛选 = fixedFilters.map(({ field, values }) => ({ 字段: field, 取值: values }));
+    const fixedShown = fixedEcho(fixedFilters, tableName, hidden);
+    if (fixedShown.length) data.口径.固定筛选 = fixedShown;
     if (metric.caveat) data.提示 = metric.caveat;
     if (delta === null || Math.abs(delta) < 1e-9) data.说明 = "总变化接近 0，各组占比没有意义；下面只列各组自身的变化";
 
@@ -332,19 +350,31 @@ function createSemanticLayer({ catalog, tables, rowsOf }) {
   }
 
   /** 指标的基本信息（推荐问题等需要校验「平台确实支持」的地方用） */
-  function metricInfo(key) {
+  function metricInfo(key, hidden) {
     const metric = findMetric(key);
-    return metric ? { id: metric.id, name: metric.name, type: metric.type, unit: metric.unit || "" } : null;
+    return metric && tablesOf(metric, hidden).length ? { id: metric.id, name: metric.name, type: metric.type, unit: metric.unit || "" } : null;
   }
 
   /** 指标在某张表上可用的分组维度；指标不在这张表上返回 null */
-  function dimensionsOf(key, tableName) {
+  function dimensionsOf(key, tableName, hidden) {
     const metric = findMetric(key);
-    if (!metric || !tablesOf(metric).includes(tableName)) return null;
-    return [...tableConfig.get(tableName).dimensions];
+    if (!metric || !tablesOf(metric, hidden).includes(tableName)) return null;
+    return visibleDimensions(tableName, hidden);
   }
 
-  return { warnings, listMetrics, query, attribute, metricInfo, dimensionsOf, metricCount: metrics.size };
+  /** 字段权限：叠加隐藏字段后的同名函数（hidden = {表名: 字段名[]}）；原函数等价于 scoped({}) */
+  function scoped(hidden) {
+    const h = hidden || {};
+    return {
+      listMetrics: (allowedTables, keyword = "") => listMetrics(allowedTables, keyword, h),
+      query: args => query(args, h),
+      attribute: args => attribute(args, h),
+      metricInfo: key => metricInfo(key, h),
+      dimensionsOf: (key, tableName) => dimensionsOf(key, tableName, h)
+    };
+  }
+
+  return { warnings, listMetrics, query, attribute, metricInfo, dimensionsOf, scoped, metricCount: metrics.size };
 }
 
 module.exports = { createSemanticLayer };

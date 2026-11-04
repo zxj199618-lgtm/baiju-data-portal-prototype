@@ -7,6 +7,7 @@ COPY scripts/attribution-calc.cjs ./attribution-calc.cjs
 COPY scripts/analysis-tools.cjs ./analysis-tools.cjs
 COPY scripts/usage-quota.cjs ./usage-quota.cjs
 COPY scripts/semantic-layer.cjs ./semantic-layer.cjs
+COPY scripts/field-scope.cjs ./field-scope.cjs
 COPY scripts/feedback-store.cjs ./feedback-store.cjs
 COPY scripts/org-store.cjs ./org-store.cjs
 COPY scripts/account-store.cjs ./account-store.cjs

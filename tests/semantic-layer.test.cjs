@@ -227,3 +227,158 @@ describe("经网关的工具调用", () => {
     assert.equal(audit.ok, false);
   });
 });
+
+describe("字段权限：裁剪视图 scoped(hidden)", () => {
+  // 字段名与取值都用不会出现在其他文案里的写法，便于做泄露扫描
+  const sTables = [
+    { cnName: "渠道表", fields: [{ name: "dt", type: "DATE" }, { name: "chan_q", type: "VARCHAR" }, { name: "area_q", type: "VARCHAR" }, { name: "kind_q", type: "VARCHAR" }, { name: "spend_q", type: "DECIMAL(18,2)" }, { name: "conv_q", type: "BIGINT" }] },
+    { cnName: "备用表", fields: [{ name: "dt", type: "DATE" }, { name: "chan_q", type: "VARCHAR" }, { name: "spend_q", type: "DECIMAL(18,2)" }, { name: "conv_q", type: "BIGINT" }] }
+  ];
+  const sCatalog = {
+    tables: {
+      渠道表: { dateField: "dt", dimensions: ["chan_q", "area_q", "kind_q"], baseFilters: [{ field: "kind_q", values: ["甲类套餐"] }] },
+      备用表: { dateField: "dt", dimensions: ["chan_q"] }
+    },
+    metrics: [
+      { id: "spend", name: "花销", type: "sum", unit: "元", description: "求和", fields: { 渠道表: "spend_q", 备用表: "spend_q" } },
+      { id: "conv", name: "转化", type: "sum", unit: "次", description: "求和", fields: { 渠道表: "conv_q", 备用表: "conv_q" } },
+      { id: "cpc", name: "转化成本", type: "ratio", unit: "元/次", numerator: "spend", denominator: "conv", scale: 1, description: "花销 ÷ 转化" },
+      { id: "spend_b", name: "乙类花销", type: "sum", unit: "元", description: "求和", fields: { 渠道表: "spend_q" }, baseFilters: [{ field: "kind_q", values: ["乙类套餐"] }] }
+    ]
+  };
+  const sRows = {
+    渠道表: [
+      { dt: shift(0), chan_q: "A", area_q: "华北区q", kind_q: "甲类套餐", spend_q: 100, conv_q: 10 },
+      { dt: shift(0), chan_q: "B", area_q: "华南区q", kind_q: "乙类套餐", spend_q: 999, conv_q: 1 },
+      { dt: shift(-1), chan_q: "B", area_q: "华南区q", kind_q: "甲类套餐", spend_q: 30, conv_q: 3 },
+      { dt: shift(-8), chan_q: "A", area_q: "华北区q", kind_q: "甲类套餐", spend_q: 50, conv_q: 5 }
+    ],
+    备用表: [{ dt: shift(0), chan_q: "X", spend_q: 7, conv_q: 1 }, { dt: shift(-8), chan_q: "Y", spend_q: 3, conv_q: 1 }]
+  };
+  const sLayer = createSemanticLayer({ catalog: sCatalog, tables: sTables, rowsOf: name => sRows[name] || [] });
+  const BOTH = ["渠道表", "备用表"];
+  const ids = list => list.map(item => item.指标);
+
+  test("fixture 没有警告", () => assert.deepEqual(sLayer.warnings, []));
+
+  test("求和指标取值字段被隐藏：该表上不列出、查询失败", () => {
+    const view = sLayer.scoped({ 渠道表: ["conv_q"] });
+    const names = ids(view.listMetrics(["渠道表"]));
+    assert.equal(names.includes("conv"), false);
+    assert.equal(names.includes("cpc"), false, "比率依赖的分母字段被隐藏，比率也不可用");
+    assert.ok(names.includes("spend"));
+    assert.equal(view.query({ metric: "conv", table: "渠道表", allowedTables: BOTH }).ok, false);
+    assert.equal(view.query({ metric: "conv", table: "备用表", allowedTables: BOTH }).ok, true, "别的表不受影响");
+  });
+
+  test("比率指标分子字段被隐藏：该表上不可用，另一张表仍可用", () => {
+    const view = sLayer.scoped({ 渠道表: ["spend_q"] });
+    const cpc = view.listMetrics(BOTH).find(item => item.指标 === "cpc");
+    assert.deepEqual(cpc.可用表.map(item => item.表名), ["备用表"]);
+    assert.equal(view.query({ metric: "cpc", table: "渠道表", allowedTables: BOTH }).ok, false);
+    const ok = view.query({ metric: "cpc", allowedTables: BOTH });
+    assert.equal(ok.ok, true, "只剩一张表时自动选择");
+    assert.equal(ok.data.表名, "备用表");
+    assert.equal(view.dimensionsOf("cpc", "渠道表"), null);
+  });
+
+  test("表的日期字段被隐藏：该表上所有指标都不可用", () => {
+    const view = sLayer.scoped({ 备用表: ["dt"] });
+    assert.deepEqual(view.listMetrics(["备用表"]), []);
+    assert.equal(view.query({ metric: "spend", table: "备用表", allowedTables: BOTH }).ok, false);
+  });
+
+  test("维度被隐藏：分组 / 筛选 / 归因的报错与乱写字段名形态一致，dimensionsOf 不含它", () => {
+    const view = sLayer.scoped({ 渠道表: ["area_q"] });
+    const same = (hiddenErr, unknownErr) => assert.equal(hiddenErr.replace("area_q", "?"), unknownErr.replace("不存在的字段", "?"));
+    const base = { metric: "spend", table: "渠道表", allowedTables: BOTH };
+    const g1 = view.query({ ...base, group: "area_q" }), g2 = view.query({ ...base, group: "不存在的字段" });
+    assert.equal(g1.ok, false);
+    assert.match(g1.error, /不支持按 area_q 分组/);
+    same(g1.error, g2.error);
+    same(view.query({ ...base, filters: [{ field: "area_q", values: ["华北区q"] }] }).error, view.query({ ...base, filters: [{ field: "不存在的字段", values: ["华北区q"] }] }).error);
+    same(view.attribute({ ...base, dimensions: ["area_q"] }).error, view.attribute({ ...base, dimensions: ["不存在的字段"] }).error);
+    assert.deepEqual(view.dimensionsOf("spend", "渠道表"), ["chan_q", "kind_q"]);
+    assert.deepEqual(sLayer.dimensionsOf("spend", "渠道表"), ["chan_q", "area_q", "kind_q"], "原函数不受影响");
+  });
+
+  test("固定筛选字段被隐藏：筛选仍生效，但输出不含该字段与取值", () => {
+    const plain = sLayer.query({ metric: "spend", table: "渠道表", allowedTables: BOTH });
+    assert.equal(plain.data.近N天, 130, "固定筛选排除了乙类套餐的 999");
+    assert.match(JSON.stringify(plain), /kind_q/, "未隐藏时口径里列出固定筛选");
+    const scoped = sLayer.scoped({ 渠道表: ["kind_q"] }).query({ metric: "spend", table: "渠道表", allowedTables: BOTH });
+    assert.equal(scoped.data.近N天, 130);
+    assert.equal(scoped.data.前N天, 50);
+    const text = JSON.stringify(scoped);
+    assert.doesNotMatch(text, /kind_q|甲类套餐|乙类套餐/);
+  });
+
+  test("固定筛选冲突且字段被隐藏：报错不出现字段名与取值", () => {
+    const plain = sLayer.query({ metric: "spend_b", table: "渠道表", allowedTables: BOTH });
+    assert.match(plain.error, /kind_q/, "未隐藏时说明适用范围");
+    const scoped = sLayer.scoped({ 渠道表: ["kind_q"] }).query({ metric: "spend_b", table: "渠道表", allowedTables: BOTH });
+    assert.equal(scoped.ok, false);
+    assert.equal(scoped.error, "指标「乙类花销」在该表上不可用");
+  });
+
+  test("metricInfo：指标在任何表上都不可用时返回 null", () => {
+    const view = sLayer.scoped({ 渠道表: ["conv_q"], 备用表: ["conv_q"] });
+    assert.equal(view.metricInfo("conv"), null);
+    assert.equal(view.metricInfo("cpc"), null);
+    assert.equal(view.metricInfo("spend").id, "spend");
+    assert.equal(sLayer.metricInfo("conv").id, "conv", "原函数不受影响");
+  });
+
+  test("scoped({}) 与原函数结果一致", () => {
+    const view = sLayer.scoped({});
+    const base = { table: "渠道表", allowedTables: BOTH };
+    assert.deepEqual(view.listMetrics(BOTH), sLayer.listMetrics(BOTH));
+    assert.deepEqual(view.query({ ...base, metric: "cpc", group: "area_q", daily: true }), sLayer.query({ ...base, metric: "cpc", group: "area_q", daily: true }));
+    assert.deepEqual(view.attribute({ ...base, metric: "spend" }), sLayer.attribute({ ...base, metric: "spend" }));
+    assert.deepEqual(view.query({ ...base, metric: "spend_b" }), sLayer.query({ ...base, metric: "spend_b" }));
+    assert.deepEqual(view.dimensionsOf("spend", "渠道表"), sLayer.dimensionsOf("spend", "渠道表"));
+    assert.deepEqual(view.metricInfo("cpc"), sLayer.metricInfo("cpc"));
+  });
+
+  test("泄露扫描：scoped 的所有输出都不含被隐藏的字段名与其取值", () => {
+    const view = sLayer.scoped({ 渠道表: ["area_q", "kind_q"] });
+    const base = { table: "渠道表", allowedTables: BOTH };
+    const outputs = [
+      view.listMetrics(BOTH), view.listMetrics(BOTH, "花销"),
+      view.query({ ...base, metric: "spend" }),
+      view.query({ ...base, metric: "cpc", group: "chan_q", daily: true }),
+      view.query({ ...base, metric: "spend", daily: true, filters: [{ field: "chan_q", values: ["A"] }] }),
+      view.query({ ...base, metric: "spend", filters: [{ field: "chan_q", values: ["Z"] }] }),
+      view.query({ ...base, metric: "spend", filters: [{ field: "chan_q", values: [] }] }),
+      view.query({ ...base, metric: "spend_b" }),
+      view.query({ metric: "spend", allowedTables: BOTH }),
+      view.attribute({ ...base, metric: "spend" }),
+      view.attribute({ ...base, metric: "cpc" }),
+      view.attribute({ ...base, metric: "spend", filters: [{ field: "chan_q", values: ["A"] }] }),
+      view.attribute({ ...base, metric: "spend_b" }),
+      view.dimensionsOf("spend", "渠道表"), view.dimensionsOf("cpc", "渠道表"),
+      view.metricInfo("spend"), view.metricInfo("cpc")
+    ];
+    // 健全性：至少有正常结果，不是全部报错
+    assert.ok(outputs[2].ok && outputs[9].ok && outputs[9].data.维度.length, "正常查询与归因有结果");
+    const LEAK = /area_q|kind_q|华北区q|华南区q|甲类套餐|乙类套餐/;
+    outputs.forEach((output, index) => {
+      assert.doesNotMatch(JSON.stringify(output) ?? "", LEAK, `第 ${index} 个输出泄露了隐藏字段`);
+    });
+    // 用户自己写了被隐藏的字段名：报错只回显用户输入（与乱写字段名一致），去掉这次回显后不得再出现任何隐藏字段或取值
+    const probes = [
+      ["area_q", view.query({ ...base, metric: "spend", group: "area_q" })],
+      ["kind_q", view.query({ ...base, metric: "spend", group: "kind_q" })],
+      ["area_q", view.query({ ...base, metric: "spend", filters: [{ field: "area_q", values: ["华北区q"] }] })],
+      ["kind_q", view.query({ ...base, metric: "spend", filters: [{ field: "kind_q", values: ["乙类套餐"] }] })],
+      ["area_q", view.attribute({ ...base, metric: "spend", dimensions: ["area_q"] })],
+      ["kind_q", view.attribute({ ...base, metric: "cpc", dimensions: ["kind_q"] })]
+    ];
+    probes.forEach(([probe, output], index) => {
+      assert.equal(output.ok, false);
+      const text = JSON.stringify(output);
+      assert.equal(text.split(probe).length, 2, `第 ${index} 个探测：用户输入只回显一次`);
+      assert.doesNotMatch(text.replace(probe, ""), LEAK, `第 ${index} 个探测泄露了隐藏字段`);
+    });
+  });
+});
