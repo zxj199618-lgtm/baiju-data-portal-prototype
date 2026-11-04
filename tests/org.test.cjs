@@ -73,6 +73,50 @@ describe("组织存储（单元）", () => {
     assert.equal(store.save({ userGroups: { 演示成员: "分析师" } }).ok, true);
     assert.equal(store.effective().userGroups["演示成员"], undefined);
   });
+
+  const admin = () => group("门户管理员", { tables: ["全部数据表"] });
+
+  test("保存 hiddenFields 后 hiddenFieldsOf 返回该组被隐藏的字段", () => {
+    const saved = store.save({ groups: [admin(), group("分析师", { tables: ["表甲", "表乙"], hiddenFields: { 表甲: ["phone"] }, confirmedFields: { 表甲: ["phone", "name"] } })] });
+    assert.equal(saved.ok, true);
+    assert.deepEqual(store.hiddenFieldsOf("乙"), { 表甲: ["phone"] });
+    assert.deepEqual(store.hiddenFieldsOf("甲"), {});
+    assert.deepEqual(store.hiddenFieldsOf("不存在的账号"), {});
+    assert.deepEqual(store.effective().groups.find(item => item.name === "分析师").confirmedFields, { 表甲: ["phone", "name"] });
+    store.save({ userGroups: { 乙: "未分配" } });
+    assert.deepEqual(store.hiddenFieldsOf("乙"), {});
+  });
+
+  test("hiddenFields 里的表不在该组 tables 内会被拒绝", () => {
+    assert.match(store.save({ groups: [admin(), group("分析师", { tables: ["表甲"], hiddenFields: { 表乙: ["phone"] } })] }).error, /未授权/);
+    assert.match(store.save({ groups: [admin(), group("分析师", { tables: ["表甲"], confirmedFields: { 表乙: ["phone"] } })] }).error, /未授权/);
+  });
+
+  test("门户管理员组不允许设置 hiddenFields", () => {
+    assert.match(store.save({ groups: [group("门户管理员", { tables: ["全部数据表"], hiddenFields: { 表甲: ["phone"] } })] }).error, /门户管理员/);
+    assert.match(store.save({ groups: [admin(), group("全量组", { tables: ["全部数据表"], hiddenFields: { 表甲: ["phone"] } })] }).error, /全部数据表/);
+  });
+
+  test("取消表授权时清除该表的 hiddenFields 与 confirmedFields", () => {
+    store.save({ groups: [admin(), group("分析师", { tables: ["表甲", "表乙"], hiddenFields: { 表甲: ["a"], 表乙: ["b"] }, confirmedFields: { 表甲: ["a"], 表乙: ["b"] } })] });
+    store.save({ groups: [admin(), group("分析师", { tables: ["表乙"] })] });
+    const analyst = store.effective().groups.find(item => item.name === "分析师");
+    assert.equal(Object.keys(analyst.hiddenFields || {}).includes("表甲"), false);
+    assert.equal(Object.keys(analyst.confirmedFields || {}).includes("表甲"), false);
+    const raw = JSON.parse(fs.readFileSync(path.join(dir, "org.json"), "utf8"));
+    assert.equal(JSON.stringify(raw).includes("\"b\""), false);
+    assert.deepEqual(store.hiddenFieldsOf("乙"), {});
+  });
+
+  test("字段名必须是 60 字符以内的非空字符串", () => {
+    const bad = value => store.save({ groups: [admin(), group("分析师", { tables: ["表甲"], hiddenFields: { 表甲: value } })] });
+    assert.match(bad(["x".repeat(61)]).error, /字段名/);
+    assert.match(bad([""]).error, /字段名/);
+    assert.match(bad([5]).error, /字段名/);
+    assert.equal(bad(["x".repeat(60)]).ok, true);
+    assert.equal(bad([]).ok, true);
+    assert.equal(store.effective().groups.find(item => item.name === "分析师").hiddenFields?.表甲, undefined);
+  });
 });
 
 describe("组织与权限（经网关）", () => {
