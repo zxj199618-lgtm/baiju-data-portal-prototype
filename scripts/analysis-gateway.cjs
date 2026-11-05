@@ -2082,17 +2082,34 @@ const fieldList = (map, table) => (ownKey(map, table) && Array.isArray(map[table
  * - 该表只由个人覆盖授予：个人覆盖 hiddenFields[表]（默认无）；
  * - 门户管理员 / 未知账号：{}。
  */
+/**
+ * 有效的个人追加字段 { 表名: [字段] }：只在覆盖绑定的权限组就是当前组时生效，且只保留当前组授予的表上、组当前隐藏的字段。
+ * 组取消隐藏某字段后再隐藏、换组、组收回表后再加回，旧的追加都不会因此恢复
+ */
+function effectiveGrantsOf(userName, override) {
+  if (!override || override.grantedGroup !== orgStore.groupOf(userName)) return {};
+  const groupHidden = orgStore.hiddenFieldsOf(userName);
+  const result = {};
+  for (const table of orgStore.tablesOf(userName)) {
+    const hidden = new Set(fieldList(groupHidden, table));
+    const list = [...new Set(fieldList(override.grantedFields, table).filter(name => hidden.has(name)))];
+    if (list.length) result[table] = list;
+  }
+  return result;
+}
+
 function hiddenFieldsFor(userName) {
   if (!accountStore.has(userName) || orgStore.isAdmin(userName)) return {};
   const override = loadPermissionOverrides()[userName] || null;
   const groupTables = orgStore.tablesOf(userName);
   const groupHidden = orgStore.hiddenFieldsOf(userName);
+  const grants = effectiveGrantsOf(userName, override);
   const result = {};
   for (const table of userTables(userName)) {
     let list;
     if (groupTables.includes(table)) {
       // 个人追加字段绑定保存时的权限组：换组后（或旧版覆盖没有记录所属组）一律不生效
-      const granted = new Set(override?.grantedGroup === orgStore.groupOf(userName) ? fieldList(override?.grantedFields, table) : []);
+      const granted = new Set(fieldList(grants, table));
       list = fieldList(groupHidden, table).filter(name => !granted.has(name));
     } else {
       list = fieldList(override?.hiddenFields, table);
@@ -2104,7 +2121,7 @@ function hiddenFieldsFor(userName) {
 }
 
 /**
- * 权限组 / 账号分组保存后清理个人覆盖：换了组（或没有记录所属组）的整份 grantedFields 清空，
+ * 权限组 / 账号分组保存后（及启动时）清理个人覆盖：grantedFields 只留有效的部分（见 effectiveGrantsOf）；换了组（或没有记录所属组）的整份清空，
  * 其余只保留仍由当前组授予的表；个人追加的表与个人隐藏字段不动。有变化才写回
  */
 function prunePermissionOverrides() {
@@ -2114,10 +2131,7 @@ function prunePermissionOverrides() {
     if (!override || typeof override !== "object") continue;
     const stored = override.grantedFields && typeof override.grantedFields === "object" ? override.grantedFields : {};
     if (!Object.keys(stored).length) continue;
-    const group = orgStore.groupOf(userName);
-    const groupTables = orgStore.tablesOf(userName);
-    const kept = {};
-    if (override.grantedGroup === group) for (const table of groupTables) { const list = fieldList(stored, table); if (list.length) kept[table] = list; }
+    const kept = effectiveGrantsOf(userName, override);
     if (JSON.stringify(kept) === JSON.stringify(stored)) continue;
     changed = true;
     override.grantedFields = kept;
@@ -3030,13 +3044,16 @@ async function handleRequest(req, res) {
         // 普通用户看自己时不下发任何被隐藏的字段名（包括个人覆盖里的 hiddenFields）
         if (req.session.role !== "admin") {
           const { hiddenFields: _hidden, ...ownOverride } = overrides[name] || {};
-          return { ...base, override: overrides[name] ? ownOverride : null, grantedFields: overrides[name]?.grantedFields || {} };
+          const grants = effectiveGrantsOf(name, overrides[name]);
+          return { ...base, override: overrides[name] ? { ...ownOverride, grantedFields: grants } : null, grantedFields: grants };
         }
+        // 追加字段只下发有效的部分（绑定当前组、限于组当前隐藏的字段），不回显过期的存储值
+        const grants = effectiveGrantsOf(name, overrides[name]);
         return {
-          ...base, override: overrides[name] || null,
+          ...base, override: overrides[name] ? { ...overrides[name], grantedFields: grants } : null,
           // 字段权限：个人覆盖的两项、所属组的隐藏字段，以及合并后的有效隐藏字段（仅管理员可见）
           hiddenFields: overrides[name]?.hiddenFields || {},
-          grantedFields: overrides[name]?.grantedFields || {},
+          grantedFields: grants,
           groupHiddenFields: orgStore.hiddenFieldsOf(name),
           effectiveHiddenFields: hiddenFieldsFor(name)
         };
@@ -3076,6 +3093,8 @@ async function handleRequest(req, res) {
     if (!hiddenOutcome.ok) return sendJson(res, 400, { error: hiddenOutcome.error });
     const grantedOutcome = fieldsFor("grantedFields", "个人追加字段", groupTables);
     if (!grantedOutcome.ok) return sendJson(res, 400, { error: grantedOutcome.error });
+    // 只存组当前隐藏的字段：组不隐藏的字段没有追加的意义，存下来会在组之后再隐藏它时被放开
+    grantedOutcome.value = effectiveGrantsOf(userName, { grantedGroup: orgStore.groupOf(userName), grantedFields: grantedOutcome.value });
     if (!personalTables.length && !Object.keys(hiddenOutcome.value).length && !Object.keys(grantedOutcome.value).length) delete overrides[userName];
     else overrides[userName] = { tables: personalTables, hiddenFields: hiddenOutcome.value, grantedFields: grantedOutcome.value, grantedGroup: orgStore.groupOf(userName), updatedAt: new Date().toISOString() };
     savePermissionOverrides(overrides);

@@ -392,6 +392,42 @@ describe("字段权限：个人覆盖与有效隐藏字段（经网关）", () =
     }
   });
 
+  test("组先取消隐藏某字段、之后再隐藏：之前的个人追加不会恢复", async () => {
+    await saveGroups(HIDE_PLAN);
+    try {
+      assert.equal((await putOverride({ tables: [], grantedFields: { 广告计划日报表: ["campaign_id"] } })).status, 200);
+      await saveGroups({ 广告计划日报表: ["plan_name"] });
+      assert.deepEqual((await adminEntry("谭嘉颖")).grantedFields, {}, "组不再隐藏该字段：没有过期的追加");
+      await saveGroups(HIDE_PLAN);
+      const entry = await adminEntry("谭嘉颖");
+      assert.deepEqual(entry.effectiveHiddenFields, HIDE_PLAN);
+      assert.deepEqual(entry.grantedFields, {});
+    } finally {
+      await putOverride({ tables: [] });
+      await saveGroups({});
+    }
+  });
+
+  test("GET /v1/permissions 只返回有效的追加字段；保存时只存组当前隐藏的字段", async () => {
+    await saveGroups(HIDE_PLAN);
+    try {
+      writeOverrides({ 谭嘉颖: { tables: [], hiddenFields: {}, grantedGroup: "优化师", grantedFields: { 广告计划日报表: ["campaign_id", "stat_date"], 广告账户日报: ["balance"] } } });
+      const entry = await adminEntry("谭嘉颖");
+      assert.deepEqual(entry.grantedFields, { 广告计划日报表: ["campaign_id"] });
+      assert.deepEqual(entry.override.grantedFields, { 广告计划日报表: ["campaign_id"] });
+      const own = (await harness.call("GET", "/v1/permissions", { token: await harness.tokenFor("谭嘉颖") })).data.users[0];
+      assert.deepEqual(own.grantedFields, { 广告计划日报表: ["campaign_id"] });
+      writeOverrides({ 谭嘉颖: { tables: [], hiddenFields: {}, grantedGroup: "投放组长", grantedFields: { 广告计划日报表: ["campaign_id"] } } });
+      assert.deepEqual((await adminEntry("谭嘉颖")).grantedFields, {}, "绑定的组不是当前组：不返回");
+      assert.equal((await putOverride({ tables: [], grantedFields: { 广告计划日报表: ["campaign_id", "stat_date"] } })).status, 200);
+      const stored = JSON.parse(fs.readFileSync(path.join(harness.dataDir, "user-permissions.json"), "utf8")).谭嘉颖;
+      assert.deepEqual(stored.grantedFields, { 广告计划日报表: ["campaign_id"] });
+    } finally {
+      writeOverrides({});
+      await saveGroups({});
+    }
+  });
+
   test("组调整时只清理失效的追加字段：个人追加的表与个人隐藏字段保持不变", async () => {
     await saveGroups(HIDE_PLAN);
     try {
