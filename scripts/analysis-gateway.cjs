@@ -3065,7 +3065,9 @@ async function handleRequest(req, res) {
     /* 字段映射：不带时沿用已保存的值（只保留仍适用的表），避免只改表的保存把个人字段设置清空 */
     const fieldsFor = (key, label, keys) => {
       if (body[key] !== undefined) return overrideFieldMap(body[key], keys, label);
-      const stored = reset ? null : overrides[userName]?.[key];
+      // 追加字段只沿用仍绑定当前权限组的（旧版未绑定 / 换组后的不重新绑定）
+      const unbound = key === "grantedFields" && overrides[userName]?.grantedGroup !== orgStore.groupOf(userName);
+      const stored = reset || unbound ? null : overrides[userName]?.[key];
       const value = {};
       for (const table of keys) { const list = fieldList(stored, table); if (list.length) value[table] = list; }
       return { ok: true, value };
@@ -3519,6 +3521,8 @@ if (generatedAccounts.length) {
   console.log("[auth] 已为以下账号生成初始密码（只显示这一次，请尽快修改）：");
   generatedAccounts.forEach(item => console.log(`[auth]   ${item.name}：${item.password}`));
 }
+// 启动时清理一次：避免保存与清理之间崩溃、或重新部署后默认权限组变化留下失效的追加字段
+prunePermissionOverrides();
 server.listen(PORT, () => console.log(`观星台分析网关已启动: http://localhost:${PORT}（数据目录 ${DATA_DIR}，skill 运行时已就绪）`));
 // 首次启动把环境变量里的中转站迁移成普通供应商记录；之后一切都走「供应商配置」
 ensureRelayProvider()

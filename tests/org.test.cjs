@@ -373,6 +373,25 @@ describe("字段权限：个人覆盖与有效隐藏字段（经网关）", () =
     }
   });
 
+  test("只改表的保存（不带 grantedFields）不会把未绑定的旧追加字段重新绑定；已绑定的照常沿用", async () => {
+    await saveGroups(HIDE_PLAN);
+    try {
+      writeOverrides({ 谭嘉颖: { tables: [], hiddenFields: {}, grantedFields: { 广告计划日报表: ["campaign_id"] } } });
+      assert.equal((await putOverride({ tables: ["广告计划日报表", "广告账户日报", "媒体消耗汇总"] })).status, 200);
+      const entry = await adminEntry("谭嘉颖");
+      assert.deepEqual(entry.effectiveHiddenFields, HIDE_PLAN, "旧追加字段仍不生效");
+      assert.deepEqual(entry.grantedFields, {});
+      assert.equal((await putOverride({ tables: [], grantedFields: { 广告计划日报表: ["campaign_id"] } })).status, 200);
+      assert.equal((await putOverride({ tables: ["广告计划日报表", "广告账户日报"] })).status, 200);
+      const bound = await adminEntry("谭嘉颖");
+      assert.deepEqual(bound.grantedFields, { 广告计划日报表: ["campaign_id"] });
+      assert.deepEqual(bound.effectiveHiddenFields, { 广告计划日报表: ["plan_name"] });
+    } finally {
+      await putOverride({ tables: [] });
+      await saveGroups({});
+    }
+  });
+
   test("组调整时只清理失效的追加字段：个人追加的表与个人隐藏字段保持不变", async () => {
     await saveGroups(HIDE_PLAN);
     try {
@@ -506,5 +525,24 @@ describe("字段权限：个人覆盖与有效隐藏字段（经网关）", () =
     assert.equal(hiddenGroup.data.error.replace("plan_name", "?"), bogusGroup.data.error.replace("zz_nope", "?"));
     assert.equal((await harness.call("POST", "/v1/metrics/query", { token: adminToken, body: { metric: "cost", table: "广告计划日报表", group: "plan_name" } })).status, 200);
     await saveGroups({});
+  });
+});
+
+describe("字段权限：网关启动时清理失效的个人追加字段", () => {
+  let harness;
+  before(async () => {
+    harness = await startHarness({
+      prepare: dir => fs.writeFileSync(path.join(dir, "user-permissions.json"), JSON.stringify({
+        谭嘉颖: { tables: ["媒体消耗汇总"], hiddenFields: { 媒体消耗汇总: ["media_source"] }, grantedFields: { 广告计划日报表: ["campaign_id"] } }
+      }))
+    });
+  });
+  after(async () => { await harness.stop(); });
+
+  test("未绑定权限组的追加字段在启动时被清掉并写回；个人表与个人隐藏字段保留", () => {
+    const stored = JSON.parse(fs.readFileSync(path.join(harness.dataDir, "user-permissions.json"), "utf8")).谭嘉颖;
+    assert.deepEqual(stored.grantedFields, {});
+    assert.deepEqual(stored.tables, ["媒体消耗汇总"]);
+    assert.deepEqual(stored.hiddenFields, { 媒体消耗汇总: ["media_source"] });
   });
 });
