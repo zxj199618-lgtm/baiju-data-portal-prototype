@@ -666,6 +666,81 @@ describe("浏览器端到端", () => {
     assert.deepEqual((await serverGroup()).hiddenFields, {});
   }));
   // 同样放在最后：会写入个人字段设置与权限组隐藏字段，finally 里全部恢复
+  test("字段权限 · 用户页：刷新页面后从服务端回显个人表与字段设置；不做改动直接保存，服务端的个人覆盖不变", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const userName = "李雨航";
+    const adminView = async () => (await harness.call("GET", "/v1/permissions", { token: admin })).data.users.find(user => user.name === userName);
+    const rowOf = name => page.locator("#permissionConfigView .portal-vue-table-perm").filter({ has: page.getByText(name, { exact: true }) }).first();
+    const dialog = page.locator(".portal-vue-field-dialog");
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      const target = await page.evaluate(async name => {
+        const api = window.portalVueModuleApi;
+        await window.PortalVue.loadGatewayFields();
+        const withFields = window.PortalVue.permissionTables().map(item => ({ cnName: item.cnName, fields: window.PortalVue.permissionFieldsOf(item.cnName) }));
+        const group = api.state.groups.find(item => item.name === "数据分析师");
+        const groupAsset = withFields.find(item => item.fields.length > 2 && group.tables.includes(item.cnName));
+        const personalAsset = withFields.find(item => item.fields.length > 2 && !group.tables.includes(item.cnName));
+        group.hiddenFields = { [groupAsset.cnName]: [groupAsset.fields[0].name, groupAsset.fields[1].name] };
+        group.confirmedFields = { [groupAsset.cnName]: groupAsset.fields.map(field => field.name) };
+        await api.orgSync.push();
+        return {
+          index: api.state.users.findIndex(user => user.name === name),
+          groupTable: groupAsset.cnName, groupTotal: groupAsset.fields.length, granted: groupAsset.fields[0].name, stillHidden: groupAsset.fields[1].name,
+          personalTable: personalAsset.cnName, personalTotal: personalAsset.fields.length, personalField: personalAsset.fields[0].name
+        };
+      }, userName);
+      assert.ok(target.index >= 0);
+      for (let attempt = 0; attempt < 20 && !(await adminView()).groupHiddenFields[target.groupTable]; attempt += 1) await page.waitForTimeout(300);
+      const put = await harness.call("PUT", `/v1/permissions/${encodeURIComponent(userName)}`, { token: admin, body: {
+        tables: [target.personalTable], hiddenFields: { [target.personalTable]: [target.personalField] }, grantedFields: { [target.groupTable]: [target.granted] }
+      } });
+      assert.equal(put.status, 200, JSON.stringify(put.data));
+      const before = (await adminView()).override;
+      assert.equal(before.grantedGroup, "数据分析师");
+      assert.deepEqual(before.grantedFields, { [target.groupTable]: [target.granted] });
+
+      // 全新加载页面：个人状态只能来自服务端
+      await page.reload();
+      await appVisible(page);
+      await page.evaluate(i => { window.portalVueBridge.setActiveUserIndex(i); window.portalVueBridge.setPage("配置权限"); }, target.index);
+      await page.getByRole("tab", { name: /表权限/ }).click();
+      const personalBox = rowOf(target.personalTable).locator("input[type=checkbox]").first();
+      for (let attempt = 0; attempt < 20 && !(await personalBox.isChecked()); attempt += 1) await page.waitForTimeout(300);
+      assert.equal(await personalBox.isChecked(), true, "个人追加的表已勾选");
+      const personalTag = rowOf(target.personalTable).locator('[data-test="field-tag"]');
+      assert.equal((await personalTag.textContent()).trim(), `字段 ${target.personalTotal - 1}/${target.personalTotal}`);
+      await personalTag.click();
+      await dialog.waitFor();
+      assert.equal(await dialog.locator(`[data-field="${target.personalField}"] input[type=checkbox]`).isChecked(), false, "个人隐藏的字段未勾选");
+      await dialog.getByRole("button", { name: "取消" }).click();
+      await dialog.waitFor({ state: "hidden" });
+      const groupTag = rowOf(target.groupTable).locator('[data-test="field-tag"]');
+      assert.equal((await groupTag.textContent()).trim(), `字段 ${target.groupTotal - 1}/${target.groupTotal}`);
+      await groupTag.click();
+      await dialog.waitFor();
+      assert.equal(await dialog.locator(`[data-field="${target.granted}"] input[type=checkbox]`).isChecked(), true, "组隐藏、个人追加回来的字段已勾选");
+      assert.equal(await dialog.locator(`[data-field="${target.stillHidden}"] input[type=checkbox]`).isChecked(), false);
+      await dialog.getByRole("button", { name: "取消" }).click();
+      await dialog.waitFor({ state: "hidden" });
+
+      // 不做任何改动直接保存：服务端的个人覆盖保持不变
+      await Promise.all([
+        page.waitForResponse(res => res.request().method() === "PUT" && res.url().includes("/v1/permissions/")),
+        page.getByRole("button", { name: "保存权限" }).click()
+      ]);
+      const after = (await adminView()).override;
+      for (const key of ["tables", "hiddenFields", "grantedFields", "grantedGroup"]) assert.deepEqual(after[key], before[key], key);
+    } finally {
+      if (!skipReason) {
+        await harness.call("PUT", `/v1/permissions/${encodeURIComponent(userName)}`, { token: admin, body: { tables: [] } });
+        const org = (await harness.call("GET", "/v1/org", { token: admin })).data;
+        const groups = org.groups.map(group => ({ ...group, hiddenFields: {} }));
+        if (groups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups } });
+      }
+    }
+  }));
   test("字段权限 · 用户页：组授予表上被组隐藏的字段可个人追加、其余字段锁定；个人追加的表可取消字段；保存带上 grantedFields / hiddenFields 并可回显", async t => withPage(t, async page => {
     const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
     const userName = "李雨航";

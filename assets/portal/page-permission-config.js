@@ -18,6 +18,7 @@
     menuGrantItems,
     mount,
     notify,
+    orgSync,
     permissionFieldsOf,
     permissionTables,
     refreshTick,
@@ -25,6 +26,27 @@
     state
   } = window.PortalVue;
 
+
+  /* 个人表 / 字段设置以服务端为准：打开页面时从 GET /v1/permissions 回显（仅管理员、网关可达）。
+     本页会话里保存没能同步到网关的用户（只存在页面状态里）不再被服务端覆盖 */
+  const localOnlyUsers = new Set();
+  const cloneFieldMap = map => Object.fromEntries(Object.entries(map && typeof map === "object" ? map : {}).filter(([, list]) => Array.isArray(list) && list.length).map(([table, list]) => [table, [...list]]));
+  async function hydrateUser(user) {
+    if (!user || orgSync.role !== "admin" || localOnlyUsers.has(user.name)) return false;
+    try {
+      const response = await fetch(`${analysisGatewayBase}/v1/permissions`);
+      if (!response.ok) return false;
+      const entry = ((await response.json()).users || []).find(item => item.name === user.name);
+      if (!entry || localOnlyUsers.has(user.name)) return false;
+      // override.tables 只含个人追加的表；「全部数据表」展开为全部表（组授予的表在回显时本来就会勾上）
+      const personal = Array.isArray(entry.override?.tables) ? entry.override.tables : [];
+      user.tableGrants = personal.includes("全部数据表") ? permissionTables().map(table => table.cnName) : personal.filter(name => name !== "全部数据表");
+      user.fieldHidden = cloneFieldMap(entry.hiddenFields);
+      // 服务端返回的是有效的追加字段（绑定当前组、限于组当前隐藏的字段）
+      user.fieldGrants = cloneFieldMap(entry.grantedFields);
+      return true;
+    } catch (error) { return false; /* 网关未启动时沿用页面状态 */ }
+  }
 
   function buildDepartmentTree(users) {
     const tree = [];
@@ -86,7 +108,7 @@
       </el-config-provider>
     `,
     components:{FieldPermissionDialog},
-    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],selectedTables:[],selectedScope:[],scopeAll:false,personalHidden:{},personalGranted:{},fieldDialog:{visible:false,table:""}}),
+    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],selectedTables:[],selectedScope:[],scopeAll:false,personalHidden:{},personalGranted:{},fieldDialog:{visible:false,table:""},loadedSnapshot:""}),
     computed:{
       user(){refreshTick.value;return state.users[bridge.getActiveUserIndex()]||state.users[0];},
       group(){refreshTick.value;return state.groups.find(group=>group.name===this.user?.group);},
@@ -160,7 +182,9 @@
         else if(index>=0)this.selectedMenuEdits.splice(index,1);
       },
       // 打开页面：先按现有字段来源回显；首次取到网关的真实字段后再按它重新回显
-      open(){this.load();loadGatewayFields().then(changed=>{if(changed)this.load();});},
+      // 打开页面：先按现有状态回显；取到网关的真实字段、或从服务端回显了个人设置后，在还没改动时重新回显
+      open(){this.load();const name=this.user?.name;Promise.all([loadGatewayFields(),hydrateUser(this.user)]).then(([changed,seeded])=>{if((changed||seeded)&&this.user?.name===name&&this.tableSnapshot()===this.loadedSnapshot)this.load();});},
+      tableSnapshot(){return JSON.stringify([this.selectedTables,this.personalHidden,this.personalGranted]);},
       load(){
         const personalMenus=Array.isArray(this.user?.menuGrants)?this.user.menuGrants:[];
         this.selectedMenus=[...new Set([...this.groupMenuNames,...personalMenus])];
@@ -175,6 +199,7 @@
         this.personalHidden=cloneMap(this.user?.fieldHidden);
         this.personalGranted=cloneMap(this.user?.fieldGrants);
         this.fieldDialog.visible=false;
+        this.loadedSnapshot=this.tableSnapshot();
         this.selectedScope=manageScopeOf(this.user);
         this.scopeAll=Boolean(this.user?.manageScopeAll);
       },
@@ -217,6 +242,8 @@
         const payload=personalTables;
         let persisted=false;
         try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables:payload,hiddenFields,grantedFields})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}
+        // 同步成功：按服务端结果重新回显（服务端会规范化）；没同步：记为只存在页面状态，之后打开不被服务端覆盖
+        if(persisted){localOnlyUsers.delete(this.user.name);hydrateUser(this.user);}else localOnlyUsers.add(this.user.name);
         notify(`${this.user.name} 的权限配置已保存（管理范围：${manageScopeSummary(this.user)}；个人追加：菜单查看 ${personalMenus.length} / 菜单编辑 ${personalMenuEdits.length} / 看板 ${personalBoards.length} / 表 ${personalTables.length} 项；权限组权限保持不变）${persisted?"，已同步到分析网关":"（本地演示，网关未连接）"}`);
         this.back();
       }
