@@ -12,6 +12,7 @@
     analysisGatewayBase,
     bridge,
     expandMenuNames,
+    gatewayTableNames,
     loadGatewayFields,
     manageScopeOf,
     manageScopeSummary,
@@ -27,25 +28,29 @@
   } = window.PortalVue;
 
 
-  /* 个人表 / 字段设置以服务端为准：打开页面时从 GET /v1/permissions 回显（仅管理员、网关可达）。
+  /* 个人表 / 字段设置以服务端为准：打开页面时从 GET /v1/permissions 回显（仅管理员、网关可达，且先取到网关的表与字段）。
      本页会话里保存没能同步到网关的用户（只存在页面状态里）不再被服务端覆盖 */
   const localOnlyUsers = new Set();
   const cloneFieldMap = map => Object.fromEntries(Object.entries(map && typeof map === "object" ? map : {}).filter(([, list]) => Array.isArray(list) && list.length).map(([table, list]) => [table, [...list]]));
-  async function hydrateUser(user) {
-    if (!user || orgSync.role !== "admin" || localOnlyUsers.has(user.name)) return false;
+  /** 取该用户在服务端的权限条目；不该回显（非管理员、只存在页面状态、网关字段没取到）或失败时返回 null */
+  async function fetchPermissionEntry(user) {
+    if (!user || orgSync.role !== "admin" || localOnlyUsers.has(user.name) || !gatewayTableNames()) return null;
     try {
       const response = await fetch(`${analysisGatewayBase}/v1/permissions`);
-      if (!response.ok) return false;
+      if (!response.ok) return null;
       const entry = ((await response.json()).users || []).find(item => item.name === user.name);
-      if (!entry || localOnlyUsers.has(user.name)) return false;
-      // override.tables 只含个人追加的表；「全部数据表」展开为全部表（组授予的表在回显时本来就会勾上）
-      const personal = Array.isArray(entry.override?.tables) ? entry.override.tables : [];
-      user.tableGrants = personal.includes("全部数据表") ? permissionTables().map(table => table.cnName) : personal.filter(name => name !== "全部数据表");
-      user.fieldHidden = cloneFieldMap(entry.hiddenFields);
-      // 服务端返回的是有效的追加字段（绑定当前组、限于组当前隐藏的字段）
-      user.fieldGrants = cloneFieldMap(entry.grantedFields);
-      return true;
-    } catch (error) { return false; /* 网关未启动时沿用页面状态 */ }
+      return entry && !localOnlyUsers.has(user.name) ? entry : null;
+    } catch (error) { return null; /* 网关未启动时沿用页面状态 */ }
+  }
+  function seedUser(user, entry) {
+    // override.tables 只含个人追加的表；存的是「全部数据表」时记住这个标记（保存时若仍全选则原样写回），勾选状态展开为网关认识的全部表
+    const personal = Array.isArray(entry.override?.tables) ? entry.override.tables : [];
+    const known = gatewayTableNames() || [];
+    user.tableGrantsAll = personal.includes("全部数据表");
+    user.tableGrants = user.tableGrantsAll ? [...known] : personal.filter(name => name !== "全部数据表" && known.includes(name));
+    user.fieldHidden = cloneFieldMap(entry.hiddenFields);
+    // 服务端返回的是有效的追加字段（绑定当前组、限于组当前隐藏的字段）
+    user.fieldGrants = cloneFieldMap(entry.grantedFields);
   }
 
   function buildDepartmentTree(users) {
@@ -103,12 +108,12 @@
             </div></section>
           </div>
           <field-permission-dialog v-model="fieldDialog.visible" :title="'设置字段权限 · '+fieldDialog.table" :subtitle="dialogSubtitle" :fields="dialogFields" :hidden="dialogHidden" :locked-names="dialogLocked" :lock-label="user?.group" @confirm="applyFields"></field-permission-dialog>
-          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button v-if="canEdit('用户管理')" type="primary" @click="save">保存权限</el-button></div>
+          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button v-if="canEdit('用户管理')" type="primary" :loading="hydrating" :title="hydrating?'正在读取该用户已保存的权限':''" @click="save">保存权限</el-button></div>
         </div>
       </el-config-provider>
     `,
     components:{FieldPermissionDialog},
-    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],selectedTables:[],selectedScope:[],scopeAll:false,personalHidden:{},personalGranted:{},fieldDialog:{visible:false,table:""},loadedSnapshot:""}),
+    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],selectedTables:[],selectedScope:[],scopeAll:false,personalHidden:{},personalGranted:{},fieldDialog:{visible:false,table:""},loadedSnapshot:"",hydrating:false,hydrateSeq:0}),
     computed:{
       user(){refreshTick.value;return state.users[bridge.getActiveUserIndex()]||state.users[0];},
       group(){refreshTick.value;return state.groups.find(group=>group.name===this.user?.group);},
@@ -182,9 +187,29 @@
         else if(index>=0)this.selectedMenuEdits.splice(index,1);
       },
       // 打开页面：先按现有字段来源回显；首次取到网关的真实字段后再按它重新回显
-      // 打开页面：先按现有状态回显；取到网关的真实字段、或从服务端回显了个人设置后，在还没改动时重新回显
-      open(){this.load();const name=this.user?.name;Promise.all([loadGatewayFields(),hydrateUser(this.user)]).then(([changed,seeded])=>{if((changed||seeded)&&this.user?.name===name&&this.tableSnapshot()===this.loadedSnapshot)this.load();});},
+      // 打开页面：先按现有状态回显；取到网关的真实字段后再读该用户已保存的个人设置，读完之前不能保存。
+      // 回显结果只改表 / 字段部分，且只在这部分还没被改动时生效；过期的回显（之后又打开或已保存）丢弃
+      open(){
+        this.load();
+        const user=this.user;const seq=++this.hydrateSeq;this.hydrating=true;
+        (async()=>{
+          const changed=await loadGatewayFields();
+          const entry=await fetchPermissionEntry(user);
+          if(seq!==this.hydrateSeq||this.user!==user)return;
+          if(entry)seedUser(user,entry);
+          if((changed||entry)&&this.tableSnapshot()===this.loadedSnapshot)this.applyTableState();
+        })().finally(()=>{if(seq===this.hydrateSeq)this.hydrating=false;});
+      },
       tableSnapshot(){return JSON.stringify([this.selectedTables,this.personalHidden,this.personalGranted]);},
+      applyTableState(){
+        const personalTables=(Array.isArray(this.user?.tableGrants)?this.user.tableGrants:[]).filter(name=>name!=="全部数据表");
+        this.selectedTables=[...new Set([...this.groupTableNames,...personalTables])];
+        // 个人字段设置回显：只保留仍勾选的表；组授予的表上只有组隐藏的字段才可追加
+        const cloneMap=map=>Object.fromEntries(Object.entries(map||{}).map(([table,list])=>[table,Array.isArray(list)?[...list]:[]]).filter(([table,list])=>list.length&&this.selectedTables.includes(table)));
+        this.personalHidden=cloneMap(this.user?.fieldHidden);
+        this.personalGranted=cloneMap(this.user?.fieldGrants);
+        this.loadedSnapshot=this.tableSnapshot();
+      },
       load(){
         const personalMenus=Array.isArray(this.user?.menuGrants)?this.user.menuGrants:[];
         this.selectedMenus=[...new Set([...this.groupMenuNames,...personalMenus])];
@@ -192,14 +217,8 @@
         this.selectedMenuEdits=[...new Set([...this.groupMenuEditNames,...personalMenuEdits])].filter(name=>this.selectedMenus.includes(name));
         const personalBoards=(Array.isArray(this.user?.boardGrants)?this.user.boardGrants:[]).filter(name=>this.onlineBoardNames.includes(name));
         this.selectedBoards=[...new Set([...this.groupBoardNames,...this.directBoardNames,...personalBoards])];
-        const personalTables=(Array.isArray(this.user?.tableGrants)?this.user.tableGrants:[]).filter(name=>name!=="全部数据表");
-        this.selectedTables=[...new Set([...this.groupTableNames,...personalTables])];
-        // 个人字段设置回显：只保留仍勾选的表；组授予的表上只有组隐藏的字段才可追加
-        const cloneMap=map=>Object.fromEntries(Object.entries(map||{}).map(([table,list])=>[table,Array.isArray(list)?[...list]:[]]).filter(([table,list])=>list.length&&this.selectedTables.includes(table)));
-        this.personalHidden=cloneMap(this.user?.fieldHidden);
-        this.personalGranted=cloneMap(this.user?.fieldGrants);
+        this.applyTableState();
         this.fieldDialog.visible=false;
-        this.loadedSnapshot=this.tableSnapshot();
         this.selectedScope=manageScopeOf(this.user);
         this.scopeAll=Boolean(this.user?.manageScopeAll);
       },
@@ -209,7 +228,7 @@
         this.selectedTables=value?[...new Set([...this.groupTableNames,...this.allTableNames])]:[...this.groupTableNames];
       },
       async save(){
-        if(!this.user)return;
+        if(!this.user||this.hydrating)return;
         const groupMenus=this.groupMenuNames,groupMenuEdits=this.groupMenuEditNames,groupBoards=this.groupBoardNames,groupTables=this.groupTableNames;
         // 快照本次加载时的「直接授权」看板：取消勾选 = 收回该看板的直接授权（写回看板数据）
         const directBoards=new Set(this.directBoardNames);
@@ -221,11 +240,16 @@
         const personalMenus=this.selectedMenus.filter(name=>!groupMenus.has(name));
         const personalMenuEdits=this.selectedMenuEdits.filter(name=>!groupMenuEdits.has(name)&&this.selectedMenus.includes(name));
         const personalBoards=this.selectedBoards.filter(name=>!groupBoards.has(name)&&!directBoards.has(name));
-        const personalTables=this.selectedTables.filter(name=>!groupTables.has(name));
+        // 网关不认识的表（只在门户里有）不提交，否则整次保存会被拒绝
+        const known=gatewayTableNames();
+        const personalTables=this.selectedTables.filter(name=>!groupTables.has(name)&&(!known||known.includes(name)));
+        // 原来存的是「全部数据表」且网关认识的非组表仍全部勾选：原样写回标记（之后新增的表也自动授予）；取消过任何一张则改存明确清单
+        const keepAllToken=Boolean(this.user.tableGrantsAll)&&Boolean(known)&&known.filter(name=>!groupTables.has(name)).every(name=>this.selectedTables.includes(name));
         this.user.menuGrants=personalMenus;
         this.user.menuEditGrants=personalMenuEdits;
         this.user.boardGrants=personalBoards;
         this.user.tableGrants=personalTables;
+        this.user.tableGrantsAll=keepAllToken;
         this.user.manageScope=[...this.selectedScope.filter(Boolean)];
         this.user.manageScopeAll=Boolean(this.scopeAll);
         // 字段设置只保留仍在保存范围内的表：组授予的表只存追加字段（限于组隐藏的字段），个人追加的表只存取消勾选的字段
@@ -239,11 +263,12 @@
         this.user.fieldHidden=hiddenFields;
         this.user.fieldGrants=grantedFields;
         // 个人覆盖只存个人追加的表（逐表列出，不用「全部数据表」）；组授予的表由网关实时按权限组计算
-        const payload=personalTables;
+        const payload=keepAllToken?["全部数据表"]:personalTables;
         let persisted=false;
         try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables:payload,hiddenFields,grantedFields})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}
         // 同步成功：按服务端结果重新回显（服务端会规范化）；没同步：记为只存在页面状态，之后打开不被服务端覆盖
-        if(persisted){localOnlyUsers.delete(this.user.name);hydrateUser(this.user);}else localOnlyUsers.add(this.user.name);
+        // 同时作废还在路上的回显（seq），只认保存后的这次
+        if(persisted){const user=this.user;localOnlyUsers.delete(user.name);const seq=++this.hydrateSeq;this.hydrating=false;fetchPermissionEntry(user).then(entry=>{if(entry&&seq===this.hydrateSeq)seedUser(user,entry);});}else localOnlyUsers.add(this.user.name);
         notify(`${this.user.name} 的权限配置已保存（管理范围：${manageScopeSummary(this.user)}；个人追加：菜单查看 ${personalMenus.length} / 菜单编辑 ${personalMenuEdits.length} / 看板 ${personalBoards.length} / 表 ${personalTables.length} 项；权限组权限保持不变）${persisted?"，已同步到分析网关":"（本地演示，网关未连接）"}`);
         this.back();
       }

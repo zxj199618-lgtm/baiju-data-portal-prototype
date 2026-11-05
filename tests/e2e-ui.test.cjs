@@ -647,7 +647,7 @@ describe("浏览器端到端", () => {
       assert.equal(tops[0].top, tops[1].top, "前两个字段应在同一行");
       assert.ok(tops[1].left > tops[0].left && tops[2].top > tops[0].top && tops[2].left === tops[0].left, `按行优先两列排布：${JSON.stringify(tops)}`);
       assert.ok(box.width >= 800, `桌面宽度弹窗应约 860px：${box.width}`);
-      await page.screenshot({ path: "/private/tmp/claude-501/-Users-zengdada-Documents------/d0f78dce-86cf-4f82-b0ec-ffad6e191c5a/scratchpad/field-dialog-2col.png" });
+      await page.screenshot({ path: process.env.FIELD_DIALOG_SHOT || "/private/tmp/claude-501/-Users-zengdada-Documents------/d0f78dce-86cf-4f82-b0ec-ffad6e191c5a/scratchpad/field-dialog-2col.png" });
       await page.setViewportSize({ width: 640, height: 900 });
       await page.waitForTimeout(300);
       const narrow = await dialog.locator(".portal-vue-field-dialog-row").evaluateAll(items => items.slice(0, 2).map(item => item.offsetTop));
@@ -659,7 +659,7 @@ describe("浏览器端到端", () => {
       // 恢复：清掉隐藏字段，避免影响共用同一网关的后续用例（隐藏字段会让指标不可用），失败也会执行
       if (!skipReason) {
         const org = (await harness.call("GET", "/v1/org", { token: admin })).data;
-        const groups = org.groups.map(group => ({ ...group, hiddenFields: {} }));
+        const groups = org.groups.map(group => ({ ...group, hiddenFields: {}, ...(group.name === "数据分析师" ? { confirmedFields: {} } : {}) }));
         if (groups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups } });
       }
     }
@@ -736,9 +736,74 @@ describe("浏览器端到端", () => {
       if (!skipReason) {
         await harness.call("PUT", `/v1/permissions/${encodeURIComponent(userName)}`, { token: admin, body: { tables: [] } });
         const org = (await harness.call("GET", "/v1/org", { token: admin })).data;
-        const groups = org.groups.map(group => ({ ...group, hiddenFields: {} }));
+        const groups = org.groups.map(group => ({ ...group, hiddenFields: {}, ...(group.name === "数据分析师" ? { confirmedFields: {} } : {}) }));
         if (groups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups } });
       }
+    }
+  }));
+  test("字段权限 · 用户页：个人覆盖存的是「全部数据表」时，不改动保存仍是该标记；取消一张表后改存明确的表清单", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const userName = "李雨航";
+    const adminView = async () => (await harness.call("GET", "/v1/permissions", { token: admin })).data.users.find(user => user.name === userName);
+    const rowOf = name => page.locator("#permissionConfigView .portal-vue-table-perm").filter({ has: page.getByText(name, { exact: true }) }).first();
+    const saveButton = page.getByRole("button", { name: "保存权限" });
+    const openFresh = async index => {
+      await page.reload();
+      await appVisible(page);
+      await page.evaluate(i => { window.portalVueBridge.setActiveUserIndex(i); window.portalVueBridge.setPage("配置权限"); }, index);
+      await page.getByRole("tab", { name: /表权限/ }).click();
+    };
+    const savedRequest = async () => {
+      const [request] = await Promise.all([
+        page.waitForRequest(req => req.method() === "PUT" && req.url().includes("/v1/permissions/")),
+        saveButton.click()
+      ]);
+      await request.response();
+      return request.postDataJSON();
+    };
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      const target = await page.evaluate(async name => {
+        const api = window.portalVueModuleApi;
+        await window.PortalVue.loadGatewayFields();
+        const group = api.state.groups.find(item => item.name === "数据分析师");
+        const personal = window.PortalVue.permissionTables().map(item => ({ cnName: item.cnName, fields: window.PortalVue.permissionFieldsOf(item.cnName) })).filter(item => item.fields.length > 2 && !group.tables.includes(item.cnName));
+        return { index: api.state.users.findIndex(user => user.name === name), hiddenTable: personal[0].cnName, field: personal[0].fields[0].name, untick: personal[1].cnName };
+      }, userName);
+      const put = await harness.call("PUT", `/v1/permissions/${encodeURIComponent(userName)}`, { token: admin, body: { tables: ["全部数据表"], hiddenFields: { [target.hiddenTable]: [target.field] } } });
+      assert.equal(put.status, 200, JSON.stringify(put.data));
+      assert.deepEqual((await adminView()).override.tables, ["全部数据表"], "前提：服务端存的是标记");
+
+      // 读取已保存权限的请求慢一些：读完之前「保存权限」不可点
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      await page.route(url => url.pathname === "/v1/permissions", async route => { await gate; await route.continue(); });
+      await openFresh(target.index);
+      assert.equal(await saveButton.isDisabled(), true, "回显完成前不能保存");
+      release();
+      await page.waitForFunction(() => ![...document.querySelectorAll("#permissionConfigView button")].find(button => button.textContent.includes("保存权限"))?.disabled);
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+      const body = await savedRequest();
+      assert.deepEqual(body.tables, ["全部数据表"], JSON.stringify(body.tables));
+      const kept = (await adminView()).override;
+      assert.deepEqual(kept.tables, ["全部数据表"]);
+      assert.deepEqual(kept.hiddenFields, { [target.hiddenTable]: [target.field] });
+
+      await openFresh(target.index);
+      const box = rowOf(target.untick).locator("input[type=checkbox]").first();
+      for (let attempt = 0; attempt < 20 && !(await box.isChecked()); attempt += 1) await page.waitForTimeout(300);
+      await rowOf(target.untick).locator(".el-checkbox").first().click();
+      assert.equal(await box.isChecked(), false);
+      const second = await savedRequest();
+      assert.ok(!second.tables.includes("全部数据表") && !second.tables.includes(target.untick) && second.tables.includes(target.hiddenTable), JSON.stringify(second.tables));
+      const explicit = (await adminView()).override;
+      // 服务端会去掉组已授予的表，所以存下的是提交清单的子集
+      assert.ok(explicit.tables.length > 0 && explicit.tables.every(name => second.tables.includes(name)), JSON.stringify(explicit.tables));
+      assert.ok(!explicit.tables.includes("全部数据表") && !explicit.tables.includes(target.untick) && explicit.tables.includes(target.hiddenTable));
+      assert.deepEqual(explicit.hiddenFields, { [target.hiddenTable]: [target.field] });
+    } finally {
+      if (!skipReason) await harness.call("PUT", `/v1/permissions/${encodeURIComponent(userName)}`, { token: admin, body: { tables: [] } });
     }
   }));
   test("字段权限 · 用户页：组授予表上被组隐藏的字段可个人追加、其余字段锁定；个人追加的表可取消字段；保存带上 grantedFields / hiddenFields 并可回显", async t => withPage(t, async page => {
@@ -848,7 +913,7 @@ describe("浏览器端到端", () => {
       if (!skipReason) {
         await harness.call("PUT", `/v1/permissions/${encodeURIComponent(userName)}`, { token: admin, body: { tables: [] } });
         const org = (await harness.call("GET", "/v1/org", { token: admin })).data;
-        const groups = org.groups.map(group => ({ ...group, hiddenFields: {} }));
+        const groups = org.groups.map(group => ({ ...group, hiddenFields: {}, ...(group.name === "数据分析师" ? { confirmedFields: {} } : {}) }));
         if (groups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups } });
       }
     }

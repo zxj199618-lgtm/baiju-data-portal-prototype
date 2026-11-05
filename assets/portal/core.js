@@ -427,6 +427,10 @@
       confirm() { this.$emit("confirm", this.fields.filter(field => this.draft[field.name] && !this.isLocked(field.name)).map(field => field.name)); this.$emit("update:modelValue", false); }
     }
   };
+  /** 网关认识的表名；还没取到网关字段时为 null */
+  function gatewayTableNames() {
+    return gatewayFields.loaded ? Object.keys(gatewayFields.tables) : null;
+  }
   /** 权限页可授权的表：门户资产，加上只在网关里有定义的表 */
   function permissionTables() {
     const list = [...state.assets];
@@ -540,6 +544,7 @@
     enabledDictItems,
     ep,
     expandMenuNames,
+    gatewayTableNames,
     groupOfUser,
     humanCount,
     isImageIconValue,
