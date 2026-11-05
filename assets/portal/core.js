@@ -380,6 +380,53 @@
     if (gatewayFields.loaded) return Object.prototype.hasOwnProperty.call(gatewayFields.tables, name) && Array.isArray(gatewayFields.tables[name]) ? gatewayFields.tables[name] : [];
     return state.assets.find(table => table.cnName === name)?.fields || [];
   }
+  /** 字段权限弹窗（权限组页 / 用户页共用）：在草稿上编辑「隐藏字段」，确定后才回写；锁定字段（组已授予）恒为勾选且不可改 */
+  const FieldPermissionDialog = {
+    props: { modelValue: Boolean, title: { type: String, default: "" }, subtitle: { type: String, default: "" }, fields: { type: Array, default: () => [] }, hidden: { type: Array, default: () => [] }, lockedNames: { type: Array, default: () => [] }, lockLabel: { type: String, default: "" } },
+    emits: ["update:modelValue", "confirm"],
+    template: `
+      <el-dialog :model-value="modelValue" :title="title" width="560px" class="portal-vue-field-dialog" destroy-on-close @update:model-value="value=>$emit('update:modelValue',value)" @opened="focusSearch">
+        <div data-test="field-dialog">
+          <p v-if="subtitle" class="portal-vue-muted portal-vue-field-dialog-sub">{{ subtitle }}</p>
+          <div class="portal-vue-field-dialog-bar">
+            <el-input ref="search" v-model="keyword" clearable placeholder="搜索字段名或中文名" data-test="field-search" @keydown.enter.prevent></el-input>
+            <span class="portal-vue-field-dialog-count" data-test="field-count">已选 {{ checkedCount }}/{{ fields.length }}</span>
+            <el-switch v-model="onlyHidden" size="small" active-text="只看已隐藏"></el-switch>
+          </div>
+          <el-checkbox class="portal-vue-field-dialog-all" data-test="field-all" :model-value="allChecked" :indeterminate="allIndeterminate" :disabled="!editableRows.length" @change="toggleRows">{{ keyword.trim() ? '全选当前结果' : '全选' }}</el-checkbox>
+          <div class="portal-vue-field-dialog-list" data-test="field-list">
+            <div v-for="field in rows" :key="field.name" class="portal-vue-field-dialog-row" :data-field="field.name">
+              <el-checkbox class="portal-vue-field-dialog-name" :model-value="!draft[field.name]" :disabled="isLocked(field.name)" @change="value=>toggle(field.name,value)"><code>{{ field.name }}</code><el-tag v-if="isLocked(field.name)&&lockLabel" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + lockLabel">{{ lockLabel }}</el-tag></el-checkbox>
+              <span v-if="field.comment" class="portal-vue-field-dialog-comment" :title="field.comment">{{ field.comment }}</span>
+            </div>
+            <div v-if="!rows.length" class="portal-vue-field-dialog-empty">没有匹配的字段</div>
+          </div>
+        </div>
+        <template #footer><el-button @click="$emit('update:modelValue',false)">取消</el-button><el-button type="primary" @click="confirm">确定</el-button></template>
+      </el-dialog>
+    `,
+    data: () => ({ draft: {}, keyword: "", onlyHidden: false }),
+    computed: {
+      rows() {
+        const word = this.keyword.trim().toLowerCase();
+        return this.fields.filter(field => (!word || String(field.name).toLowerCase().includes(word) || String(field.comment || "").toLowerCase().includes(word)) && (!this.onlyHidden || this.draft[field.name]));
+      },
+      editableRows() { return this.rows.filter(field => !this.isLocked(field.name)); },
+      checkedCount() { return this.fields.filter(field => !this.draft[field.name]).length; },
+      allChecked() { return this.editableRows.length > 0 && this.editableRows.every(field => !this.draft[field.name]); },
+      allIndeterminate() { const count = this.editableRows.filter(field => !this.draft[field.name]).length; return count > 0 && count < this.editableRows.length; }
+    },
+    watch: {
+      modelValue: { immediate: true, handler(open) { if (!open) return; this.draft = Object.fromEntries(this.hidden.map(name => [name, true])); this.keyword = ""; this.onlyHidden = false; } }
+    },
+    methods: {
+      isLocked(name) { return this.lockedNames.includes(name); },
+      focusSearch() { this.$refs.search?.focus(); },
+      toggle(name, checked) { if (this.isLocked(name)) return; if (checked) delete this.draft[name]; else this.draft[name] = true; },
+      toggleRows(checked) { this.editableRows.forEach(field => this.toggle(field.name, checked)); },
+      confirm() { this.$emit("confirm", this.fields.filter(field => this.draft[field.name] && !this.isLocked(field.name)).map(field => field.name)); this.$emit("update:modelValue", false); }
+    }
+  };
   /** 权限页可授权的表：门户资产，加上只在网关里有定义的表 */
   function permissionTables() {
     const list = [...state.assets];
@@ -508,6 +555,7 @@
     notify,
     orgSync,
     paginate,
+    FieldPermissionDialog,
     permissionFieldsOf,
     permissionTables,
     reactive,

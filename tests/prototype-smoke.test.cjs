@@ -219,12 +219,13 @@ assert(!portalVue.includes(':disabled="allBoards" :model-value="selectedBoards.i
 assert(portalVue.includes(':title="board.name"') && portalVue.includes(':title="table.cnName"'), "权限组看板/数据表勾选项应带 title 悬浮全文，长名称不丢信息");
 assert(/\.portal-vue-child-checks \.el-checkbox__label \{[^}]*white-space:\s*normal/.test(portalCss), "长看板/表名应允许换行展示（Element Plus 默认 nowrap 会顶出卡片边界）");
 assert(portalVue.includes("全部字段") && portalVue.includes("`字段 ${") && portalVue.includes("个字段，请确认") && portalVue.includes("hiddenFields") && portalVue.includes("confirmedFields"), "权限组页表权限应有字段标签（全部字段 / 字段 n/m）、字段面板与新增字段提醒，并保存 hiddenFields / confirmedFields");
-assert(portalVue.includes("有隐藏字段时按表名授权，新增数据表不会自动获得权限") && portalVue.includes(':aria-expanded="expandedTable===table.cnName"'), "有隐藏字段时给出按表名授权的提示，字段标签带 aria-expanded");
-assert(portalVue.includes("grantedFields") && portalVue.includes("fieldGrants") && portalVue.includes("fieldHidden") && portalVue.includes("fieldLocked(table,field.name)") && portalVue.includes("body:JSON.stringify({tables:payload,hiddenFields,grantedFields})"), "用户页表权限应展示字段标签与面板：组授予表上组已隐藏的字段可个人追加（grantedFields）、组可见字段锁定，个人追加的表可取消字段（hiddenFields），保存请求带上两者并回显 fieldGrants / fieldHidden");
+assert(portalVue.includes("有隐藏字段时按表名授权，新增数据表不会自动获得权限") && portalVue.includes('aria-haspopup="dialog"') && !portalVue.includes("portal-vue-field-panel"), "有隐藏字段时给出按表名授权的提示，字段标签带 aria-haspopup 并打开弹窗（不再内联展开）");
+assert(portalVue.includes("grantedFields") && portalVue.includes("fieldGrants") && portalVue.includes("fieldHidden") && portalVue.includes("dialogLocked") && portalVue.includes("body:JSON.stringify({tables:payload,hiddenFields,grantedFields})"), "用户页表权限应展示字段标签与面板：组授予表上组已隐藏的字段可个人追加（grantedFields）、组可见字段锁定，个人追加的表可取消字段（hiddenFields），保存请求带上两者并回显 fieldGrants / fieldHidden");
+assert(["设置字段权限 · ","搜索字段名或中文名","只看已隐藏","全选当前结果","没有匹配的字段","FieldPermissionDialog"].every(text => portalVue.includes(text)) && !portalVue.includes("{{ field.type }}"), "字段权限用带搜索的弹窗设置（搜索字段名/中文名、只看已隐藏、全选当前结果、空结果提示），弹窗里不展示数据类型");
 assert(portalVue.includes("pruneFieldMap(group.hiddenFields, group.tables)") && portalVue.includes("pruneFieldMap(group.confirmedFields, group.tables)"), "保存权限组快照必须总是带上 hiddenFields / confirmedFields（缺省会沿用旧值），并去掉已取消授权表的键");
 assert(portalVue.includes("myTables"), "灵犀智析应按权限组展示可用数据表");
 assert(portalVue.includes("权限组权限不可关闭") && portalVue.includes("isMenuLocked(item)") && portalVue.includes("isBoardLocked(board)") && portalVue.includes("isTableLocked(table)"), "配置个人权限时权限组已授予的菜单/看板/表权限应锁定，不允许关闭");
-assert((portalVue.match(/class="portal-vue-lock-tag" :title="'来自权限组：' \+ user.group">\{\{ user.group \}\}<\/el-tag>/g) || []).length === 6, "锁定项标签应直接显示权限组名称（悬浮提示来源，含用户页被组锁定的字段）");
+assert((portalVue.match(/class="portal-vue-lock-tag" :title="'来自权限组：' \+ user.group">\{\{ user.group \}\}<\/el-tag>/g) || []).length === 5, "锁定项标签应直接显示权限组名称（悬浮提示来源）");
 assert(portalVue.includes("menuGrants") && portalVue.includes("boardGrants") && portalVue.includes("个人追加"), "个人权限配置只记录权限组之外的追加项，权限组权限保持不变");
 assert(portalBridge.includes("groupLockNote") && portalBridge.includes("lockedBoardNames"), "JS 兜底渲染同样应锁定权限组授予的权限");
 assert(portalVue.includes("管理范围") && portalVue.includes("el-tree-select") && portalVue.includes("buildDepartmentTree") && portalVue.includes("deptTree"), "配置权限应提供按部门配置的管理范围 tab，候选范围来自系统用户的部门");

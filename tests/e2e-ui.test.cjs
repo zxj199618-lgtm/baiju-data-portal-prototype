@@ -540,7 +540,7 @@ describe("浏览器端到端", () => {
         const asset = list.find(item => fieldsOf(item.cnName).length > 1 && (granted.includes("全部数据表") || granted.includes(item.cnName)));
         return {
           index, table: asset.cnName, total: fieldsOf(asset.cnName).length, field: fieldsOf(asset.cnName)[0].name, tableCount: list.length, taggedCount: list.filter(item => fieldsOf(item.cnName).length).length,
-          orderFields: fieldsOf("用户订单明细").map(field => field.name), portalOrderFields: (state.assets.find(item => item.cnName === "用户订单明细")?.fields || []).map(field => field.name)
+          orderFields: fieldsOf("用户订单明细").map(field => field.name), orderFull: fieldsOf("用户订单明细").map(field => ({ name: field.name, comment: field.comment || "" })), types: fieldsOf(asset.cnName).map(field => field.type).filter(Boolean), portalOrderFields: (state.assets.find(item => item.cnName === "用户订单明细")?.fields || []).map(field => field.name)
         };
       });
       assert.ok(target.index >= 0);
@@ -555,11 +555,34 @@ describe("浏览器端到端", () => {
       assert.equal((await tag.textContent()).trim(), "全部字段");
       await tag.focus();
       await page.keyboard.press("Space");
-      assert.equal(await tag.getAttribute("aria-expanded"), "true", "空格键也能展开字段面板");
-      const panel = row.locator('[data-test="field-panel"]');
-      await panel.waitFor();
+      const dialog = page.locator(".portal-vue-field-dialog");
+      await dialog.waitFor();
+      assert.equal(await tag.getAttribute("aria-haspopup"), "dialog");
+      assert.match(await dialog.locator(".el-dialog__title").textContent(), new RegExp(`设置字段权限 · ${target.table}`));
+      await page.waitForFunction(() => document.activeElement?.getAttribute("placeholder") === "搜索字段名或中文名");
+      assert.equal(await dialog.locator('[data-test="field-all"]').textContent(), "全选");
+      // 不展示数据类型：每一行只有字段名与中文名
+      const extra = await dialog.locator(".portal-vue-field-dialog-row").evaluateAll(rows => rows.map(row => row.textContent.trim().replace(row.querySelector("code").textContent, "").replace(row.querySelector(".portal-vue-field-dialog-comment")?.textContent || "", "").trim()).filter(Boolean));
+      assert.deepEqual(extra, [], "字段行里除字段名与中文名不应有数据类型等其他文字");
       assert.equal(await page.locator('[data-test="hidden-fields-hint"]').count(), 0);
-      await panel.locator(".portal-vue-field-panel-item label").first().click();
+      // 取消：草稿被丢弃
+      await dialog.locator(`[data-field="${target.field}"] label`).click();
+      await dialog.getByRole("button", { name: "取消" }).click();
+      await dialog.waitFor({ state: "hidden" });
+      assert.equal((await tag.textContent()).trim(), "全部字段", "取消不应改动字段");
+      // Esc 同样丢弃
+      await tag.click();
+      await dialog.waitFor();
+      await dialog.locator(`[data-field="${target.field}"] label`).click();
+      await page.keyboard.press("Escape");
+      await dialog.waitFor({ state: "hidden" });
+      assert.equal((await tag.textContent()).trim(), "全部字段");
+      await tag.focus();
+      await page.keyboard.press("Enter");
+      await dialog.waitFor();
+      await dialog.locator(`[data-field="${target.field}"] label`).click();
+      await dialog.getByRole("button", { name: "确定" }).click();
+      await dialog.waitFor({ state: "hidden" });
       assert.equal((await tag.textContent()).trim(), `字段 ${target.total - 1}/${target.total}`);
       assert.match(await page.locator('[data-test="hidden-fields-hint"]').textContent(), /有隐藏字段时按表名授权/);
       await page.getByRole("button", { name: "保存", exact: true }).click();
@@ -579,8 +602,48 @@ describe("浏览器端到端", () => {
       // 用户订单明细：面板里列的是网关的真实字段，不是门户的演示字段
       const orderRow = page.locator(".portal-vue-table-perm", { has: page.locator('label[title="用户订单明细"]') }).first();
       await orderRow.locator('[data-test="field-tag"]').click();
-      const orderNames = (await orderRow.locator('[data-test="field-panel"] .portal-vue-field-panel-item').evaluateAll(items => items.map(item => item.querySelector("label")?.textContent.trim())));
-      assert.deepEqual(orderNames, target.orderFields);
+      await dialog.waitFor();
+      const rowNames = () => dialog.locator(".portal-vue-field-dialog-row").evaluateAll(items => items.map(item => item.dataset.field));
+      assert.deepEqual(await rowNames(), target.orderFields);
+      // 搜索：按中文名、按字段名过滤（不区分大小写）；全选当前结果只动过滤出的行
+      const sample = target.orderFull.find(field => field.comment) || target.orderFull[0];
+      const matches = word => target.orderFull.filter(field => field.name.toLowerCase().includes(word.toLowerCase()) || field.comment.toLowerCase().includes(word.toLowerCase())).map(field => field.name);
+      const search = dialog.locator('input[data-test="field-search"]');
+      if (sample.comment) {
+        await search.fill(sample.comment);
+        assert.deepEqual(await rowNames(), matches(sample.comment));
+        assert.ok((await rowNames()).includes(sample.name));
+      }
+      await search.fill(sample.name.toUpperCase());
+      assert.deepEqual(await rowNames(), matches(sample.name));
+      assert.equal(await dialog.locator('[data-test="field-all"]').textContent(), "全选当前结果");
+      await search.press("Enter");
+      assert.equal(await dialog.count(), 1, "搜索框回车不应提交或关闭弹窗");
+      await dialog.locator('[data-test="field-all"]').click();
+      const matched = matches(sample.name);
+      assert.equal((await dialog.locator('[data-test="field-count"]').textContent()).trim(), `已选 ${target.orderFields.length - matched.length}/${target.orderFields.length}`, "全选当前结果只取消过滤出的行");
+      await search.fill("");
+      assert.equal(await dialog.locator('[data-test="field-all"]').textContent(), "全选");
+      assert.equal(await dialog.locator(".portal-vue-field-dialog-row input[type=checkbox]:checked").count(), target.orderFields.length - matched.length);
+      await dialog.locator(".el-switch").click();
+      assert.deepEqual(await rowNames(), matched, "只看已隐藏");
+      await dialog.locator(".el-switch").click();
+      await search.fill("zzz-not-exist-zzz");
+      assert.equal((await dialog.locator(".portal-vue-field-dialog-empty").textContent()).trim(), "没有匹配的字段");
+      await dialog.getByRole("button", { name: "取消" }).click();
+      await dialog.waitFor({ state: "hidden" });
+      // 字段很多的表：弹窗不超出视口，列表内部滚动
+      const long = await page.evaluate(() => { const api = window.PortalVue; return api.permissionTables().map(item => ({ name: item.cnName, count: api.permissionFieldsOf(item.cnName).length })).sort((a, b) => b.count - a.count)[0]; });
+      await page.locator(".portal-vue-table-perm", { has: page.locator(`label[title="${long.name}"]`) }).first().locator('[data-test="field-tag"]').click();
+      await dialog.waitFor();
+      await page.waitForTimeout(400);
+      const box = await dialog.boundingBox();
+      assert.ok(box.y >= 0 && box.y + box.height <= 900, `弹窗应在视口内：${JSON.stringify(box)}`);
+      const list = await dialog.locator('[data-test="field-list"]').evaluate(node => ({ overflowY: getComputedStyle(node).overflowY, scroll: node.scrollHeight, client: node.clientHeight }));
+      assert.equal(list.overflowY, "auto");
+      if (long.count >= 14) assert.ok(list.scroll > list.client, `长列表应内部滚动：${JSON.stringify(list)}`);
+      await page.screenshot({ path: process.env.FIELD_DIALOG_SHOT || "/private/tmp/claude-501/-Users-zengdada-Documents------/d0f78dce-86cf-4f82-b0ec-ffad6e191c5a/scratchpad/field-dialog.png" });
+      await dialog.getByRole("button", { name: "取消" }).click();
     } finally {
       // 恢复：清掉隐藏字段，避免影响共用同一网关的后续用例（隐藏字段会让指标不可用），失败也会执行
       if (!skipReason) {
@@ -638,13 +701,24 @@ describe("浏览器端到端", () => {
       const groupTag = groupRow.locator('[data-test="field-tag"]');
       assert.equal((await groupTag.textContent()).trim(), `字段 ${target.groupTotal - 1}/${target.groupTotal}`);
       await groupTag.click();
-      const groupItem = field => groupRow.locator(`[data-test="field-panel"] [data-field="${field}"]`);
+      const dialog = page.locator(".portal-vue-field-dialog");
+      await dialog.waitFor();
+      assert.match(await dialog.textContent(), /用户：李雨航 · 权限组：数据分析师/);
+      const groupItem = field => dialog.locator(`[data-field="${field}"]`);
       assert.equal(await groupItem(target.hidden).locator("input[type=checkbox]").isChecked(), false);
       assert.equal(await groupItem(target.hidden).locator("input[type=checkbox]").isDisabled(), false);
       assert.equal(await groupItem(target.visible).locator("input[type=checkbox]").isChecked(), true);
       assert.equal(await groupItem(target.visible).locator("input[type=checkbox]").isDisabled(), true);
       assert.match(await groupItem(target.visible).textContent(), /数据分析师/, "锁定字段应显示权限组名");
       await groupItem(target.hidden).locator("label").click();
+      await dialog.getByRole("button", { name: "取消" }).click();
+      await dialog.waitFor({ state: "hidden" });
+      assert.equal((await groupTag.textContent()).trim(), `字段 ${target.groupTotal - 1}/${target.groupTotal}`, "取消不应改动字段");
+      await groupTag.click();
+      await dialog.waitFor();
+      await groupItem(target.hidden).locator("label").click();
+      await dialog.getByRole("button", { name: "确定" }).click();
+      await dialog.waitFor({ state: "hidden" });
       assert.equal((await groupTag.textContent()).trim(), "全部字段");
 
       // 个人追加的表：默认全部字段，取消一个字段后变为 n-1/n
@@ -652,7 +726,10 @@ describe("浏览器端到端", () => {
       const personalTag = rowOf(target.personalTable).locator('[data-test="field-tag"]');
       assert.equal((await personalTag.textContent()).trim(), "全部字段");
       await personalTag.click();
-      await rowOf(target.personalTable).locator(`[data-field="${target.personalField}"] label`).click();
+      await dialog.waitFor();
+      await dialog.locator(`[data-field="${target.personalField}"] label`).click();
+      await dialog.getByRole("button", { name: "确定" }).click();
+      await dialog.waitFor({ state: "hidden" });
       assert.equal((await personalTag.textContent()).trim(), `字段 ${target.personalTotal - 1}/${target.personalTotal}`);
 
       const body = await save();
