@@ -317,6 +317,78 @@ describe("字段权限：个人覆盖与有效隐藏字段（经网关）", () =
     }
   });
 
+  const HIDE_PLAN = { 广告计划日报表: ["plan_name", "campaign_id"] };
+  const moveUser = async group => {
+    const result = await harness.call("PUT", "/v1/org", { token: await harness.tokenFor("曾祥竞"), body: { userGroups: { 谭嘉颖: group } } });
+    assert.equal(result.status, 200, JSON.stringify(result.data));
+  };
+  const writeOverrides = value => fs.writeFileSync(path.join(harness.dataDir, "user-permissions.json"), JSON.stringify(value));
+
+  test("个人追加字段绑定权限组：组与表不变时有效；移到另一个也授予该表、隐藏同一字段的组后不再生效", async () => {
+    await saveGroups(HIDE_PLAN);
+    try {
+      assert.equal((await putOverride({ tables: [], grantedFields: { 广告计划日报表: ["campaign_id"] } })).status, 200);
+      assert.deepEqual((await adminEntry("谭嘉颖")).effectiveHiddenFields, { 广告计划日报表: ["plan_name"] }, "组与表不变时追加的字段可见");
+      // 投放组长同样授予广告计划日报表并隐藏同样的字段
+      const groups = (await harness.call("GET", "/v1/org", { token: await harness.tokenFor("曾祥竞") })).data.groups.map(group => (group.name === "投放组长" ? { ...group, hiddenFields: HIDE_PLAN } : group));
+      assert.equal((await harness.call("PUT", "/v1/org", { token: await harness.tokenFor("曾祥竞"), body: { groups } })).status, 200);
+      await moveUser("投放组长");
+      const entry = await adminEntry("谭嘉颖");
+      assert.deepEqual(entry.effectiveHiddenFields, HIDE_PLAN, "换组后旧的追加字段不再放开新组隐藏的字段");
+      assert.deepEqual(entry.grantedFields, {}, "换组时清掉追加字段");
+    } finally {
+      await moveUser("优化师");
+      await putOverride({ tables: [] });
+      await saveGroups({});
+    }
+  });
+
+  test("组收回某表后再加回（隐藏字段相同）：之前的个人追加字段不会恢复", async () => {
+    await saveGroups(HIDE_PLAN);
+    try {
+      assert.equal((await putOverride({ tables: [], grantedFields: { 广告计划日报表: ["campaign_id"] } })).status, 200);
+      await saveGroups({}, ["广告账户日报"]);
+      await saveGroups(HIDE_PLAN);
+      const entry = await adminEntry("谭嘉颖");
+      assert.deepEqual(entry.effectiveHiddenFields, HIDE_PLAN);
+      assert.deepEqual(entry.grantedFields, {});
+    } finally {
+      await putOverride({ tables: [] });
+      await saveGroups({});
+    }
+  });
+
+  test("旧版个人覆盖（没有记录所属组）的追加字段不生效；记录的组与当前组不同也不生效", async () => {
+    await saveGroups(HIDE_PLAN);
+    try {
+      writeOverrides({ 谭嘉颖: { tables: [], hiddenFields: {}, grantedFields: { 广告计划日报表: ["campaign_id"] } } });
+      assert.deepEqual((await adminEntry("谭嘉颖")).effectiveHiddenFields, HIDE_PLAN);
+      writeOverrides({ 谭嘉颖: { tables: [], hiddenFields: {}, grantedFields: { 广告计划日报表: ["campaign_id"] }, grantedGroup: "投放组长" } });
+      assert.deepEqual((await adminEntry("谭嘉颖")).effectiveHiddenFields, HIDE_PLAN);
+      writeOverrides({ 谭嘉颖: { tables: [], hiddenFields: {}, grantedFields: { 广告计划日报表: ["campaign_id"] }, grantedGroup: "优化师" } });
+      assert.deepEqual((await adminEntry("谭嘉颖")).effectiveHiddenFields, { 广告计划日报表: ["plan_name"] });
+    } finally {
+      writeOverrides({});
+      await saveGroups({});
+    }
+  });
+
+  test("组调整时只清理失效的追加字段：个人追加的表与个人隐藏字段保持不变", async () => {
+    await saveGroups(HIDE_PLAN);
+    try {
+      assert.equal((await putOverride({ tables: ["广告计划日报表", "广告账户日报", "媒体消耗汇总"], hiddenFields: { 媒体消耗汇总: ["media_source"] }, grantedFields: { 广告计划日报表: ["campaign_id"] } })).status, 200);
+      await saveGroups({}, ["广告账户日报"]);
+      const stored = JSON.parse(fs.readFileSync(path.join(harness.dataDir, "user-permissions.json"), "utf8")).谭嘉颖;
+      assert.deepEqual(stored.tables, ["媒体消耗汇总"]);
+      assert.deepEqual(stored.hiddenFields, { 媒体消耗汇总: ["media_source"] });
+      assert.deepEqual(stored.grantedFields, {}, "已持久化清理");
+      assert.deepEqual((await adminEntry("谭嘉颖")).effectiveHiddenFields, { 媒体消耗汇总: ["media_source"] });
+    } finally {
+      await putOverride({ tables: [] });
+      await saveGroups({});
+    }
+  });
+
   test("个人覆盖存在时，组新增的表实时生效", async () => {
     await saveGroups({});
     try {

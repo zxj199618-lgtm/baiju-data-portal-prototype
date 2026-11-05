@@ -2091,7 +2091,8 @@ function hiddenFieldsFor(userName) {
   for (const table of userTables(userName)) {
     let list;
     if (groupTables.includes(table)) {
-      const granted = new Set(fieldList(override?.grantedFields, table));
+      // 个人追加字段绑定保存时的权限组：换组后（或旧版覆盖没有记录所属组）一律不生效
+      const granted = new Set(override?.grantedGroup === orgStore.groupOf(userName) ? fieldList(override?.grantedFields, table) : []);
       list = fieldList(groupHidden, table).filter(name => !granted.has(name));
     } else {
       list = fieldList(override?.hiddenFields, table);
@@ -2100,6 +2101,29 @@ function hiddenFieldsFor(userName) {
     if (list.length) result[table] = list;
   }
   return result;
+}
+
+/**
+ * 权限组 / 账号分组保存后清理个人覆盖：换了组（或没有记录所属组）的整份 grantedFields 清空，
+ * 其余只保留仍由当前组授予的表；个人追加的表与个人隐藏字段不动。有变化才写回
+ */
+function prunePermissionOverrides() {
+  const overrides = loadPermissionOverrides();
+  let changed = false;
+  for (const [userName, override] of Object.entries(overrides)) {
+    if (!override || typeof override !== "object") continue;
+    const stored = override.grantedFields && typeof override.grantedFields === "object" ? override.grantedFields : {};
+    if (!Object.keys(stored).length) continue;
+    const group = orgStore.groupOf(userName);
+    const groupTables = orgStore.tablesOf(userName);
+    const kept = {};
+    if (override.grantedGroup === group) for (const table of groupTables) { const list = fieldList(stored, table); if (list.length) kept[table] = list; }
+    if (JSON.stringify(kept) === JSON.stringify(stored)) continue;
+    changed = true;
+    override.grantedFields = kept;
+    if (!personalTablesOf(override).length && !Object.keys(override.hiddenFields || {}).length && !Object.keys(kept).length) delete overrides[userName];
+  }
+  if (changed) savePermissionOverrides(overrides);
 }
 
 /** 当前用户的权限视图：只含有权限的表，表定义与数据行去掉被隐藏的字段；语义层叠加同一份隐藏字段。所有面向用户的取数都走它 */
@@ -2777,6 +2801,7 @@ async function handleRequest(req, res) {
     const body = await readBody(req);
     const outcome = orgStore.save({ groups: body.groups, userGroups: body.userGroups });
     if (!outcome.ok) return sendJson(res, 400, { error: outcome.error });
+    prunePermissionOverrides();
     appendAuditEntry({ type: "org-change", user: req.session.name, groups: Array.isArray(body.groups) ? body.groups.length : undefined });
     return sendJson(res, 200, orgView());
   }
@@ -2830,6 +2855,7 @@ async function handleRequest(req, res) {
     if (body.group) {
       const outcome = orgStore.save({ userGroups: { [created.name]: String(body.group) } });
       if (!outcome.ok) warning = `账号已创建，但权限组没有设置成功：${outcome.error}`;
+      else prunePermissionOverrides();
     }
     appendAuditEntry({ type: "account-create", user: req.session.name, account: created.name });
     return sendJson(res, 200, { account: accountView(created.name), password, warning });
@@ -3049,7 +3075,7 @@ async function handleRequest(req, res) {
     const grantedOutcome = fieldsFor("grantedFields", "个人追加字段", groupTables);
     if (!grantedOutcome.ok) return sendJson(res, 400, { error: grantedOutcome.error });
     if (!personalTables.length && !Object.keys(hiddenOutcome.value).length && !Object.keys(grantedOutcome.value).length) delete overrides[userName];
-    else overrides[userName] = { tables: personalTables, hiddenFields: hiddenOutcome.value, grantedFields: grantedOutcome.value, updatedAt: new Date().toISOString() };
+    else overrides[userName] = { tables: personalTables, hiddenFields: hiddenOutcome.value, grantedFields: grantedOutcome.value, grantedGroup: orgStore.groupOf(userName), updatedAt: new Date().toISOString() };
     savePermissionOverrides(overrides);
     appendAuditEntry({
       type: "permission-change", user: req.session.name, target: userName, tables: personalTables.length,
