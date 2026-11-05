@@ -11,7 +11,10 @@
     USER_SCOPE_PREFIX,
     analysisGatewayBase,
     bridge,
+    ep,
     expandMenuNames,
+    fetchGateway,
+    gatewayFieldsError,
     gatewayTableNames,
     loadGatewayFields,
     manageScopeOf,
@@ -32,15 +35,30 @@
      本页会话里保存没能同步到网关的用户（只存在页面状态里）不再被服务端覆盖 */
   const localOnlyUsers = new Set();
   const cloneFieldMap = map => Object.fromEntries(Object.entries(map && typeof map === "object" ? map : {}).filter(([, list]) => Array.isArray(list) && list.length).map(([table, list]) => [table, [...list]]));
-  /** 取该用户在服务端的权限条目；不该回显（非管理员、只存在页面状态、网关字段没取到）或失败时返回 null */
+  /**
+   * 取该用户在服务端的权限条目：{ entry, status }。status：ok；skipped（非管理员、只存在页面状态）；
+   * timeout / failed（网关卡住或有响应但不成功）；offline（连不上，演示环境未启动网关）。
+   * 只有同时取到了网关字段（gatewayTableNames）才会回显
+   */
   async function fetchPermissionEntry(user) {
-    if (!user || orgSync.role !== "admin" || localOnlyUsers.has(user.name) || !gatewayTableNames()) return null;
+    if (!user || orgSync.role !== "admin" || localOnlyUsers.has(user.name)) return { entry: null, status: "skipped" };
     try {
-      const response = await fetch(`${analysisGatewayBase}/v1/permissions`);
-      if (!response.ok) return null;
+      const { response, error } = await fetchGateway("/v1/permissions");
+      if (error) return { entry: null, status: error };
+      if (!response.ok) return { entry: null, status: "failed" };
       const entry = ((await response.json()).users || []).find(item => item.name === user.name);
-      return entry && !localOnlyUsers.has(user.name) ? entry : null;
-    } catch (error) { return null; /* 网关未启动时沿用页面状态 */ }
+      if (localOnlyUsers.has(user.name)) return { entry: null, status: "skipped" };
+      return entry ? { entry, status: "ok" } : { entry: null, status: "failed" };
+    } catch (error) { return { entry: null, status: "failed" }; }
+  }
+  /** 网关在（至少一个请求有响应或超时），但两个请求没有都成功：回显不了，提醒管理员；完全离线的演示环境不提示 */
+  function warnIfNotHydrated(status) {
+    if (status === "skipped") return;
+    const fieldsOk = Boolean(gatewayTableNames());
+    if (fieldsOk && status === "ok") return;
+    const fieldsError = gatewayFieldsError();
+    const reachable = fieldsOk || status === "ok" || status === "timeout" || status === "failed" || fieldsError === "timeout" || fieldsError === "failed";
+    if (reachable) ep.ElMessage.warning("未能读取该用户已保存的个人权限，保存会按当前页面内容覆盖");
   }
   function seedUser(user, entry) {
     // override.tables 只含个人追加的表；存的是「全部数据表」时记住这个标记（保存时若仍全选则原样写回），勾选状态展开为网关认识的全部表
@@ -108,7 +126,7 @@
             </div></section>
           </div>
           <field-permission-dialog v-model="fieldDialog.visible" :title="'设置字段权限 · '+fieldDialog.table" :subtitle="dialogSubtitle" :fields="dialogFields" :hidden="dialogHidden" :locked-names="dialogLocked" :lock-label="user?.group" @confirm="applyFields"></field-permission-dialog>
-          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button v-if="canEdit('用户管理')" type="primary" :loading="hydrating" :title="hydrating?'正在读取该用户已保存的权限':''" @click="save">保存权限</el-button></div>
+          <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button v-if="canEdit('用户管理')" type="primary" :loading="hydrating" :aria-busy="hydrating?'true':'false'" :title="hydrating?'正在读取该用户已保存的权限':''" @click="save">保存权限</el-button></div>
         </div>
       </el-config-provider>
     `,
@@ -194,9 +212,11 @@
         const user=this.user;const seq=++this.hydrateSeq;this.hydrating=true;
         (async()=>{
           const changed=await loadGatewayFields();
-          const entry=await fetchPermissionEntry(user);
+          const {entry:fetched,status}=await fetchPermissionEntry(user);
           if(seq!==this.hydrateSeq||this.user!==user)return;
-          if(entry)seedUser(user,entry);
+          // 网关字段与已保存权限都取到才回显；否则沿用页面状态
+          const entry=fetched&&gatewayTableNames()?fetched:null;
+          if(entry)seedUser(user,entry);else warnIfNotHydrated(status);
           if((changed||entry)&&this.tableSnapshot()===this.loadedSnapshot)this.applyTableState();
         })().finally(()=>{if(seq===this.hydrateSeq)this.hydrating=false;});
       },
@@ -268,7 +288,7 @@
         try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables:payload,hiddenFields,grantedFields})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}
         // 同步成功：按服务端结果重新回显（服务端会规范化）；没同步：记为只存在页面状态，之后打开不被服务端覆盖
         // 同时作废还在路上的回显（seq），只认保存后的这次
-        if(persisted){const user=this.user;localOnlyUsers.delete(user.name);const seq=++this.hydrateSeq;this.hydrating=false;fetchPermissionEntry(user).then(entry=>{if(entry&&seq===this.hydrateSeq)seedUser(user,entry);});}else localOnlyUsers.add(this.user.name);
+        if(persisted){const user=this.user;localOnlyUsers.delete(user.name);const seq=++this.hydrateSeq;this.hydrating=false;fetchPermissionEntry(user).then(({entry})=>{if(entry&&gatewayTableNames()&&seq===this.hydrateSeq)seedUser(user,entry);});}else localOnlyUsers.add(this.user.name);
         notify(`${this.user.name} 的权限配置已保存（管理范围：${manageScopeSummary(this.user)}；个人追加：菜单查看 ${personalMenus.length} / 菜单编辑 ${personalMenuEdits.length} / 看板 ${personalBoards.length} / 表 ${personalTables.length} 项；权限组权限保持不变）${persisted?"，已同步到分析网关":"（本地演示，网关未连接）"}`);
         this.back();
       }

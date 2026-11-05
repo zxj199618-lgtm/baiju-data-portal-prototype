@@ -355,7 +355,20 @@
     return "http://localhost:8787";
   })();
   /* ===== 字段权限面板的字段来源：网关真实表定义（字段权限按它生效，仅管理员可取）；网关不可达 / 未登录时退回门户资产里的字段 ===== */
-  const gatewayFields = reactive({ loaded: false, tables: {} });
+  /* 读网关的请求带超时：网关卡住时不让页面一直等（window.__portalGatewayTimeoutMs 只供测试缩短，启动时读一次） */
+  const GATEWAY_FETCH_TIMEOUT_MS = Number(window.__portalGatewayTimeoutMs) > 0 ? Number(window.__portalGatewayTimeoutMs) : 6000;
+  /** 返回 { response } 或 { error: "timeout" | "offline" }；offline = 连不上（演示环境未启动网关） */
+  async function fetchGateway(path, options = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GATEWAY_FETCH_TIMEOUT_MS);
+    try {
+      return { response: await fetch(`${analysisGatewayBase}${path}`, { ...options, signal: controller.signal }) };
+    } catch (error) {
+      return { error: controller.signal.aborted ? "timeout" : "offline" };
+    } finally { clearTimeout(timer); }
+  }
+  /* lastError：最近一次取网关字段失败的原因（""、"timeout"、"failed" 网关有响应但不成功、"offline" 连不上） */
+  const gatewayFields = reactive({ loaded: false, tables: {}, lastError: "" });
   let gatewayFieldsPending = null;
   /** 打开权限页时取一次并缓存；返回 Promise<boolean>：本次是否新取到了网关字段 */
   function loadGatewayFields() {
@@ -363,15 +376,17 @@
     if (gatewayFieldsPending) return gatewayFieldsPending;
     gatewayFieldsPending = (async () => {
       try {
-        const response = await fetch(`${analysisGatewayBase}/v1/table-fields`);
-        if (!response.ok) return false;
+        const { response, error } = await fetchGateway("/v1/table-fields");
+        if (error) { gatewayFields.lastError = error; return false; }
+        if (!response.ok) { gatewayFields.lastError = "failed"; return false; }
         const data = await response.json();
-        if (!data?.tables || typeof data.tables !== "object" || Array.isArray(data.tables)) return false;
+        if (!data?.tables || typeof data.tables !== "object" || Array.isArray(data.tables)) { gatewayFields.lastError = "failed"; return false; }
         gatewayFields.tables = data.tables;
         gatewayFields.loaded = true;
+        gatewayFields.lastError = "";
         refreshTick.value += 1;
         return true;
-      } catch (error) { return false; /* 网关未启动时用门户资产里的字段 */ } finally { gatewayFieldsPending = null; }
+      } catch (error) { gatewayFields.lastError = "failed"; return false; } finally { gatewayFieldsPending = null; }
     })();
     return gatewayFieldsPending;
   }
@@ -427,6 +442,8 @@
       confirm() { this.$emit("confirm", this.fields.filter(field => this.draft[field.name] && !this.isLocked(field.name)).map(field => field.name)); this.$emit("update:modelValue", false); }
     }
   };
+  /** 最近一次取网关字段失败的原因（见 gatewayFields.lastError） */
+  function gatewayFieldsError() { return gatewayFields.loaded ? "" : gatewayFields.lastError; }
   /** 网关认识的表名；还没取到网关字段时为 null */
   function gatewayTableNames() {
     return gatewayFields.loaded ? Object.keys(gatewayFields.tables) : null;
@@ -544,6 +561,8 @@
     enabledDictItems,
     ep,
     expandMenuNames,
+    fetchGateway,
+    gatewayFieldsError,
     gatewayTableNames,
     groupOfUser,
     humanCount,

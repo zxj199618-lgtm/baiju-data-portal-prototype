@@ -741,6 +741,33 @@ describe("浏览器端到端", () => {
       }
     }
   }));
+  test("字段权限 · 用户页：读取已保存权限超时后「保存权限」恢复可点，并提示管理员保存会按当前页面内容覆盖", async t => withPage(t, async page => {
+    const userName = "李雨航";
+    // 测试用的短超时（页面启动时读取一次），不是生产配置
+    await page.addInitScript(() => { window.__portalGatewayTimeoutMs = 800; });
+    await login(page, "曾祥竞");
+    await appVisible(page);
+    const index = await page.evaluate(name => window.portalVueModuleApi.state.users.findIndex(user => user.name === name), userName);
+    await page.evaluate(() => window.PortalVue.loadGatewayFields());
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    await page.route(url => url.pathname === "/v1/permissions", async route => { await gate; await route.continue().catch(() => {}); });
+    try {
+      await page.evaluate(i => { window.portalVueBridge.setActiveUserIndex(i); window.portalVueBridge.setPage("配置权限"); }, index);
+      const saveButton = page.getByRole("button", { name: "保存权限" });
+      assert.equal(await saveButton.isDisabled(), true);
+      assert.equal(await saveButton.getAttribute("aria-busy"), "true");
+      await page.waitForFunction(() => {
+        const button = [...document.querySelectorAll("#permissionConfigView button")].find(item => item.textContent.includes("保存权限"));
+        return button && !button.disabled;
+      }, null, { timeout: 5000 });
+      assert.notEqual(await saveButton.getAttribute("aria-busy"), "true");
+      await page.locator(".el-message", { hasText: "未能读取该用户已保存的个人权限" }).first().waitFor({ timeout: 3000 });
+    } finally {
+      release();
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+    }
+  }));
   test("字段权限 · 用户页：个人覆盖存的是「全部数据表」时，不改动保存仍是该标记；取消一张表后改存明确的表清单", async t => withPage(t, async page => {
     const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
     const userName = "李雨航";
