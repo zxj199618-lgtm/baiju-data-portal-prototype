@@ -35,6 +35,7 @@ assert(portalBridge.includes("portalDemoUser") && portalBridge.includes("portalL
 assert(portalVue.includes("window.PORTAL_GATEWAY_BASE") && shareHtml.includes("window.PORTAL_GATEWAY_BASE"), "前端与分享页应优先使用同源网关地址（域名部署时链接可直接打开）");
 
 [
+  "assets/portal-routes.js",
   "assets/portal-bridge.js",
   "assets/cp-bridge.js",
   ...portalVueFiles,
@@ -54,6 +55,7 @@ assert(html.includes('href="assets/portal-shell.css?v='), "入口应加载公共
 assert(portalVue.includes('visible() { return !["灵犀智析"') && !portalVue.includes("portal-vue-ai-bot-btn") && !html.includes("feishuBotAddBtn"), "灵犀智析页应去掉顶部标题区，并不再提供添加飞书机器人入口");
 assert(exists("assets/portal-shell.css") && read("assets/portal-shell.css").includes("div:first-child.portal-vue-page-head { max-width: none; width: 100%; }"), "页面头部应解除 760px 宽度限制占满内容宽度");
 [
+  "assets/portal-routes.js",
   "assets/portal-bridge.js",
   "assets/cp-bridge.js",
   "assets/vendor/vue.global.prod.js",

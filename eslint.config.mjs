@@ -6,7 +6,9 @@ export default [
   { ignores: ["assets/vendor/**", "node_modules/**", "baiju-data-portal-feishu-standalone.html"] },
   {
     files: ["assets/**/*.js"],
-    languageOptions: { ecmaVersion: 2022, sourceType: "script", globals: { ...globals.browser } },
+    languageOptions: { ecmaVersion: 2022, sourceType: "script", globals: { ...globals.browser, PortalRoutes: "readonly" } },
     rules: { "no-undef": "error" }
-  }
+  },
+  // 路由表同时给浏览器（window.PortalRoutes）和单元测试（require）使用
+  { files: ["assets/portal-routes.js"], languageOptions: { globals: { ...globals.browser, ...globals.node } } }
 ];

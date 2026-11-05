@@ -29,6 +29,18 @@ npm test
 在 `page-menu-management.js` 的菜单树里加一项。`npm run lint`（ESLint `no-undef`）会检查页面文件里有没有用到没定义的变量，
 `tests/lint.test.cjs` 与浏览器冒烟测试会检查清单一致与每个菜单页都能打开。
 
+### 页面地址（路由）
+
+页面地址是英文 hash：`https://gxt.lumofyi.com/#/permission/users`。对照表在 `assets/portal-routes.js`（页面里用 `window.PortalRoutes`），页面内部仍用中文页面名，改地址只改这一张表。
+
+- **详情页把对象放进地址**：`#/permission/users/<飞书ID>/config`（配置权限）、`…/view`（查看权限）、`#/asset/tables/<库>.<表>`（表详情）、`#/dashboard/boards/<QuickBI ID>`（看板）、`#/asset/dimensions/<维表编号>/data`、`#/service/open-api/<API 名称>/edit`、`#/permission/groups/<权限组名称>`。刷新页面或把链接发给同事，打开的是同一个对象。
+- **对象不存在**（用户被移除、表已删除、看板下线……）：回到对应列表页并提示原因，地址同步改回列表页，不会停在空白详情页。
+- **没有权限**：直达链接指向没有「查看」权限的菜单时，提示并打开第一个有权限的页面（服务端权限同步完成后校验）。
+- **旧链接兼容**：`#page=中文页面名`（含 `&db=&table=`、`&board=`）仍能打开，并被改写成新地址；旧链接从没带过用户 / 维表 / API 标识，这几类详情页会退回列表页并提示。
+- **历史记录**：点页面、点标签栏、点进详情都会新增历史记录，浏览器前进 / 后退按地址重新打开页面；权限组页里切换选中的组只替换当前记录；从旧链接 / 不存在的对象 / 无权限回退时也只替换，不会留下一个点后退又被弹回来的坏地址。
+- **未登录**：停在登录页，登录成功后重新加载，按原地址进入。
+- **新增页面**：在 `assets/portal-routes.js` 的 `ROUTES` 加一行（详情页要写 `list` 回退页与 `menu` 所属菜单），详情页的对象标识在 `portal-bridge.js` 的 `routeParams`（页面→地址）与 `resolveRoute`（地址→对象）里各加一段。`tests/routes.test.cjs`（地址表）与 `tests/e2e-routes.test.cjs`（真实 Chrome）覆盖这些行为。
+
 `npm test` 会启动真实网关（临时数据目录 + 本地假模型），不需要中转站 Key。其中浏览器端到端用例（`tests/e2e-ui.test.cjs`）
 通过 Playwright 驱动本机 Chrome；没有 Chrome 时这组用例自动跳过。
 

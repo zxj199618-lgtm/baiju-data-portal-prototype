@@ -3067,18 +3067,132 @@
         }
       }
 
+      /* ===== 路由：页面名 ⇄ 地址（assets/portal-routes.js），详情页把对象标识放进地址 ===== */
+      let routeHistoryMode = "push";
+      let routeGroup = "";
+      let routeBootExplicit = false;
+      let routeChecked = false;
+      /** 路由提示：用 Element 消息条（5 秒、不会被后续 toast 覆盖），没加载时退回 toast */
+      function routeNotice(text) {
+        let tries = 0;
+        const show = () => {
+          const message = window.ElementPlus?.ElMessage;
+          if (message && window.portalVueModuleApi) message({ message: text, type: "warning", duration: 6000, grouping: true });
+          else if (++tries < 50) setTimeout(show, 200);
+          else showToast(text);
+        };
+        setTimeout(show, 200);
+      }
+      const sameHash = (a, b) => { try { return decodeURIComponent(a) === decodeURIComponent(b); } catch (error) { return a === b; } };
+
+      /** 当前页面对应的对象标识（用户用飞书 ID，数据表用 库.表，看板用 Quick BI ID，维表用编号，API 与权限组用名称） */
+      function routeParams(page) {
+        const params = {};
+        if (page === "配置权限" || page === "查看权限") { const user = simpleUsers[activeUserIndex]; if (user?.feishu) params.user = user.feishu; }
+        else if (page === "表详情") { const asset = window.portalTableDetailAsset; if (asset) params.table = `${asset.database}.${asset.table}`; }
+        else if (page === "Quick BI 展示") { if (activeBoard?.quickBiId) params.board = activeBoard.quickBiId; }
+        else if (page === "维表数据维护") { if (window.portalDimensionAssetId) params.dim = window.portalDimensionAssetId; }
+        else if (page === "新增API") { const api = apiConfigs[window.portalApiEditingIndex]; if (api) params.api = api.name; }
+        else if (page === "权限组") { if (routeGroup) params.group = routeGroup; }
+        return params;
+      }
+
+      /** 地址 → 要打开的页面；对象不存在时回退到列表页并带提示（不白屏、不打开空白详情） */
+      function resolveRoute(hash) {
+        const parsed = PortalRoutes.parseHash(hash);
+        if (!parsed || parsed.invalid) return { page: PortalRoutes.DEFAULT_PAGE, notice: parsed?.invalid ? "旧链接里的页面不存在，已回到首页" : "地址无法识别，已回到首页" };
+        let { page } = parsed;
+        const { params } = parsed;
+        const fallback = (listPage, notice) => ({ page: listPage, notice });
+        if (parsed.unresolved) return { page, notice: `旧链接没有指定具体对象，已回到「${page}」` };
+        if (page === "配置权限" || page === "查看权限") {
+          const index = simpleUsers.findIndex(user => user.feishu === params.user);
+          if (index < 0) return fallback("用户管理", "链接中的用户不存在或已移除，已回到用户管理");
+          activeUserIndex = index;
+        } else if (page === "表详情") {
+          const cut = params.table.indexOf(".");
+          const asset = cut > 0 ? (window.dataAssets || dataAssets).find(item => item.database === params.table.slice(0, cut) && item.table === params.table.slice(cut + 1)) : null;
+          if (!asset) return fallback("表管理", "链接中的数据表不存在或已删除，已回到表管理");
+          window.portalTableDetailAsset = asset;
+        } else if (page === "Quick BI 展示") {
+          const index = migratedBoards.findIndex(board => board.quickBiId === params.board);
+          if (index < 0) return fallback("数据看板", "链接中的看板不存在，已回到数据看板");
+          if (migratedBoards[index].status !== "已上线") return fallback("数据看板", "该看板已下线，已回到数据看板");
+          return { page, boardIndex: index };
+        } else if (page === "维表数据维护") {
+          if (!dataAssets.some(asset => asset.assetId === params.dim && asset.dimension)) return fallback("维表管理", "链接中的维表不存在或已删除，已回到维表管理");
+          window.portalDimensionAssetId = params.dim;
+        } else if (page === "新增API") {
+          if (params.api) {
+            const index = apiConfigs.findIndex(api => api.name === params.api);
+            if (index < 0) return fallback("数据开放平台", "链接中的 API 不存在或已删除，已回到数据开放平台");
+            window.portalApiEditingIndex = index;
+          } else window.portalApiEditingIndex = -1;
+        } else if (page === "权限组") {
+          if (params.group && !permissionGroups.some(group => group.name === params.group)) return fallback("权限组", "链接中的权限组不存在或已删除，已显示第一个权限组");
+          routeGroup = params.group || "";
+        }
+        return { page };
+      }
+
+      /** 没有该页面所属菜单权限时，回到第一个有权限的页面 */
+      function accessDenied(page) {
+        const api = window.portalVueModuleApi;
+        if (!api?.canView) return null;
+        const menu = PortalRoutes.menuOf(page);
+        if (api.canView(menu)) return null;
+        const first = simpleNav.flatMap(section => section.items).find(item => api.canView(item.name));
+        return { menu, page: first ? first.name : "" };
+      }
+
+      /** 打开一个地址：explicit=true 时校验菜单权限（直达链接 / 前进后退），replace=true 时不新增历史记录 */
+      function openRoute(hash, { replace = false, explicit = false } = {}) {
+        const route = resolveRoute(hash);
+        let { page } = route;
+        let notice = route.notice || "";
+        if (explicit) {
+          const denied = accessDenied(page);
+          if (denied) {
+            notice = `你没有「${denied.menu}」的访问权限${denied.page ? `，已打开「${denied.page}」` : ""}`;
+            if (denied.page) { page = denied.page; replace = true; } else { routeNotice(notice); return; }
+          }
+        }
+        if (notice) { replace = true; routeNotice(notice); }
+        routeHistoryMode = replace ? "replace" : "push";
+        if (route.boardIndex !== undefined && page === "Quick BI 展示") openQuickBi(route.boardIndex);
+        else if (page === "Quick BI 展示") setSimplePage(PortalRoutes.listOf(page));
+        else setSimplePage(page);
+        routeHistoryMode = "push";
+      }
+
+      /** 权限组页：选中的组写进地址（只替换当前记录，不为每次点选新增历史） */
+      function setRouteGroup(name) {
+        routeGroup = name || "";
+        if (activePage !== "权限组") return;
+        const hash = PortalRoutes.toHash("权限组", routeParams("权限组"));
+        try { if (hash && !sameHash(location.hash, hash)) history.replaceState(null, "", hash); localStorage.setItem("portalLastRoute", hash); } catch (error) { /* 忽略 */ }
+      }
+
+      window.addEventListener("hashchange", () => {
+        // 前进 / 后退 / 手改地址：按新地址重新打开页面；未登录时不处理（登录后 reload 会按当前地址进入）
+        if (document.getElementById("portalApp").classList.contains("hidden")) return;
+        openRoute(location.hash, { replace: true, explicit: true });
+      });
+
       function setSimplePage(page) {
         document.getElementById("portalApp").classList.remove("no-permission-mode");
         document.getElementById("sidebar").classList.remove("hidden");
         activePage = page;
-        // 记住当前页面并同步地址（#page=xxx）：刷新回到同一页面，固定地址可直接发给同事
+        // 记住当前页面并同步地址（#/permission/users/<用户>/config）：刷新回到同一页面与同一对象，链接可直接发给同事
         try {
-          localStorage.setItem("portalLastPage", page);
-          // 表详情页把库名与表名写进地址（&db=…&table=…），复制链接给同事可直接打开同一张表
-          const detailAsset = page === "表详情" ? window.portalTableDetailAsset : null;
-          const tableQuery = detailAsset ? `&db=${encodeURIComponent(detailAsset.database)}&table=${encodeURIComponent(detailAsset.table)}` : "";
-          history.replaceState(null, "", "#page=" + encodeURIComponent(page) + tableQuery);
+          const hash = routeHistoryMode === "none" ? "" : PortalRoutes.toHash(page, routeParams(page));
+          if (hash) {
+            localStorage.setItem("portalLastRoute", hash);
+            if (!sameHash(location.hash, hash)) history[routeHistoryMode === "replace" ? "replaceState" : "pushState"](null, "", hash);
+          }
+          if (routeHistoryMode !== "none") localStorage.setItem("portalLastPage", page);
         } catch (error) { /* 隐私模式忽略 */ }
+        routeHistoryMode = "push";
         setHeader(page);
         document.getElementById("boardTitleSearch")?.classList.add("hidden");
         renderSimpleNav();
@@ -3448,30 +3562,22 @@
       document.addEventListener("click", event => {
         if (!event.target.closest(".user-menu-wrap")) userMenu.classList.remove("open");
       });
-      // 演示环境无账号体系：记住登录态与所在页面，刷新直接回到原页面；
-      // 访问 #page=xxx 固定地址（如分享给同事）时自动进入对应页面。
+      // 演示环境无账号体系：记住登录态与所在页面，刷新直接回到原页面与原对象；
+      // 访问 #/permission/users/<用户>/config 等固定地址（如分享给同事）时自动进入对应页面。
+      // 旧版 #page=中文页面名 链接仍可打开，并会被改写成新地址。
       try {
-        const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
-        const hashPage = location.hash.startsWith("#page=") ? hashParams.get("page") || "" : "";
-        let savedPage = hashPage || localStorage.getItem("portalLastPage") || "";
-        if (!/^[\u4e00-\u9fa5A-Za-z0-9 ·\-\[\]（）()]+$/.test(savedPage) || savedPage.length > 24) savedPage = "灵犀智析";
-        let bootNotice = "";
-        if (savedPage === "表详情") {
-          // 表详情必须带上表；找不到（或链接里没有表）时回到表管理，不打开空白详情页
-          const db = hashParams.get("db") || "";
-          const table = hashParams.get("table") || "";
-          const asset = (window.dataAssets || []).find(item => item.database === db && item.table === table);
-          if (asset) window.portalTableDetailAsset = asset;
-          else { savedPage = "表管理"; bootNotice = db || table ? "链接中的数据表不存在或已删除，已回到表管理" : "该页面需要指定数据表，已回到表管理"; }
-        }
-        // 必须有网关令牌才进入系统（gateway-auth.js 已在无令牌时清除标记）；带 #page= 的链接也要先登录
+        const rawHash = location.hash && location.hash !== "#" ? location.hash : "";
+        const lastRoute = localStorage.getItem("portalLastRoute") || "";
+        const lastPage = localStorage.getItem("portalLastPage") || "";
+        const source = rawHash || lastRoute || (lastPage ? "#page=" + encodeURIComponent(lastPage) : "#/analysis");
+        routeBootExplicit = Boolean(rawHash);
+        // 必须有网关令牌才进入系统（gateway-auth.js 已在无令牌时清除标记）；带地址的链接也要先登录，登录后重新加载会回到这个地址
         if (localStorage.getItem("portalDemoUser") === "1" && window.portalAuth?.token()) {
           document.getElementById("loginView").classList.add("hidden");
           document.getElementById("portalApp").classList.remove("hidden");
           document.getElementById("sidebar").classList.remove("hidden");
-          setSimplePage(savedPage || "灵犀智析");
-          window.__portalBootPage = savedPage || "灵犀智析";
-          if (bootNotice) setTimeout(() => showToast(bootNotice), 300);
+          openRoute(source, { replace: true });
+          window.__portalBootPage = activePage;
         }
       } catch (error) { /* 隐私模式忽略 */ }
       document.getElementById("noPermissionLoginBtn").addEventListener("click", () => {
@@ -3737,6 +3843,16 @@
         notifyDataChange: () => window.dispatchEvent(new CustomEvent("portal:data-change")),
         getDimensionAssetId: () => window.portalDimensionAssetId || "",
         setDimensionAssetId: value => { window.portalDimensionAssetId = value; },
+        getRouteGroup: () => routeGroup,
+        setRouteGroup,
+        /* 服务端权限同步完成后调用：直达链接指向没有权限的菜单时，回到第一个有权限的页面并提示 */
+        recheckRoute: () => {
+          if (routeChecked || !routeBootExplicit) return;
+          routeChecked = true;
+          const denied = accessDenied(activePage);
+          if (denied?.page) { routeNotice(`你没有「${denied.menu}」的访问权限，已打开「${denied.page}」`); routeHistoryMode = "replace"; setSimplePage(denied.page); routeHistoryMode = "push"; }
+          else if (denied) routeNotice(`你没有「${denied.menu}」的访问权限`);
+        },
         getTableDetailAsset: () => window.portalTableDetailAsset || null,
         setTableDetailAsset: value => { window.portalTableDetailAsset = value; }
       };
@@ -3745,6 +3861,7 @@
       renderBoardManagement();
       renderDataAssets();
       renderApiConfigs();
-      if (!window.__portalBootPage) setSimplePage("灵犀智析");
+      // 未登录时只初始化界面，不改地址：登录后重新加载要按原地址进入
+      if (!window.__portalBootPage) { routeHistoryMode = "none"; setSimplePage("灵犀智析"); }
     })();
   

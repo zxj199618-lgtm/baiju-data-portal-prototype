@@ -7,6 +7,7 @@
   if (!window.PortalVue) return;
   const {
     FieldPermissionDialog,
+    bridge,
     confirmAction,
     ep,
     loadGatewayFields,
@@ -115,7 +116,7 @@
       activeGroupUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return groupName?state.users.filter(user=>user.group===groupName):[];},
       availableUsers(){refreshTick.value;const groupName=this.activeGroup?.name;return state.users.filter(user=>user.group!==groupName&&user.status!=="已停用");}
     },
-    mounted(){this.loadGroup();this.primaryHandler=event=>{if(event.detail?.page==="权限组")this.openCreate();};window.addEventListener("portal:primary-action",this.primaryHandler);this.pageHandler=event=>{if(event.detail?.page==="权限组")this.loadFields();};window.addEventListener("portal:page-change",this.pageHandler);this.loadFields();},
+    mounted(){this.syncRouteGroup();this.loadGroup();this.primaryHandler=event=>{if(event.detail?.page==="权限组")this.openCreate();};window.addEventListener("portal:primary-action",this.primaryHandler);this.pageHandler=event=>{if(event.detail?.page==="权限组"){this.syncRouteGroup();this.loadFields();}};window.addEventListener("portal:page-change",this.pageHandler);this.loadFields();},
     beforeUnmount(){window.removeEventListener("portal:primary-action",this.primaryHandler);window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
       userCount(name){return state.users.filter(user=>user.group===name).length;},
@@ -123,8 +124,8 @@
       avatarStyle(name){const colors=["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"];const seed=[...String(name||"")].reduce((total,char)=>total+char.charCodeAt(0),0);return{background:colors[seed%colors.length],color:"#fff"};},
       // 字段面板以网关的真实字段为准：首次取到后（未改动时）按新的字段来源重新载入当前组
       loadFields(){loadGatewayFields().then(changed=>{if(changed&&!this.dirty)this.loadGroup();});},
-      selectGroup(index){this.selectedIndex=index;this.activeTab="menus";this.memberDrawer=false;this.loadGroup();},
-      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;this.selectedMenus=[...group.menus];this.selectedMenuEdits=[...(group.menuEdits||[])];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);const tablesGrant=group.tables||[];this.selectedTables=tablesGrant.includes("全部数据表")?[...this.allTableNames]:this.allTableNames.filter(name=>tablesGrant.includes(name));this.hiddenFields=cloneMap(group.hiddenFields);this.confirmedFields=cloneMap(group.confirmedFields);this.fieldDialog.visible=false;this.dirty=false;},
+      selectGroup(index){this.selectedIndex=index;this.activeTab="menus";this.memberDrawer=false;this.loadGroup();},syncRouteGroup(){const name=bridge.getRouteGroup?.();const index=name?state.groups.findIndex(group=>group.name===name):-1;if(index>=0&&index!==this.selectedIndex)this.selectGroup(index);else bridge.setRouteGroup?.(this.activeGroup?.name);},
+      loadGroup(){const group=state.groups[this.selectedIndex]||state.groups[0];if(!group)return;bridge.setRouteGroup?.(group.name);this.selectedMenus=[...group.menus];this.selectedMenuEdits=[...(group.menuEdits||[])];this.allBoards=group.boards.includes("全部看板");this.selectedBoards=this.allBoards?[]:state.boards.filter(board=>group.boards.includes(board.name)||group.boards.includes(board.category)).map(board=>board.name);const tablesGrant=group.tables||[];this.selectedTables=tablesGrant.includes("全部数据表")?[...this.allTableNames]:this.allTableNames.filter(name=>tablesGrant.includes(name));this.hiddenFields=cloneMap(group.hiddenFields);this.confirmedFields=cloneMap(group.confirmedFields);this.fieldDialog.visible=false;this.dirty=false;},
       permItems(section){return menuGrantItems(section);},
       sectionNames(section){const items=this.permItems(section);return items.length===1?[items[0].name]:[section.group,...items.map(item=>item.name)];},
       sectionChecked(section){const names=this.sectionNames(section);return names.every(name=>this.selectedMenus.includes(name));},

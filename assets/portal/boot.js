@@ -32,5 +32,5 @@
   };
   syncPrimaryAction();
   window.dispatchEvent(new CustomEvent("portal:page-change", { detail: { page: bridge.getPage() } }));
-  orgSync.load();
+  Promise.resolve(orgSync.load()).finally(() => bridge.recheckRoute?.());
 })();
