@@ -347,13 +347,15 @@
 .portal-vue-field-dialog-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .portal-vue-field-dialog-bar .el-input { flex: 1; min-width: 0; }
 .portal-vue-field-dialog-count { flex: none; color: #5b6578; font-size: 13px; }
-.portal-vue-field-dialog-list { max-height: calc(70vh - 230px); min-height: 80px; overflow-y: auto; border-top: 1px solid #eef1f6; }
+.portal-vue-field-dialog { max-width: 90vw; }
+.portal-vue-field-dialog-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; align-content: start; max-height: calc(70vh - 230px); min-height: 80px; overflow-y: auto; border-top: 1px solid #eef1f6; }
 .portal-vue-field-dialog-row { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 2px 0; }
-.portal-vue-field-dialog-name { flex: none; width: 200px; min-width: 0; }
+.portal-vue-field-dialog-name { flex: none; width: 170px; min-width: 0; margin-right: 0; }
 .portal-vue-field-dialog-name .el-checkbox__label { display: inline-flex; align-items: center; min-width: 0; }
-.portal-vue-field-dialog-name code { overflow: hidden; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; text-overflow: ellipsis; }
+.portal-vue-field-dialog-name .el-tag { flex: none; margin-left: 6px; }
+.portal-vue-field-dialog-name code { min-width: 0; overflow: hidden; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; text-overflow: ellipsis; }
 .portal-vue-field-dialog-comment { flex: 1; min-width: 0; overflow: hidden; color: #667085; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.portal-vue-field-dialog-empty { padding: 28px 0; color: #8a94a6; text-align: center; }
+.portal-vue-field-dialog-empty { grid-column: 1 / -1; padding: 28px 0; color: #8a94a6; text-align: center; }
 .portal-vue-member-panel { min-width: 0; }
 .portal-vue-member-drawer .el-drawer__body { padding: 12px 20px 20px; }
 .portal-vue-member-toolbar { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 12px; }
@@ -1096,3 +1098,5 @@
 .portal-vue-route-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .portal-vue-route-row .el-input { flex: 1; min-width: 0; }
 .portal-vue-ai-skillbar .portal-vue-ai-scenario small { display: block; }
+
+@media (max-width: 700px) { .portal-vue-field-dialog-list { grid-template-columns: minmax(0, 1fr); } }

@@ -385,7 +385,7 @@
     props: { modelValue: Boolean, title: { type: String, default: "" }, subtitle: { type: String, default: "" }, fields: { type: Array, default: () => [] }, hidden: { type: Array, default: () => [] }, lockedNames: { type: Array, default: () => [] }, lockLabel: { type: String, default: "" } },
     emits: ["update:modelValue", "confirm"],
     template: `
-      <el-dialog :model-value="modelValue" :title="title" width="560px" class="portal-vue-field-dialog" destroy-on-close @update:model-value="value=>$emit('update:modelValue',value)" @opened="focusSearch">
+      <el-dialog :model-value="modelValue" :title="title" width="860px" class="portal-vue-field-dialog" destroy-on-close @update:model-value="value=>$emit('update:modelValue',value)" @opened="focusSearch">
         <div data-test="field-dialog">
           <p v-if="subtitle" class="portal-vue-muted portal-vue-field-dialog-sub">{{ subtitle }}</p>
           <div class="portal-vue-field-dialog-bar">

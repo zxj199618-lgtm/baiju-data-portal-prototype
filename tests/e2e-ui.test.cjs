@@ -642,7 +642,18 @@ describe("浏览器端到端", () => {
       const list = await dialog.locator('[data-test="field-list"]').evaluate(node => ({ overflowY: getComputedStyle(node).overflowY, scroll: node.scrollHeight, client: node.clientHeight }));
       assert.equal(list.overflowY, "auto");
       if (long.count >= 14) assert.ok(list.scroll > list.client, `长列表应内部滚动：${JSON.stringify(list)}`);
-      await page.screenshot({ path: process.env.FIELD_DIALOG_SHOT || "/private/tmp/claude-501/-Users-zengdada-Documents------/d0f78dce-86cf-4f82-b0ec-ffad6e191c5a/scratchpad/field-dialog.png" });
+      // 桌面宽度两列：前两个格子同一行、第三个换行；窄屏退回一列
+      const tops = await dialog.locator(".portal-vue-field-dialog-row").evaluateAll(items => items.slice(0, 3).map(item => ({ top: item.offsetTop, left: item.offsetLeft })));
+      assert.equal(tops[0].top, tops[1].top, "前两个字段应在同一行");
+      assert.ok(tops[1].left > tops[0].left && tops[2].top > tops[0].top && tops[2].left === tops[0].left, `按行优先两列排布：${JSON.stringify(tops)}`);
+      assert.ok(box.width >= 800, `桌面宽度弹窗应约 860px：${box.width}`);
+      await page.screenshot({ path: "/private/tmp/claude-501/-Users-zengdada-Documents------/d0f78dce-86cf-4f82-b0ec-ffad6e191c5a/scratchpad/field-dialog-2col.png" });
+      await page.setViewportSize({ width: 640, height: 900 });
+      await page.waitForTimeout(300);
+      const narrow = await dialog.locator(".portal-vue-field-dialog-row").evaluateAll(items => items.slice(0, 2).map(item => item.offsetTop));
+      assert.ok(narrow[1] > narrow[0], "窄屏应为一列");
+      assert.ok((await dialog.boundingBox()).width <= 640 * 0.9 + 1, "窄屏弹窗不超过 90vw");
+      await page.setViewportSize({ width: 1280, height: 900 });
       await dialog.getByRole("button", { name: "取消" }).click();
     } finally {
       // 恢复：清掉隐藏字段，避免影响共用同一网关的后续用例（隐藏字段会让指标不可用），失败也会执行
