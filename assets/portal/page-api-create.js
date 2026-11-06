@@ -67,7 +67,7 @@
         this.saving=true;
         window.setTimeout(()=>{
           const first=this.selected[0]; const existing=state.apis[this.editingIndex]; const payload={name:this.form.name.trim(),usage:this.form.usage.trim(),assetTable:first.table,database:first.database,fieldNames:[...first.fieldNames],assets:this.selected.map(item=>({...item,fieldNames:[...item.fieldNames]})),rateLimit:`每分钟 ${first.rateLimit} 次`,tokenStatus:existing?.tokenStatus||"启用",creator:existing?.creator||"曾祥竞",createdAt:existing?.createdAt||"2026-07-15 10:00",lastCall:existing?.lastCall||"尚未调用",callCount:existing?.callCount||0,callCount30d:existing?.callCount30d||0,token:existing?.token||`bjgw_live_${Date.now().toString(36)}****`};
-          if(this.editingIndex<0)state.apis.unshift(payload);else Object.assign(existing,payload);
+          if(this.editingIndex<0)state.apis.unshift(payload);else{bridge.recordRouteAlias?.("api",existing.name,payload.name);Object.assign(existing,payload);}
           this.savedApi=payload;this.saving=false;notify();
           if(this.editingIndex<0)this.tokenVisible=true;else{ep.ElMessage.success("API 配置已保存");this.back();}
         },700);

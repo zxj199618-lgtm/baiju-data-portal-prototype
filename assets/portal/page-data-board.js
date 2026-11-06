@@ -30,14 +30,14 @@
               <div v-if="favorites.length" class="portal-vue-board-group">
                 <div class="portal-vue-board-group-title"><span>★ 我的收藏</span><span>{{ favorites.length }}</span></div>
                 <el-popover v-for="item in favorites" :key="'fav-'+item.board.quickBiId" placement="right" trigger="hover" :width="340" :show-after="300" :hide-after="80" popper-class="portal-vue-board-popover">
-                  <template #reference><button class="portal-vue-board-item" :class="{active:item.index===activeIndex}" type="button" @click="activeIndex=item.index"><span class="portal-vue-board-title">{{ item.board.name }}</span><span class="portal-vue-star active" title="取消收藏" @click.stop="toggleFavorite(item.board)">★</span></button></template>
+                  <template #reference><button class="portal-vue-board-item" :class="{active:item.index===activeIndex}" type="button" @click="selectBoard(item.index)"><span class="portal-vue-board-title">{{ item.board.name }}</span><span class="portal-vue-star active" title="取消收藏" @click.stop="toggleFavorite(item.board)">★</span></button></template>
                   <div class="portal-vue-board-popover-content"><strong class="portal-vue-board-popover-title">{{ item.board.name }}</strong><dl class="portal-vue-board-popover-meta"><dt>备注</dt><dd>{{ item.board.desc || '暂无备注' }}</dd><dt>看板负责人</dt><dd>{{ item.board.owner || '—' }}</dd></dl></div>
                 </el-popover>
               </div>
               <div v-for="group in groupedBoards" :key="group.category" class="portal-vue-board-group">
                 <div class="portal-vue-board-group-title"><span>{{ group.category }}</span><span>{{ group.items.length }}</span></div>
                 <el-popover v-for="item in group.items" :key="item.board.quickBiId" placement="right" trigger="hover" :width="340" :show-after="300" :hide-after="80" popper-class="portal-vue-board-popover">
-                  <template #reference><button class="portal-vue-board-item" :class="{active:item.index===activeIndex}" type="button" @click="activeIndex=item.index"><span class="portal-vue-board-title">{{ item.board.name }}</span><span class="portal-vue-star" :class="{active:isFavorite(item.board)}" :title="isFavorite(item.board)?'取消收藏':'收藏'" @click.stop="toggleFavorite(item.board)">★</span></button></template>
+                  <template #reference><button class="portal-vue-board-item" :class="{active:item.index===activeIndex}" type="button" @click="selectBoard(item.index)"><span class="portal-vue-board-title">{{ item.board.name }}</span><span class="portal-vue-star" :class="{active:isFavorite(item.board)}" :title="isFavorite(item.board)?'取消收藏':'收藏'" @click.stop="toggleFavorite(item.board)">★</span></button></template>
                   <div class="portal-vue-board-popover-content"><strong class="portal-vue-board-popover-title">{{ item.board.name }}</strong><dl class="portal-vue-board-popover-meta"><dt>备注</dt><dd>{{ item.board.desc || '暂无备注' }}</dd><dt>看板负责人</dt><dd>{{ item.board.owner || '—' }}</dd></dl></div>
                 </el-popover>
               </div>
@@ -79,7 +79,20 @@
       pointList() { return Array.from({ length: 7 }, (_, index) => ({ x: 28 + index * 58, y: 140 - ((this.seed >> index) % 85) })); },
       linePoints() { return this.pointList.map(point => `${point.x},${point.y}`).join(" "); }
     },
+    mounted() { this.pageHandler = event => { if (event.detail?.page === "数据看板") this.syncRoute(); }; window.addEventListener("portal:page-change", this.pageHandler); this.syncRoute(); },
+    beforeUnmount() { window.removeEventListener("portal:page-change", this.pageHandler); },
     methods: {
+      selectBoard(index) { this.activeIndex = index; bridge.setRouteBoard?.(state.boards[index]?.quickBiId); },
+      // 地址里指定了看板就选中它；该用户看不到时提示并显示默认看板；最后把实际显示的看板写回地址
+      syncRoute() {
+        const id = bridge.getRouteBoard?.();
+        if (id) {
+          const hit = this.indexedBoards.find(item => item.board.quickBiId === id);
+          if (hit) this.activeIndex = hit.index;
+          else bridge.routeNotice?.("你没有该看板的查看权限，已显示默认看板");
+        }
+        bridge.setRouteBoard?.(this.activeBoard?.quickBiId);
+      },
       isFavorite(board) { return state.favorites.has(board.quickBiId); },
       toggleFavorite(board) { state.favorites.has(board.quickBiId) ? state.favorites.delete(board.quickBiId) : state.favorites.add(board.quickBiId); refreshTick.value += 1; },
       openFull() { const index = state.boards.indexOf(this.activeBoard); if (index >= 0) bridge.openQuickBi(index); }

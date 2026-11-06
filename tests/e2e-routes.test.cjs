@@ -157,7 +157,7 @@ describe("路由端到端", () => {
     assert.equal(await page.locator("#tableDetailView.hidden").count(), 1, "不应打开空白详情页");
 
     await reloadAt(page, "#/dashboard/boards/QB_NOPE");
-    assert.equal(await hashOf(page), "#/dashboard");
+    assert.equal(await hashOf(page), "#/dashboard/QB_001", "不存在的看板：显示默认看板并把地址改成它");
 
     await reloadAt(page, "#/no/such/page");
     assert.equal(await hashOf(page), "#/analysis");
@@ -180,5 +180,34 @@ describe("路由端到端", () => {
     assert.equal(await pageOf(page), "配置权限");
     assert.equal(await hashOf(page), "#/permission/users/ou_7f31c9/config");
     assert.equal(await page.evaluate(() => window.portalVueBridge.users[window.portalVueBridge.getActiveUserIndex()].name), "黄佩贤");
+  }));
+  test("数据看板页：地址带看板、点选看板写回地址、看不到的看板给提示", async t => withPage(t, async page => {
+    await openAs(page, "曾祥竞", "#/dashboard/QB_002");
+    assert.equal(await pageOf(page), "数据看板");
+    assert.equal(await hashOf(page), "#/dashboard/QB_002");
+    assert.match(await page.locator("#dataBoardView .portal-vue-board-hero h2").textContent(), /存量全部渠道收入/);
+    await page.locator(".portal-vue-board-item", { hasText: "号卡订单数据" }).first().click();
+    await waitHash(page, "#/dashboard/QB_003");
+    await reloadAt(page, "#/dashboard/QB_NOPE");
+    assert.equal(await hashOf(page), "#/dashboard/QB_001", "不存在的看板：显示默认看板并把地址改成它");
+    await page.waitForFunction(() => /看板不存在或已下线/.test([...document.querySelectorAll(".el-message")].map(el => el.textContent).join("|")));
+  }));
+
+  test("API 改名后，旧名字的编辑链接仍能打开改名后的 API（别名）", async t => withPage(t, async page => {
+    await openAs(page, "曾祥竞", "#/service/open-api");
+    const names = await page.evaluate(() => {
+      const bridge = window.portalVueBridge;
+      const api = bridge.apis[0];
+      const old = api.name;
+      bridge.recordRouteAlias("api", old, "改名后的接口");
+      api.name = "改名后的接口";
+      return { old };
+    });
+    // 原型的 API 数据不落库，改名只在本次会话内有效：用旧链接在页内跳转（hashchange）验证别名
+    await page.evaluate(h => { location.hash = h; }, "#/service/open-api/" + encodeURIComponent(names.old) + "/edit");
+    assert.equal(await pageOf(page), "新增API");
+    assert.equal(await hashOf(page), "#/service/open-api/改名后的接口/edit");
+    assert.equal(await page.evaluate(() => window.portalApiEditingIndex), 0);
+    await page.waitForFunction(() => /已改名为「改名后的接口」/.test([...document.querySelectorAll(".el-message")].map(el => el.textContent).join("|")));
   }));
 });

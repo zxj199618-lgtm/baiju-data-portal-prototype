@@ -68,20 +68,20 @@
   const operationLogUaDesktop = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
   const operationLogUaMobile = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
   const operationLogPages = [
-    ["https://gxt.lumofyi.com/#page=数据看板", "https://gxt.lumofyi.com/#page=灵犀智析"],
-    ["https://gxt.lumofyi.com/#page=数据告警", "https://gxt.lumofyi.com/#page=数据看板"],
-    ["https://gxt.lumofyi.com/#page=灵犀智析", ""],
-    ["https://gxt.lumofyi.com/#page=人群包管理", "https://gxt.lumofyi.com/#page=数据看板"],
-    ["https://gxt.lumofyi.com/#page=表管理", "https://gxt.lumofyi.com/#page=数据资产"],
-    ["https://gxt.lumofyi.com/#page=权限组", "https://gxt.lumofyi.com/#page=用户管理"],
-    ["https://gxt.lumofyi.com/#page=数据告警", ""],
-    ["https://gxt.lumofyi.com/#page=数据看板", "https://gxt.lumofyi.com/#page=人群包管理"],
-    ["https://gxt.lumofyi.com/#page=标签管理", "https://gxt.lumofyi.com/#page=表管理"],
-    ["https://gxt.lumofyi.com/#page=灵犀智析", "https://gxt.lumofyi.com/#page=数据告警"],
-    ["https://gxt.lumofyi.com/#page=人群包推送渠道", "https://gxt.lumofyi.com/#page=人群包管理"],
-    ["https://gxt.lumofyi.com/#page=数据看板", ""],
-    ["https://gxt.lumofyi.com/#page=用户管理", "https://gxt.lumofyi.com/#page=权限组"],
-    ["https://gxt.lumofyi.com/#page=字典管理", "https://gxt.lumofyi.com/#page=表管理"]
+    ["https://gxt.lumofyi.com/#/dashboard", "https://gxt.lumofyi.com/#/analysis"],
+    ["https://gxt.lumofyi.com/#/alerts", "https://gxt.lumofyi.com/#/dashboard"],
+    ["https://gxt.lumofyi.com/#/analysis", ""],
+    ["https://gxt.lumofyi.com/#/service/audience-packages", "https://gxt.lumofyi.com/#/dashboard"],
+    ["https://gxt.lumofyi.com/#/asset/tables", "https://gxt.lumofyi.com/#/asset/tables"],
+    ["https://gxt.lumofyi.com/#/permission/groups", "https://gxt.lumofyi.com/#/permission/users"],
+    ["https://gxt.lumofyi.com/#/alerts", ""],
+    ["https://gxt.lumofyi.com/#/dashboard", "https://gxt.lumofyi.com/#/service/audience-packages"],
+    ["https://gxt.lumofyi.com/#/asset/tags", "https://gxt.lumofyi.com/#/asset/tables"],
+    ["https://gxt.lumofyi.com/#/analysis", "https://gxt.lumofyi.com/#/alerts"],
+    ["https://gxt.lumofyi.com/#/push/channels", "https://gxt.lumofyi.com/#/service/audience-packages"],
+    ["https://gxt.lumofyi.com/#/dashboard", ""],
+    ["https://gxt.lumofyi.com/#/permission/users", "https://gxt.lumofyi.com/#/permission/groups"],
+    ["https://gxt.lumofyi.com/#/asset/dictionaries", "https://gxt.lumofyi.com/#/asset/tables"]
   ];
   const operationLogDashboards = [
     ["quickbi_sales_daily", "经营日报看板"],
@@ -94,10 +94,12 @@
     ["quickbi_channel_quality", "渠道质量周报"]
   ];
 
-  /* 页面访问埋点上报的菜单名称：与页面 URL 中的 #page= 一致 */
+  /* 页面访问埋点上报的菜单名称：由页面 URL 里的地址（#/asset/tables）还原；也认旧的 #page= 地址 */
   function operationLogMenuName(url) {
-    const matched = String(url || "").match(/[#&?]page=([^&]*)/);
-    return matched ? decodeURIComponent(matched[1]) : "";
+    const text = String(url || "");
+    const hash = text.includes("#") ? text.slice(text.indexOf("#")) : "";
+    const parsed = window.PortalRoutes ? window.PortalRoutes.parseHash(hash) : null;
+    return parsed && !parsed.invalid ? parsed.page : "";
   }
 
   function buildOperationLogs() {
@@ -153,7 +155,7 @@
             dashboard_id: board[0],
             duration_seconds: beat * 10,
             page_type: "quick_bi_dashboard",
-            url: "https://gxt.lumofyi.com/#page=数据看板&board=" + board[0],
+            url: "https://gxt.lumofyi.com/#/dashboard/" + board[0],
             distinct_id: user.device,
             user_agent: user.platform === "h5" ? operationLogUaMobile : operationLogUaDesktop,
             platform: user.platform,

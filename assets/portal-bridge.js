@@ -2967,6 +2967,7 @@
             return;
           }
           const oldName = group.name;
+          recordRouteAlias("group", oldName, name);
           group.name = name;
           group.desc = document.getElementById("editGroupDesc").value.trim() || "自定义权限组。";
           simpleUsers.forEach(user => { if (user.group === oldName) user.group = name; });
@@ -3070,6 +3071,34 @@
       /* ===== 路由：页面名 ⇄ 地址（assets/portal-routes.js），详情页把对象标识放进地址 ===== */
       let routeHistoryMode = "push";
       let routeGroup = "";
+      let routeBoard = "";
+      /* 改名别名：权限组 / API 改名后，旧名字的链接仍能打开改名后的对象（存在本机浏览器里） */
+      const ALIAS_KEY = "portalRouteAliases";
+      function readAliases() { try { return JSON.parse(localStorage.getItem(ALIAS_KEY) || "{}"); } catch (error) { return {}; } }
+      function recordRouteAlias(kind, oldName, newName) {
+        if (!oldName || !newName || oldName === newName) return;
+        try {
+          const all = readAliases();
+          const map = all[kind] || (all[kind] = {});
+          Object.keys(map).forEach(key => { if (map[key] === oldName) map[key] = newName; });
+          map[oldName] = newName;
+          delete map[newName];
+          localStorage.setItem(ALIAS_KEY, JSON.stringify(all));
+        } catch (error) { /* 隐私模式忽略 */ }
+      }
+      /** 按名称找对象；找不到时顺着改名别名找，返回 {item, renamed} */
+      function findByNameOrAlias(kind, list, name) {
+        const direct = list.find(item => item.name === name);
+        if (direct) return { item: direct, renamed: false };
+        const map = readAliases()[kind] || {};
+        let current = name;
+        for (let step = 0; step < 5 && map[current]; step += 1) {
+          current = map[current];
+          const hit = list.find(item => item.name === current);
+          if (hit) return { item: hit, renamed: true };
+        }
+        return { item: null, renamed: false };
+      }
       let routeBootExplicit = false;
       let routeChecked = false;
       /** 路由提示：用 Element 消息条（5 秒、不会被后续 toast 覆盖），没加载时退回 toast */
@@ -3094,6 +3123,7 @@
         else if (page === "维表数据维护") { if (window.portalDimensionAssetId) params.dim = window.portalDimensionAssetId; }
         else if (page === "新增API") { const api = apiConfigs[window.portalApiEditingIndex]; if (api) params.api = api.name; }
         else if (page === "权限组") { if (routeGroup) params.group = routeGroup; }
+        else if (page === "数据看板") { if (routeBoard) params.board = routeBoard; }
         return params;
       }
 
@@ -3124,13 +3154,24 @@
           window.portalDimensionAssetId = params.dim;
         } else if (page === "新增API") {
           if (params.api) {
-            const index = apiConfigs.findIndex(api => api.name === params.api);
-            if (index < 0) return fallback("数据开放平台", "链接中的 API 不存在或已删除，已回到数据开放平台");
-            window.portalApiEditingIndex = index;
+            const found = findByNameOrAlias("api", apiConfigs, params.api);
+            if (!found.item) return fallback("数据开放平台", "链接中的 API 不存在或已删除，已回到数据开放平台");
+            window.portalApiEditingIndex = apiConfigs.indexOf(found.item);
+            if (found.renamed) return { page, notice: `该 API 已改名为「${found.item.name}」，地址已更新` };
           } else window.portalApiEditingIndex = -1;
         } else if (page === "权限组") {
-          if (params.group && !permissionGroups.some(group => group.name === params.group)) return fallback("权限组", "链接中的权限组不存在或已删除，已显示第一个权限组");
-          routeGroup = params.group || "";
+          if (params.group) {
+            const found = findByNameOrAlias("group", permissionGroups, params.group);
+            if (!found.item) { routeGroup = ""; return fallback("权限组", "链接中的权限组不存在或已删除，已显示第一个权限组"); }
+            routeGroup = found.item.name;
+            if (found.renamed) return { page, notice: `该权限组已改名为「${found.item.name}」，地址已更新` };
+          } else routeGroup = "";
+        } else if (page === "数据看板") {
+          if (params.board) {
+            const board = migratedBoards.find(item => item.quickBiId === params.board);
+            if (!board || board.status !== "已上线") { routeBoard = ""; return fallback("数据看板", "链接中的看板不存在或已下线，已显示默认看板"); }
+            routeBoard = board.quickBiId;
+          } else routeBoard = "";
         }
         return { page };
       }
@@ -3170,6 +3211,14 @@
         routeGroup = name || "";
         if (activePage !== "权限组") return;
         const hash = PortalRoutes.toHash("权限组", routeParams("权限组"));
+        try { if (hash && !sameHash(location.hash, hash)) history.replaceState(null, "", hash); localStorage.setItem("portalLastRoute", hash); } catch (error) { /* 忽略 */ }
+      }
+
+      /** 数据看板页：选中的看板写进地址（只替换当前记录） */
+      function setRouteBoard(id) {
+        routeBoard = id || "";
+        if (activePage !== "数据看板") return;
+        const hash = PortalRoutes.toHash("数据看板", routeParams("数据看板"));
         try { if (hash && !sameHash(location.hash, hash)) history.replaceState(null, "", hash); localStorage.setItem("portalLastRoute", hash); } catch (error) { /* 忽略 */ }
       }
 
@@ -3844,6 +3893,10 @@
         getDimensionAssetId: () => window.portalDimensionAssetId || "",
         setDimensionAssetId: value => { window.portalDimensionAssetId = value; },
         getRouteGroup: () => routeGroup,
+        getRouteBoard: () => routeBoard,
+        setRouteBoard,
+        routeNotice,
+        recordRouteAlias,
         setRouteGroup,
         /* 服务端权限同步完成后调用：直达链接指向没有权限的菜单时，回到第一个有权限的页面并提示 */
         recheckRoute: () => {

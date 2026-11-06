@@ -20,6 +20,7 @@
   const ROUTES = [
     { page: "灵犀智析", path: "/analysis" },
     { page: "数据看板", path: "/dashboard" },
+    { page: "数据看板", path: "/dashboard/:board", optional: true },
     { page: "Quick BI 展示", path: "/dashboard/boards/:board", list: "数据看板", menu: "数据看板" },
     { page: "人群包管理", path: "/service/audience-packages" },
     { page: "新建人群包", path: "/service/audience-packages/new", menu: "人群包管理" },
@@ -111,7 +112,7 @@
       const table = query.get("table") || "";
       if (db && table) params.table = `${db}.${table}`;
     }
-    if (page === "Quick BI 展示" && query.get("board")) params.board = query.get("board");
+    if ((page === "Quick BI 展示" || page === "数据看板") && query.get("board")) params.board = query.get("board");
     const needs = routesOfPage(page).map(route => route.params);
     const complete = needs.some(keys => keys.every(key => params[key]));
     if (!complete) {

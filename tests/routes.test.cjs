@@ -62,3 +62,11 @@ test("菜单权限：详情页继承所属菜单", () => {
   assert.equal(R.menuOf("补数据"), "补数据");
   assert.equal(R.listOf("表详情"), "表管理");
 });
+
+test("数据看板页可带看板：#/dashboard/<id>，旧的 &board= 也能还原", () => {
+  assert.equal(R.toHash("数据看板", { board: "QB_002" }), "#/dashboard/QB_002");
+  assert.equal(R.toHash("数据看板"), "#/dashboard");
+  assert.deepEqual(R.parsePath("#/dashboard/QB_002"), { page: "数据看板", params: { board: "QB_002" } });
+  assert.deepEqual(R.parsePath("#/dashboard/boards/QB_002"), { page: "Quick BI 展示", params: { board: "QB_002" } });
+  assert.deepEqual(R.parseHash("#page=" + encodeURIComponent("数据看板") + "&board=QB_003"), { page: "数据看板", params: { board: "QB_003" }, legacy: true });
+});
