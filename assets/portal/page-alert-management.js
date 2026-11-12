@@ -556,7 +556,7 @@
               <div class="portal-vue-alert-section-title">3 · 配置告警规则</div>
               <el-form-item label="触发条件" prop="conditions" class="portal-vue-alert-wide">
                 <div class="portal-vue-alert-rule">
-                  <button type="button" class="portal-vue-alert-relation" aria-label="切换条件关系" @click="toggleRelation"><span>{{ form.relation === 'AND' ? '且' : '或' }}</span></button>
+                  <button type="button" class="portal-vue-alert-relation" :class="{ 'is-or': form.relation !== 'AND' }" aria-label="切换条件关系" @click="toggleRelation"><span>{{ form.relation === 'AND' ? '且' : '或' }}</span></button>
                   <div class="portal-vue-alert-condition-list">
                     <div v-for="(condition, index) in form.conditions" :key="index" class="portal-vue-alert-condition-row" :class="{ 'portal-vue-alert-row-grain': condition.op === 'timeBetween' }">
                       <el-select v-model="condition.field" filterable @change="changeConditionField(condition)">
@@ -700,15 +700,15 @@
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">6 · 设置告警方式</div>
               <el-form-item label="告警方式" prop="mode">
-                <el-radio-group v-model="form.mode">
-                  <el-radio value="realtime">实时（事件到达即计算并通知）</el-radio>
-                  <el-radio value="scheduled">定时（按调度周期扫描）</el-radio>
+                <el-radio-group v-model="form.mode" class="lanhu-segment">
+                  <el-radio-button value="realtime">实时（事件到达即计算并通知）</el-radio-button>
+                  <el-radio-button value="scheduled">定时（按调度周期扫描）</el-radio-button>
                 </el-radio-group>
               </el-form-item>
               <el-form-item v-if="form.mode === 'scheduled'" label="检查频率" prop="schedule.freq">
-                <el-select v-model="form.schedule.freq">
-                  <el-option v-for="item in freqChoices" :key="item" :label="item" :value="item"></el-option>
-                </el-select>
+                <el-radio-group v-model="form.schedule.freq" class="lanhu-segment">
+                  <el-radio-button v-for="item in freqChoices" :key="item" :value="item">{{ item }}</el-radio-button>
+                </el-radio-group>
               </el-form-item>
               <el-form-item v-if="form.mode === 'scheduled' && form.schedule.freq === '每周'" label="执行日" prop="schedule.weekday">
                 <el-select v-model="form.schedule.weekday" placeholder="选择周几">
@@ -724,8 +724,8 @@
                 <el-time-picker v-else v-model="form.schedule.time" format="HH:mm" value-format="HH:mm" placeholder="选择时间"></el-time-picker>
               </el-form-item>
               <el-form-item label="重复告警" class="portal-vue-alert-wide" prop="dedup.mode">
-                <el-radio-group v-model="form.dedup.mode">
-                  <el-radio v-for="item in dedupChoices" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
+                <el-radio-group v-model="form.dedup.mode" class="lanhu-segment">
+                  <el-radio-button v-for="item in dedupChoices" :key="item.value" :value="item.value">{{ item.label }}</el-radio-button>
                 </el-radio-group>
               </el-form-item>
               <el-form-item v-if="form.dedup.mode !== 'always'" label="重复判定字段" prop="keyField">

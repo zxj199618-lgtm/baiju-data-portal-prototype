@@ -1,5 +1,5 @@
 #cpVueModule {
-  --el-color-primary: #1677ff;
+  --el-color-primary: #0066FF;
   --el-color-primary-light-3: #5b9cff;
   --el-color-primary-light-5: #8ab7ff;
   --el-color-primary-light-8: #dbeaff;
@@ -67,7 +67,7 @@
 .cp-vue-muted { color: #98a2b3; }
 .cp-vue-actions { display: flex; align-items: center; white-space: nowrap; }
 .cp-vue-actions .el-button + .el-button { margin-left: 10px; }
-.cp-vue-table .el-switch { --el-switch-on-color: #1677ff; }
+.cp-vue-table .el-switch { --el-switch-on-color: #0066FF; }
 
 .cp-vue-pagination {
   min-height: 56px;
@@ -106,7 +106,7 @@
 .cp-vue-category .el-radio-button,
 .cp-vue-mode .el-radio-button { margin: 0; }
 .cp-vue-category .el-radio-button.is-active .el-radio-button__inner,
-.cp-vue-mode .el-radio-button.is-active .el-radio-button__inner { border-color: #1677ff !important; background: #edf5ff; color: #075fd8; }
+.cp-vue-mode .el-radio-button.is-active .el-radio-button__inner { border-color: #0066FF !important; background: #edf5ff; color: #075fd8; }
 .cp-vue-requirement-category-field { width: 100%; }
 .cp-vue-requirement-category-field > .el-select { width: 100%; }
 .cp-vue-category-dialog .el-dialog__body { padding-top: 8px; }
@@ -143,7 +143,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #1677ff;
+  color: #0066FF;
   font-weight: 700;
   cursor: pointer;
 }
@@ -168,7 +168,7 @@
 .cp-vue-sql-stack { width: min(100%, 760px); }
 .cp-vue-sql-note { width: 100%; margin-bottom: 8px; padding: 9px 12px; border: 1px dashed #c3d8ff; border-radius: 8px; background: #f7faff; color: #334d7a; font-size: 12.5px; line-height: 1.55; }
 .cp-vue-sql-editor { position: relative; width: min(100%, 720px); height: 228px; overflow: hidden; border: 1px solid #dfe5ee; border-radius: 8px; background: #f7f8fa; }
-.cp-vue-sql-editor:focus-within { border-color: #8ab7ff; box-shadow: 0 0 0 2px rgba(22,119,255,.08); }
+.cp-vue-sql-editor:focus-within { border-color: #8ab7ff; box-shadow: 0 0 0 2px rgba(0,102,255,.08); }
 .cp-vue-sql-toolbar { position: absolute; z-index: 3; top: 0; right: 0; left: 0; height: 40px; padding: 0 8px; display: flex; align-items: center; justify-content: flex-end; border-bottom: 1px solid #e3e7ed; background: rgba(255,255,255,.88); }
 .cp-vue-sql-toolbar .el-button { min-height: 30px !important; padding: 4px 8px !important; }
 .cp-vue-sql-highlight,
@@ -187,7 +187,7 @@
 .cp-vue-validation-step.success { border-color: #c6eadf; background: #fbfffd; }
 .cp-vue-validation-step.error { border-color: #ffc9c5; background: #fffafa; }
 .cp-vue-validation-icon { display: inline-flex; width: 18px; height: 18px; align-items: center; justify-content: center; border: 1px solid #c7d0dd; border-radius: 50%; color: #98a2b3; font-size: 12px; font-weight: 700; }
-.cp-vue-validation-step.checking .cp-vue-validation-icon { border-color: #1677ff; border-top-color: transparent; animation: cp-vue-spin .72s linear infinite; }
+.cp-vue-validation-step.checking .cp-vue-validation-icon { border-color: #0066FF; border-top-color: transparent; animation: cp-vue-spin .72s linear infinite; }
 .cp-vue-validation-step.success .cp-vue-validation-icon { border-color: #20a36a; background: #20a36a; color: #fff; }
 .cp-vue-validation-step.error .cp-vue-validation-icon { border-color: #e5484d; background: #e5484d; color: #fff; }
 .cp-vue-validation-copy { min-width: 0; }
@@ -196,7 +196,7 @@
 .cp-vue-validation-step.success .cp-vue-validation-copy span { color: #14845a; }
 .cp-vue-validation-step.error .cp-vue-validation-copy span { color: #d4380d; }
 .cp-vue-validation-state { padding-left: 12px; color: #98a2b3; font-size: 12px; white-space: nowrap; }
-.cp-vue-validation-step.checking .cp-vue-validation-state { color: #1677ff; }
+.cp-vue-validation-step.checking .cp-vue-validation-state { color: #0066FF; }
 .cp-vue-validation-step.success .cp-vue-validation-state { color: #14845a; }
 .cp-vue-validation-step.error .cp-vue-validation-state { color: #d4380d; }
 .cp-vue-validation-error { margin: 14px 0 0; }

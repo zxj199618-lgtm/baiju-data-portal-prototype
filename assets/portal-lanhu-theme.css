@@ -1,0 +1,616 @@
+/* 观星台 · 蓝湖取样主题
+   色值来自 docs/superpowers/specs/2026-11-12-lanhu-visual-refresh-design.md。
+   本文件在 portal-shell.css 之后加载，集中覆盖 Element Plus 与门户银件。
+   下拉层会挂到 body，所以令牌写在 :root，不只有 #portalApp。
+
+   图上量不出、按观感取的假设（不是新的字体规范）：
+   - 继续用壳层已有的系统字体，正文 14px，不另起字族。
+   - 控件高度 32px（现稿 38px 偏高），输入/按钮圆角 6px，侧栏选中条与卡片圆角 8px。
+   - 胶囊分段圆角 16px，权限组标签圆角 4px，当前页码圆角 4px。
+   - 主按钮悬停 #0052CC，次按钮悬停 #E8EBF1；按钮不做投影。
+   - 分组标题竖条 3×14px、圆角 2px。
+   - 表头行高 44px、表体行高 48px。
+   - 用户头像色块只用于列表里的姓氏方块，不是品牌色。
+*/
+
+:root {
+  --lanhu-primary: #0066FF;
+  --lanhu-primary-rgb: 0, 102, 255;
+  --lanhu-primary-hover: #0052CC;
+  --lanhu-primary-active: #0047B3;
+  --lanhu-logo: #012050;
+  --lanhu-sidebar: #FAFAFA;
+  --lanhu-canvas: #F2F4F9;
+  --lanhu-surface: #FFFFFF;
+  --lanhu-header: #EDEFF8;
+  --lanhu-soft: #F9FAFE;
+  --lanhu-secondary: #F3F5F9;
+  --lanhu-secondary-hover: #E8EBF1;
+  --lanhu-chip: #F4F9FF;
+  --lanhu-info: #E3EFFF;
+  --lanhu-text: #2C3034;
+  --lanhu-text-2: #616467;
+  --lanhu-text-3: #464A4E;
+  --lanhu-nav-text: #5A5F6C;
+  --lanhu-nav-icon: #ADB8C7;
+  --lanhu-placeholder: #959799;
+  --lanhu-action: #6F737E;
+  --lanhu-border: #DCDFE6;
+  --lanhu-line: #E5E5E5;
+  --lanhu-line-2: #E6E9ED;
+  --lanhu-success: #009831;
+  --lanhu-success-bg: #F0FCF3;
+  --lanhu-success-bg-2: #CBECD3;
+  --lanhu-danger: #EE5353;
+  --lanhu-danger-bg: #FFECEC;
+  --lanhu-and: #E6F0FF;
+  --lanhu-drawer-close: #E6E9ED;
+  --blue: #0066FF;
+  --blue-600: #0052CC;
+  --blue-50: #E6F0FF;
+  --text: #2C3034;
+  --muted: #616467;
+  --line: #E6E9ED;
+  --light: #F9FAFE;
+  --soft: #F3F5F9;
+  --green: #009831;
+  --red: #EE5353;
+
+  --el-color-primary: #0066FF;
+  --el-color-primary-rgb: 0, 102, 255;
+  --el-color-primary-light-3: #4D94FF;
+  --el-color-primary-light-5: #80B3FF;
+  --el-color-primary-light-7: #B3D1FF;
+  --el-color-primary-light-8: #CCE0FF;
+  --el-color-primary-light-9: #E6F0FF;
+  --el-color-primary-dark-2: #0052CC;
+  --el-color-success: #009831;
+  --el-color-success-rgb: 0, 152, 49;
+  --el-color-success-light-3: #4DB76F;
+  --el-color-success-light-5: #80CC99;
+  --el-color-success-light-8: #CBECD3;
+  --el-color-success-light-9: #F0FCF3;
+  --el-color-danger: #EE5353;
+  --el-color-danger-rgb: 238, 83, 83;
+  --el-color-danger-light-3: #F38787;
+  --el-color-danger-light-5: #F7A9A9;
+  --el-color-danger-light-8: #FCDDDD;
+  --el-color-danger-light-9: #FFECEC;
+  --el-color-error: #EE5353;
+  --el-color-error-rgb: 238, 83, 83;
+  --el-color-error-light-3: #F38787;
+  --el-color-error-light-5: #F7A9A9;
+  --el-color-error-light-8: #FCDDDD;
+  --el-color-error-light-9: #FFECEC;
+  --el-border-color: #DCDFE6;
+  --el-border-color-light: #E6E9ED;
+  --el-border-color-lighter: #E5E5E5;
+  --el-border-color-extra-light: #F3F5F9;
+  --el-text-color-primary: #2C3034;
+  --el-text-color-regular: #464A4E;
+  --el-text-color-secondary: #616467;
+  --el-text-color-placeholder: #959799;
+  --el-fill-color-light: #F9FAFE;
+  --el-fill-color-lighter: #FAFAFA;
+  --el-fill-color-blank: #FFFFFF;
+  --el-bg-color: #FFFFFF;
+  --el-bg-color-page: #FFFFFF;
+  --el-border-radius-base: 6px;
+  --el-border-radius-small: 4px;
+  --el-component-size: 32px;
+  --el-font-size-base: 14px;
+  --el-table-header-bg-color: #EDEFF8;
+  --el-table-header-text-color: #5A5F6C;
+  --el-table-text-color: #2C3034;
+  --el-table-row-hover-bg-color: #F9FAFE;
+  --el-table-border-color: #E6E9ED;
+  --el-mask-color: rgba(44, 48, 52, .45);
+}
+
+#portalApp[data-element-migrated="true"],
+#cpVueModule {
+  --el-color-primary: #0066FF;
+  --el-color-primary-rgb: 0, 102, 255;
+  --el-color-primary-light-3: #4D94FF;
+  --el-color-primary-light-5: #80B3FF;
+  --el-color-primary-light-7: #B3D1FF;
+  --el-color-primary-light-8: #CCE0FF;
+  --el-color-primary-light-9: #E6F0FF;
+  --el-color-primary-dark-2: #0052CC;
+  --el-color-success: #009831;
+  --el-color-success-light-8: #CBECD3;
+  --el-color-success-light-9: #F0FCF3;
+  --el-color-danger: #EE5353;
+  --el-color-danger-light-9: #FFECEC;
+  --el-color-error: #EE5353;
+  --el-border-color: #DCDFE6;
+  --el-border-color-light: #E6E9ED;
+  --el-text-color-primary: #2C3034;
+  --el-text-color-regular: #464A4E;
+  --el-text-color-secondary: #616467;
+  --el-text-color-placeholder: #959799;
+  --el-fill-color-light: #F9FAFE;
+  --el-fill-color-lighter: #FAFAFA;
+  --el-border-radius-base: 6px;
+  --el-component-size: 32px;
+  --el-component-size-small: 28px;
+  --el-table-header-bg-color: #EDEFF8;
+  --el-table-header-text-color: #5A5F6C;
+  --el-table-border-color: #E6E9ED;
+}
+
+/* 下拉面板：附录注释最大高度 400px，矮内容不撑死 */
+.el-select-dropdown__wrap,
+.el-dropdown__popper .el-scrollbar__wrap {
+  max-height: 400px;
+}
+
+/* ---------- 按钮 ---------- */
+.el-button {
+  font-weight: 500;
+}
+
+.el-button--primary {
+  --el-button-bg-color: #0066FF;
+  --el-button-border-color: #0066FF;
+  --el-button-text-color: #fff;
+  --el-button-hover-bg-color: #0052CC;
+  --el-button-hover-border-color: #0052CC;
+  --el-button-hover-text-color: #fff;
+  --el-button-active-bg-color: #0047B3;
+  --el-button-active-border-color: #0047B3;
+  --el-button-active-text-color: #fff;
+  --el-button-disabled-bg-color: #80B3FF;
+  --el-button-disabled-border-color: #80B3FF;
+  --el-button-disabled-text-color: #fff;
+}
+
+/* 默认次按钮没有 --default 修饰类，变量写在 .el-button 上 */
+.el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not(.is-link):not(.is-text):not(.lanhu-drawer-close) {
+  --el-button-bg-color: #F3F5F9;
+  --el-button-border-color: #F3F5F9;
+  --el-button-text-color: #5A5F6C;
+  --el-button-hover-bg-color: #E8EBF1;
+  --el-button-hover-border-color: #E8EBF1;
+  --el-button-hover-text-color: #5A5F6C;
+  --el-button-active-bg-color: #DDE1E8;
+  --el-button-active-border-color: #DDE1E8;
+  --el-button-active-text-color: #5A5F6C;
+  --el-button-disabled-bg-color: #F3F5F9;
+  --el-button-disabled-border-color: #F3F5F9;
+  --el-button-disabled-text-color: #959799;
+}
+
+.el-button.is-link {
+  background: transparent;
+  border-color: transparent;
+  height: auto;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.btn.primary {
+  background: #0066FF;
+  box-shadow: none;
+}
+
+.btn.ghost {
+  background: #F3F5F9;
+  color: #5A5F6C;
+}
+
+/* 表格操作列：灰色文字，删除仍用红色 */
+.portal-vue-actions .el-button.is-link:not(.el-button--danger),
+.lanhu-action.is-link,
+.lanhu-action.el-button {
+  --el-button-text-color: #5A5F6C;
+  --el-button-hover-text-color: #2C3034;
+  color: #5A5F6C !important;
+  font-weight: 400;
+}
+
+.portal-vue-actions .el-button.is-link.el-button--danger {
+  color: #EE5353 !important;
+}
+
+/* ---------- 表格 / 分页 ---------- */
+.portal-vue-table .el-table__header th.el-table__cell,
+.el-table th.el-table__cell {
+  height: 44px;
+  background: #EDEFF8;
+  color: #5A5F6C;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.portal-vue-table .el-table__body td.el-table__cell {
+  height: 48px;
+  color: #2C3034;
+  font-size: 14px;
+}
+
+.portal-vue-table .el-table__row:hover > td.el-table__cell {
+  background: #F9FAFE;
+}
+
+.portal-vue-name { color: #2C3034; }
+
+.el-pagination .el-pager li.is-active {
+  background: #0066FF;
+  color: #fff;
+  border-radius: 4px;
+}
+
+.portal-vue-pagination > span { color: #959799; }
+
+/* ---------- 表单 ---------- */
+#portalApp[data-element-migrated="true"] .el-input__wrapper,
+#portalApp[data-element-migrated="true"] .el-select__wrapper,
+#portalApp[data-element-migrated="true"] .el-date-editor,
+#portalApp[data-element-migrated="true"] .el-input-number {
+  min-height: 32px;
+}
+
+.el-form-item__label { color: #464A4E; }
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  border-radius: 6px;
+}
+
+/* ---------- 分段胶囊 ---------- */
+.el-radio-group.lanhu-segment {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lanhu-segment .el-radio-button__inner {
+  border: 1px solid #E6E9ED !important;
+  border-radius: 16px !important;
+  background: #fff;
+  color: #5A5F6C;
+  box-shadow: none !important;
+  padding: 8px 16px;
+  font-weight: 500;
+}
+
+.lanhu-segment .el-radio-button.is-active .el-radio-button__inner {
+  background: #0066FF;
+  border-color: #0066FF !important;
+  color: #fff;
+}
+
+.lanhu-segment .el-radio-button:focus-visible .el-radio-button__inner {
+  box-shadow: none !important;
+}
+
+/* ---------- 侧栏 / 顶栏 ---------- */
+.sidebar {
+  background: #FAFAFA;
+  border-right: 1px solid #E6E9ED;
+}
+
+.portal-vue-brand {
+  border-bottom-color: #E6E9ED;
+  background: #FAFAFA;
+}
+
+.portal-vue-menu {
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: #5A5F6C;
+  --el-menu-hover-text-color: #5A5F6C;
+  --el-menu-hover-bg-color: #F3F5F9;
+  --el-menu-active-color: #0066FF;
+  background: transparent !important;
+}
+
+.portal-vue-menu .el-menu { background: transparent !important; }
+
+.portal-vue-menu .el-menu-item,
+.portal-vue-menu .el-sub-menu__title {
+  color: #5A5F6C;
+  font-weight: 500;
+  border-radius: 8px;
+}
+
+.portal-vue-menu .el-menu-item:hover,
+.portal-vue-menu .el-sub-menu__title:hover {
+  background: #F3F5F9;
+  color: #5A5F6C;
+}
+
+.portal-vue-menu .el-sub-menu.is-active > .el-sub-menu__title {
+  color: #5A5F6C !important;
+  background: transparent !important;
+  border-bottom: 0 !important;
+}
+
+.portal-vue-menu > .el-menu-item.is-active,
+.portal-vue-menu .el-sub-menu .el-menu-item.is-active {
+  background: #0066FF !important;
+  color: #fff !important;
+  border-radius: 8px;
+}
+
+.portal-vue-menu > .el-menu-item.is-active:hover,
+.portal-vue-menu .el-sub-menu .el-menu-item.is-active:hover {
+  background: #0052CC !important;
+  color: #fff !important;
+}
+
+.portal-vue-menu .el-menu-item.is-active .portal-nav-icon {
+  filter: brightness(0) invert(1);
+}
+
+.portal-vue-menu .el-sub-menu__icon-arrow { color: #ADB8C7; }
+
+.nav-head { color: #5A5F6C; font-weight: 500; }
+.nav-head.active {
+  background: #0066FF;
+  color: #fff;
+  box-shadow: none;
+}
+.nav-head.active .nav-icon { filter: brightness(0) invert(1); }
+.subnav button.active {
+  color: #fff;
+  background: #0066FF;
+  font-weight: 500;
+}
+
+.lanhu-menu-popper.el-menu--popup,
+.lanhu-menu-popper {
+  background: #fff;
+}
+.lanhu-menu-popper .el-menu-item {
+  color: #5A5F6C;
+  border-radius: 8px;
+}
+.lanhu-menu-popper .el-menu-item.is-active {
+  background: #0066FF !important;
+  color: #fff !important;
+}
+
+.portal-vue-tab {
+  color: #5A5F6C;
+  background: transparent;
+  font-weight: 500;
+}
+.portal-vue-tab.active {
+  color: #0066FF;
+  background: transparent;
+  font-weight: 650;
+}
+.portal-vue-user { color: #2C3034; }
+.portal-vue-user .el-avatar { background: #0066FF; }
+
+.topbar,
+.portal-vue-topbar { background: #fff; }
+
+.portal-vue-page-head h1 { color: #2C3034; }
+.portal-vue-page-head p { color: #959799; }
+
+/* ---------- 筛选条 / 用户管理 ---------- */
+.portal-vue-user-layout {
+  display: block;
+  margin-top: 0;
+  min-height: 0;
+  border: 1px solid #E6E9ED;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.lanhu-filter-bar { border-bottom: 0; }
+
+.lanhu-field-label {
+  color: #2C3034;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.lanhu-filter-bar .portal-vue-search { width: 280px; }
+
+.lanhu-filter-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.lanhu-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 0 16px 12px;
+}
+
+.lanhu-filter-chip {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #5A5F6C;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lanhu-filter-chip:hover { background: #F3F5F9; }
+
+.lanhu-filter-chip.active {
+  background: #F4F9FF;
+  color: #0066FF;
+  font-weight: 650;
+}
+
+.portal-vue-user-cell .el-avatar {
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.lanhu-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #2C3034;
+}
+
+.lanhu-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #C8CCD3;
+}
+
+.lanhu-status.is-on i { background: #009831; }
+
+.lanhu-perm-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.portal-vue-panel { border-color: #E6E9ED; }
+
+/* ---------- 分组标题竖条 ---------- */
+.lanhu-section-title,
+.portal-vue-alert-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #2C3034;
+  font-weight: 650;
+}
+
+.lanhu-section-title::before,
+.portal-vue-alert-section-title::before {
+  content: "";
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: #0066FF;
+  flex: none;
+}
+
+.portal-vue-skill-section > strong {
+  padding-left: 10px;
+  border-left: 3px solid #0066FF;
+}
+
+/* ---------- 且 / 或 ---------- */
+.portal-vue-alert-relation span {
+  background: #E6F0FF;
+  color: #0066FF;
+}
+
+.portal-vue-alert-relation.is-or span {
+  background: #FFECEC;
+  color: #EE5353;
+}
+
+.portal-vue-alert-relation.is-or::before { border-color: #F7C4C4; }
+
+.portal-vue-alert-ok { color: #009831; }
+
+/* 推送预览：浅蓝标题带 + 白底字段 */
+.portal-vue-alert-preview {
+  background: #F2F4F9;
+  border-color: #E6E9ED;
+}
+
+.portal-vue-alert-preview-card {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #E6E9ED;
+  border-left: 1px solid #E6E9ED;
+  border-radius: 8px;
+}
+
+.portal-vue-alert-preview-title {
+  padding: 12px 14px;
+  background: #E3EFFF;
+  color: #2C3034;
+}
+
+.portal-vue-alert-preview-body {
+  margin: 0;
+  padding: 12px 14px 4px;
+  border-top: 0;
+}
+
+.portal-vue-alert-preview-foot {
+  margin: 0;
+  padding: 4px 14px 12px;
+  border-top: 0;
+  color: #959799;
+}
+
+/* ---------- 抽屉 ---------- */
+.lanhu-detail-drawer .el-drawer__header {
+  margin-bottom: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid #E6E9ED;
+}
+
+.lanhu-detail-drawer .el-drawer__body {
+  padding: 16px 24px 8px;
+  background: #F9FAFE;
+}
+
+.lanhu-detail-drawer .el-drawer__footer {
+  padding: 8px 20px 16px;
+  border-top: 0;
+  background: #F9FAFE;
+  text-align: right;
+}
+
+.lanhu-drawer-back {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #2C3034;
+  font-size: 16px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.lanhu-detail-drawer .lanhu-section-title { margin: 4px 0 12px; }
+
+.lanhu-detail-drawer .portal-vue-log-attrs {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  margin-bottom: 18px;
+}
+
+.lanhu-detail-drawer .portal-vue-log-attr {
+  grid-template-columns: 120px minmax(0, 1fr);
+  padding: 10px 0;
+  border-bottom: 1px solid #E6E9ED;
+  font-size: 14px;
+}
+
+.lanhu-detail-drawer .portal-vue-log-attr > span { color: #959799; }
+.lanhu-detail-drawer .portal-vue-log-attr > strong {
+  color: #2C3034;
+  font-weight: 500;
+}
+
+.lanhu-drawer-close.el-button {
+  --el-button-bg-color: #E6E9ED;
+  --el-button-border-color: #E6E9ED;
+  --el-button-text-color: #2C3034;
+  --el-button-hover-bg-color: #D8DCE1;
+  --el-button-hover-border-color: #D8DCE1;
+  --el-button-hover-text-color: #2C3034;
+  --el-button-active-bg-color: #CACBCC;
+  --el-button-active-border-color: #CACBCC;
+  min-width: 88px;
+}

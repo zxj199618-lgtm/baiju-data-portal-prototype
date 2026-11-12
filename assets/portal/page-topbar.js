@@ -29,7 +29,7 @@
             </button>
           </div>
           <el-dropdown trigger="click" @command="handleUserCommand">
-            <span class="portal-vue-user"><el-avatar :size="34" style="background:#1677ff">{{ userName.slice(0, 1) }}</el-avatar><span class="portal-vue-user-name">{{ userName }}</span></span>
+            <span class="portal-vue-user"><el-avatar :size="34" style="background:#0066FF">{{ userName.slice(0, 1) }}</el-avatar><span class="portal-vue-user-name">{{ userName }}</span></span>
             <template #dropdown><el-dropdown-menu><el-dropdown-item command="password">修改密码</el-dropdown-item><el-dropdown-item command="logout">退出系统</el-dropdown-item></el-dropdown-menu></template>
           </el-dropdown>
         </div>

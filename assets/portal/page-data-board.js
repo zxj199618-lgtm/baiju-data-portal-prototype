@@ -54,7 +54,7 @@
             </div>
             <div class="portal-vue-chart-grid">
               <section class="portal-vue-chart"><h3>媒体渠道消耗</h3><div class="portal-vue-bars"><div v-for="bar in bars" :key="bar.name" class="portal-vue-bar" :style="{height:bar.height+'px'}"><span>{{ bar.name }}</span></div></div></section>
-              <section class="portal-vue-chart"><h3>近 7 日趋势</h3><svg class="portal-vue-line" viewBox="0 0 420 190" preserveAspectRatio="none"><polyline :points="linePoints" fill="none" stroke="#1677ff" stroke-width="3"></polyline><circle v-for="point in pointList" :key="point.x" :cx="point.x" :cy="point.y" r="4" fill="#1677ff"></circle></svg></section>
+              <section class="portal-vue-chart"><h3>近 7 日趋势</h3><svg class="portal-vue-line" viewBox="0 0 420 190" preserveAspectRatio="none"><polyline :points="linePoints" fill="none" stroke="#0066FF" stroke-width="3"></polyline><circle v-for="point in pointList" :key="point.x" :cx="point.x" :cy="point.y" r="4" fill="#0066FF"></circle></svg></section>
             </div>
           </section>
           <el-empty v-else description="暂无匹配看板"></el-empty>

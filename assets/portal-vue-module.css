@@ -1,5 +1,5 @@
 #portalApp[data-element-migrated="true"] {
-  --el-color-primary: #1677ff;
+  --el-color-primary: #0066FF;
   --el-color-primary-light-3: #5b9cff;
   --el-color-primary-light-5: #8ab7ff;
   --el-color-primary-light-8: #dbeaff;
@@ -89,7 +89,7 @@
 /* 分组标题右侧需给展开/折叠箭头留位：箭头为绝对定位（right: 20px），否则角标会盖住它 */
 .portal-vue-menu .el-sub-menu__title { padding-right: 38px !important; }
 .portal-vue-menu .el-menu-item.is-active,
-.portal-vue-menu .el-sub-menu.is-active > .el-sub-menu__title { color: #1677ff; background: #edf5ff; }
+.portal-vue-menu .el-sub-menu.is-active > .el-sub-menu__title { color: #0066FF; background: #edf5ff; }
 .portal-vue-menu .el-sub-menu .el-menu-item { min-width: 0; padding-left: 42px !important; background: transparent; }
 .portal-vue-menu .el-sub-menu .el-menu-item.is-active { background: #e7f1ff; }
 .portal-nav-icon { width: 16px; height: 16px; margin-right: 8px; object-fit: contain; flex: 0 0 16px; }
@@ -99,7 +99,7 @@
 .portal-vue-menu.el-menu--collapse .portal-nav-icon { margin-right: 0; }
 .portal-nav-badges { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto; }
 .portal-nav-new { height: 18px; padding: 0 5px; border: 0; font-size: 10px; font-weight: 750; line-height: 18px; --el-tag-border-color: transparent; }
-.portal-nav-badge--v31 { color: #1677ff; background: #edf5ff; --el-tag-bg-color: #edf5ff; --el-tag-text-color: #1677ff; }
+.portal-nav-badge--v31 { color: #0066FF; background: #edf5ff; --el-tag-bg-color: #edf5ff; --el-tag-text-color: #0066FF; }
 .portal-nav-badge--v40 { color: #f04438; background: #fff0ee; --el-tag-bg-color: #fff0ee; --el-tag-text-color: #f04438; }
 .portal-nav-badge--v20 { color: #667085; background: #f2f4f7; --el-tag-bg-color: #f2f4f7; --el-tag-text-color: #667085; }
 .portal-vue-menu.el-menu--collapse .portal-nav-badges { display: none; }
@@ -115,7 +115,7 @@
 .portal-vue-dict-popper { z-index: 4100 !important; }
 .portal-vue-dict-select .el-select-dropdown__item { height: auto !important; line-height: 1.4; padding-top: 8px; padding-bottom: 8px; }
 .portal-vue-field-dict { margin-left: 6px; vertical-align: middle; }
-.portal-vue-ref-trigger { color: #1677ff; cursor: default; }
+.portal-vue-ref-trigger { color: #0066FF; cursor: default; }
 .portal-vue-ref-tooltip { max-width: 420px !important; white-space: normal !important; }
 .portal-vue-ref-tooltip p { margin: 0; padding: 3px 0; line-height: 1.55; white-space: normal; overflow-wrap: anywhere; }
 .portal-vue-dim-meta {
@@ -170,12 +170,12 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.portal-vue-tab.active { color: #1677ff; background: #f1f6ff; font-weight: 650; }
+.portal-vue-tab.active { color: #0066FF; background: #f1f6ff; font-weight: 650; }
 .portal-vue-tab img { width: 18px; height: 18px; object-fit: contain; }
 .portal-vue-tab span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-tab-close { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; }
 .portal-vue-tab-close:hover { background: #dceaff; }
-.portal-vue-user { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 9px; color: #1677ff; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.portal-vue-user { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 9px; color: #0066FF; font-weight: 650; white-space: nowrap; cursor: pointer; }
 .portal-vue-user > span { white-space: nowrap; word-break: keep-all; }
 .portal-vue-user .el-avatar { flex: 0 0 auto; }
 .portal-vue-topbar > .el-dropdown { flex: 0 0 auto; }
@@ -237,7 +237,7 @@
 .portal-vue-directory-aside.collapsed { padding: 0; background: #fbfcfe; }
 .portal-vue-directory-content { height: 100%; }
 .portal-vue-directory-collapse { position: absolute; z-index: 2; top: 14px; right: 10px; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 1px solid #e2e8f0; border-radius: 50%; background: #fff; color: #7d8898; box-shadow: 0 3px 10px rgba(15,23,42,.06); cursor: pointer; }
-.portal-vue-directory-collapse:hover { color: #1677ff; border-color: #9fc2ff; }
+.portal-vue-directory-collapse:hover { color: #0066FF; border-color: #9fc2ff; }
 .portal-vue-directory-aside.collapsed .portal-vue-directory-collapse { top: 14px; right: 9px; }
 .portal-vue-directory-head { min-height: 28px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-right: 36px; font-size: 16px; font-weight: 720; }
 .portal-vue-board-scroll { height: calc(100% - 58px); margin-top: 12px; }
@@ -245,7 +245,7 @@
 .portal-vue-board-group-title { height: 34px; display: flex; align-items: center; justify-content: space-between; color: #667085; font-weight: 650; }
 .portal-vue-board-item { width: 100%; height: 36px; min-height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; overflow: hidden; border: 0; border-radius: 7px; background: transparent; color: #3f4857; text-align: left; cursor: pointer; }
 .portal-vue-board-item:hover { background: #f5f8fd; }
-.portal-vue-board-item.active { background: #e7f1ff; color: #1677ff; font-weight: 650; }
+.portal-vue-board-item.active { background: #e7f1ff; color: #0066FF; font-weight: 650; }
 .portal-vue-board-title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .portal-vue-star { flex: 0 0 auto; color: #b1bac7; font-size: 19px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .15s ease, color .15s ease; }
 .portal-vue-board-item:hover .portal-vue-star,
@@ -308,20 +308,20 @@
 .portal-vue-group-tabs > .el-tabs__header { margin: 0 0 16px; }
 .portal-vue-group-tabs > .el-tabs__header .el-tabs__nav-wrap::after { height: 1px; background: #e9edf4; }
 .portal-vue-group-tabs > .el-tabs__header .el-tabs__item { height: 46px; padding: 0 22px; font-size: 14px; font-weight: 650; }
-.portal-vue-group-tabs > .el-tabs__header .el-tag { height: 21px; margin-left: 4px; padding: 0 6px; border: 0; background: #e7f1ff; color: #1677ff; font-weight: 700; }
+.portal-vue-group-tabs > .el-tabs__header .el-tag { height: 21px; margin-left: 4px; padding: 0 6px; border: 0; background: #e7f1ff; color: #0066FF; font-weight: 700; }
 .portal-vue-group-detail-actions { display: flex; align-items: center; gap: 10px; }
-.portal-vue-member-entry .el-tag { height: 20px; margin-left: 5px; border: 0; background: #e7f1ff; color: #1677ff; font-weight: 700; }
+.portal-vue-member-entry .el-tag { height: 20px; margin-left: 5px; border: 0; background: #e7f1ff; color: #0066FF; font-weight: 700; }
 .portal-vue-group-permission-panel { min-width: 0; }
 .portal-vue-permission-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
 .portal-vue-group-permission-card { min-width: 0; min-height: 154px; padding: 18px 20px; border: 1px solid #e1e7f0; border-radius: 8px; background: #fff; }
 .portal-vue-parent-check { align-items: flex-start; }
 .portal-vue-parent-check .el-checkbox__label { color: #293241; font-size: 15px; font-weight: 700; line-height: 20px; }
-.portal-vue-parent-check.is-checked .el-checkbox__label { color: #1677ff; }
+.portal-vue-parent-check.is-checked .el-checkbox__label { color: #0066FF; }
 .portal-vue-child-checks { display: grid; gap: 12px; margin: 16px 0 0 28px; }
 .portal-vue-child-checks .el-checkbox { min-width: 0; max-width: 100%; height: auto; margin-right: 0; align-items: flex-start; }
 /* Element Plus 的 .el-checkbox 是 nowrap，长看板/表名会顶出卡片；这里允许换行完整展示（title 仍保留全文悬浮） */
 .portal-vue-child-checks .el-checkbox__label { min-width: 0; overflow-wrap: anywhere; white-space: normal; color: #3f4857; line-height: 20px; }
-.portal-vue-child-checks .el-checkbox.is-checked .el-checkbox__label { color: #1677ff; }
+.portal-vue-child-checks .el-checkbox.is-checked .el-checkbox__label { color: #0066FF; }
 /* 菜单权限行：左侧菜单名，右侧「查看 / 编辑」两个勾选框 */
 .portal-vue-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; margin: 8px 0; }
 .portal-vue-menu-name { flex: 1 1 auto; min-width: 0; color: #3f4857; font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
@@ -331,16 +331,16 @@
 .portal-vue-menu-checks .el-checkbox__label { font-size: 13px; line-height: 20px; }
 .portal-vue-menu-row-head { margin: 0 0 4px; }
 .portal-vue-view-check .el-checkbox__label { color: #6b7686; }
-.portal-vue-view-check.is-checked .el-checkbox__label { color: #1677ff; font-weight: 600; }
+.portal-vue-view-check.is-checked .el-checkbox__label { color: #0066FF; font-weight: 600; }
 .portal-vue-edit-check .el-checkbox__label { color: #6b7686; font-size: 13px; }
-.portal-vue-edit-check.is-checked .el-checkbox__label { color: #1677ff; font-weight: 600; }
+.portal-vue-edit-check.is-checked .el-checkbox__label { color: #0066FF; font-weight: 600; }
 .portal-vue-board-range-toolbar { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 12px; color: #98a2b3; font-size: 12px; }
 .portal-vue-permission-card-title { display: block; color: #293241; font-size: 15px; line-height: 20px; }
 .portal-vue-board-checks { margin-left: 0; }
 .portal-vue-table-perm { min-width: 0; }
 .portal-vue-table-perm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .portal-vue-field-tag { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 0 8px; border-radius: 10px; background: #f0f3f8; color: #5b6578; font-size: 12px; line-height: 20px; cursor: pointer; user-select: none; }
-.portal-vue-field-tag.partial { background: #e8f1ff; color: #1677ff; }
+.portal-vue-field-tag.partial { background: #e8f1ff; color: #0066FF; }
 .portal-vue-field-dot { width: 6px; height: 6px; border-radius: 50%; background: #f5222d; }
 .portal-vue-field-new { color: #f5222d; }
 .portal-vue-field-dialog-sub { margin: 0 0 10px; }
@@ -398,7 +398,7 @@
 /* 用户管理：查看权限（只读抽屉） */
 .portal-vue-perm-view { display: flex; flex-direction: column; gap: 18px; }
 .portal-vue-perm-section h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: #1f2733; font-size: 13px; font-weight: 700; }
-.portal-vue-perm-section h4 em { color: #1677ff; font-size: 12px; font-style: normal; font-weight: 700; }
+.portal-vue-perm-section h4 em { color: #0066FF; font-size: 12px; font-style: normal; font-weight: 700; }
 .portal-vue-perm-section h4 .portal-vue-muted { font-size: 12px; font-weight: 400; }
 .portal-vue-perm-group { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .portal-vue-perm-tags { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -420,7 +420,7 @@
 .portal-vue-user-layout { min-height: 620px; margin-top: 22px; display: grid; grid-template-columns: 230px minmax(0,1fr); border: 1px solid #e4e9f2; border-radius: 8px; overflow: hidden; }
 .portal-vue-user-groups { padding: 12px; border-right: 1px solid #e9edf4; background: #fbfcfe; }
 .portal-vue-user-group { width: 100%; min-height: 40px; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: #3f4857; cursor: pointer; }
-.portal-vue-user-group.active { background: #e7f1ff; color: #1677ff; font-weight: 650; }
+.portal-vue-user-group.active { background: #e7f1ff; color: #0066FF; font-weight: 650; }
 .portal-vue-user-main { min-width: 0; }
 .portal-vue-user-cell { display: flex; align-items: center; gap: 10px; }
 
@@ -450,7 +450,7 @@
 .portal-vue-ai-sessions { display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
 .portal-vue-ai-session { padding: 10px 12px; border: 1px solid #e9edf4; border-radius: 8px; background: #fff; cursor: pointer; transition: border-color .15s, background .15s; }
 .portal-vue-ai-session:hover { border-color: #9cc5ff; }
-.portal-vue-ai-session.active { border-color: #1677ff; background: #f0f7ff; }
+.portal-vue-ai-session.active { border-color: #0066FF; background: #f0f7ff; }
 .portal-vue-ai-session-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .portal-vue-ai-session-top strong { font-size: 13px; color: #1f2733; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-ai-session-top time { flex-shrink: 0; font-size: 11px; color: #a5aebd; }
@@ -461,13 +461,13 @@
 .portal-vue-ai-scenarios { flex-shrink: 0; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); grid-auto-rows: minmax(40px, auto); gap: 6px; padding: 6px 12px; height: auto; max-height: 104px; overflow-y: auto; border-bottom: 1px solid #eef1f6; }
 .portal-vue-ai-scenario { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid #e4e9f2; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
 .portal-vue-ai-scenario:hover { border-color: #9cc5ff; }
-.portal-vue-ai-scenario.active { border-color: #1677ff; background: #e7f1ff; }
+.portal-vue-ai-scenario.active { border-color: #0066FF; background: #e7f1ff; }
 /* Skill 图标格：内置 SVG 与用户上传图 / emoji 混排时也要等宽对齐 */
 .portal-vue-ai-scene-icon, .portal-vue-skill-cell-icon { flex: none; width: 18px; height: 18px; display: grid; place-items: center; font-size: 15px; line-height: 1; }
 .portal-vue-ai-scene-icon img, .portal-vue-skill-cell-icon img { width: 17px; height: 17px; object-fit: contain; }
 .portal-vue-ai-scenario strong { display: block; font-size: 12px; line-height: 16px; color: #1f2733; white-space: nowrap; }
 .portal-vue-ai-scenario small { display: block; font-size: 11px; line-height: 15px; color: #8a94a6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.portal-vue-ai-scenario.active strong { color: #1677ff; }
+.portal-vue-ai-scenario.active strong { color: #0066FF; }
 .portal-vue-ai-chat { flex: 1 1 auto; min-height: 0; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
 .portal-vue-ai-welcome { margin: auto; text-align: center; }
 .portal-vue-ai-welcome h3 { margin: 0 0 6px; font-size: 17px; color: #1f2733; }
@@ -475,7 +475,7 @@
 .portal-vue-ai-message { display: flex; align-items: flex-start; gap: 10px; width: 100%; max-width: 980px; margin: 0 auto; }
 .portal-vue-ai-message.user { justify-content: flex-end; }
 .portal-vue-ai-bubble { min-width: 0; max-width: 78%; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.7; color: #2a3446; }
-.portal-vue-ai-message.user .portal-vue-ai-bubble { background: #1677ff; color: #fff; border-bottom-right-radius: 3px; }
+.portal-vue-ai-message.user .portal-vue-ai-bubble { background: #0066FF; color: #fff; border-bottom-right-radius: 3px; }
 .portal-vue-ai-message.assistant .portal-vue-ai-bubble { background: #f3f6fa; border-bottom-left-radius: 3px; }
 .portal-vue-ai-bubble p { margin: 0 0 4px; }
 .portal-vue-ai-bubble p:last-child { margin-bottom: 0; }
@@ -485,7 +485,7 @@
 .portal-vue-ai-mention-head { display: flex; justify-content: space-between; font-size: 12px; color: #3f4857; margin-bottom: 6px; }
 .portal-vue-ai-mention-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto; }
 .portal-vue-ai-mention-list button { padding: 4px 10px; border: 1px solid #e4e9f2; border-radius: 999px; background: #f7f9fc; font-size: 12px; color: #3f4857; cursor: pointer; }
-.portal-vue-ai-mention-list button:hover { border-color: #1677ff; color: #1677ff; }
+.portal-vue-ai-mention-list button:hover { border-color: #0066FF; color: #0066FF; }
 .portal-vue-ai-input-row { display: flex; gap: 10px; align-items: flex-end; }
 .portal-vue-ai-input-row .el-textarea { flex: 1; }
 
@@ -501,30 +501,30 @@
 .portal-vue-ai-context-reset { display: flex; align-items: center; gap: 10px; margin: 8px 0 14px; color: #8a94a6; font-size: 12px; }
 .portal-vue-ai-context-reset::before, .portal-vue-ai-context-reset::after { content: ""; flex: 1; height: 1px; background: #e3e8f0; }
 .portal-vue-ai-confirms { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.portal-vue-ai-composer:focus-within { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(22,119,255,.08); }
+.portal-vue-ai-composer:focus-within { border-color: #0066FF; box-shadow: 0 0 0 2px rgba(0,102,255,.08); }
 .portal-vue-ai-composer .el-textarea__inner { border: 0; box-shadow: none; background: transparent; padding: 8px 14px 2px; font-size: 13.5px; }
 .portal-vue-ai-composer-bar { display: flex; align-items: center; gap: 8px; padding: 4px 10px 6px; }
 .portal-vue-ai-chip-select { width: auto; min-width: 132px; max-width: 260px; }
 .portal-vue-ai-chip-biz { min-width: 108px; max-width: 160px; }
 .portal-vue-ai-chip-line-select { width: 200px; }
 .portal-vue-ai-chip-line-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; }
-.portal-vue-ai-chip-line-select .el-select__wrapper::before { content: "线"; margin-right: 5px; color: #1677ff; font-size: 12px; font-weight: 600; }
+.portal-vue-ai-chip-line-select .el-select__wrapper::before { content: "线"; margin-right: 5px; color: #0066FF; font-size: 12px; font-weight: 600; }
 .portal-vue-ai-chip-line-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }
 .portal-vue-ai-chip-model-select { width: 200px; }
 .portal-vue-ai-chip-model-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; }
-.portal-vue-ai-chip-model-select .el-select__wrapper::before { content: "模型"; margin-right: 5px; color: #1677ff; font-size: 12px; font-weight: 600; }
+.portal-vue-ai-chip-model-select .el-select__wrapper::before { content: "模型"; margin-right: 5px; color: #0066FF; font-size: 12px; font-weight: 600; }
 .portal-vue-ai-chip-model-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }
 /* 思考深度 chip：只在该模型声明支持思考时出现（快速 / 标准 / 深度） */
 .portal-vue-ai-chip-reasoning-select { width: 150px; }
 .portal-vue-ai-chip-reasoning-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; }
-.portal-vue-ai-chip-reasoning-select .el-select__wrapper::before { content: "思考"; margin-right: 5px; color: #1677ff; font-size: 12px; font-weight: 600; }
+.portal-vue-ai-chip-reasoning-select .el-select__wrapper::before { content: "思考"; margin-right: 5px; color: #0066FF; font-size: 12px; font-weight: 600; }
 .portal-vue-ai-chip-reasoning-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }
 .portal-vue-ai-composer-limit { color: #98a2b3; font-size: 12px; white-space: nowrap; }
 .el-select-group__title { color: #8a94a6 !important; font-size: 12px !important; font-weight: 600 !important; }
 .portal-vue-ai-chip-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; min-height: 30px; }
 .portal-vue-ai-chip-select .el-select__wrapper.is-hovering, .portal-vue-ai-chip-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }
 .portal-vue-ai-chip-model { min-width: 170px; }
-.portal-vue-ai-chip-label { color: #1677ff; font-size: 12px; font-weight: 600; margin-right: 2px; }
+.portal-vue-ai-chip-label { color: #0066FF; font-size: 12px; font-weight: 600; margin-right: 2px; }
 .portal-vue-ai-composer-send { margin-left: auto; border-radius: 999px; padding-left: 18px; padding-right: 18px; }
 .portal-vue-ai-report { max-width: 92%; }
 .portal-vue-ai-report-body { font-size: 13px; line-height: 1.75; color: #2a3446; overflow-x: auto; }
@@ -540,15 +540,15 @@
 .portal-vue-ai-report-meta { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #dbe2ec; font-size: 11.5px; color: #a5aebd; }
 .portal-vue-ai-report-actions { margin-top: 10px; }
 .portal-vue-ai-report-linkcard { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 6px; padding: 12px 14px; border: 1px solid #dbe4f0; border-radius: 10px; background: #f4f8ff; cursor: pointer; transition: border-color .2s, box-shadow .2s; }
-.portal-vue-ai-report-linkcard:hover { border-color: #1677ff; box-shadow: 0 2px 10px rgba(22,119,255,.14); }
+.portal-vue-ai-report-linkcard:hover { border-color: #0066FF; box-shadow: 0 2px 10px rgba(0,102,255,.14); }
 .portal-vue-ai-report-linkcard-icon { font-size: 20px; }
 .portal-vue-ai-report-linkcard-body { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .portal-vue-ai-report-linkcard-body strong { font-size: 13.5px; color: #1f2733; }
-.portal-vue-ai-report-linkcard-body span { font-size: 12.5px; color: #1677ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portal-vue-ai-report-linkcard-body span { font-size: 12.5px; color: #0066FF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-ai-report-linkcard-arrow { color: #a5aebd; font-size: 14px; }
 .portal-vue-ai-report-preview { margin: 6px 0 0; font-size: 12.5px; color: #51607a; line-height: 1.6; }
 .portal-vue-ai-report-lead { margin: 0 0 8px; font-size: 13px; color: #2a3446; line-height: 1.75; }
-.portal-vue-ai-report-hyperlink { display: inline-flex; align-items: center; gap: 6px; margin: 10px 0 4px; font-size: 14px; font-weight: 600; color: #1677ff; text-decoration: none; cursor: pointer; }
+.portal-vue-ai-report-hyperlink { display: inline-flex; align-items: center; gap: 6px; margin: 10px 0 4px; font-size: 14px; font-weight: 600; color: #0066FF; text-decoration: none; cursor: pointer; }
 .portal-vue-ai-report-hyperlink:hover { text-decoration: underline; }
 .portal-vue-ai-report-trail { margin: 8px 0 0; font-size: 12.5px; color: #7b8492; line-height: 1.7; }
 .portal-vue-ai-report-card { display: flex; flex-direction: column; padding: 14px 16px; border: 1px solid #e9edf4; border-radius: 14px; background: #fff; }
@@ -556,7 +556,7 @@
 .portal-vue-ai-report-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .portal-vue-ai-report-card-file { font-size: 16px; }
 .portal-vue-ai-report-card-title { flex: 1 1 auto; min-width: 0; font-size: 14.5px; color: #1f2733; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.portal-vue-ai-report-open-btn { flex: none; padding: 5px 12px; border: 1px solid #1677ff; border-radius: 999px; background: #1677ff; color: #fff; font-size: 12.5px; cursor: pointer; transition: background .15s; }
+.portal-vue-ai-report-open-btn { flex: none; padding: 5px 12px; border: 1px solid #0066FF; border-radius: 999px; background: #0066FF; color: #fff; font-size: 12.5px; cursor: pointer; transition: background .15s; }
 .portal-vue-ai-report-open-btn:hover { background: #0f65e8; }
 .portal-vue-ai-report-preview { max-height: 560px; overflow-y: auto; margin-top: 6px; padding-top: 10px; border-top: 1px dashed #e2e8f2; }
 .portal-vue-ai-report-dialog-markdown { max-height: none; }
@@ -574,7 +574,7 @@
 .el-drawer.portal-vue-skill-create-drawer .el-drawer__body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: 8px; }
 .el-drawer.portal-vue-skill-create-drawer .el-drawer__footer { flex: none; border-top: 1px solid #eef1f6; padding: 12px 20px; background: #fff; }
 .portal-vue-skill-icon-upload { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px dashed #c8d4e3; border-radius: 10px; background: #fafcff; cursor: pointer; transition: border-color .15s, background .15s; }
-.portal-vue-skill-icon-upload:hover { border-color: #1677ff; background: #f0f7ff; }
+.portal-vue-skill-icon-upload:hover { border-color: #0066FF; background: #f0f7ff; }
 .portal-vue-skill-icon-preview { flex: none; width: 56px; height: 56px; display: grid; place-items: center; border-radius: 10px; background: #fff; border: 1px solid #e9edf4; font-size: 26px; color: #8a94a6; overflow: hidden; }
 .portal-vue-skill-icon-preview img { width: 100%; height: 100%; object-fit: contain; }
 .portal-vue-skill-icon-tips { display: grid; gap: 3px; }
@@ -587,11 +587,11 @@
 
 /* 数据告警 */
 .portal-vue-alert-step { display: flex; align-items: center; gap: 10px; }
-.portal-vue-alert-step b { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #1677ff; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.portal-vue-alert-step b { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #0066FF; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
 .portal-vue-alert-step strong { display: block; font-size: 14px; color: #1f2733; line-height: 22px; }
 .portal-vue-alert-step span { font-size: 12px; }
 .portal-vue-alert-step > div span { display: block; font-size: 12px; }
-.portal-vue-alert-ok { color: #1677ff; font-size: 13px; font-weight: 600; }
+.portal-vue-alert-ok { color: #0066FF; font-size: 13px; font-weight: 600; }
 .portal-vue-alert-field { display: grid; gap: 6px; margin-bottom: 14px; }
 .portal-vue-alert-field label { font-size: 12px; color: #667085; font-weight: 600; }
 .portal-vue-alert-field label::after { content: ""; }
@@ -605,7 +605,7 @@
 /* 数据告警：单列表单（一个字段一行，左标签 + 右输入框，对齐人群包表单） */
 .portal-vue-alert-dialog-head { display: flex; align-items: center; gap: 14px; }
 .portal-vue-alert-back { height: auto; padding: 0; color: #566174; font-size: 14px; font-weight: 500; }
-.portal-vue-alert-back:hover { color: #1677ff; }
+.portal-vue-alert-back:hover { color: #0066FF; }
 .portal-vue-alert-back-arrow { margin-right: 2px; font-size: 15px; }
 .portal-vue-alert-dialog-title { color: #1f2733; font-size: 16px; font-weight: 700; }
 .portal-vue-alert-form { padding: 4px 24px 20px; }
@@ -629,13 +629,13 @@
 .portal-vue-alert-form .portal-vue-alert-inline > .el-input { flex: 0 1 300px; }
 /* 表单项下方的说明文案：强制独占一行，避免与控件挤在同一行 */
 .portal-vue-alert-form .portal-vue-alert-hint { flex: 1 1 100%; margin-top: 6px; color: #98a2b3; font-size: 12px; line-height: 1.7; }
-.portal-vue-alert-form .portal-vue-alert-hint b { color: #1677ff; font-weight: 650; }
+.portal-vue-alert-form .portal-vue-alert-hint b { color: #0066FF; font-weight: 650; }
 
 /* 条件构建器：且/或 + 条件行 */
 .portal-vue-alert-rule { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: stretch; }
 .portal-vue-alert-relation { position: relative; border: 0; padding: 0; background: transparent; cursor: pointer; }
 .portal-vue-alert-relation::before { content: ""; position: absolute; top: 0; bottom: 0; right: 6px; width: 16px; border: 2px solid #c7d0dd; border-right: 0; border-radius: 8px 0 0 8px; }
-.portal-vue-alert-relation span { position: absolute; z-index: 1; top: 50%; right: 10px; display: inline-flex; width: 28px; height: 24px; align-items: center; justify-content: center; border-radius: 999px; background: #edf5ff; color: #1677ff; font-size: 12px; font-weight: 700; transform: translateY(-50%); }
+.portal-vue-alert-relation span { position: absolute; z-index: 1; top: 50%; right: 10px; display: inline-flex; width: 28px; height: 24px; align-items: center; justify-content: center; border-radius: 999px; background: #edf5ff; color: #0066FF; font-size: 12px; font-weight: 700; transform: translateY(-50%); }
 .portal-vue-alert-condition-list { min-width: 0; }
 .portal-vue-alert-condition-row { display: grid; grid-template-columns: 280px 146px minmax(230px, 380px) 32px; gap: 10px; align-items: center; min-height: 40px; margin-bottom: 10px; }
 /* 仅「时间范围」条件多一列粒度选择器，其余条件取值列自动加宽占满 */
@@ -662,7 +662,7 @@
 .portal-vue-alert-preview-avatar { flex: none; width: 28px; height: 28px; border: 1px solid #e4e9f2; border-radius: 8px; background: #fff; object-fit: contain; }
 .portal-vue-alert-preview-head strong { display: block; color: #1f2733; font-size: 13px; line-height: 18px; }
 .portal-vue-alert-preview-head span { display: block; color: #98a2b3; font-size: 11px; line-height: 16px; }
-.portal-vue-alert-preview-card { border: 1px solid #e4e9f2; border-left: 3px solid #1677ff; border-radius: 10px; background: #fff; padding: 12px 14px; }
+.portal-vue-alert-preview-card { border: 1px solid #e4e9f2; border-left: 3px solid #0066FF; border-radius: 10px; background: #fff; padding: 12px 14px; }
 .portal-vue-alert-preview-title { color: #1f2733; font-size: 15px; font-weight: 700; line-height: 1.5; }
 .portal-vue-alert-preview-body { display: grid; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e9edf4; }
 .portal-vue-alert-preview-line { display: grid; grid-template-columns: 106px minmax(0, 1fr); gap: 8px; font-size: 13px; line-height: 1.6; }
@@ -707,7 +707,7 @@
 .portal-vue-skill-section:first-of-type { border-top: 0; padding-top: 0; }
 .portal-vue-skill-section > strong { display: block; margin-bottom: 12px; font-size: 13px; color: #1f2733; }
 .portal-vue-skill-version { padding: 12px 14px; border: 1px solid #e9edf4; border-radius: 8px; }
-.portal-vue-skill-version.current { border-color: #1677ff; background: #f0f7ff; }
+.portal-vue-skill-version.current { border-color: #0066FF; background: #f0f7ff; }
 .portal-vue-skill-version-head { display: flex; align-items: center; gap: 8px; }
 .portal-vue-skill-version-head time { margin-left: auto; font-size: 12px; color: #a5aebd; }
 .portal-vue-skill-version p { margin: 6px 0; font-size: 13px; color: #3f4857; }
@@ -717,7 +717,7 @@
 .portal-vue-ai-asset-btn { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 10px; padding: 10px 12px; border: 1px solid #dbe8fb; border-radius: 8px; background: #f0f7ff; cursor: pointer; transition: background .15s, border-color .15s; }
 .portal-vue-ai-asset-btn:hover { background: #e0efff; border-color: #9cc5ff; }
 .portal-vue-ai-asset-btn-icon { font-size: 15px; }
-.portal-vue-ai-asset-btn-text { flex: 1; text-align: left; font-size: 13px; font-weight: 600; color: #1677ff; }
+.portal-vue-ai-asset-btn-text { flex: 1; text-align: left; font-size: 13px; font-weight: 600; color: #0066FF; }
 .portal-vue-ai-asset-drawer { display: grid; gap: 14px; }
 .portal-vue-ai-asset-drawer-head { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; color: #1f2733; }
 .portal-vue-ai-asset-item { padding: 14px; border: 1px solid #e9edf4; border-radius: 10px; background: #fff; }
@@ -731,13 +731,13 @@
 .portal-vue-ai-report-head { display: flex; align-items: center; gap: 8px; }
 .portal-vue-ai-report-head time { flex: 1; font-size: 12px; color: #a5aebd; }
 .portal-vue-ai-report-summary { padding: 10px 12px; border-radius: 8px; background: #f0f7ff; }
-.portal-vue-ai-report-summary span { font-size: 12px; color: #1677ff; }
+.portal-vue-ai-report-summary span { font-size: 12px; color: #0066FF; }
 .portal-vue-ai-report-summary p { margin: 4px 0 0; font-size: 13px; color: #2a3446; line-height: 1.7; }
 .portal-vue-ai-report-history { display: grid; gap: 12px; border-top: 1px dashed #e4e9f2; padding-top: 12px; }
 
 /* 流式输出光标 */
 .portal-vue-ai-bubble-streaming { min-width: 120px; }
-.portal-vue-ai-bubble-streaming p::after { content: "▍"; color: #1677ff; animation: portal-vue-ai-blink 1s steps(2) infinite; }
+.portal-vue-ai-bubble-streaming p::after { content: "▍"; color: #0066FF; animation: portal-vue-ai-blink 1s steps(2) infinite; }
 @keyframes portal-vue-ai-blink { 50% { opacity: 0; } }
 
 /* Skill 灰度用户选择 */
@@ -748,7 +748,7 @@
 .portal-vue-ai-assets-head h3 { margin: 0 0 4px; font-size: 16px; color: #1f2733; }
 .portal-vue-ai-assets-grid { flex: 1 1 auto; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; align-content: start; padding-right: 4px; }
 .portal-vue-ai-asset-card { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid #e9edf4; border-radius: 12px; background: #fff; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
-.portal-vue-ai-asset-card:hover { border-color: #9cc5ff; box-shadow: 0 4px 14px rgba(22,119,255,.12); transform: translateY(-1px); }
+.portal-vue-ai-asset-card:hover { border-color: #9cc5ff; box-shadow: 0 4px 14px rgba(0,102,255,.12); transform: translateY(-1px); }
 .portal-vue-ai-asset-card-head { display: flex; align-items: flex-start; gap: 8px; }
 .portal-vue-ai-asset-card-head strong { flex: 1 1 auto; min-width: 0; font-size: 14px; color: #1f2733; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .portal-vue-ai-asset-card-head time { flex: none; font-size: 12px; color: #a5aebd; white-space: nowrap; }
@@ -765,11 +765,11 @@
 .portal-vue-ai-share-input .el-input__inner { font-size: 12px; color: #51607a; }
 .portal-vue-ai-report-dialog-actions { display: flex; gap: 8px; }
 .portal-vue-ai-report-dialog-content { display: grid; gap: 12px; }
-.portal-vue-ai-asset-btn.active { background: #dbeafe; border-color: #1677ff; color: #1677ff; }
+.portal-vue-ai-asset-btn.active { background: #dbeafe; border-color: #0066FF; color: #0066FF; }
 
 /* 血缘图（Mermaid 渲染为 SVG） */
 .portal-vue-mermaid-figure { margin: 10px 0; padding: 14px; border: 1px solid #dbe8fb; border-radius: 10px; background: #fbfdff; }
-.portal-vue-mermaid-title { font-size: 12px; color: #1677ff; margin-bottom: 8px; }
+.portal-vue-mermaid-title { font-size: 12px; color: #0066FF; margin-bottom: 8px; }
 
 /* 补数据：CSV 上传行 */
 .portal-vue-csv-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; line-height: 32px; flex: 0 0 100%; }
@@ -815,7 +815,7 @@
 .portal-vue-lineage-loading-text { color: #1f2937; font-size: 14px; font-weight: 650; }
 .portal-vue-lineage-loading-sub { margin-top: 4px; color: #98a2b3; font-size: 12px; }
 .portal-vue-lineage-spinner { flex: none; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; gap: 5px; border-radius: 50%; background: #edf5ff; }
-.portal-vue-lineage-spinner i { width: 6px; height: 6px; border-radius: 50%; background: #1677ff; animation: portal-vue-lineage-bounce 1s infinite ease-in-out; }
+.portal-vue-lineage-spinner i { width: 6px; height: 6px; border-radius: 50%; background: #0066FF; animation: portal-vue-lineage-bounce 1s infinite ease-in-out; }
 .portal-vue-lineage-spinner i:nth-child(2) { animation-delay: .15s; }
 .portal-vue-lineage-spinner i:nth-child(3) { animation-delay: .3s; }
 @keyframes portal-vue-lineage-bounce { 0%, 100% { transform: translateY(0); opacity: .5; } 50% { transform: translateY(-6px); opacity: 1; } }
@@ -906,7 +906,7 @@
 .portal-vue-ai-avatar { flex: 0 0 auto; width: 30px; height: 30px; margin-top: 2px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: linear-gradient(135deg, #3b8cff, #1260e6); color: #fff; font-size: 13px; font-weight: 700; }
 .portal-vue-ai-message.assistant .portal-vue-ai-bubble { flex: 0 1 auto; background: #f6f8fb; border: 1px solid #edf0f5; border-top-left-radius: 4px; }
 .portal-vue-ai-message.assistant .portal-vue-ai-bubble.portal-vue-ai-report { flex: 1 1 auto; max-width: none; }
-.portal-vue-ai-message.user .portal-vue-ai-bubble { max-width: 70%; box-shadow: 0 2px 8px rgba(22,119,255,.18); }
+.portal-vue-ai-message.user .portal-vue-ai-bubble { max-width: 70%; box-shadow: 0 2px 8px rgba(0,102,255,.18); }
 .portal-vue-ai-message.user .portal-vue-ai-confirms .el-tag { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.4); color: #fff; }
 .portal-vue-ai-thinking i { display: inline-block; width: 4px; height: 4px; margin-left: 3px; border-radius: 50%; background: #98a2b3; animation: portal-vue-ai-dot 1.2s infinite ease-in-out; }
 .portal-vue-ai-thinking i:nth-child(2) { animation-delay: .15s; }
@@ -920,7 +920,7 @@
 .portal-vue-ai-ask.is-answered, .portal-vue-ai-ask.is-skipped { border-color: #e4e9f2; box-shadow: none; background: #fafbfd; }
 .portal-vue-ai-ask-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f0f7ff; border-bottom: 1px solid #e2edfb; }
 .portal-vue-ai-ask.is-answered .portal-vue-ai-ask-head, .portal-vue-ai-ask.is-skipped .portal-vue-ai-ask-head { background: #f4f6fa; border-bottom-color: #eaedf3; }
-.portal-vue-ai-ask-badge { flex: 0 0 auto; padding: 1px 8px; border-radius: 999px; background: #1677ff; color: #fff; font-size: 11px; font-weight: 700; }
+.portal-vue-ai-ask-badge { flex: 0 0 auto; padding: 1px 8px; border-radius: 999px; background: #0066FF; color: #fff; font-size: 11px; font-weight: 700; }
 .portal-vue-ai-ask.is-answered .portal-vue-ai-ask-badge, .portal-vue-ai-ask.is-skipped .portal-vue-ai-ask-badge { background: #98a2b3; }
 .portal-vue-ai-ask-head strong { min-width: 0; color: #1f2733; font-size: 13.5px; }
 .portal-vue-ai-ask-state { margin-left: auto; flex: 0 0 auto; color: #8a94a6; font-size: 12px; }
@@ -929,19 +929,19 @@
 .portal-vue-ai-ask-q + .portal-vue-ai-ask-q { border-top: 1px dashed #e9edf4; margin-top: 8px; }
 .portal-vue-ai-ask-title { margin: 0; color: #1f2733; font-size: 13.5px; font-weight: 650; line-height: 1.6; }
 .portal-vue-ai-ask-title em { margin-left: 8px; padding: 0 6px; border-radius: 4px; background: #f2f4f7; color: #667085; font-size: 11px; font-style: normal; font-weight: 500; }
-.portal-vue-ai-ask-no { display: inline-flex; width: 18px; height: 18px; margin-right: 8px; align-items: center; justify-content: center; border-radius: 50%; background: #edf5ff; color: #1677ff; font-size: 11px; font-weight: 700; }
+.portal-vue-ai-ask-no { display: inline-flex; width: 18px; height: 18px; margin-right: 8px; align-items: center; justify-content: center; border-radius: 50%; background: #edf5ff; color: #0066FF; font-size: 11px; font-weight: 700; }
 .portal-vue-ai-ask-hint { margin: 2px 0 0 26px; font-size: 12px; }
 .portal-vue-ai-ask-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin: 10px 0 8px 26px; }
 .portal-vue-ai-ask-option { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1px solid #dcdfe6; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
-.portal-vue-ai-ask-option:hover { border-color: #1677ff; }
-.portal-vue-ai-ask-option.is-picked { border-color: #1677ff; background: #edf5ff; }
+.portal-vue-ai-ask-option:hover { border-color: #0066FF; }
+.portal-vue-ai-ask-option.is-picked { border-color: #0066FF; background: #edf5ff; }
 .portal-vue-ai-ask-mark { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; border: 1.5px solid #c0c7d3; border-radius: 50%; background: #fff; position: relative; }
 .portal-vue-ai-ask-mark.is-multi { border-radius: 4px; }
-.portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-mark { border-color: #1677ff; background: #1677ff; }
+.portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-mark { border-color: #0066FF; background: #0066FF; }
 .portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-mark::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .portal-vue-ai-ask-text { display: flex; flex-direction: column; min-width: 0; }
 .portal-vue-ai-ask-text b { color: #1f2733; font-size: 13px; font-weight: 600; }
-.portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-text b { color: #1677ff; }
+.portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-text b { color: #0066FF; }
 .portal-vue-ai-ask-text small { margin-top: 2px; color: #8a94a6; font-size: 11.5px; line-height: 1.4; }
 .portal-vue-ai-ask-custom { margin: 0 0 10px 26px; width: calc(100% - 26px); }
 .portal-vue-ai-ask-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid #eef1f6; background: #fafbfd; font-size: 12px; }
@@ -958,18 +958,18 @@
 
 /* 左侧：不再套一层带边框的卡片，列表直接落在页面底色上 */
 .portal-vue-ai-side { padding: 0; border: 0; background: transparent; gap: 12px; }
-.portal-vue-ai-asset-btn { margin: 0; padding: 12px 14px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #eef5ff, #e3efff); box-shadow: 0 1px 2px rgba(22,119,255,.08); }
+.portal-vue-ai-asset-btn { margin: 0; padding: 12px 14px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #eef5ff, #e3efff); box-shadow: 0 1px 2px rgba(0,102,255,.08); }
 .portal-vue-ai-asset-btn:hover { background: linear-gradient(135deg, #e6f0ff, #d9e9ff); }
-.portal-vue-ai-asset-btn.active { background: linear-gradient(135deg, #dcebff, #cfe3ff); box-shadow: 0 0 0 1.5px #1677ff inset; }
+.portal-vue-ai-asset-btn.active { background: linear-gradient(135deg, #dcebff, #cfe3ff); box-shadow: 0 0 0 1.5px #0066FF inset; }
 .portal-vue-ai-asset-btn-text { color: #0f5bd8; }
-.portal-vue-ai-new.el-button { height: 38px; border-radius: 12px; border: 1px dashed #b7d2ff; background: #fff; color: #1677ff; font-weight: 600; }
+.portal-vue-ai-new.el-button { height: 38px; border-radius: 12px; border: 1px dashed #b7d2ff; background: #fff; color: #0066FF; font-weight: 600; }
 .portal-vue-ai-new.el-button:hover { border-style: solid; background: #f4f8ff; }
 .portal-vue-ai-group-label { margin: 4px 4px -2px; font-size: 12px; font-weight: 600; letter-spacing: .2px; }
 .portal-vue-ai-sessions { gap: 2px; padding-right: 6px; }
 .portal-vue-ai-session { position: relative; padding: 10px 12px 10px 14px; border: 0; border-radius: 10px; background: transparent; }
 .portal-vue-ai-session:hover { background: #eef2f8; }
 .portal-vue-ai-session.active { background: #fff; box-shadow: 0 2px 10px rgba(30,60,110,.08); }
-.portal-vue-ai-session.active::before { content: ""; position: absolute; left: 4px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: #1677ff; }
+.portal-vue-ai-session.active::before { content: ""; position: absolute; left: 4px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: #0066FF; }
 .portal-vue-ai-session-top strong { font-size: 13.5px; font-weight: 600; }
 .portal-vue-ai-session-top time { font-size: 11px; color: #9aa4b5; }
 .portal-vue-ai-session-meta { margin-top: 5px; gap: 6px; }
@@ -982,7 +982,7 @@
 .portal-vue-ai-scenarios { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 18px; max-height: none; overflow: visible; border-bottom: 1px solid #f0f2f7; background: #fff; }
 .portal-vue-ai-scenario { gap: 6px; padding: 6px 14px 6px 10px; border: 0; border-radius: 999px; background: #f3f5f9; transition: background .15s, color .15s, box-shadow .15s; }
 .portal-vue-ai-scenario:hover { background: #e8edf5; }
-.portal-vue-ai-scenario.active { background: #1677ff; box-shadow: 0 4px 12px rgba(22,119,255,.28); }
+.portal-vue-ai-scenario.active { background: #0066FF; box-shadow: 0 4px 12px rgba(0,102,255,.28); }
 .portal-vue-ai-scenario.active strong { color: #fff; }
 .portal-vue-ai-scenario strong { font-size: 13px; font-weight: 600; color: #3a4558; }
 .portal-vue-ai-scenario small { display: none; }
@@ -993,10 +993,10 @@
 .portal-vue-ai-welcome { padding: 36px 32px; border-radius: 16px; background: #fff; box-shadow: 0 2px 12px rgba(30,60,110,.05); }
 .portal-vue-ai-welcome h3 { font-size: 20px; font-weight: 700; }
 .portal-vue-ai-suggests .el-button { height: 32px; padding: 0 14px; border: 0; background: #f0f4fb; color: #3a4558; font-weight: 500; }
-.portal-vue-ai-suggests .el-button:hover { background: #1677ff; color: #fff; }
-.portal-vue-ai-avatar { width: 32px; height: 32px; border-radius: 50%; box-shadow: 0 3px 8px rgba(22,119,255,.25); }
+.portal-vue-ai-suggests .el-button:hover { background: #0066FF; color: #fff; }
+.portal-vue-ai-avatar { width: 32px; height: 32px; border-radius: 50%; box-shadow: 0 3px 8px rgba(0,102,255,.25); }
 .portal-vue-ai-bubble { padding: 12px 16px; border-radius: 14px; font-size: 14px; line-height: 1.75; }
-.portal-vue-ai-message.user .portal-vue-ai-bubble { background: linear-gradient(135deg, #3b8cff, #1569ee); border-bottom-right-radius: 4px; box-shadow: 0 4px 14px rgba(22,119,255,.22); }
+.portal-vue-ai-message.user .portal-vue-ai-bubble { background: linear-gradient(135deg, #3b8cff, #1569ee); border-bottom-right-radius: 4px; box-shadow: 0 4px 14px rgba(0,102,255,.22); }
 .portal-vue-ai-message.assistant .portal-vue-ai-bubble { background: #fff; border: 0; border-top-left-radius: 4px; box-shadow: 0 2px 10px rgba(30,60,110,.06); }
 .portal-vue-ai-refs .el-tag, .portal-vue-ai-confirms .el-tag { border: 0; background: #eef3fb; color: #3a4a66; }
 .portal-vue-ai-message.user .portal-vue-ai-refs .el-tag { background: rgba(255,255,255,.2); color: #fff; }
@@ -1015,7 +1015,7 @@
 /* 输入区：悬浮式大圆角输入卡 */
 .portal-vue-ai-input { padding: 0 24px 18px; border-top: 0; background: #f8f9fc; }
 .portal-vue-ai-composer { max-width: 980px; margin: 0 auto; border: 1px solid #e3e8f1; border-radius: 16px; box-shadow: 0 6px 24px rgba(30,60,110,.08); }
-.portal-vue-ai-composer:focus-within { border-color: #1677ff; box-shadow: 0 6px 24px rgba(22,119,255,.14), 0 0 0 3px rgba(22,119,255,.08); }
+.portal-vue-ai-composer:focus-within { border-color: #0066FF; box-shadow: 0 6px 24px rgba(0,102,255,.14), 0 0 0 3px rgba(0,102,255,.08); }
 .portal-vue-ai-composer .el-textarea__inner { padding: 14px 18px 4px; font-size: 14px; }
 .portal-vue-ai-composer-bar { padding: 6px 12px 10px; }
 .portal-vue-ai-chip-line-select .el-select__wrapper, .portal-vue-ai-chip-model-select .el-select__wrapper, .portal-vue-ai-chip-reasoning-select .el-select__wrapper { background: #f3f5f9; box-shadow: none; }
@@ -1024,17 +1024,17 @@
 .portal-vue-ai-mention { max-width: 980px; margin: 0 auto 8px; border: 0; border-radius: 12px; box-shadow: 0 6px 20px rgba(30,60,110,.12); }
 
 /* 提问卡片：与新底色统一 */
-.portal-vue-ai-ask { border: 0; border-radius: 14px; box-shadow: 0 6px 22px rgba(22,119,255,.12), 0 0 0 1px #d3e3fc; }
+.portal-vue-ai-ask { border: 0; border-radius: 14px; box-shadow: 0 6px 22px rgba(0,102,255,.12), 0 0 0 1px #d3e3fc; }
 .portal-vue-ai-ask.is-answered, .portal-vue-ai-ask.is-skipped { box-shadow: 0 2px 10px rgba(30,60,110,.05); background: #fff; }
 .portal-vue-ai-ask-head { padding: 12px 16px; background: linear-gradient(135deg, #f1f7ff, #e9f2ff); border-bottom: 0; }
 .portal-vue-ai-ask-option { border-color: #e3e8f1; border-radius: 10px; }
-.portal-vue-ai-ask-option.is-picked { background: #edf5ff; box-shadow: 0 0 0 1px #1677ff inset; }
+.portal-vue-ai-ask-option.is-picked { background: #edf5ff; box-shadow: 0 0 0 1px #0066FF inset; }
 .portal-vue-ai-ask-foot { background: #f8f9fc; border-top: 0; }
 
 /* 分析资产页 */
 .portal-vue-ai-assets-page { padding: 20px 24px; background: #f8f9fc; }
 .portal-vue-ai-asset-card { border: 0; border-radius: 14px; box-shadow: 0 2px 10px rgba(30,60,110,.06); }
-.portal-vue-ai-asset-card:hover { box-shadow: 0 8px 22px rgba(22,119,255,.16); }
+.portal-vue-ai-asset-card:hover { box-shadow: 0 8px 22px rgba(0,102,255,.16); }
 
 /* 输入区工具条：只压缩选择下拉的高度，宽度保持原样 */
 .portal-vue-ai-input { padding: 0 24px 12px; }
@@ -1052,7 +1052,7 @@
 .portal-vue-ai-composer-send.el-button::after { font-size: 15px; }
 
 /* 多选题：方形勾选框 + 标题徽标高亮 */
-.portal-vue-ai-ask-title em.is-multi { background: #e8f2ff; color: #1677ff; font-weight: 600; }
+.portal-vue-ai-ask-title em.is-multi { background: #e8f2ff; color: #0066FF; font-weight: 600; }
 .portal-vue-ai-ask-mark.is-multi { border-radius: 5px; }
 .portal-vue-ai-ask-option.is-picked .portal-vue-ai-ask-mark.is-multi::after { left: 4.5px; top: 1.5px; }
 
@@ -1067,7 +1067,7 @@
 .portal-vue-ai-think-head .portal-vue-muted { font-size: 12px; }
 .portal-vue-ai-think-arrow { margin-left: auto; color: #8a94a6; font-size: 12px; }
 .portal-vue-ai-think-body { max-height: 280px; overflow-y: auto; padding: 4px 14px 12px; color: #5b6575; font-size: 12.5px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
-.portal-vue-ai-think-body.is-live::after { content: "▍"; color: #1677ff; animation: portal-vue-ai-blink 1s steps(2) infinite; }
+.portal-vue-ai-think-body.is-live::after { content: "▍"; color: #0066FF; animation: portal-vue-ai-blink 1s steps(2) infinite; }
 
 /* 灵犀智析整屏工作台：去掉顶部多余外边距，左右列贴齐 */
 .portal-vue-ai-layout { margin-top: 0; }
@@ -1075,22 +1075,22 @@
 /* 灵犀智析：分析技能切换条（醒目版） */
 .portal-vue-ai-skillbar { margin: 10px 16px 0; padding: 12px 14px; border: 1px solid #dbe6f5; border-radius: 12px; background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%); }
 .portal-vue-ai-skillbar-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 10px; }
-.portal-vue-ai-skillbar-label { font-size: 13px; font-weight: 700; color: #1f2733; padding-left: 9px; border-left: 3px solid #1677ff; line-height: 16px; }
+.portal-vue-ai-skillbar-label { font-size: 13px; font-weight: 700; color: #1f2733; padding-left: 9px; border-left: 3px solid #0066FF; line-height: 16px; }
 .portal-vue-ai-skillbar-hint { font-size: 12px; color: #6b7587; }
 .portal-vue-ai-skillbar .portal-vue-ai-scenarios { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .portal-vue-ai-skillbar .portal-vue-ai-scenario { position: relative; min-height: 56px; padding: 10px 12px; border: 1.5px solid #d3dcea; border-radius: 10px; background: #fff; color: #1f2733; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); transition: border-color .15s, box-shadow .15s, background .15s, transform .15s; }
-.portal-vue-ai-skillbar .portal-vue-ai-scenario:hover { border-color: #1677ff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22, 119, 255, .12); }
-.portal-vue-ai-skillbar .portal-vue-ai-scenario.active { border-color: #1677ff; background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%); color: #fff; box-shadow: 0 6px 16px rgba(22, 119, 255, .32); }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario:hover { border-color: #0066FF; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 102, 255, .12); }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario.active { border-color: #0066FF; background: linear-gradient(135deg, #0066FF 0%, #4096ff 100%); color: #fff; box-shadow: 0 6px 16px rgba(0, 102, 255, .32); }
 .portal-vue-ai-skillbar .portal-vue-ai-scenario.active strong { color: #fff; }
 .portal-vue-ai-skillbar .portal-vue-ai-scenario.active small { color: rgba(255, 255, 255, .85); }
 .portal-vue-ai-skillbar .portal-vue-ai-scenario.active .portal-vue-ai-scene-icon { background: rgba(255, 255, 255, .2); }
 .portal-vue-ai-skillbar .portal-vue-ai-scene-text { min-width: 0; flex: 1; }
 .portal-vue-ai-skillbar .portal-vue-ai-scene-text strong { font-size: 13px; }
 .portal-vue-ai-skillbar .portal-vue-ai-scene-text small { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.portal-vue-ai-scene-badge { flex: none; padding: 1px 6px; border-radius: 999px; background: #e7f1ff; color: #1677ff; font-size: 11px; line-height: 16px; }
+.portal-vue-ai-scene-badge { flex: none; padding: 1px 6px; border-radius: 999px; background: #e7f1ff; color: #0066FF; font-size: 11px; line-height: 16px; }
 .portal-vue-ai-skillbar .portal-vue-ai-scenario.active .portal-vue-ai-scene-badge { background: rgba(255, 255, 255, .25); color: #fff; }
 .portal-vue-ai-scene-check { flex: none; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: transparent; border: 1.5px solid #c4cedd; }
-.portal-vue-ai-skillbar .portal-vue-ai-scenario.active .portal-vue-ai-scene-check { color: #1677ff; background: #fff; border-color: #fff; font-weight: 700; }
+.portal-vue-ai-skillbar .portal-vue-ai-scenario.active .portal-vue-ai-scene-check { color: #0066FF; background: #fff; border-color: #fff; font-weight: 700; }
 @media (max-width: 720px) { .portal-vue-ai-skillbar { margin: 8px 10px 0; } .portal-vue-ai-skillbar .portal-vue-ai-scenarios { grid-template-columns: 1fr; } }
 
 /* 后台 Skill 配置：自动路由规则编辑器 */
