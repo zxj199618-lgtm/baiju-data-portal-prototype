@@ -31,6 +31,8 @@ test("示例地址", () => {
   assert.equal(R.toHash("权限组"), "#/permission/groups");
   assert.equal(R.toHash("配置权限", { user: "ou_7f31c9" }), "#/permission/users/ou_7f31c9/config");
   assert.equal(R.toHash("表详情", { table: "prod_callup.dm_x" }), "#/asset/tables/prod_callup.dm_x");
+  assert.equal(R.toHash("Skill 详情", { skill: "equity-union-analyst" }), "#/ai/skills/equity-union-analyst");
+  assert.deepEqual(R.parsePath("#/ai/skills/equity-union-analyst"), { page: "Skill 详情", params: { skill: "equity-union-analyst" } });
   assert.equal(R.toHash("配置权限"), "", "详情页缺对象参数时没有地址");
   assert.equal(R.toHash("不存在的页面"), "");
 });
@@ -47,12 +49,13 @@ test("旧地址 #page= 兼容：能还原对象的还原，不能的退回列表
   assert.equal(lost.page, "用户管理");
   assert.equal(lost.unresolved, true);
   assert.equal(R.parseHash("#page=" + encodeURIComponent("表详情")).page, "表管理");
+  assert.equal(R.parseHash("#page=" + encodeURIComponent("Skill 详情")).page, "Skill 配置");
   assert.equal(R.parseHash("#page=" + encodeURIComponent("不存在")).invalid, true);
   assert.equal(R.parseHash("#/no/such/page"), null);
 });
 
 test("旧版所有页面名都有新地址（无遗漏）", () => {
-  const legacyPages = ["灵犀智析", "数据看板", "数据告警", "Skill 配置", "菜单管理", "模型配置", "运营中心", "看板访问记录", "大数据工具箱", "业务工具箱", "补数据", "消耗对比", "环境域名", "生成人群包", "短剧投放账户上报", "表详情", "看板管理", "表管理", "维表管理", "维表数据维护", "字典管理", "数据开放平台", "新增API", "人群包管理", "新建人群包", "标签管理", "人群包推送渠道", "用户管理", "权限组", "配置权限", "查看权限", "Quick BI 展示"];
+  const legacyPages = ["灵犀智析", "数据看板", "数据告警", "Skill 配置", "菜单管理", "模型配置", "运营中心", "看板访问记录", "大数据工具箱", "业务工具箱", "补数据", "消耗对比", "环境域名", "生成人群包", "短剧投放账户上报", "表详情", "看板管理", "表管理", "维表管理", "维表数据维护", "字典管理", "数据开放平台", "新增API", "人群包管理", "新建人群包", "标签管理", "人群包推送渠道", "用户管理", "权限组", "配置权限", "查看权限", "Quick BI 展示", "Skill 详情"];
   legacyPages.forEach(page => assert.ok(R.hasPage(page), `缺少 ${page}`));
 });
 
@@ -61,6 +64,8 @@ test("菜单权限：详情页继承所属菜单", () => {
   assert.equal(R.menuOf("Quick BI 展示"), "数据看板");
   assert.equal(R.menuOf("补数据"), "补数据");
   assert.equal(R.listOf("表详情"), "表管理");
+  assert.equal(R.listOf("Skill 详情"), "Skill 配置");
+  assert.equal(R.menuOf("Skill 详情"), "Skill 配置");
 });
 
 test("数据看板页可带看板：#/dashboard/<id>，旧的 &board= 也能还原", () => {

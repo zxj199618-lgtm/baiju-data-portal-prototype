@@ -24,6 +24,7 @@
   "page-menu-management.js",
   "page-model-config.js",
   "page-skill-management.js",
+  "page-skill-detail.js",
   "page-operation-log.js",
   "page-toolbox-overview.js",
   "page-tool-backfill.js",

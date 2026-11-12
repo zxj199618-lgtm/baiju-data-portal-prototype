@@ -49,6 +49,7 @@
     { page: "权限组", path: "/permission/groups" },
     { page: "权限组", path: "/permission/groups/:group", optional: true },
     { page: "Skill 配置", path: "/ai/skills" },
+    { page: "Skill 详情", path: "/ai/skills/:skill", list: "Skill 配置", menu: "Skill 配置" },
     { page: "模型配置", path: "/ai/models" },
     { page: "运营中心", path: "/ai/ops" },
     { page: "看板访问记录", path: "/system/access-logs" },

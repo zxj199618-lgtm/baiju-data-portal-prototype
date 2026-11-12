@@ -1535,6 +1535,7 @@
         "灵犀智析": ["灵犀智析", "通过对话或飞书机器人发起数据分析，仅可分析你有权限的数据表。", ""],
         "数据告警": ["数据告警", "选择监控表与字段配置告警规则、通知模版与飞书推送通道，支持实时或定时触发与重复通知控制。", "新建告警"],
         "Skill 配置": ["Skill 配置", "管理可用于灵犀智析和飞书机器人的分析 skill：展示、提示词、版本与用户灰度。", "上传 Skill"],
+        "Skill 详情": ["Skill 详情", "", ""],
         "菜单管理": ["菜单管理", "维护门户侧边导航结构：层级、图标、排序、组件路径与权限标识。", "添加"],
         "看板访问记录": ["看板访问记录", "记录用户「查看看板」明细，支持按用户、终端与时间范围筛选。", ""],
         "运营中心": ["运营中心", "用量与配额、审计日志、回答反馈、账号管理和默认模型（仅门户管理员）。", ""],
@@ -1727,7 +1728,7 @@
         if (page === "标签管理") return "asset";
         if (page === "人群包推送渠道") return "push";
         if (page === "用户管理" || page === "权限组") return "permission";
-        if (page === "Skill 配置" || page === "模型配置" || page === "运营中心") return "ai";
+        if (page === "Skill 配置" || page === "Skill 详情" || page === "模型配置" || page === "运营中心") return "ai";
         if (page === "菜单管理") return "system";
         if (page === "大数据工具箱" || page === "补数据" || page === "消耗对比" || page === "环境域名") return "toolbox";
         if (page === "业务工具箱" || page === "生成人群包" || page === "短剧投放账户上报") return "toolboxBiz";
@@ -1818,7 +1819,7 @@
         pageSubtitle.textContent = meta[1];
         primaryAction.textContent = meta[2];
         primaryAction.classList.toggle("hidden", !meta[2]);
-        if (!["Quick BI 展示", "新增API", "新建人群包", "维表数据维护", "表详情"].includes(page)) upsertTab({ name: meta[0], page, icon: pageIcon(page), closable: page !== "数据看板" });
+        if (!["Quick BI 展示", "新增API", "新建人群包", "维表数据维护", "表详情", "Skill 详情"].includes(page)) upsertTab({ name: meta[0], page, icon: pageIcon(page), closable: page !== "数据看板" });
         tabsBar.innerHTML = simpleTabs.map(tab => `
           <button class="tab ${tab.page === page && (!Object.prototype.hasOwnProperty.call(tab, "boardIndex") || activeBoard.name === tab.name) ? "active" : ""}" data-simple-tab="${safeText(tab.name)}">
             <img class="nav-icon ${tab.icon}" src="${navIconPath(tab.icon, tab.page === page)}" alt="" aria-hidden="true" /><span>${safeText(tab.name)}</span>
@@ -3118,6 +3119,7 @@
       function routeParams(page) {
         const params = {};
         if (page === "配置权限" || page === "查看权限") { const user = simpleUsers[activeUserIndex]; if (user?.feishu) params.user = user.feishu; }
+        else if (page === "Skill 详情") { const skillId = window.portalSkillDetailId; if (skillId) params.skill = skillId; }
         else if (page === "表详情") { const asset = window.portalTableDetailAsset; if (asset) params.table = `${asset.database}.${asset.table}`; }
         else if (page === "Quick BI 展示") { if (activeBoard?.quickBiId) params.board = activeBoard.quickBiId; }
         else if (page === "维表数据维护") { if (window.portalDimensionAssetId) params.dim = window.portalDimensionAssetId; }
@@ -3139,6 +3141,15 @@
           const index = simpleUsers.findIndex(user => user.feishu === params.user);
           if (index < 0) return fallback("用户管理", "链接中的用户不存在或已移除，已回到用户管理");
           activeUserIndex = index;
+        } else if (page === "Skill 详情") {
+          const id = params.skill;
+          if (!id) return fallback("Skill 配置", "链接中的 Skill 不存在或已删除，已回到 Skill 配置");
+          window.portalSkillDetailId = id;
+          const list = window.portalVueModuleApi?.state?.skills;
+          if (Array.isArray(list) && !list.some(item => item.id === id)) {
+            window.portalSkillDetailId = "";
+            return fallback("Skill 配置", "链接中的 Skill 不存在或已删除，已回到 Skill 配置");
+          }
         } else if (page === "表详情") {
           const cut = params.table.indexOf(".");
           const asset = cut > 0 ? (window.dataAssets || dataAssets).find(item => item.database === params.table.slice(0, cut) && item.table === params.table.slice(cut + 1)) : null;
@@ -3249,6 +3260,7 @@
         document.getElementById("analysisWorkbenchView")?.classList.toggle("hidden", page !== "灵犀智析");
         document.getElementById("alertManagementView")?.classList.toggle("hidden", page !== "数据告警");
         document.getElementById("skillManagementView")?.classList.toggle("hidden", page !== "Skill 配置");
+        document.getElementById("skillDetailView")?.classList.toggle("hidden", page !== "Skill 详情");
         document.getElementById("menuManagementView")?.classList.toggle("hidden", page !== "菜单管理");
         document.getElementById("modelConfigView")?.classList.toggle("hidden", page !== "模型配置");
         document.getElementById("opsCenterView")?.classList.toggle("hidden", page !== "运营中心");
@@ -3322,6 +3334,7 @@
         document.getElementById("opsEnvView")?.classList.add("hidden");
         document.getElementById("opsLineageView")?.classList.add("hidden");
         document.getElementById("tableDetailView")?.classList.add("hidden");
+        document.getElementById("skillDetailView")?.classList.add("hidden");
         dataBoardView.classList.add("hidden");
         document.getElementById("boardManagementView").classList.add("hidden");
         document.getElementById("dataAssetView").classList.add("hidden");
@@ -3900,12 +3913,25 @@
         setRouteGroup,
         /* 服务端权限同步完成后调用：直达链接指向没有权限的菜单时，回到第一个有权限的页面并提示 */
         recheckRoute: () => {
+          if (activePage === "Skill 详情") {
+            const id = window.portalSkillDetailId;
+            const list = window.portalVueModuleApi?.state?.skills;
+            if (Array.isArray(list) && !list.some(item => item.id === id)) {
+              window.portalSkillDetailId = "";
+              routeNotice("链接中的 Skill 不存在或已删除，已回到 Skill 配置");
+              routeHistoryMode = "replace";
+              setSimplePage("Skill 配置");
+              routeHistoryMode = "push";
+            }
+          }
           if (routeChecked || !routeBootExplicit) return;
           routeChecked = true;
           const denied = accessDenied(activePage);
           if (denied?.page) { routeNotice(`你没有「${denied.menu}」的访问权限，已打开「${denied.page}」`); routeHistoryMode = "replace"; setSimplePage(denied.page); routeHistoryMode = "push"; }
           else if (denied) routeNotice(`你没有「${denied.menu}」的访问权限`);
         },
+        getSkillDetailId: () => window.portalSkillDetailId || "",
+        setSkillDetailId: value => { window.portalSkillDetailId = value || ""; },
         getTableDetailAsset: () => window.portalTableDetailAsset || null,
         setTableDetailAsset: value => { window.portalTableDetailAsset = value; }
       };

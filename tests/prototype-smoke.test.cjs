@@ -11,6 +11,7 @@ const assert = (condition, message) => {
 
 const html = read("index.html");
 const portalBridge = read("assets/portal-bridge.js");
+const portalRoutes = read("assets/portal-routes.js");
 const gatewaySource = read("scripts/analysis-gateway.cjs");
 const audienceBridge = read("assets/cp-bridge.js");
 // 前端已按页面拆成 assets/portal/*.js（加载顺序见 manifest.json）；这里拼成一个整体，沿用原来对源码的断言
@@ -290,7 +291,7 @@ assert(aiGroup.includes('name: "Skill 配置", badge: "5.0"') && aiGroup.include
 assert(portalBridge.includes('group: "AI 中心", icon: "ai"'), "AI 中心应有独立侧栏图标");
 assert(systemGroup.includes('name: "看板访问记录"') && systemGroup.includes('name: "菜单管理"') && !systemGroup.includes('name: "任务运维"') && !systemGroup.includes('name: "环境域名"'), "系统管理只应保留看板访问记录 / 菜单管理；任务运维与环境域名必须已迁入大数据工具箱（此断言防止回退）");
 assert(!systemGroup.includes("Skill 配置") && !systemGroup.includes("模型配置"), "系统管理不应再包含 Skill 配置与模型配置（此断言防止回退）");
-assert(portalBridge.includes('if (page === "Skill 配置" || page === "模型配置" || page === "运营中心") return "ai";'), "AI 中心三个页面的顶部页签应使用 ai 图标");
+assert(portalBridge.includes('if (page === "Skill 配置" || page === "Skill 详情" || page === "模型配置" || page === "运营中心") return "ai";'), "AI 中心页面的顶部页签应使用 ai 图标");
 /* Skill 图标：内置四个 Skill 用随原型分发的 SVG，不再用 emoji；上传图 / emoji 仍按原逻辑渲染 */
 assert(portalVue.includes('icon: "assets/skill-query.svg"') && portalVue.includes('icon: "assets/skill-asset.svg"') && portalVue.includes('icon: "assets/skill-lineage.svg"') && portalVue.includes('icon: "assets/skill-attribution.svg"'), "四个内置 Skill 要用设计好的 SVG 图标");
 assert(portalVue.includes('icon: "assets/skill-single-table.svg"'), "网关未连接时的兜底场景「单表分析」也要用同一套 SVG 图标");
@@ -397,6 +398,10 @@ assert(portalBridge.includes('"看板访问记录": ["看板访问记录"'), "�
 assert(html.includes('id="menuManagementView"') && portalVue.includes("mount(\"#menuManagementView\""), "菜单管理应挂载独立视图");
 assert(portalVue.includes("MenuManagementApp") && portalVue.includes("权限标识") && portalVue.includes("组件路径"), "菜单管理应提供层级树/组件路径/权限标识配置");
 assert(html.includes('id="skillManagementView"') && portalVue.includes("mount(\"#skillManagementView\""), "Skill 配置应挂载独立视图");
+assert(html.includes('id="skillDetailView"') && portalVue.includes("mount(\"#skillDetailView\""), "Skill 详情应挂载独立视图");
+assert(portalVue.includes("SkillDetailApp") && portalVue.includes("返回 Skill 管理") && html.includes("page-skill-detail.js"), "Skill 详情页应提供返回 Skill 管理的页头");
+assert(portalRoutes.includes('page: "Skill 详情"') && portalRoutes.includes('path: "/ai/skills/:skill"'), "Skill 详情应注册 #/ai/skills/:skill 地址");
+assert(portalBridge.includes("getSkillDetailId") && portalBridge.includes("setSkillDetailId") && portalBridge.includes("portalSkillDetailId"), "Skill 详情应通过 bridge 读写当前 Skill id");
 assert(portalVue.includes("SkillManagementApp") && portalVue.includes("提示词") && portalVue.includes("回滚到此版本") && portalVue.includes("保存为新版本") && portalVue.includes("versionNote"), "Skill 配置应合并为单一编辑页，保存即创建新版本（版本号+说明+发布/灰度）");
 assert(portalVue.includes("grayUsers") && portalVue.includes("灰度用户") && portalVue.includes("toggleEnabled") && portalVue.includes("skillStatus"), "Skill 灰度应按系统内用户配置（不再按流量），并支持上下线开关");
 assert("testVisible" in portalVue.match(/SkillManagementApp[\s\S]{0,200}/g) === false || !portalVue.includes("沙箱试跑"), "Skill 配置不应再包含沙箱试跑");

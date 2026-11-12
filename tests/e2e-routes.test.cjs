@@ -85,6 +85,12 @@ describe("路由端到端", () => {
     await reloadAt(page, "#/dashboard/boards/QB_002");
     assert.equal(await pageOf(page), "Quick BI 展示");
     assert.equal(await page.evaluate(() => window.portalVueBridge.getActiveBoard().quickBiId), "QB_002");
+
+    await reloadAt(page, "#/ai/skills/warehouse-analyst");
+    assert.equal(await pageOf(page), "Skill 详情");
+    assert.equal(await page.evaluate(() => window.portalVueBridge.getSkillDetailId()), "warehouse-analyst");
+    assert.equal(await hashOf(page), "#/ai/skills/warehouse-analyst");
+    assert.equal(await page.locator("#skillDetailView.hidden").count(), 0, "应打开 Skill 详情页");
   }));
 
   test("在页面里点进详情：地址随对象变化，且每个对象的地址不同", async t => withPage(t, async page => {
@@ -155,6 +161,11 @@ describe("路由端到端", () => {
     assert.equal(await hashOf(page), "#/asset/tables");
     await page.waitForFunction(() => /数据表不存在或已删除/.test([...document.querySelectorAll(".el-message")].map(el => el.textContent).join("|")));
     assert.equal(await page.locator("#tableDetailView.hidden").count(), 1, "不应打开空白详情页");
+
+    await reloadAt(page, "#/ai/skills/skill-not-exist");
+    assert.equal(await hashOf(page), "#/ai/skills");
+    await page.waitForFunction(() => /Skill 不存在或已删除/.test([...document.querySelectorAll(".el-message")].map(el => el.textContent).join("|")));
+    assert.equal(await page.locator("#skillDetailView.hidden").count(), 1, "不应打开空白 Skill 详情页");
 
     await reloadAt(page, "#/dashboard/boards/QB_NOPE");
     assert.equal(await hashOf(page), "#/dashboard/QB_001", "不存在的看板：显示默认看板并把地址改成它");
