@@ -1292,4 +1292,88 @@ describe("浏览器端到端", () => {
       if (!skipReason) await bizRestore(admin, snap);
     }
   }));
+
+  /* ===== 工作台：选择业务线 ===== */
+  const openWorkbench = async (page, name) => {
+    await login(page, name);
+    await appVisible(page);
+    await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+    await page.getByPlaceholder(/输入分析问题/).waitFor();
+  };
+  const lineSelect = page => page.locator(".portal-vue-ai-chip-line-select");
+  const lineItems = page => page.locator(".portal-vue-ai-select-popper:visible .el-select-dropdown__item");
+  const openLineOptions = async page => {
+    await lineSelect(page).click();
+    await lineItems(page).first().waitFor();
+    return (await lineItems(page).allTextContents()).map(item => item.trim());
+  };
+  const pickLine = async (page, name) => {
+    await lineSelect(page).click();
+    await page.locator(".portal-vue-ai-select-popper:visible .el-select-dropdown__item", { hasText: name }).first().click();
+  };
+  /** 拦截 /v1/analyze 记录请求体，其余照常放行 */
+  const captureAnalyze = async page => {
+    const bodies = [];
+    await page.route(url => url.pathname === "/v1/analyze", async route => {
+      bodies.push(JSON.parse(route.request().postData() || "{}"));
+      await route.continue();
+    });
+    return bodies;
+  };
+  const askAndWait = async (page, question) => {
+    const before = await page.locator(".portal-vue-ai-feedback").count();
+    await page.getByPlaceholder(/输入分析问题/).fill(question);
+    await page.getByRole("button", { name: "发送" }).click();
+    await page.waitForFunction(n => document.querySelectorAll(".portal-vue-ai-feedback").length > n, before);
+  };
+
+  test("工作台输入框下方是「选择业务线」，不再出现「选择数据表」级联", async t => withPage(t, async page => {
+    await openWorkbench(page, "曾祥竞");
+    assert.equal(await lineSelect(page).count(), 1, "应有业务线选择框");
+    assert.match(await lineSelect(page).textContent(), /选择业务线/);
+    assert.equal(await page.locator(".portal-vue-ai-composer-bar").getByText("选择数据表").count(), 0, "不应再有选择数据表级联");
+    assert.equal(await page.locator(".portal-vue-ai-composer-bar .el-cascader").count(), 0);
+    const options = await openLineOptions(page);
+    assert.deepEqual(options, ["权益", "存量", "号卡", "保险"], "选项不含「公共」");
+  }));
+
+  test("没有权限的业务线不在选项里；选业务线发问时请求体 businessLine 为所选名称、assetCandidates 为空", async t => withPage(t, async page => {
+    await openWorkbench(page, "林金维");
+    const bodies = await captureAnalyze(page);
+    const options = await openLineOptions(page);
+    assert.ok(options.includes("权益"), "有权限的业务线应在选项里");
+    assert.ok(!options.includes("保险") && !options.includes("存量") && !options.includes("公共"), `无权限的业务线与「公共」不应出现：${options}`);
+    await page.keyboard.press("Escape");
+    await pickLine(page, "权益");
+    await askAndWait(page, "业务线请求体测试 4411");
+    assert.equal(bodies.length, 1);
+    assert.equal(bodies[0].businessLine, "权益");
+    assert.deepEqual(bodies[0].assetCandidates, []);
+  }));
+
+  test("@表 仍可引用；同时选业务线时请求体 tables 含该表", async t => withPage(t, async page => {
+    await openWorkbench(page, "曾祥竞");
+    const bodies = await captureAnalyze(page);
+    await pickLine(page, "权益");
+    await askAndWait(page, "看一下 @广告计划日报表 的消耗");
+    assert.equal(bodies[0].businessLine, "权益");
+    assert.ok(bodies[0].tables.includes("广告计划日报表"), "@表 应进入 tables");
+  }));
+
+  test("换业务线后上一轮对话不再作为 conversation 上文；同一业务线追问仍带上文", async t => withPage(t, async page => {
+    await openWorkbench(page, "曾祥竞");
+    const bodies = await captureAnalyze(page);
+    await pickLine(page, "权益");
+    await askAndWait(page, "切换业务线测试 第一问 5501");
+    assert.equal(bodies[0].conversation.length, 0);
+    await askAndWait(page, "切换业务线测试 追问 5502");
+    assert.equal(bodies[1].conversation.length, 1, "同一业务线追问应带上一轮");
+    await pickLine(page, "存量");
+    await askAndWait(page, "切换业务线测试 换线 5503");
+    assert.equal(bodies[2].businessLine, "存量");
+    assert.deepEqual(bodies[2].conversation, [], "换了业务线，之前的对话不应再作为上文");
+    await askAndWait(page, "切换业务线测试 换线后追问 5504");
+    assert.equal(bodies[3].conversation.length, 1, "换线后的新一轮仍可追问");
+    assert.match(bodies[3].conversation[0].question, /5503/);
+  }));
 });

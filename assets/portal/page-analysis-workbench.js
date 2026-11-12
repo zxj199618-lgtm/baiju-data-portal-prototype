@@ -12,6 +12,7 @@
     enabledDictItems,
     ep,
     isImageIconValue,
+    knowledgeData,
     mount,
     notify,
     refreshTick,
@@ -264,7 +265,9 @@
                 <div class="portal-vue-ai-composer">
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
-                    <el-cascader v-model="activeTablePath" size="small" clearable filterable class="portal-vue-ai-chip-table-cascader" :options="tableCascadeOptions" :show-all-levels="false" placeholder="选择数据表" popper-class="portal-vue-ai-select-popper" @change="changeTablePath"></el-cascader>
+                    <el-select v-model="activeBusinessLine" size="small" clearable class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper">
+                      <el-option v-for="line in lineChoices" :key="line" :label="line" :value="line"></el-option>
+                    </el-select>
                     <el-select v-model="model" size="small" filterable class="portal-vue-ai-chip-model-select" :loading="modelsLoading" :disabled="!models.length" placeholder="请选择" popper-class="portal-vue-ai-select-popper" @change="applyMaxModelSettings">
                       <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
                     </el-select>
@@ -328,8 +331,7 @@
       thinking: false,
       mentionOpen: false,
       mentionKeyword: "",
-      activeTable: "",
-      activeTablePath: [],
+      activeBusinessLine: "",
       models: [],
       modelsLoading: false,
       model: "",
@@ -395,8 +397,16 @@
         if(rest.length)groups.push({name:"其他",tables:rest});
         return groups;
       },
-      tableCascadeOptions(){return this.tableGroups.map(group=>({value:group.name,label:group.name,children:group.tables.map(table=>({value:table,label:table}))}));},
-      businessLineOptions(){return this.clarifyQuestions.find(item=>item.key==="businessLine")?.options||["存量","权益","保险","短剧","其他"];},
+      /* 可选业务线：知识库里的业务线（不含「公共」），且该线或「公共」下至少有一张我有权限的表 */
+      lineChoices(){
+        refreshTick.value;
+        const mine=new Set(this.myTables);
+        const lineOf=knowledgeData.tableLines||{};
+        const hasTable=name=>Object.entries(lineOf).some(([table,line])=>line===name&&mine.has(table));
+        const publicOk=hasTable("公共");
+        return (knowledgeData.businessLines||[]).map(line=>line.name).filter(name=>name&&name!=="公共"&&(publicOk||hasTable(name)));
+      },
+      businessLineOptions(){return this.clarifyQuestions.find(item=>item.key==="businessLine")?.options||(this.lineChoices.length?this.lineChoices:["存量","权益","保险","短剧","其他"]);},
       clarifyQuestions(){
         const config=this.activeSkill?.clarification;
         if(!config?.enabled)return [];
@@ -556,9 +566,6 @@
         const value=Number(limit)||0;
         if(value>=1000000)return (value/1000000).toFixed(value%1000000?1:0)+"M";
         return Math.round(value/1000)+"K";
-      },
-      changeTablePath(path){
-        this.activeTable=Array.isArray(path)?path[1]||"":"";
       },
       newSession(){
         this.assetView=false;
@@ -797,7 +804,7 @@
       async sendMessage({question:questionOverride="",clarifyAnswers=null,askResult=[],resumed=false,skipped=false,reportOutput=null,forcedSkillId=""}={}){
         const question=(questionOverride||this.input).trim();
         if(!question||this.thinking)return;
-        const explicitlyReferenced=this.myTables.some(table=>question.includes(`@${table}`))||!!this.activeTable;
+        const explicitlyReferenced=this.myTables.some(table=>question.includes(`@${table}`))||!!this.activeBusinessLine;
         /* clarifyAnswers 为 null 表示用户刚发出问题：先走澄清面板；{} 表示用户选择跳过 */
         // 追问（本会话已经有回答）和「整理成报告」不再重复问业务线：上下文已经有了
         const hasPriorAnswer=(this.activeSession?.messages||[]).some(msg=>msg.role==="assistant"&&(msg.html||msg.reportId));
@@ -816,10 +823,12 @@
           return this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
         }
         const answers=clarifyAnswers||{};
-        const businessLine=answers.businessLine||"";
+        const businessLine=answers.businessLine||this.activeBusinessLine||"";
+        // 知识库里的业务线由服务端决定候选表；否则沿用旧的前端按分组筛选
+        const knownLine=(knowledgeData.businessLines||[]).some(line=>line.name===businessLine&&line.name!=="公共");
         const confirmations=this.clarifyQuestions.filter(item=>answers[item.key])
           .map(item=>(item.label||item.question)+"："+answers[item.key]);
-        const assetCandidates=businessLine?this.tablesForBusinessLine(businessLine):[];
+        const assetCandidates=businessLine&&!knownLine?this.tablesForBusinessLine(businessLine):[];
         let session=this.activeSession;
         if(!session.id||session.suggested){
           session=createAnalysisSession({title:question.slice(0,18)||"新的分析",scenario:this.scenarioName});
@@ -828,14 +837,14 @@
           session=this.sessions[0];
           this.activeId=session.id;
         }
-        const mentionedTables=[...new Set([...this.myTables.filter(table=>question.includes(`@${table}`)),...(this.activeTable?[this.activeTable]:[])])];
+        const mentionedTables=[...new Set(this.myTables.filter(table=>question.includes(`@${table}`)))];
         const evidenceTables=assetCandidates.length?assetCandidates:mentionedTables;
         const askConfirms=askResult.map(item=>`${item.label}：${item.answer.join("、")}`);
         /* 提问卡片提交后：回显「补充信息」，并把答案拼进发给模型的问题里，让它继续而不是重复提问 */
         const apiQuestion=resumed?(askResult.length
           ?`${question}\n\n用户补充信息（针对你刚才的提问）：\n${askResult.map(item=>`- ${item.question}：${item.answer.join("、")}`).join("\n")}\n请基于以上补充信息直接给出分析，不要再次提问。`
           :`${question}\n\n（用户选择跳过补充，请基于现有信息尽力分析，并在结论中说明你的假设，不要再次提问。）`):question;
-        session.messages.push({role:"user",lines:[resumed?(skipped?"跳过补充，直接分析":"已补充信息，请继续分析"):question],confirms:(resumed?askConfirms:confirmations).length?(resumed?askConfirms:confirmations):undefined,refs:evidenceTables.length?evidenceTables:undefined});
+        session.messages.push({role:"user",lines:[resumed?(skipped?"跳过补充，直接分析":"已补充信息，请继续分析"):question],confirms:(resumed?askConfirms:confirmations).length?(resumed?askConfirms:confirmations):undefined,refs:evidenceTables.length?evidenceTables:undefined,businessLine:businessLine||undefined});
         if(!resumed)session.title=session.title==="新的分析"?question.slice(0,18):session.title;
         this.input="";
         this.mentionOpen=false;
@@ -865,14 +874,14 @@
           const lines=this.myTables.length
             ?["本地分析网关未启动（scripts/analysis-gateway.cjs），当前为原型演示回复。","启动方式：RELAY_API_KEY=<中转站Key> node scripts/analysis-gateway.cjs，刷新后即可获得真实分析报告。"]
             :["当前权限组未配置数据表权限，无法发起分析，请联系管理员在「权限组 → 数据表权限」中授权。"];
-          session.messages.push({role:"assistant",lines:[...(askConfirms.length?[`已收到你的补充：${askConfirms.join("；")}。`]:[]),...(businessLine?[`已按「${businessLine}」业务线筛选 ${assetCandidates.length} 张可检索数据表。`]:[]),...lines],refs:(evidenceTables.length?evidenceTables:this.myTables).slice(0,3)});
+          session.messages.push({role:"assistant",lines:[...(askConfirms.length?[`已收到你的补充：${askConfirms.join("；")}。`]:[]),...(businessLine?[assetCandidates.length?`已按「${businessLine}」业务线筛选 ${assetCandidates.length} 张可检索数据表。`:`已按「${businessLine}」业务线限定分析范围。`]:[]),...lines],refs:(evidenceTables.length?evidenceTables:this.myTables).slice(0,3)});
           return this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
         }
         try{
           const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question:apiQuestion,scenario:forcedSkillId?(this.skillScenarios.find(item=>item.id===forcedSkillId)?.key||this.scenario):this.scenario,skillId:forcedSkillId||this.activeSkill?.id||"",tables:mentionedTables,assetCandidates,businessLine,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,...(reportOutput||{}),conversation:this.buildConversation(session),portalContext:this.buildPortalContext(evidenceTables)})
+            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question:apiQuestion,scenario:forcedSkillId?(this.skillScenarios.find(item=>item.id===forcedSkillId)?.key||this.scenario):this.scenario,skillId:forcedSkillId||this.activeSkill?.id||"",tables:mentionedTables,assetCandidates,businessLine,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,...(reportOutput||{}),conversation:this.buildConversation(session,businessLine),portalContext:this.buildPortalContext(evidenceTables)})
           });
           const contentType=response.headers.get("content-type")||"";
           if(!response.ok||(contentType.includes("application/json")&&!contentType.includes("event-stream"))){
@@ -1027,7 +1036,7 @@
         }catch(error){ep.ElMessage.warning("提交失败：无法连接分析网关");}
       },
       /* 追问要带上前几轮：最近 3 轮的问题、回答摘要，以及上一轮用的技能和已确定的口径词（服务端据此沿用，不信任这里的过滤条件） */
-      buildConversation(session){
+      buildConversation(session,businessLine=""){
         const messages=(session.messages||[]).slice(0,-1);
         const plain=value=>String(value||"").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/\s+/g," ").trim();
         const turns=[];
@@ -1036,14 +1045,18 @@
           if(msg.role==="user"){
             const text=(msg.lines||[]).join(" ").trim();
             if(!text||/^(已补充信息|跳过补充)/.test(text))return;
-            pending={question:text,answer:"",skillId:"",terms:[],requestId:"",tables:[...(msg.refs||[])]};
+            pending={question:text,answer:"",skillId:"",terms:[],requestId:"",tables:[...(msg.refs||[])],line:msg.businessLine||""};
             turns.push(pending);
           }else if(pending&&!msg.ask){
             const answer=msg.reportId?[msg.leadMsg,msg.trailMsg].filter(Boolean).join(" "):(msg.html?plain(msg.html):(msg.lines||[]).join(" "));
             if(answer&&!pending.answer){pending.answer=answer;pending.skillId=msg.skillId||"";pending.terms=msg.terms||[];pending.requestId=msg.requestId||"";}
           }
         });
-        return turns.filter(turn=>turn.answer).slice(-3);
+        // 换业务线等于换范围：只保留当前业务线连续的最近几轮，更早的不再作为上文
+        const answered=turns.filter(turn=>turn.answer);
+        let start=answered.length;
+        while(start>0&&answered[start-1].line===(businessLine||""))start--;
+        return answered.slice(start).map(({line,...turn})=>turn).slice(-3);
       },
       /* 推荐问题只显示在最后一条回答下面，点一下就是一次提问 */
       showSuggestions(msg){

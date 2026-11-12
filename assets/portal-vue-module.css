@@ -506,10 +506,10 @@
 .portal-vue-ai-composer-bar { display: flex; align-items: center; gap: 8px; padding: 4px 10px 6px; }
 .portal-vue-ai-chip-select { width: auto; min-width: 132px; max-width: 260px; }
 .portal-vue-ai-chip-biz { min-width: 108px; max-width: 160px; }
-.portal-vue-ai-chip-table-cascader { width: 200px; }
-.portal-vue-ai-chip-table-cascader .el-input__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; }
-.portal-vue-ai-chip-table-cascader .el-input__wrapper::before { content: "表"; margin-right: 5px; color: #1677ff; font-size: 12px; font-weight: 600; }
-.portal-vue-ai-chip-table-cascader .el-input__wrapper.is-focus { box-shadow: 0 0 0 1px #9cc5ff inset; }
+.portal-vue-ai-chip-line-select { width: 200px; }
+.portal-vue-ai-chip-line-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; }
+.portal-vue-ai-chip-line-select .el-select__wrapper::before { content: "线"; margin-right: 5px; color: #1677ff; font-size: 12px; font-weight: 600; }
+.portal-vue-ai-chip-line-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #9cc5ff inset; }
 .portal-vue-ai-chip-model-select { width: 200px; }
 .portal-vue-ai-chip-model-select .el-select__wrapper { border-radius: 999px; background: #f3f7fd; box-shadow: 0 0 0 1px #dbe8fb inset; }
 .portal-vue-ai-chip-model-select .el-select__wrapper::before { content: "模型"; margin-right: 5px; color: #1677ff; font-size: 12px; font-weight: 600; }
@@ -1018,7 +1018,7 @@
 .portal-vue-ai-composer:focus-within { border-color: #1677ff; box-shadow: 0 6px 24px rgba(22,119,255,.14), 0 0 0 3px rgba(22,119,255,.08); }
 .portal-vue-ai-composer .el-textarea__inner { padding: 14px 18px 4px; font-size: 14px; }
 .portal-vue-ai-composer-bar { padding: 6px 12px 10px; }
-.portal-vue-ai-chip-table-cascader .el-input__wrapper, .portal-vue-ai-chip-model-select .el-select__wrapper, .portal-vue-ai-chip-reasoning-select .el-select__wrapper { background: #f3f5f9; box-shadow: none; }
+.portal-vue-ai-chip-line-select .el-select__wrapper, .portal-vue-ai-chip-model-select .el-select__wrapper, .portal-vue-ai-chip-reasoning-select .el-select__wrapper { background: #f3f5f9; box-shadow: none; }
 .portal-vue-ai-composer-send.el-button { width: 34px; height: 34px; padding: 0; border-radius: 50%; font-size: 0; }
 .portal-vue-ai-composer-send.el-button::after { content: "↑"; font-size: 17px; font-weight: 700; }
 .portal-vue-ai-mention { max-width: 980px; margin: 0 auto 8px; border: 0; border-radius: 12px; box-shadow: 0 6px 20px rgba(30,60,110,.12); }

@@ -512,7 +512,7 @@ assert(!portalVue.includes('this.reasoning="high";') && !portalVue.includes("app
 assert(portalCss.includes(".portal-vue-ai-chip-reasoning-select") && portalCss.includes('content: "思考"'), "「思考」chip 沿用输入框胶囊样式（::before 前缀「思考」）");
 assert(portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商配置入口");
 assert(portalBridge.includes("内置中转站 + 自配供应商") || portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商接入与模型开关");
-assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("tableCascadeOptions") && portalVue.includes("activeTablePath") && portalVue.includes("changeTablePath") && portalVue.includes("<el-cascader"), "数据表选择应使用单个业务线到数据表的级联下拉");
+assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("lineChoices") && portalVue.includes("activeBusinessLine") && portalVue.includes("选择业务线") && !portalVue.includes("<el-cascader"), "输入框下方应使用单选业务线下拉，不再是数据表级联");
 assert(!portalVue.includes("portal-vue-ai-cascade-grid") && !portalVue.includes("activeBizLine") && !portalVue.includes("filteredTableOptions") && !portalVue.includes("changeBizLine"), "数据表选择不应保留拆分的业务线/数据表下拉");
 assert(portalBridge.includes('name: "数据告警"') && portalBridge.includes('icon: "alert"'), "侧边栏应在数据资产上方提供数据告警菜单");
 assert(html.includes('id="alertManagementView"') && portalVue.includes('mount("#alertManagementView"'), "数据告警应挂载独立视图");
@@ -573,9 +573,9 @@ assert(portalVue.includes("portal-vue-pagination") && portalVue.includes("pagedR
 assert(portalCss.includes(".portal-vue-alert-form .portal-vue-alert-hint"), "重复判定字段说明文案应独占一行显示在控件下方");
 assert(portalCss.includes(".portal-vue-alert-table .el-table__cell { vertical-align: middle; }"), "数据告警列表单元格内容应上下居中，行高随内容自适应");
 assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据告警列表不应再提供「我的 / 全部」切换");
-assert(portalVue.includes("portal-vue-ai-chip-table-cascader") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "表选择按钮应直接展开级联菜单，不应先打开中间弹层");
+assert(portalVue.includes("portal-vue-ai-chip-line-select") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "业务线选择应是输入框下方的单选下拉，不应先打开中间弹层");
 assert(portalVue.includes("portal-vue-ai-chip-model-select") && !portalVue.includes("portal-vue-ai-model-panel-popper"), "模型选择按钮应直接展开模型列表，不应先打开中间弹层");
-assert(portalCss.includes(".portal-vue-ai-chip-table-cascader { width: 200px; }") && portalCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }"), "表与模型下拉应统一为紧凑的 200px 宽度");
+assert(portalCss.includes(".portal-vue-ai-chip-line-select { width: 200px; }") && portalCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }"), "业务线与模型下拉应统一为紧凑的 200px 宽度");
 assert(portalVue.includes('reasoning: "high"') && portalVue.includes("maxTokens=this.currentContextLimit") && portalVue.includes("reasoningEffort:this.reasoning,maxTokens:this.maxTokens"), "分析请求应固定使用最高推理强度和当前模型最高上下文");
 assert(!portalVue.includes("推理强度") && !portalVue.includes("上下文长度") && !portalVue.includes("重置为默认设置") && !portalVue.includes("portal-vue-ai-model-reset"), "模型菜单只应保留模型选择，不展示额外设置");
 assert(portalVue.includes('label="业务线"') && portalVue.includes("bizLines()"), "表管理应提供业务线列与筛选");
