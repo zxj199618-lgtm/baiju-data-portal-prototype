@@ -137,7 +137,10 @@ describe("/v1/analyze 业务线模式", () => {
     assert.match(seen[0], /广告计划日报表/);
     const audit = harness.readJsonLines("analysis-audit.jsonl").slice(auditBefore).filter(item => item.tool);
     assert.deepEqual(audit.map(item => item.tool), ["get_table_knowledge", "query_join"]);
-    assert.ok(current.rev >= 1);
+    // 关联确实经 PUT 保存：rev 恰好加 1，权益业务线上就是这一条
+    const saved = (await adminCall("GET", "/v1/knowledge")).data;
+    assert.equal(saved.rev, current.rev + 1);
+    assert.deepEqual(saved.businessLines.find(line => line.name === "权益").relations.map(item => item.id), ["rel-t5"]);
   });
 
   test("businessLine 为「公共」→ 400；不存在的业务线（且客户端没给 assetCandidates）按旧行为；给了 assetCandidates 则按其缩小范围", async () => {
@@ -188,5 +191,114 @@ describe("/v1/analyze 业务线模式", () => {
       await small.analyzeStream("曾祥竞", { question: "q", businessLine: "权益" });
       assert.match(result, /超出本次字数预算/);
     } finally { await small.stop(); }
+  });
+});
+
+/* 三表关联：手工构造的小数据集（网关启动前写入 sample-data.json，其余表照常生成），期望值按下面的行手算 */
+describe("/v1/analyze 业务线模式：三表 query_join（手算期望值）", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const dim = (product_id, product_name, biz_line) => ({ product_id, product_name, biz_line, unit_price: 10, row_status: "有效" });
+  const roi = (stat_date, product_name, cost) => ({ stat_date, product_name, cost, activate_cnt: 1, revenue: 0, order_cnt: 0, roi: 0 });
+  const order = (order_id, product_name, order_amount, created_at) => ({ order_id, user_id: "U" + order_id, product_name, order_amount, status: "已支付", pay_channel: "微信", created_at });
+  const SAMPLE = {
+    generatedAt: "2026-11-12T00:00:00.000Z",
+    tables: {
+      产品维表: [dim("P1", "产品甲", "权益"), dim("P2", "产品乙", "权益"), dim("P3", "产品丙", "号卡")],
+      // 锚点 = 两张指标表的最大日期 2026-11-11，近 7 天 = 2026-11-05 ~ 2026-11-11
+      "产品 ROI 日报": [
+        roi("2026-11-10", "产品甲", 100), roi("2026-11-11", "产品乙", 50), roi("2026-11-11", "产品丙", 30),
+        roi("2026-11-09", "产品丁", 7), // 维表里没有 → （未关联）
+        roi("2026-11-01", "产品甲", 999) // 窗口外
+      ],
+      用户订单明细: [
+        order("O1", "产品甲", 200, "2026-11-11 10:00:00"), order("O2", "产品丙", 80, "2026-11-10 09:00:00"),
+        order("O3", "产品丙", 20, "2026-11-06 20:00:00"), order("O4", "产品乙", 500, "2026-11-02 08:00:00") // O4 在窗口外
+      ]
+    }
+  };
+  // 手算：权益 = 产品甲 + 产品乙：消耗 100 + 50 = 150，订单金额 200；号卡 = 产品丙：消耗 30，订单金额 80 + 20 = 100；（未关联）：消耗 7，订单 0
+  const EXPECTED = [
+    { 分组: { "产品维表.biz_line": "权益" }, 值: { 消耗: 150, 订单金额: 200 } },
+    { 分组: { "产品维表.biz_line": "号卡" }, 值: { 消耗: 30, 订单金额: 100 } },
+    { 分组: { "产品维表.biz_line": "（未关联）" }, 值: { 消耗: 7, 订单金额: 0 } }
+  ];
+
+  let harness;
+  before(async () => {
+    harness = await startHarness({ prepare: dir => fs.writeFileSync(path.join(dir, "sample-data.json"), JSON.stringify(SAMPLE)) });
+    const admin = await harness.tokenFor("曾祥竞");
+    const current = (await harness.call("GET", "/v1/knowledge", { token: admin })).data;
+    const relations = [
+      { left: { table: "产品 ROI 日报", field: "product_name" }, right: { table: "产品维表", field: "product_name" }, type: "N:1", note: "" },
+      { left: { table: "用户订单明细", field: "product_name" }, right: { table: "产品维表", field: "product_name" }, type: "N:1", note: "" }
+    ];
+    const businessLines = current.businessLines.map(line => line.name === "权益" ? { ...line, relations } : line);
+    // 关联通过 PUT 接口登记；用户订单明细原属号卡，移入权益后关联才用得上
+    const saved = await harness.call("PUT", "/v1/knowledge/business-lines", { token: admin, body: { rev: current.rev, businessLines, tableLines: { 用户订单明细: "权益" } } });
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    const view = (await harness.call("GET", "/v1/knowledge", { token: admin })).data;
+    assert.ok(view.businessLines.find(line => line.name === "权益").relations.every(relation => !relation.invalid), "登记的关联应有效");
+  });
+  after(async () => { await harness.stop(); });
+
+  /** 按脚本依次发起工具调用，返回网关送回给模型的工具结果（已解析） */
+  async function runScript(user, calls) {
+    harness.relay.requests.length = 0;
+    let seen = [];
+    harness.relay.respond = body => {
+      const n = body.messages.filter(message => message.role === "tool").length;
+      if (n < calls.length) return { calls: [toolCall("j" + n, calls[n][0], calls[n][1])] };
+      seen = body.messages.filter(message => message.role === "tool").map(message => JSON.parse(message.content));
+      return { content: "完成" };
+    };
+    const result = await harness.analyzeStream(user, { question: "近 7 天各业务线的消耗和订单金额", businessLine: "权益" });
+    harness.relay.respond = undefined;
+    assert.equal(result.status, 200, result.text);
+    return seen;
+  }
+  const joinArgs = {
+    metrics: [{ table: "产品 ROI 日报", field: "cost", agg: "sum", name: "消耗" }, { table: "用户订单明细", field: "order_amount", agg: "sum", name: "订单金额" }],
+    groupBy: [{ table: "产品维表", field: "biz_line" }],
+    days: 7
+  };
+
+  test("两张指标表经产品维表关联、按业务线分组：工具结果里的数字等于手算值", async () => {
+    const [join] = await runScript("曾祥竞", [["query_join", joinArgs]]);
+    assert.equal(join.ok, true, JSON.stringify(join));
+    assert.deepEqual(join.data.明细, EXPECTED);
+    assert.deepEqual(join.data.合计, { 消耗: 187, 订单金额: 300 });
+    assert.deepEqual(join.data.窗口, { 起: "2026-11-05", 止: "2026-11-11", N: 7 });
+    assert.deepEqual(join.data.关联路径.sort(), ["产品 ROI 日报.product_name N:1 产品维表.product_name", "用户订单明细.product_name N:1 产品维表.product_name"]);
+  });
+
+  test("一对多重复计数被拒绝：维表的单价按订单状态分组 → 不返回数字并点名关联", async () => {
+    const [join] = await runScript("曾祥竞", [["query_join", { metrics: [{ table: "产品维表", field: "unit_price", agg: "sum" }], groupBy: [{ table: "用户订单明细", field: "status" }] }]]);
+    assert.equal(join.ok, false);
+    assert.match(join.error, /重复计数/);
+    assert.match(join.error, /用户订单明细\.product_name N:1 产品维表\.product_name/);
+    assert.equal(join.data, undefined);
+  });
+
+  test("用户被隐藏的字段不能作为分组：返回无权限错误，不返回数字", async () => {
+    const admin = await harness.tokenFor("曾祥竞");
+    const groups = [
+      group("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心"] }),
+      group("投放组长", ["广告计划日报表"]),
+      group("优化师", ["产品 ROI 日报", "用户订单明细", "产品维表"], { hiddenFields: { 产品维表: ["biz_line"] } }),
+      group("数据分析师", ["广告计划日报表"]),
+      group("只读访客", [])
+    ];
+    assert.equal((await harness.call("PUT", "/v1/org", { token: admin, body: { groups } })).status, 200);
+    const [hidden, visible] = await runScript("谭嘉颖", [
+      ["query_join", joinArgs],
+      ["query_join", { ...joinArgs, groupBy: [{ table: "产品维表", field: "product_name" }] }]
+    ]);
+    assert.equal(hidden.ok, false);
+    assert.match(hidden.error, /产品维表\.biz_line 不存在或无权限/);
+    assert.equal(hidden.data, undefined);
+    // 同一用户按可见字段分组仍可算（对照）：产品甲 100/200、产品乙 50/0、产品丙 30/100、未关联 7/0
+    assert.equal(visible.ok, true, JSON.stringify(visible));
+    assert.deepEqual(Object.fromEntries(visible.data.明细.map(row => [row.分组["产品维表.product_name"], [row.值.消耗, row.值.订单金额]])), { 产品甲: [100, 200], 产品乙: [50, 0], 产品丙: [30, 100], "（未关联）": [7, 0] });
   });
 });
