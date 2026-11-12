@@ -33,6 +33,7 @@ const { createAuth } = require("./gateway-auth.cjs");
 const { checkNumericGrounding } = require("./numeric-check.cjs");
 const { computeAttribution, parseWindowDays } = require("./attribution-calc.cjs");
 const { createAnalysisToolkit } = require("./analysis-tools.cjs");
+const { resolveLine, buildContextPack, createKnowledgeTools } = require("./knowledge-tools.cjs");
 const { createUsageTracker } = require("./usage-quota.cjs");
 const { createSemanticLayer } = require("./semantic-layer.cjs");
 const { scopeTables, scopeRowsOf, isHidden, hiddenNamesOf, redactLines } = require("./field-scope.cjs");
@@ -1074,6 +1075,33 @@ const knowledgeStore = createKnowledgeStore({
   fieldsOf: name => (tables.find(table => table.cnName === name)?.fields || []).map(field => field.name),
   defaults: { businessLines: DEFAULT_BUSINESS_LINES, tableLines: DEFAULT_TABLE_LINES, tableKnowledge: DEFAULT_TABLE_KNOWLEDGE }
 });
+
+/* ---------- 业务线模式（/v1/analyze 带 businessLine 且该名称是知识库里的业务线时） ---------- */
+const envInt = (name, fallback) => { const n = Number.parseInt(process.env[name] || "", 10); return Number.isFinite(n) && n > 0 ? n : fallback; };
+const KNOWLEDGE_TOOL_STEPS = envInt("PORTAL_KNOWLEDGE_TOOL_STEPS", 8);
+const KNOWLEDGE_TOOL_CALLS = envInt("PORTAL_KNOWLEDGE_TOOL_CALLS", 20);
+const KNOWLEDGE_ORDER_HINT = "先按问题判断需要哪些表，再调用 get_table_knowledge 与 get_schema，再取数；跨表用 query_join，不要自己写关联条件；数字只引用工具返回值；业务线里没有登记的关联不要猜。";
+
+/** 返回 null 表示不走业务线模式（没选业务线，或名称不在知识库里的旧值）；否则 { error?, tables, extraTools, contextPack } */
+function prepareKnowledgeMode({ user, businessLine, allowed, fieldScope }) {
+  if (!businessLine) return null;
+  const effective = knowledgeStore.effective();
+  if (businessLine !== knowledgeStore.PUBLIC && !effective.businessLines.some(line => line.name === businessLine)) return null;
+  const resolved = resolveLine(knowledgeStore, businessLine, allowed);
+  if (!resolved.ok) return { error: { status: resolved.status, message: resolved.error.includes(businessLine) ? resolved.error : `「${businessLine}」${resolved.error}` }, tables: [], extraTools: [], contextPack: "" };
+  resolved.tables = resolved.tables.slice(0, 60);
+  const hiddenNames = hiddenNamesOf(fieldScope.hidden, resolved.tables);
+  const relations = [...(resolved.line.relations || []), ...(resolved.publicLine?.relations || [])];
+  const tableKnowledgeFlags = Object.fromEntries(resolved.tables.map(name => [name, Boolean(effective.tableKnowledge?.[name]?.markdown)]));
+  const contextPack = buildContextPack({ line: resolved.line, publicLine: resolved.publicLine, tables: resolved.tables, scopedTables: fieldScope.tables, relations, tableKnowledgeFlags, hiddenNames });
+  const extraTools = createKnowledgeTools({
+    store: knowledgeStore, resolved, scopedTables: fieldScope.tables, rowsOf: fieldScope.rowsOf, hiddenNames,
+    budgetChars: envInt("PORTAL_KNOWLEDGE_BUDGET_CHARS", 30000),
+    limits: { maxRows: envInt("PORTAL_JOIN_MAX_ROWS", 200000), maxMs: envInt("PORTAL_JOIN_MAX_MS", 3000) }
+  });
+  return { tables: resolved.tables, extraTools, contextPack };
+}
+
 const auth = createAuth(DATA_DIR);
 const DEMO_LOGIN_PASSWORD = String(process.env.PORTAL_DEMO_LOGIN_PASSWORD || "");
 function roleOf(name) {
@@ -3278,7 +3306,10 @@ async function handleRequest(req, res) {
     const wanted = requestedTables.length ? requestedTables.slice(0, 3) : [];
     const referenced = wanted.filter(name => allowed.includes(name));
     const denied = wanted.filter(name => !allowed.includes(name));
-    const scopedCandidates = Array.isArray(assetCandidates) ? assetCandidates.slice(0, 12).filter(name => allowed.includes(name)) : [];
+    const knowledgeMode = prepareKnowledgeMode({ user, businessLine, allowed, fieldScope });
+    if (knowledgeMode?.error) return sendJson(res, knowledgeMode.error.status, { error: knowledgeMode.error.message });
+    /* 业务线模式：候选表由服务端决定，忽略客户端的 assetCandidates */
+    const scopedCandidates = knowledgeMode ? knowledgeMode.tables : Array.isArray(assetCandidates) ? assetCandidates.slice(0, 12).filter(name => allowed.includes(name)) : [];
     if (wanted.length && !referenced.length) {
       return sendJson(res, 403, { error: `引用的数据表均未授权给当前用户（${user}），请检查「权限组 → 数据表权限」` });
     }
@@ -3455,9 +3486,10 @@ async function handleRequest(req, res) {
       if (sseSend) sseSend({ status: `基于对话里已核实的 ${priorLedger.length} 次取数整理报告…` });
     } else if (body.toolMode !== false && !isAttributionRequest && providerSupportsTools(model)) {
       const referenceTool = packEntry ? skillPack.createReferenceTool(packEntry) : null;
-      const toolkit = createAnalysisToolkit({ userName: user, allowedTables: allowed, tables: fieldScope.tables, rowsOf: fieldScope.rowsOf, audit: appendAuditEntry, allowAsk: !question.includes("用户补充信息"), semantic: fieldScope.semantic, extraTools: referenceTool ? [{ ...referenceTool, maxChars: 26000 }] : [] });
+      const toolkit = createAnalysisToolkit({ userName: user, allowedTables: allowed, tables: fieldScope.tables, rowsOf: fieldScope.rowsOf, audit: appendAuditEntry, allowAsk: !question.includes("用户补充信息"), semantic: fieldScope.semantic, extraTools: [...(referenceTool ? [{ ...referenceTool, maxChars: 26000 }] : []), ...(knowledgeMode?.extraTools || [])] });
       const loopSystemExtra = [
         packEntry?.instructions, packEntry ? skillPack.referenceIndex(packEntry) : "", specContext,
+        knowledgeMode ? `${knowledgeMode.contextPack}\n\n${KNOWLEDGE_ORDER_HINT}` : "",
         wantsReport ? `## 本次要生成报告\n先把写「${reportTemplate?.name || "报告"}」需要的事实取全（口径、时间窗、对比期、必要的拆分维度），取完就停止，不要写报告正文。${priorLedger.length ? "对话里已经取过的事实不用重复取。" : ""}` : answerProtocol
       ].filter(Boolean).join("\n\n");
       if (sseSend) sseSend({ status: "正在查询数据…" });
@@ -3470,7 +3502,7 @@ async function handleRequest(req, res) {
             const mode = LOOP_THINKING_MODES.includes(body.loopThinking) ? body.loopThinking : LOOP_THINKING_DEFAULT;
             return mode === "on" ? {} : { lightThinking: lightweightThinking(model, modelCapabilityFor(model).reasoning), lightFromStep: mode === "off" ? 1 : 2 };
           })(),
-          ...(packEntry ? { maxSteps: 6, maxCalls: 12 } : {})
+          ...(knowledgeMode ? { maxSteps: KNOWLEDGE_TOOL_STEPS, maxCalls: KNOWLEDGE_TOOL_CALLS } : packEntry ? { maxSteps: 6, maxCalls: 12 } : {})
         });
       } catch (error) {
         if (sseSend) {
@@ -3519,7 +3551,7 @@ async function handleRequest(req, res) {
       `## 用户问题\n${question}`,
       wantsReport ? reportSpecContext : specContext,
       wantsReport ? "" : `## 分析场景\n${scene.label}`,
-      wantsReport ? "" : referenced.length ? `## 引用数据表\n${referenced.join("、")}` : scopedCandidates.length ? `## 业务线范围\n${businessLine || "已选择业务线"}；候选数据表：${scopedCandidates.join("、")}` : "## 引用数据表\n（未指定，以下为当前用户权限内全部表的概览，深度分析请引用具体表）",
+      wantsReport ? "" : referenced.length ? `## 引用数据表\n${referenced.join("、")}` : knowledgeMode ? `## 业务线范围\n${knowledgeMode.contextPack}` : scopedCandidates.length ? `## 业务线范围\n${businessLine || "已选择业务线"}；候选数据表：${scopedCandidates.join("、")}` : "## 引用数据表\n（未指定，以下为当前用户权限内全部表的概览，深度分析请引用具体表）",
       wantsReport ? "" : "## 门户配置说明\n表证据中的「枚举值」「字段备注」「标签配置」「维表数据样例」来自门户的表管理、字典管理、标签管理与维表管理配置，分析时优先据此解释编码取值与口径；与网关注释冲突时以门户配置为准。",
       denied.length ? `## 权限提示\n以下表未授权，未纳入分析：${denied.join("、")}` : "",
       wantsReport && priorLedger.length ? reportSkill.buildFactsSection(priorLedger) : "",
