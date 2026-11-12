@@ -594,6 +594,7 @@ assert(portalCss.includes(".portal-vue-ai-chip-line-select { width: 200px; }") &
 assert(portalVue.includes('reasoning: "high"') && portalVue.includes("maxTokens=this.currentContextLimit") && portalVue.includes("reasoningEffort:this.reasoning,maxTokens:this.maxTokens"), "分析请求应固定使用最高推理强度和当前模型最高上下文");
 assert(!portalVue.includes("推理强度") && !portalVue.includes("上下文长度") && !portalVue.includes("重置为默认设置") && !portalVue.includes("portal-vue-ai-model-reset"), "模型菜单只应保留模型选择，不展示额外设置");
 assert(portalVue.includes('label="业务线"') && portalVue.includes("bizLines()"), "表管理应提供业务线列与筛选");
+assert(portalVue.includes("detailDraft.bizLine") && portalVue.includes('placeholder="未分组"') && portalVue.includes("relationCount(table)"), "表详情基本配置应可修改业务线；改线时若该表被关联引用要先确认");
 assert(portalVue.includes("portal-vue-ai-ask") && portalVue.includes("buildAsk") && portalVue.includes("你的问题没有指定数据表") && portalVue.includes("extractAsk"), "未引用数据表时应在对话流里出现 AI 提问卡片；模型输出 ```ask 块也应渲染成提问卡片");
 assert(portalVue.includes("submitAsk") && portalVue.includes("toggleAsk") && portalVue.includes("q.multiple") && portalVue.includes("onAskCustom") && portalVue.includes("提交并继续分析"), "提问卡片应支持单选 / 多选 / 自定义输入，提交后继续回复");
 assert(portalVue.includes("clarifyAnswers") && portalVue.includes("msg.confirms") && portalVue.includes("askResult"), "已确认项应随消息气泡回显");

@@ -7,8 +7,10 @@
   if (!window.PortalVue) return;
   const {
     bridge,
+    confirmAction,
     enabledDictItems,
     ep,
+    knowledgeData,
     knowledgeSync,
     loginUser,
     mount,
@@ -63,6 +65,11 @@ function injectStyle(id, css) {
                       </el-option>
                     </el-select>
                   </el-form-item>
+                  <el-form-item label="业务线">
+                    <el-select v-model="detailDraft.bizLine" clearable filterable placeholder="未分组" :disabled="busy">
+                      <el-option v-for="item in bizLines" :key="item" :label="item" :value="item"></el-option>
+                    </el-select>
+                  </el-form-item>
                   <el-form-item label="表描述"><el-input v-model="detailDraft.desc" type="textarea" :rows="3" placeholder="请输入表描述"></el-input></el-form-item>
                   <div class="portal-vue-section-line"><h3>标签表设置</h3><el-checkbox v-model="detailDraft.tagTable">设为标签表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「标签管理」</p></div>
                   <div class="portal-vue-section-line"><h3>维表设置</h3><el-checkbox v-model="detailDraft.dimension">设为维表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「维表管理」，可在线维护行数据。</p></div>
@@ -70,6 +77,7 @@ function injectStyle(id, css) {
                 </el-form>
                 <el-form v-else label-position="top" class="portal-vue-dialog-form portal-vue-readonly-form" style="max-width:760px">
                   <el-form-item label="表负责人"><span>{{ detailDraft.owner || "—" }}</span></el-form-item>
+                  <el-form-item label="业务线"><span>{{ detailDraft.bizLine || "未分组" }}</span></el-form-item>
                   <el-form-item label="表描述"><span style="white-space:pre-wrap">{{ detailDraft.desc || "—" }}</span></el-form-item>
                   <div class="portal-vue-section-line"><h3>标签表设置</h3><el-checkbox :model-value="detailDraft.tagTable" disabled>设为标签表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「标签管理」</p></div>
                   <div class="portal-vue-section-line"><h3>维表设置</h3><el-checkbox :model-value="detailDraft.dimension" disabled>设为维表</el-checkbox><p class="portal-vue-muted">勾选后该表会出现在「维表管理」，可在线维护行数据。</p></div>
@@ -171,7 +179,7 @@ function injectStyle(id, css) {
             </el-tabs>
             <div v-if="editingBasic" class="api-create-footer">
               <el-button v-if="canEdit('表管理')" @click="cancelBasic">取消</el-button>
-              <el-button v-if="canEdit('表管理')" type="primary" @click="saveBasic">保存配置</el-button>
+              <el-button v-if="canEdit('表管理')" type="primary" :loading="busy" :disabled="busy" @click="saveBasic">保存配置</el-button>
             </div>
           </template>
         </div>
@@ -187,6 +195,7 @@ function injectStyle(id, css) {
       knowledgeError: "",
       knowledgeText: "",
       editingBasic: false,
+      busy: false,
       detail: null,
       detailDraft: {},
       cat: "qb",
@@ -234,6 +243,7 @@ function injectStyle(id, css) {
       renderedDraft() { return renderKnowledgeMarkdown(normalizeToMarkdown(this.knowledgeText)); },
       renderedKnowledge() { return this.knowledge ? renderKnowledgeMarkdown(this.knowledge.markdown) : ""; },
       headerTitle() { return this.detail ? (this.detail.cnName || this.detail.table) + " · 表详情" : "表详情"; },
+      bizLines() { refreshTick.value; return knowledgeData.businessLines.map(line => line.name); },
       activeUsers() { return state.users.filter(user => user.status !== "已停用"); },
       enabledDicts() { refreshTick.value; return state.dictionaries.filter(item => item.status === "启用"); },
       dictItems() { return dict => enabledDictItems(dict); },
@@ -316,18 +326,53 @@ function injectStyle(id, css) {
       },
       rebuildDraft() {
         const tag = state.tables.find(table => table.name === this.detail.table);
-        this.detailDraft = { owner: this.detail.owner || "", desc: this.detail.desc || "", tagTable: !!tag, dimension: !!this.detail.dimension, exportFields: [...(tag?.exportFields || [])], fields: this.detail.fields.map(field => ({ ...field, dictId: field.dictId || "" })) };
+        this.detailDraft = { owner: this.detail.owner || "", desc: this.detail.desc || "", bizLine: this.detail.bizLine || "", tagTable: !!tag, dimension: !!this.detail.dimension, exportFields: [...(tag?.exportFields || [])], fields: this.detail.fields.map(field => ({ ...field, dictId: field.dictId || "" })) };
       },
-      saveBasic() {
+      relationCount(table) {
+        return knowledgeData.businessLines.reduce((sum, line) => sum + (line.relations || []).filter(rel => rel.left?.table === table || rel.right?.table === table).length, 0);
+      },
+      async saveBasic() {
+        if (this.busy) return;
         if (!this.detailDraft.owner) return ep.ElMessage.warning("请选择表负责人");
-        this.detail.owner = this.detailDraft.owner;
-        this.detail.desc = this.detailDraft.desc.trim();
-        this.detail.dimension = !!this.detailDraft.dimension;
-        if (this.detail.dimension && !Array.isArray(this.detail.rows)) this.detail.rows = [];
-        const tagIndex = state.tables.findIndex(table => table.name === this.detail.table);
-        if (this.detailDraft.tagTable && tagIndex < 0) state.tables.push({ name: this.detail.table, cn: this.detail.cnName || this.detail.table, exportFields: [...this.detailDraft.exportFields], fields: this.detail.fields.map(field => ({ name: field.name, cn: field.comment || field.name, type: this.semanticType(field.type), cov: 80, def: "", calc: "", freq: "", enumv: "" })) });
-        else if (this.detailDraft.tagTable && tagIndex >= 0) state.tables[tagIndex].exportFields = [...this.detailDraft.exportFields];
-        else if (!this.detailDraft.tagTable && tagIndex >= 0) state.tables.splice(tagIndex, 1);
+        const name = this.detail.cnName || this.detail.table;
+        const nextLine = String(this.detailDraft.bizLine || "").trim();
+        if (nextLine && !this.bizLines.includes(nextLine)) return ep.ElMessage.warning("所选业务线不存在，请重新选择");
+        const prevLine = this.detail.bizLine || "";
+        if (nextLine !== prevLine) {
+          const used = this.relationCount(name);
+          if (used && !(await confirmAction("修改业务线", `该表在 ${used} 条关联里被引用，改业务线后这些关联可能失效。确认把「${name}」的业务线改为「${nextLine || "未分组"}」？`))) return;
+        }
+        const applyLocal = () => {
+          this.detail.owner = this.detailDraft.owner;
+          this.detail.desc = this.detailDraft.desc.trim();
+          this.detail.dimension = !!this.detailDraft.dimension;
+          this.detail.bizLine = nextLine;
+          if (this.detail.dimension && !Array.isArray(this.detail.rows)) this.detail.rows = [];
+          const tagIndex = state.tables.findIndex(table => table.name === this.detail.table);
+          if (this.detailDraft.tagTable && tagIndex < 0) state.tables.push({ name: this.detail.table, cn: this.detail.cnName || this.detail.table, exportFields: [...this.detailDraft.exportFields], fields: this.detail.fields.map(field => ({ name: field.name, cn: field.comment || field.name, type: this.semanticType(field.type), cov: 80, def: "", calc: "", freq: "", enumv: "" })) });
+          else if (this.detailDraft.tagTable && tagIndex >= 0) state.tables[tagIndex].exportFields = [...this.detailDraft.exportFields];
+          else if (!this.detailDraft.tagTable && tagIndex >= 0) state.tables.splice(tagIndex, 1);
+        };
+        if (nextLine !== prevLine && knowledgeData.knownTables.includes(name)) {
+          this.busy = true;
+          const tableLines = JSON.parse(JSON.stringify(knowledgeData.tableLines));
+          const assetLine = this.detail.bizLine;
+          let ok = false;
+          try {
+            knowledgeData.tableLines[name] = nextLine;
+            this.detail.bizLine = nextLine;
+            ok = await knowledgeSync.saveBusinessLines();
+            if (ok) await knowledgeSync.load();
+          } finally {
+            this.busy = false;
+            if (!ok) {
+              knowledgeData.tableLines = tableLines;
+              this.detail.bizLine = assetLine;
+            }
+          }
+          if (!ok) return;
+        }
+        applyLocal();
         this.editingBasic = false;
         notify("基本配置已保存");
       },

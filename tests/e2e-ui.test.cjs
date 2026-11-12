@@ -1055,6 +1055,11 @@ describe("浏览器端到端", () => {
     await page.locator(".portal-vue-bizline-list").waitFor();
   };
   const bizItem = (page, name) => page.locator(".portal-vue-bizline-item", { hasText: name });
+  /** 改名 / 删除平时隐藏且点不到：和真实用户一样，先把鼠标移到那一行，再点按钮 */
+  const clickRowAction = async (page, lineName, action) => {
+    await bizItem(page, lineName).hover();
+    await bizItem(page, lineName).getByRole("button", { name: action, exact: true }).click();
+  };
   /** 当前展开的下拉里的全部选项文字（收起的下拉仍留在页面里，要排除） */
   const openOptions = async page => {
     const read = () => page.evaluate(() => [...document.querySelectorAll(".el-select-dropdown")].filter(d => getComputedStyle(d.parentElement).display !== "none").flatMap(d => [...d.querySelectorAll(".el-select-dropdown__item")].map(item => item.textContent.trim())));
@@ -1241,16 +1246,62 @@ describe("浏览器端到端", () => {
     }
   }));
 
+  test("表详情：基本配置可修改业务线，保存后刷新与列表列都显示新业务线", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const snap = skipReason ? null : await bizSnapshot(admin);
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+      await page.evaluate(() => {
+        const asset = window.portalVueModuleApi.state.assets.find(item => item.cnName === "广告计划日报表");
+        window.portalVueBridge.setTableDetailAsset(asset);
+        window.portalVueBridge.setPage("表详情");
+      });
+      const header = page.locator(".portal-vue-dim-meta > div").filter({ hasText: "业务线" }).locator("strong");
+      await header.waitFor();
+      assert.equal((await header.textContent()).trim(), "权益");
+      await page.locator(".portal-vue-toolbar .portal-vue-actions").getByRole("button", { name: "编辑" }).click();
+      await page.locator(".el-form-item", { hasText: "业务线" }).locator(".el-select").click();
+      await page.locator(".el-select-dropdown__item:visible", { hasText: /^存量$/ }).click();
+      await page.getByRole("button", { name: "保存配置" }).click();
+      const confirm = page.locator(".el-message-box", { hasText: "修改业务线" });
+      if (await confirm.waitFor({ timeout: 800 }).then(() => true).catch(() => false)) {
+        await confirm.getByRole("button", { name: "确认" }).click();
+      }
+      await page.locator(".el-message", { hasText: "基本配置已保存" }).waitFor();
+      assert.equal((await header.textContent()).trim(), "存量");
+      assert.equal((await bizSnapshot(admin)).tableLines["广告计划日报表"], "存量", "服务端归属应已保存");
+      await page.reload();
+      await appVisible(page);
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+      await page.evaluate(() => {
+        const asset = window.portalVueModuleApi.state.assets.find(item => item.cnName === "广告计划日报表");
+        window.portalVueBridge.setTableDetailAsset(asset);
+        window.portalVueBridge.setPage("表详情");
+      });
+      await header.waitFor();
+      assert.equal((await header.textContent()).trim(), "存量", "刷新后页头应仍是新业务线");
+      await page.evaluate(() => window.portalVueBridge.setPage("表管理"));
+      await page.getByPlaceholder("搜索表名、对外表名、表中文名").fill("广告计划日报表");
+      const row = page.locator("#dataAssetView .portal-vue-table .el-table__row", { hasText: "广告计划日报表" }).first();
+      await row.waitFor();
+      assert.match(await row.textContent(), /存量/);
+    } finally {
+      if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
+
   test("删除有表的业务线时被拦并提示表名；「公共」没有删除与改名入口", async t => withPage(t, async page => {
     const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
     const snap = skipReason ? null : await bizSnapshot(admin);
     try {
       await openBizView(page);
-      await bizItem(page, "公共").click();
-      assert.equal(await page.getByRole("button", { name: "删除" }).count(), 0);
-      assert.equal(await page.getByRole("button", { name: "改名" }).count(), 0);
-      await bizItem(page, "存量").click();
-      await page.getByRole("button", { name: "删除" }).click();
+      assert.equal(await bizItem(page, "公共").getByRole("button", { name: "删除" }).count(), 0);
+      assert.equal(await bizItem(page, "公共").getByRole("button", { name: "改名" }).count(), 0);
+      assert.equal(await bizItem(page, "公共").locator(".portal-vue-bizline-handle[draggable=true]").count(), 0, "「公共」不能被拖动");
+      assert.ok((await bizItem(page, "存量").getByRole("button", { name: "删除" }).count()) === 1, "其他业务线每行都有删除入口");
+      await clickRowAction(page, "存量", "删除");
       const message = page.locator(".el-message", { hasText: "请先迁出" });
       await message.waitFor();
       assert.match(await message.textContent(), /用户画像标签明细表/);
@@ -1279,9 +1330,10 @@ describe("浏览器端到端", () => {
       await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
       await openBizViewNoLogin(page);
       await bizItem(page, "权益").click();
-      const editButtons = ["新增业务线", "改名", "上移", "下移", "删除", "新建知识库", "编辑知识库", "添加关联", "移出", "编辑"];
+      const editButtons = ["新增业务线", "改名", "删除", "新建知识库", "编辑知识库", "添加关联", "移出", "编辑"];
       const assertNone = async () => { for (const name of editButtons) assert.equal(await page.getByRole("button", { name, exact: true }).count(), 0, `只读账号不应看到「${name}」`); };
       await assertNone();
+      assert.equal(await page.locator(".portal-vue-bizline-handle").count(), 0, "只读账号不应有拖动手柄");
       await page.getByRole("tab", { name: "表关联" }).click();
       await assertNone();
       await page.getByRole("tab", { name: "包含的表" }).click();
@@ -1307,8 +1359,7 @@ describe("浏览器端到端", () => {
       const names = () => page.locator(".portal-vue-bizline-name").allTextContents();
 
       // 1) 删除空业务线：失败后仍在列表里
-      await bizItem(page, "E2E-空线").click();
-      await page.getByRole("button", { name: "删除", exact: true }).click();
+      await clickRowAction(page, "E2E-空线", "删除");
       await page.locator(".el-message-box").getByRole("button", { name: "删除" }).click();
       await failed().waitFor();
       assert.ok((await names()).includes("E2E-空线"), "删除失败后业务线应仍在列表里");
@@ -1322,7 +1373,7 @@ describe("浏览器端到端", () => {
       assert.equal(await page.evaluate(() => window.PortalVue.knowledgeData.tableLines["用户画像标签明细表"]), "存量");
 
       // 3) 改名：失败后名称不变，对话框仍开着、输入还在
-      await page.getByRole("button", { name: "改名" }).click();
+      await clickRowAction(page, "存量", "改名");
       await page.getByPlaceholder("例如：AI 短剧").fill("存量X");
       await page.locator(".el-dialog:visible").getByRole("button", { name: "确定" }).click();
       await page.waitForFunction(() => !window.PortalVue.knowledgeData.businessLines.some(line => line.name === "存量X"));
@@ -1346,7 +1397,34 @@ describe("浏览器端到端", () => {
     }
   }));
 
-  test("业务线：重复点击「上移」只发一次保存请求，不出现版本冲突提示", async t => withPage(t, async page => {
+  const bizOrder = async admin => (await bizSnapshot(admin)).businessLines.map(line => line.name);
+
+  test("业务线：拖动手柄调整顺序，刷新后保留；「公共」固定第一", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const snap = skipReason ? null : await bizSnapshot(admin);
+    try {
+      await openBizView(page);
+      const before = await bizOrder(admin);
+      assert.deepEqual(before.slice(0, 5), ["公共", "权益", "存量", "号卡", "保险"]);
+      // 把「号卡」拖到「权益」上半部分 → 放在「权益」前面
+      await bizItem(page, "号卡").locator(".portal-vue-bizline-handle").dragTo(bizItem(page, "权益"), { targetPosition: { x: 40, y: 3 } });
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.businessLines.map(line => line.name).indexOf("号卡") === 1);
+      assert.deepEqual((await bizOrder(admin)).slice(0, 5), ["公共", "号卡", "权益", "存量", "保险"], "服务端顺序应已保存");
+      // 拖到「公共」上面：不能排到它前面，只会放在它后面
+      await bizItem(page, "保险").locator(".portal-vue-bizline-handle").dragTo(bizItem(page, "公共"), { targetPosition: { x: 40, y: 2 } });
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.businessLines.map(line => line.name).indexOf("保险") === 1);
+      assert.equal((await bizOrder(admin))[0], "公共", "「公共」应始终在第一位");
+      // 刷新后保留
+      await page.reload();
+      await appVisible(page);
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+      assert.deepEqual((await page.evaluate(() => window.PortalVue.knowledgeData.businessLines.map(line => line.name))).slice(0, 5), ["公共", "保险", "号卡", "权益", "存量"]);
+    } finally {
+      if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
+
+  test("业务线：保存期间重复拖放只发一次保存请求，不出现版本冲突提示", async t => withPage(t, async page => {
     const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
     const snap = skipReason ? null : await bizSnapshot(admin);
     try {
@@ -1356,14 +1434,46 @@ describe("浏览器端到端", () => {
         if (route.request().method() === "PUT") { puts += 1; await new Promise(resolve => setTimeout(resolve, 400)); }
         await route.continue();
       });
-      await bizItem(page, "号卡").click();
-      await page.getByRole("button", { name: "上移", exact: true }).dblclick();
-      await page.waitForFunction(() => window.PortalVue.knowledgeData.businessLines.map(line => line.name).indexOf("号卡") === 2);
-      await page.waitForTimeout(600);
-      assert.equal(puts, 1, "重复点击只应发一次 PUT");
+      // 一次性连续派发两轮"拖动开始 → 放下"：第二轮发生在第一次保存还没结束时
+      await page.evaluate(() => {
+        const item = name => [...document.querySelectorAll(".portal-vue-bizline-item")].find(el => el.textContent.includes(name));
+        const round = () => {
+          const dt = new DataTransfer();
+          item("号卡").querySelector(".portal-vue-bizline-handle").dispatchEvent(new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: dt }));
+          const target = item("权益");
+          const top = target.getBoundingClientRect().top;
+          target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt, clientY: top + 2 }));
+          target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt, clientY: top + 2 }));
+        };
+        round(); round();
+      });
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.businessLines.map(line => line.name).indexOf("号卡") === 1);
+      await page.waitForTimeout(700);
+      assert.equal(puts, 1, "重复拖放只应发一次 PUT");
       assert.equal(await page.locator(".el-message", { hasText: "已被其他人更新" }).count(), 0);
-      const server = await bizSnapshot(admin);
-      assert.equal(server.businessLines.map(line => line.name).indexOf("号卡"), 2);
+      assert.equal((await bizOrder(admin)).indexOf("号卡"), 1);
+    } finally {
+      if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
+
+  test("业务线：改名和删除平时隐藏，鼠标移入才显示；键盘聚焦手柄后按 ↓ 可调整顺序", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const snap = skipReason ? null : await bizSnapshot(admin);
+    try {
+      await openBizView(page);
+      const actions = bizItem(page, "存量").locator(".portal-vue-bizline-row-actions");
+      const opacity = () => actions.evaluate(el => Number(getComputedStyle(el).opacity));
+      await page.mouse.move(5, 5);
+      assert.equal(await opacity(), 0, "未移入时不显示改名/删除");
+      await bizItem(page, "存量").hover();
+      await page.waitForFunction(el => Number(getComputedStyle(el).opacity) === 1, await actions.elementHandle());
+      assert.equal(await opacity(), 1, "鼠标移入后显示改名/删除");
+      // 键盘排序：「权益」下移一格
+      await bizItem(page, "权益").locator(".portal-vue-bizline-handle").focus();
+      await page.keyboard.press("ArrowDown");
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.businessLines.map(line => line.name).indexOf("权益") === 2);
+      assert.deepEqual((await bizOrder(admin)).slice(0, 3), ["公共", "存量", "权益"]);
     } finally {
       if (!skipReason) await bizRestore(admin, snap);
     }

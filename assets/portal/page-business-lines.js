@@ -22,20 +22,25 @@
         <aside class="portal-vue-bizline-side">
           <div class="portal-vue-bizline-side-head"><strong>业务线</strong><el-button v-if="editable" size="small" type="primary" plain :disabled="busy" @click="openNameDialog('add')">新增业务线</el-button></div>
           <ul class="portal-vue-bizline-list">
-            <li v-for="line in lines" :key="line.id || line.name" :class="{ active: line.name === selectedName }" class="portal-vue-bizline-item" @click="select(line)">
+            <li v-for="line in lines" :key="line.id || line.name" class="portal-vue-bizline-item"
+                :class="{ active: line.name === selectedName, 'has-actions': editable && line.name !== PUBLIC, dragging: dragName === line.name, 'drop-before': overName === line.name && overPos === 'before', 'drop-after': overName === line.name && overPos === 'after' }"
+                @click="select(line)" @dragover="onDragOver($event, line)" @drop="onDrop($event, line)">
+              <span v-if="editable" class="portal-vue-bizline-handle" :class="{ disabled: line.name === PUBLIC || busy }"
+                    :draggable="line.name !== PUBLIC && !busy" :tabindex="line.name === PUBLIC ? -1 : 0"
+                    role="button" title="拖动排序（也可聚焦后按 ↑ ↓）" aria-label="拖动排序"
+                    @click.stop @dragstart="onDragStart($event, line)" @dragend="clearDrag"
+                    @keydown.up.prevent="nudge(line, -1)" @keydown.down.prevent="nudge(line, 1)">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><g fill="currentColor"><circle cx="5.5" cy="3.5" r="1.3"/><circle cx="10.5" cy="3.5" r="1.3"/><circle cx="5.5" cy="8" r="1.3"/><circle cx="10.5" cy="8" r="1.3"/><circle cx="5.5" cy="12.5" r="1.3"/><circle cx="10.5" cy="12.5" r="1.3"/></g></svg>
+              </span>
               <span class="portal-vue-bizline-name">{{ line.name }}</span>
-              <el-tag size="small" effect="plain" round>{{ tablesOf(line).length }} 张表</el-tag>
+              <span v-if="editable && line.name !== PUBLIC" class="portal-vue-bizline-row-actions">
+                <el-button size="small" link type="primary" :disabled="busy" @click.stop="select(line); openNameDialog('rename')">改名</el-button>
+                <el-button size="small" link type="danger" :disabled="busy" @click.stop="select(line); removeLine()">删除</el-button>
+              </span>
+              <el-tag size="small" effect="plain" round class="portal-vue-bizline-count">{{ tablesOf(line).length }} 张表</el-tag>
             </li>
           </ul>
-          <div v-if="editable && selected" class="portal-vue-bizline-side-actions">
-            <template v-if="selected.name !== PUBLIC">
-              <el-button size="small" link type="primary" :disabled="busy" @click="openNameDialog('rename')">改名</el-button>
-              <el-button size="small" link type="primary" :disabled="busy || !canMove(-1)" @click="moveLine(-1)">上移</el-button>
-              <el-button size="small" link type="primary" :disabled="busy || !canMove(1)" @click="moveLine(1)">下移</el-button>
-              <el-button size="small" link type="danger" :disabled="busy" @click="removeLine">删除</el-button>
-            </template>
-            <span v-else class="portal-vue-muted">「公共」为内置业务线，置顶，不能改名或删除</span>
-          </div>
+          <div v-if="editable" class="portal-vue-bizline-side-note">拖动左侧手柄调整顺序；「公共」为内置业务线，置顶，不能改名或删除。</div>
         </aside>
         <div class="portal-vue-bizline-main">
           <el-empty v-if="!selected" description="暂无业务线"></el-empty>
@@ -120,7 +125,7 @@
         </el-dialog>
       </section>
     `,
-    data: () => ({ PUBLIC, RELATION_TYPES, selectedName: PUBLIC, sub: "knowledge", editing: false, text: "", busy: false, nameVisible: false, nameMode: "add", nameDraft: "", relationVisible: false, relationForm: {} }),
+    data: () => ({ PUBLIC, RELATION_TYPES, selectedName: PUBLIC, sub: "knowledge", editing: false, text: "", busy: false, dragName: "", overName: "", overPos: "", nameVisible: false, nameMode: "add", nameDraft: "", relationVisible: false, relationForm: {} }),
     computed: {
       editable() { refreshTick.value; return !!knowledgeData.canEdit && this.canEdit("表管理"); },
       lines() { refreshTick.value; return knowledgeData.businessLines; },
@@ -210,20 +215,52 @@
         this.nameVisible = false;
         notify(mode === "add" ? `业务线「${name}」已新增` : `业务线已改名为「${name}」`);
       },
-      canMove(step) {
-        const index = this.lines.indexOf(this.selected);
-        const target = index + step;
-        return this.selected?.name !== PUBLIC && target >= 1 && target < this.lines.length;
+      /* ---- 拖动排序：只能拖动手柄；「公共」固定第一，不能被拖动，也不能被排到它前面 ---- */
+      clearDrag() { this.dragName = ""; this.overName = ""; this.overPos = ""; },
+      onDragStart(event, line) {
+        if (this.busy || line.name === PUBLIC) { event.preventDefault(); return; }
+        this.dragName = line.name;
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", line.name);
+        const row = event.currentTarget.closest("li");
+        if (row && event.dataTransfer.setDragImage) event.dataTransfer.setDragImage(row, 16, 16);
       },
-      async moveLine(step) {
-        if (this.busy || !this.canMove(step)) return;
-        const line = this.selected;
+      onDragOver(event, line) {
+        if (!this.dragName || this.busy) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        const rect = event.currentTarget.getBoundingClientRect();
+        // 「公共」前面不能放东西：落在它上面一律算"放在它后面"
+        this.overPos = line.name === PUBLIC || event.clientY >= rect.top + rect.height / 2 ? "after" : "before";
+        this.overName = line.name;
+      },
+      onDrop(event, line) {
+        if (!this.dragName) return;
+        event.preventDefault();
+        const from = this.dragName;
+        const pos = line.name === PUBLIC ? "after" : this.overPos || "after";
+        this.clearDrag();
+        this.reorder(from, line.name, pos);
+      },
+      /** 键盘：聚焦手柄后按 ↑ ↓ 调整一格 */
+      nudge(line, step) {
+        const list = this.lines;
+        const neighbor = list[list.indexOf(line) + step];
+        if (!neighbor || line.name === PUBLIC) return;
+        this.reorder(line.name, neighbor.name, step < 0 ? "before" : "after");
+      },
+      async reorder(fromName, toName, pos) {
+        if (this.busy || fromName === toName || fromName === PUBLIC) return;
+        const before = this.lines.map(line => line.name);
+        const without = before.filter(name => name !== fromName);
+        const targetIndex = without.indexOf(toName);
+        if (targetIndex < 0) return;
+        const insertAt = Math.max(1, pos === "before" ? targetIndex : targetIndex + 1); // 下标 0 永远是「公共」
+        const next = [...without.slice(0, insertAt), fromName, ...without.slice(insertAt)];
+        if (next.every((name, index) => name === before[index])) return;
         await this.commit(() => {
-          const list = knowledgeData.businessLines;
-          const index = list.indexOf(line);
-          const [item] = list.splice(index, 1);
-          list.splice(index + step, 0, item);
-          list.forEach((entry, order) => { entry.order = order; });
+          const byName = new Map(knowledgeData.businessLines.map(line => [line.name, line]));
+          knowledgeData.businessLines = next.map((name, order) => { const line = byName.get(name); line.order = order; return line; });
         });
       },
       async removeLine() {
