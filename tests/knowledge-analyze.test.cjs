@@ -73,6 +73,24 @@ describe("/v1/analyze 业务线模式", () => {
       assert.match(system, /EQ-LINE-BODY/);
     });
 
+    test("@表 有权限 + 业务线下没有有权限的表 → 200，不进业务线模式（无知识工具、无上下文包）", async () => {
+      reset();
+      harness.relay.respond = () => ({ content: "好的" });
+      const result = await analyze("谭嘉颖", { businessLine: "号卡", tables: ["广告计划日报表"] });
+      assert.equal(result.status, 200, result.text);
+      const first = withTools()[0];
+      assert.ok(!toolNames(first).includes("get_table_knowledge"));
+      assert.ok(!toolNames(first).includes("query_join"));
+      assert.ok(!systemOf(first).includes("# 业务线：号卡"));
+    });
+
+    test("@表 无权限 + 业务线 → 仍是原有 403；「公共」仍是 400", async () => {
+      reset();
+      const denied = await analyze("谭嘉颖", { businessLine: "权益", tables: ["用户订单明细"] });
+      assert.equal(denied.status, 403);
+      assert.equal((await analyze("谭嘉颖", { businessLine: "公共", tables: ["广告计划日报表"] })).status, 400);
+    });
+
     test("用户在该业务线下没有有权限的表 → 404 且提示含业务线名", async () => {
       reset();
       const result = await analyze("谭嘉颖", { businessLine: "号卡" });

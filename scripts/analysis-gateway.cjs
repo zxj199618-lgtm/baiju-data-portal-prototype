@@ -3306,13 +3306,17 @@ async function handleRequest(req, res) {
     const wanted = requestedTables.length ? requestedTables.slice(0, 3) : [];
     const referenced = wanted.filter(name => allowed.includes(name));
     const denied = wanted.filter(name => !allowed.includes(name));
-    const knowledgeMode = prepareKnowledgeMode({ user, businessLine, allowed, fieldScope });
-    if (knowledgeMode?.error) return sendJson(res, knowledgeMode.error.status, { error: knowledgeMode.error.message });
-    /* 业务线模式：候选表由服务端决定，忽略客户端的 assetCandidates */
-    const scopedCandidates = knowledgeMode ? knowledgeMode.tables : Array.isArray(assetCandidates) ? assetCandidates.slice(0, 12).filter(name => allowed.includes(name)) : [];
     if (wanted.length && !referenced.length) {
       return sendJson(res, 403, { error: `引用的数据表均未授权给当前用户（${user}），请检查「权限组 → 数据表权限」` });
     }
+    let knowledgeMode = prepareKnowledgeMode({ user, businessLine, allowed, fieldScope });
+    if (knowledgeMode?.error) {
+      /* 以 @表 为主：业务线下没有可用表（404）时跳过业务线模式走原流程；「公共」（400）照旧报错 */
+      if (referenced.length && knowledgeMode.error.status === 404) knowledgeMode = null;
+      else return sendJson(res, knowledgeMode.error.status, { error: knowledgeMode.error.message });
+    }
+    /* 业务线模式：候选表由服务端决定，忽略客户端的 assetCandidates */
+    const scopedCandidates = knowledgeMode ? knowledgeMode.tables : Array.isArray(assetCandidates) ? assetCandidates.slice(0, 12).filter(name => allowed.includes(name)) : [];
     if (businessLine && !referenced.length && !scopedCandidates.length) {
       return sendJson(res, 404, { error: `「${businessLine}」业务线下没有可用数据资产，请先在表管理中配置业务线或确认权限` });
     }
