@@ -406,12 +406,13 @@
         const publicOk=hasTable("公共");
         return (knowledgeData.businessLines||[]).map(line=>line.name).filter(name=>name&&name!=="公共"&&(publicOk||hasTable(name)));
       },
-      businessLineOptions(){return this.clarifyQuestions.find(item=>item.key==="businessLine")?.options||(this.lineChoices.length?this.lineChoices:["存量","权益","保险","短剧","其他"]);},
       clarifyQuestions(){
         const config=this.activeSkill?.clarification;
         if(!config?.enabled)return [];
-        if(Array.isArray(config.questions)&&config.questions.length)return config.questions;
-        return config.question?[{key:"businessLine",label:"业务线",question:config.question,options:config.options||[]}]:[];
+        const list=Array.isArray(config.questions)&&config.questions.length?config.questions
+          :(config.question?[{key:"businessLine",label:"业务线",question:config.question,options:config.options||[]}]:[]);
+        // 业务线这一问的选项改用用户能选的业务线；一条都没有时才保留技能自己配的
+        return this.lineChoices.length?list.map(item=>item.key==="businessLine"?{...item,options:this.lineChoices}:item):list;
       },
       currentContextLimit(){return this.modelLimits[this.model]||1000000;},
       /** 当前模型的思考档位：空数组 = 该模型不支持思考，输入框里不出现「深度」这一项 */
@@ -436,6 +437,10 @@
           children:list.map(report=>({id:report.id,label:report.title,type:"report",reportId:report.id}))
         }));
       }
+    },
+    watch:{
+      // 选中的业务线不再可选（知识库更新、权限或账号变化）就清掉，避免把失效的名字发出去
+      lineChoices(list){if(this.activeBusinessLine&&!list.includes(this.activeBusinessLine))this.activeBusinessLine="";}
     },
     mounted(){
       this.pageHandler=event=>{if(event.detail?.page==="灵犀智析"){this.loadGatewaySkills();this.loadMyTables();this.loadModels();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
@@ -580,6 +585,10 @@
       openSession(id){
         this.activeId=id;
         const session=this.sessions.find(item=>item.id===id);
+        // 业务线跟着会话走：恢复该会话最近一次提问的业务线（已不可选就清空）
+        const lastUser=[...(session?.messages||[])].reverse().find(msg=>msg.role==="user");
+        const line=lastUser?.businessLine||"";
+        this.activeBusinessLine=line&&this.lineChoices.includes(line)?line:"";
         if(session)this.scenario=this.skillScenarios.find(scene=>scene.name===session.scenario)?.key||this.skillScenarios[0]?.key||"single";
         this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));
       },
@@ -823,9 +832,10 @@
           return this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
         }
         const answers=clarifyAnswers||{};
-        const businessLine=answers.businessLine||this.activeBusinessLine||"";
-        // 知识库里的业务线由服务端决定候选表；否则沿用旧的前端按分组筛选
-        const knownLine=(knowledgeData.businessLines||[]).some(line=>line.name===businessLine&&line.name!=="公共");
+        const rawLine=answers.businessLine||this.activeBusinessLine||"";
+        // 有可选业务线时只认可选的（失效的名字当作没选）；知识库里的业务线由服务端决定候选表，没有可选业务线时沿用旧的前端按分组筛选
+        const knownLine=this.lineChoices.length>0&&this.lineChoices.includes(rawLine);
+        const businessLine=this.lineChoices.length?(knownLine?rawLine:""):rawLine;
         const confirmations=this.clarifyQuestions.filter(item=>answers[item.key])
           .map(item=>(item.label||item.question)+"："+answers[item.key]);
         const assetCandidates=businessLine&&!knownLine?this.tablesForBusinessLine(businessLine):[];

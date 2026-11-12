@@ -1376,4 +1376,46 @@ describe("浏览器端到端", () => {
     assert.equal(bodies[3].conversation.length, 1, "换线后的新一轮仍可追问");
     assert.match(bodies[3].conversation[0].question, /5503/);
   }));
+
+  test("澄清卡的业务线选项等于用户可选的业务线（没有权限的保险、技能自带的短剧/其他都不出现）", async t => withPage(t, async page => {
+    await openWorkbench(page, "林金维");
+    await page.locator(".portal-vue-ai-scenario", { hasText: "数据查询" }).click();
+    await page.getByPlaceholder(/输入分析问题/).fill("澄清卡选项测试 7001");
+    await page.getByRole("button", { name: "发送" }).click();
+    await page.locator(".portal-vue-ai-ask-option").first().waitFor();
+    const labels = (await page.locator(".portal-vue-ai-ask-q").first().locator(".portal-vue-ai-ask-option b").allTextContents()).map(item => item.trim());
+    assert.deepEqual(labels, ["权益"]);
+  }));
+
+  test("选中的业务线从知识库里消失后：选择框清空，下一次请求 businessLine 为空", async t => withPage(t, async page => {
+    await openWorkbench(page, "曾祥竞");
+    const bodies = await captureAnalyze(page);
+    await pickLine(page, "存量");
+    assert.match(await lineSelect(page).textContent(), /存量/);
+    await page.evaluate(() => {
+      const data = window.PortalVue.knowledgeData;
+      data.businessLines = data.businessLines.filter(line => line.name !== "存量");
+    });
+    await page.waitForFunction(() => !/存量/.test(document.querySelector(".portal-vue-ai-chip-line-select").textContent));
+    await askAndWait(page, "失效业务线测试 7011");
+    assert.equal(bodies[0].businessLine, "");
+    assert.deepEqual(bodies[0].assetCandidates, []);
+  }));
+
+  test("业务线跟着会话走：回到旧会话时恢复它的业务线，追问仍带完整上文", async t => withPage(t, async page => {
+    await openWorkbench(page, "曾祥竞");
+    const bodies = await captureAnalyze(page);
+    await pickLine(page, "权益");
+    await askAndWait(page, "会话甲第一问 7021");
+    await page.getByRole("button", { name: /新的分析/ }).click();
+    await pickLine(page, "存量");
+    await askAndWait(page, "会话乙第一问 7022");
+    await page.locator(".portal-vue-ai-session", { hasText: "会话甲第一问" }).first().click();
+    await page.waitForFunction(() => /权益/.test(document.querySelector(".portal-vue-ai-chip-line-select").textContent));
+    await askAndWait(page, "会话甲追问 7023");
+    const last = bodies[bodies.length - 1];
+    assert.equal(last.businessLine, "权益");
+    assert.equal(last.conversation.length, 1, "回到旧会话后上文不应丢");
+    assert.match(last.conversation[0].question, /7021/);
+  }));
 });
