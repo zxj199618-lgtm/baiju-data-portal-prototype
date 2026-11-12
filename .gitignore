@@ -12,3 +12,5 @@ scratch/
 .playwright-mcp/
 .video_agent/
 backups/
+
+.worktrees/
