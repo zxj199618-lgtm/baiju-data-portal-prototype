@@ -6,6 +6,7 @@
   "page-head.js",
   "page-data-board.js",
   "page-board-management.js",
+  "page-business-lines.js",
   "page-asset-management.js",
   "page-dimension-management.js",
   "page-dimension-data.js",

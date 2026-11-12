@@ -1032,4 +1032,187 @@ describe("浏览器端到端", () => {
     assert.equal(await page.locator(".portal-vue-knowledge-error").count(), 0);
     await page.getByRole("button", { name: "编辑知识库" }).waitFor();
   }));
+
+  /* ===== 表管理 · 业务线视图 ===== */
+  const bizSnapshot = async admin => (await harness.call("GET", "/v1/knowledge", { token: admin })).data;
+  /** 把业务线、关联、归属恢复到快照（用服务端当前 rev；快照里没有的表一并写成未分组） */
+  const bizRestore = async (admin, snap) => {
+    const now = (await bizSnapshot(admin));
+    const tableLines = Object.fromEntries(now.knownTables.map(table => [table, snap.tableLines[table] || ""]));
+    const businessLines = snap.businessLines.map(line => ({ id: line.id, name: line.name, knowledge: line.knowledge ? { markdown: line.knowledge.markdown } : "", relations: line.relations }));
+    const put = await harness.call("PUT", "/v1/knowledge/business-lines", { token: admin, body: { rev: now.rev, businessLines, tableLines } });
+    assert.equal(put.status, 200, JSON.stringify(put.data));
+  };
+  const openBizView = async page => {
+    await login(page, "曾祥竞");
+    await appVisible(page);
+    await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+    await openBizViewNoLogin(page);
+  };
+  const openBizViewNoLogin = async page => {
+    await page.evaluate(() => window.portalVueBridge.setPage("表管理"));
+    await page.locator(".portal-vue-bizline-view-switch").getByText("业务线", { exact: true }).click();
+    await page.locator(".portal-vue-bizline-list").waitFor();
+  };
+  const bizItem = (page, name) => page.locator(".portal-vue-bizline-item", { hasText: name });
+  /** 当前展开的下拉里的全部选项文字（收起的下拉仍留在页面里，要排除） */
+  const openOptions = async page => {
+    const read = () => page.evaluate(() => [...document.querySelectorAll(".el-select-dropdown")].filter(d => getComputedStyle(d.parentElement).display !== "none").flatMap(d => [...d.querySelectorAll(".el-select-dropdown__item")].map(item => item.textContent.trim())));
+    await page.waitForFunction(() => [...document.querySelectorAll(".el-select-dropdown")].some(d => getComputedStyle(d.parentElement).display !== "none" && d.querySelector(".el-select-dropdown__item")));
+    return read();
+  };
+  const pickOption = async (page, formLabel, optionName) => {
+    await page.locator(".el-dialog:visible .el-form-item", { hasText: formLabel }).locator(".el-select").click();
+    await page.getByRole("option", { name: optionName, exact: true }).click();
+    await page.waitForFunction(() => ![...document.querySelectorAll(".el-select-dropdown")].some(d => getComputedStyle(d.parentElement).display !== "none"));
+  };
+
+  test("业务线视图：新增「AI 短剧」、写知识库、保存后刷新仍在", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const snap = skipReason ? null : await bizSnapshot(admin);
+    const marker = `E2E-LINE-${Date.now()}`;
+    try {
+      await openBizView(page);
+      await page.getByRole("button", { name: "新增业务线" }).click();
+      await page.getByPlaceholder("例如：AI 短剧").fill("AI 短剧");
+      await page.locator(".el-dialog:visible").getByRole("button", { name: "确定" }).click();
+      await bizItem(page, "AI 短剧").waitFor();
+      await page.getByRole("button", { name: "新建知识库" }).click();
+      assert.match(await page.locator(".portal-vue-md-textarea").inputValue(), /AI 短剧/, "新知识库应带业务线模板");
+      await page.locator(".portal-vue-md-textarea").fill(`# AI 短剧\n\n${marker}`);
+      await page.getByRole("button", { name: "保存知识库" }).click();
+      await page.locator(".portal-vue-knowledge-doc", { hasText: marker }).waitFor();
+      await page.reload();
+      await appVisible(page);
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+      await openBizViewNoLogin(page);
+      await bizItem(page, "AI 短剧").click();
+      await page.locator(".portal-vue-knowledge-doc", { hasText: marker }).waitFor();
+      assert.match(await page.locator(".portal-vue-knowledge-bar").textContent(), /最近编辑/);
+      const server = await bizSnapshot(admin);
+      assert.match(server.businessLines.find(line => line.name === "AI 短剧").knowledge.markdown, new RegExp(marker));
+    } finally {
+      if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
+
+  test("表关联：添加一条 订单.user_id N:1 用户.user_id 后刷新仍在；两端字段下拉里只有该表的字段", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const snap = skipReason ? null : await bizSnapshot(admin);
+    try {
+      const fields = (await harness.call("GET", "/v1/table-fields", { token: admin })).data.tables;
+      const names = table => fields[table].map(field => field.name).sort();
+      await openBizView(page);
+      await bizItem(page, "号卡").click();
+      await page.getByRole("tab", { name: "表关联" }).click();
+      await page.getByRole("button", { name: "添加关联" }).click();
+      await pickOption(page, "左表", "用户订单明细");
+      await page.locator(".el-dialog:visible .el-form-item", { hasText: "左字段" }).locator(".el-select").click();
+      const leftOptions = (await openOptions(page)).sort();
+      assert.deepEqual(leftOptions, names("用户订单明细"), "左字段只应有左表的字段");
+      await page.getByRole("option", { name: "user_id", exact: true }).click();
+      await page.waitForFunction(() => ![...document.querySelectorAll(".el-select-dropdown")].some(d => getComputedStyle(d.parentElement).display !== "none"));
+      await pickOption(page, "关系", "N:1");
+      await pickOption(page, "右表", "用户画像标签明细表");
+      await page.locator(".el-dialog:visible .el-form-item", { hasText: "右字段" }).locator(".el-select").click();
+      const rightOptions = (await openOptions(page)).sort();
+      assert.deepEqual(rightOptions, names("用户画像标签明细表"), "右字段只应有右表的字段");
+      await page.getByRole("option", { name: "user_id", exact: true }).click();
+      await page.waitForFunction(() => ![...document.querySelectorAll(".el-select-dropdown")].some(d => getComputedStyle(d.parentElement).display !== "none"));
+      await page.locator(".el-dialog:visible").getByRole("button", { name: "保存" }).click();
+      const row = () => page.locator(".portal-vue-bizline .el-table__row", { hasText: "N:1" });
+      await row().waitFor();
+      await page.reload();
+      await appVisible(page);
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+      await openBizViewNoLogin(page);
+      await bizItem(page, "号卡").click();
+      await page.getByRole("tab", { name: "表关联" }).click();
+      const text = await row().first().textContent();
+      assert.match(text, /user_id/); assert.match(text, /N:1/); assert.match(text, /用户画像标签明细表/);
+      const server = (await bizSnapshot(admin)).businessLines.find(line => line.name === "号卡");
+      assert.equal(server.relations.length, 1);
+      assert.deepEqual(server.relations[0].left, { table: "用户订单明细", field: "user_id" });
+      assert.equal(server.relations[0].type, "N:1");
+      assert.ok(server.relations[0].id, "服务端应分配关联 id");
+    } finally {
+      if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
+
+  test("包含的表：把一张未分组的表移入业务线后，数据表视图里该表的业务线列显示新业务线", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const snap = skipReason ? null : await bizSnapshot(admin);
+    try {
+      // 先把「渠道归因明细」改成未分组
+      const ungroup = await harness.call("PUT", "/v1/knowledge/business-lines", { token: admin, body: { rev: snap.rev, businessLines: snap.businessLines.map(line => ({ id: line.id, name: line.name, knowledge: line.knowledge ? { markdown: line.knowledge.markdown } : "", relations: line.relations })), tableLines: { "渠道归因明细": "" } } });
+      assert.equal(ungroup.status, 200, JSON.stringify(ungroup.data));
+      await openBizView(page);
+      await bizItem(page, "存量").click();
+      await page.getByRole("tab", { name: "包含的表" }).click();
+      await page.locator(".portal-vue-bizline-move-in").click();
+      await page.getByRole("option", { name: "渠道归因明细（未分组）", exact: true }).click();
+      await page.locator(".portal-vue-bizline .el-table__row", { hasText: "渠道归因明细" }).waitFor();
+      assert.equal((await bizSnapshot(admin)).tableLines["渠道归因明细"], "存量");
+      await page.locator(".portal-vue-bizline-view-switch").getByText("数据表", { exact: true }).click();
+      await page.locator("#dataAssetView").getByRole("tab", { name: "已停用" }).click(); // 「渠道归因明细」的服务状态是停用
+      await page.getByPlaceholder("搜索表名、对外表名、表中文名").fill("渠道归因");
+      const row = page.locator("#dataAssetView .portal-vue-table .el-table__row", { hasText: "渠道归因明细" }).first();
+      await row.waitFor();
+      assert.match(await row.textContent(), /存量/);
+    } finally {
+      if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
+
+  test("删除有表的业务线时被拦并提示表名；「公共」没有删除与改名入口", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const snap = skipReason ? null : await bizSnapshot(admin);
+    try {
+      await openBizView(page);
+      await bizItem(page, "公共").click();
+      assert.equal(await page.getByRole("button", { name: "删除" }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "改名" }).count(), 0);
+      await bizItem(page, "存量").click();
+      await page.getByRole("button", { name: "删除" }).click();
+      const message = page.locator(".el-message", { hasText: "请先迁出" });
+      await message.waitFor();
+      assert.match(await message.textContent(), /用户画像标签明细表/);
+      assert.equal(await page.locator(".el-message-box").count(), 0, "有表时不应进入删除确认");
+      assert.ok((await bizSnapshot(admin)).businessLines.some(line => line.name === "存量"), "业务线不应被删除");
+    } finally {
+      if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
+
+  test("只读账号进入业务线视图：没有任何编辑按钮", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const before = skipReason ? null : (await harness.call("GET", "/v1/org", { token: admin })).data;
+    let baseGroups = [];
+    try {
+      const full = (name, tables, extra = {}) => ({ name, desc: "", menus: ["灵犀智析"], menuEdits: [], boards: [], tables, status: "启用", ...extra });
+      baseGroups = before.groups.length ? before.groups : [
+        full("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心", "表管理"], menuEdits: ["表管理"] }), full("投放组长", ["广告计划日报表"]), full("优化师", ["广告计划日报表"]),
+        full("数据分析师", ["广告计划日报表", "用户订单明细"], { menus: ["灵犀智析", "数据看板"], boards: ["大盘数据"] }), full("只读访客", [])
+      ];
+      const groups = baseGroups.map(group => group.name === "数据分析师" ? { ...group, menus: [...new Set([...group.menus, "表管理"])], menuEdits: group.menuEdits.filter(name => name !== "表管理") } : group);
+      const put = await harness.call("PUT", "/v1/org", { token: admin, body: { groups } });
+      assert.equal(put.status, 200, JSON.stringify(put.data));
+      await login(page, "李雨航");
+      await appVisible(page);
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+      await openBizViewNoLogin(page);
+      await bizItem(page, "权益").click();
+      const editButtons = ["新增业务线", "改名", "上移", "下移", "删除", "新建知识库", "编辑知识库", "添加关联", "移出", "编辑"];
+      const assertNone = async () => { for (const name of editButtons) assert.equal(await page.getByRole("button", { name, exact: true }).count(), 0, `只读账号不应看到「${name}」`); };
+      await assertNone();
+      await page.getByRole("tab", { name: "表关联" }).click();
+      await assertNone();
+      await page.getByRole("tab", { name: "包含的表" }).click();
+      await assertNone();
+      assert.equal(await page.locator(".portal-vue-bizline-move-in").count(), 0, "只读账号不应有「移入」下拉");
+    } finally {
+      if (!skipReason && baseGroups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups: baseGroups } });
+    }
+  }));
 });

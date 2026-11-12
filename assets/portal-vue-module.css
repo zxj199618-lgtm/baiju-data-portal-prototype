@@ -1100,3 +1100,24 @@
 .portal-vue-ai-skillbar .portal-vue-ai-scenario small { display: block; }
 
 @media (max-width: 700px) { .portal-vue-field-dialog-list { grid-template-columns: minmax(0, 1fr); } }
+
+/* ===== 表管理 · 业务线视图 ===== */
+.portal-vue-bizline-switch { margin: 22px 0 -10px; }
+.portal-vue-bizline { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 560px; }
+.portal-vue-bizline-side { border-right: 1px solid #e9edf4; background: #fafbfd; display: flex; flex-direction: column; }
+.portal-vue-bizline-side-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #e9edf4; }
+.portal-vue-bizline-list { list-style: none; margin: 0; padding: 6px 0; flex: 1; overflow: auto; }
+.portal-vue-bizline-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; cursor: pointer; border-left: 3px solid transparent; }
+.portal-vue-bizline-item:hover { background: #f0f4fb; }
+.portal-vue-bizline-item.active { background: #eaf1ff; border-left-color: #2563eb; color: #1d4ed8; font-weight: 500; }
+.portal-vue-bizline-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-vue-bizline-side-actions { padding: 10px 16px; border-top: 1px solid #e9edf4; display: flex; flex-wrap: wrap; gap: 4px; font-size: 12px; }
+.portal-vue-bizline-main { padding: 8px 22px 22px; min-width: 0; }
+.portal-vue-bizline-title { margin: 14px 0 0; font-size: 18px; font-weight: 600; }
+.portal-vue-bizline-readonly { margin-left: 10px; font-size: 12px; font-weight: 400; }
+.portal-vue-bizline-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }
+.portal-vue-bizline-move-in { width: 260px; }
+.portal-vue-bizline-editor { padding-bottom: 8px; }
+.portal-vue-bizline-editor-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.portal-vue-bizline-relation-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 16px; }
+@media (max-width: 900px) { .portal-vue-bizline { grid-template-columns: minmax(0, 1fr); } .portal-vue-bizline-side { border-right: none; border-bottom: 1px solid #e9edf4; } }

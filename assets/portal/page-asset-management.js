@@ -21,6 +21,7 @@
     refreshTick,
     state
   } = window.PortalVue;
+  const { BusinessLinePanel } = window.PortalVue;
 
 
   function effectiveTableNames(user) {
@@ -36,9 +37,12 @@
   }
 
   const AssetManagementApp = {
+    components: { BusinessLinePanel },
     template: `
       <el-config-provider :locale="locale">
-        <section class="portal-vue-panel">
+        <div class="portal-vue-bizline-switch"><el-radio-group v-model="view" class="portal-vue-bizline-view-switch"><el-radio-button value="table" label="数据表">数据表</el-radio-button><el-radio-button value="line" label="业务线">业务线</el-radio-button></el-radio-group></div>
+        <business-line-panel v-if="view === 'line'" :visible-tables="scopeAssets.map(item => item.cnName)"></business-line-panel>
+        <section v-show="view === 'table'" class="portal-vue-panel">
           <el-tabs v-model="status" class="portal-vue-status-tabs" @tab-change="resetPage"><el-tab-pane label="启用中" name="启用"></el-tab-pane><el-tab-pane label="已停用" name="停用"></el-tab-pane></el-tabs>
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left">
@@ -117,7 +121,7 @@
         </el-drawer>
       </el-config-provider>
     `,
-    data: () => ({ status: "启用", keyword: "", source: "", database: "", owner: "", bizLine: "", page: 1, pageSize: 10, createVisible: false, createForm: {}, detailVisible: false, detail: null, detailDraft: {} }),
+    data: () => ({ view: "table", status: "启用", keyword: "", source: "", database: "", owner: "", bizLine: "", page: 1, pageSize: 10, createVisible: false, createForm: {}, detailVisible: false, detail: null, detailDraft: {} }),
     computed: {
       scopeTableNames() { refreshTick.value; return effectiveTableNames(loginUser()); },
       scopeLabel() { refreshTick.value; return tableScopeLabel(loginUser(), state.assets.length); },
