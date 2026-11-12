@@ -16,6 +16,7 @@ COPY scripts/join-engine.cjs ./join-engine.cjs
 COPY scripts/knowledge-tools.cjs ./knowledge-tools.cjs
 COPY scripts/equity-sample.cjs ./equity-sample.cjs
 COPY scripts/skill-pack.cjs ./skill-pack.cjs
+COPY scripts/skill-tables.cjs ./skill-tables.cjs
 COPY scripts/report-skill.cjs ./report-skill.cjs
 COPY scripts/evidence-ledger.cjs ./evidence-ledger.cjs
 COPY scripts/planner.cjs ./planner.cjs
