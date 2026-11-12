@@ -44,6 +44,7 @@ const { usableRelations } = require("./join-engine.cjs");
 const { createAccountStore } = require("./account-store.cjs");
 const equitySample = require("./equity-sample.cjs");
 const skillPack = require("./skill-pack.cjs");
+const { sanitizeSkillTables, resolveSkillTables } = require("./skill-tables.cjs");
 const reportSkill = require("./report-skill.cjs");
 const planner = require("./planner.cjs");
 const followups = require("./followups.cjs");
@@ -1277,6 +1278,8 @@ function installSkillPacks(registry) {
       responseContract: manifest.responseContract, pack: true, builtin: true, dir, kind: manifest.kind
     };
     const existing = registry.find(item => item.id === pack.id);
+    // 管理员在界面里覆盖的 tables 写在注册表上，安装规范包时不得清掉
+    delete display.tables;
     if (existing) Object.assign(existing, display);
     else registry.push({ id: pack.id, ...display, enabled: true, grayUsers: [], installedAt: new Date().toISOString() });
   }
@@ -2852,7 +2855,7 @@ async function handleRequest(req, res) {
   if (req.method === "GET" && url.pathname === "/v1/skills") {
     return sendJson(res, 200, loadSkillRegistry().map(entry => {
       const manifest = skillManifest(entry.id) || {};
-      return { ...manifest, ...entry, dir: undefined, tools: (manifest.tools || []).map(tool => tool.name) };
+      return { ...manifest, ...entry, dir: undefined, tools: (manifest.tools || []).map(tool => tool.name), tables: resolveSkillTables(entry, skillPacks.get(entry.id)) };
     }));
   }
 
@@ -2938,7 +2941,13 @@ async function handleRequest(req, res) {
     });
     if (Array.isArray(body.grayUsers)) entry.grayUsers = body.grayUsers.slice(0, 50);
     if (Array.isArray(body.routes)) entry.routes = sanitizeRoutes(body.routes);
+    if (body.tables !== undefined) {
+      const outcome = sanitizeSkillTables(body.tables, allTableNames);
+      if (!outcome.ok) return sendJson(res, 400, { error: outcome.error, unknown: outcome.unknown });
+      entry.tables = outcome.tables;
+    }
     saveSkillRegistry(registry);
+    appendAuditEntry({ type: "skill-config-change", user: req.session.name, skillId: id, fields: Object.keys(body).filter(key => key !== "prompt") });
     return sendJson(res, 200, { id, saved: true });
   }
 
@@ -3456,7 +3465,7 @@ async function handleRequest(req, res) {
       skill = builtin;
       scene = builtin.scenarios[routed?.skill?.scenarioKey || (isRouting ? "data-query" : scenario)] || builtin.scenarios.single;
     }
-    const packTables = packEntry ? (packEntry.spec.tables || []).filter(name => allowed.includes(name)) : [];
+    const packTables = registrySkill ? resolveSkillTables(registrySkill, packEntry).filter(name => allowed.includes(name)) : [];
     const evidenceTables = referenced.length ? referenced : (packTables.length ? packTables : scopedCandidates);
     /* 回答协议（所有技能）+ 规范包上下文（术语解析、拦截规则）+ 会话上下文 */
     const answerRole = skillPack.roleForGroup(orgStore.groupOf(user));
