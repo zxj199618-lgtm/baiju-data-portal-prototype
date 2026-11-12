@@ -402,6 +402,13 @@ assert(html.includes('id="skillDetailView"') && portalVue.includes("mount(\"#ski
 assert(portalVue.includes("SkillDetailApp") && portalVue.includes("返回 Skill 管理") && html.includes("page-skill-detail.js"), "Skill 详情页应提供返回 Skill 管理的页头");
 assert(portalRoutes.includes('page: "Skill 详情"') && portalRoutes.includes('path: "/ai/skills/:skill"'), "Skill 详情应注册 #/ai/skills/:skill 地址");
 assert(portalBridge.includes("getSkillDetailId") && portalBridge.includes("setSkillDetailId") && portalBridge.includes("portalSkillDetailId"), "Skill 详情应通过 bridge 读写当前 Skill id");
+assert(portalVue.includes('el-tab-pane label="基本信息"') && portalVue.includes('label="提示词"') && portalVue.includes('label="引用的表"') && portalVue.includes('label="版本管理"'), "Skill 详情应使用四个页签：基本信息、提示词、引用的表、版本管理");
+assert(portalVue.includes("saveVersion") && portalVue.includes("自动路由规则") && portalVue.includes("兜底技能"), "Skill 详情应能保存为未发布版本，路由型 Skill 展示关键词规则与兜底技能");
+const skillDetailSource = read("assets/portal/page-skill-detail.js");
+assert(skillDetailSource.includes("min-height: calc(100vh - 280px)") && !skillDetailSource.includes(':rows="6"'), "提示词输入应吃满工作区，不再使用 6 行文本框");
+assert(skillDetailSource.includes("beforeLeave") && skillDetailSource.includes("有未保存的修改，确定离开？"), "离开详情或切到其他页签前，未保存修改应先确认");
+assert(skillDetailSource.includes("canEdit('Skill 配置')"), "详情页编辑与保存应受 Skill 配置权限控制");
+
 assert(portalVue.includes("SkillManagementApp") && portalVue.includes("openDetail(") && portalVue.includes('bridge.setSkillDetailId') && portalVue.includes('bridge.setPage("Skill 详情")'), "Skill 列表应通过 openDetail 进入详情页");
 assert(portalVue.includes("grayUsers") && portalVue.includes("灰度用户") && portalVue.includes("toggleEnabled") && portalVue.includes("skillStatus"), "Skill 灰度应按系统内用户配置（不再按流量），并支持上下线开关");
 assert("testVisible" in portalVue.match(/SkillManagementApp[\s\S]{0,200}/g) === false || !portalVue.includes("沙箱试跑"), "Skill 配置不应再包含沙箱试跑");
