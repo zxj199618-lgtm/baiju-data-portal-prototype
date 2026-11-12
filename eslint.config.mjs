@@ -10,5 +10,5 @@ export default [
     rules: { "no-undef": "error" }
   },
   // 路由表同时给浏览器（window.PortalRoutes）和单元测试（require）使用
-  { files: ["assets/portal-routes.js"], languageOptions: { globals: { ...globals.browser, ...globals.node } } }
+  { files: ["assets/portal-routes.js", "assets/portal/knowledge-md.js"], languageOptions: { globals: { ...globals.browser, ...globals.node } } }
 ];
