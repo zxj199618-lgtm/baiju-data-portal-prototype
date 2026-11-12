@@ -408,6 +408,9 @@ const skillDetailSource = read("assets/portal/page-skill-detail.js");
 assert(skillDetailSource.includes("min-height: calc(100vh - 280px)") && !skillDetailSource.includes(':rows="6"'), "提示词输入应吃满工作区，不再使用 6 行文本框");
 assert(skillDetailSource.includes("beforeLeave") && skillDetailSource.includes("有未保存的修改，确定离开？"), "离开详情或切到其他页签前，未保存修改应先确认");
 assert(skillDetailSource.includes("canEdit('Skill 配置')"), "详情页编辑与保存应受 Skill 配置权限控制");
+assert(skillDetailSource.includes("saveTables") && skillDetailSource.includes("multiple") && skillDetailSource.includes("filterable") && skillDetailSource.includes("失效") && skillDetailSource.includes("不预置默认表"), "引用的表页签应可多选增删，失效表需标记，空清单说明不预置默认表");
+assert(skillDetailSource.includes("请先移除已失效的表") && skillDetailSource.includes("引用的表已更新，分析默认范围即时生效") && skillDetailSource.includes("没有写到服务端"), "引用的表保存应拦截失效表，成功或未写到服务端都要有明确提示");
+
 
 assert(portalVue.includes("SkillManagementApp") && portalVue.includes("openDetail(") && portalVue.includes('bridge.setSkillDetailId') && portalVue.includes('bridge.setPage("Skill 详情")'), "Skill 列表应通过 openDetail 进入详情页");
 assert(portalVue.includes("grayUsers") && portalVue.includes("灰度用户") && portalVue.includes("toggleEnabled") && portalVue.includes("skillStatus"), "Skill 灰度应按系统内用户配置（不再按流量），并支持上下线开关");

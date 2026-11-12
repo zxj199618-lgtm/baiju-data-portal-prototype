@@ -9,6 +9,7 @@
     analysisGatewayBase,
     bridge,
     ep,
+    gatewayTableNames,
     isImageIconValue,
     loginUser,
     mount,
@@ -78,7 +79,18 @@
                 </el-form>
               </el-tab-pane>
               <el-tab-pane label="引用的表" name="tables">
-                <p class="portal-vue-muted" style="padding:24px 0">在此维护该 Skill 分析时默认引用的表，保存后即时生效，不会生成新版本。</p>
+                <el-form class="portal-vue-dialog-form" label-position="top" style="max-width:760px">
+                  <el-form-item label="引用的表">
+                    <el-select v-model="tableDraft" multiple filterable clearable :disabled="!editable" placeholder="从已有数据表中选择" style="width:100%">
+                      <el-option v-for="name in tableOptions" :key="name" :label="name" :value="name">
+                        <span>{{ name }}</span>
+                        <el-tag v-if="isInvalidTable(name)" size="small" type="danger" style="margin-left:8px">失效</el-tag>
+                      </el-option>
+                    </el-select>
+                    <p class="portal-vue-muted" style="margin:8px 0 0;font-size:12px">{{ tableDraft.length ? "已失效的表请先移除再保存。保存后分析默认范围即时生效，不会生成新版本。" : "不预置默认表。未选择时，分析不会预置默认表。" }}</p>
+                  </el-form-item>
+                </el-form>
+                <div v-if="editable" class="portal-vue-actions" style="padding:8px 0 16px"><el-button type="primary" @click="saveTables">保存引用的表</el-button></div>
               </el-tab-pane>
               <el-tab-pane label="版本管理" name="versions">
                 <p class="portal-vue-muted" style="padding:24px 0">新版本保存后先为「未发布」，可在此灰度、发版、查看快照或回滚。</p>
@@ -99,7 +111,7 @@
       return { locale: ep.zhCn };
     },
     data() {
-      return { skillId: "", tab: "basic", draft: this.blankDraft() };
+      return { skillId: "", tab: "basic", draft: this.blankDraft(), tableDraft: [] };
     },
     computed: {
       skill() { refreshTick.value; return (state.skills || []).find(item => item.id === this.skillId) || null; },
@@ -111,6 +123,18 @@
         return (state.skills || []).filter(item => item.kind !== "router" && item.id !== "numa-warehouse").map(item => ({ id: item.id, name: item.title || item.name }));
       },
       currentUser() { refreshTick.value; return loginUser() || state.users[0]; },
+      knownTables() {
+        refreshTick.value;
+        const names = (state.assets || []).map(item => item.cnName).filter(Boolean);
+        const gateway = gatewayTableNames?.() || [];
+        (gateway || []).forEach(name => { if (name && !names.includes(name)) names.push(name); });
+        return names;
+      },
+      tableOptions() {
+        const names = [...this.knownTables];
+        (this.tableDraft || []).forEach(name => { if (name && !names.includes(name)) names.push(name); });
+        return names;
+      },
       dirty() {
         if (!this.skill) return false;
         return JSON.stringify(this.currentSnapshot()) !== JSON.stringify(this.draftSnapshot(this.draft))
@@ -173,14 +197,35 @@
       parsedRoutes() {
         return (this.draft.routes || []).map(route => ({ skillId: route.skillId, keywords: splitKeywords(route.keywords) })).filter(route => route.skillId);
       },
-      loadSkill() {
+      isInvalidTable(name) { return !!name && !this.knownTables.includes(name); },
+      async refreshSkillFromGateway() {
+        if (!this.skillId) return;
+        try {
+          const response = await fetch(`${analysisGatewayBase}/v1/skills`);
+          if (!response.ok) return;
+          const list = await response.json();
+          const remote = Array.isArray(list) ? list.find(item => item.id === this.skillId) : null;
+          if (!remote) return;
+          const skill = (state.skills || []).find(item => item.id === this.skillId);
+          if (!skill) return;
+          ["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt", "fallbackSkillId", "name"].forEach(key => {
+            if (remote[key] !== undefined) skill[key] = remote[key];
+          });
+          if (Array.isArray(remote.routes)) skill.routes = remote.routes;
+          if (Array.isArray(remote.tables)) skill.tables = remote.tables;
+        } catch (error) { /* 网关未连接时保留原型状态 */ }
+      },
+      async loadSkill() {
         this.skillId = bridge.getSkillDetailId?.() || "";
+        await this.refreshSkillFromGateway();
         const skill = (state.skills || []).find(item => item.id === this.skillId) || null;
         if (!skill) {
           this.draft = this.blankDraft();
+          this.tableDraft = [];
           this.tab = "basic";
           return;
         }
+        this.tableDraft = [...(skill.tables || [])];
         this.draft = {
           name: skill.name || "",
           icon: skill.icon || "✦",
@@ -271,6 +316,23 @@
         } catch (error) { /* 网关未连接时保留原型状态 */ }
         notify(`「${skill.name}」已保存为 ${version}（未发布，可到「版本管理」灰度 / 发版）`);
         this.loadSkill();
+      },
+      async saveTables() {
+        const skill = this.skill;
+        if (!skill) return;
+        if ((this.tableDraft || []).some(name => this.isInvalidTable(name))) return ep.ElMessage.warning("请先移除已失效的表");
+        skill.tables = [...(this.tableDraft || [])];
+        try {
+          const response = await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(skill.id)}/config`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tables: skill.tables })
+          });
+          if (!response.ok) throw new Error(String(response.status));
+          notify("引用的表已更新，分析默认范围即时生效");
+        } catch (error) {
+          ep.ElMessage.warning("引用的表已在本页更新，但没有写到服务端");
+        }
       }
     },
     mounted() {
