@@ -29,7 +29,7 @@
           <button class="portal-vue-collapse" type="button" :title="collapsed ? '展开侧边栏' : '收起侧边栏'" @click="toggleCollapse">{{ collapsed ? '›' : '‹' }}</button>
           <div class="portal-vue-brand"><img :src="collapsed ? 'assets/momentx-observatory-icon.png' : 'assets/momentx-observatory-logo.jpg'" alt="观星台" /></div>
           <el-scrollbar class="portal-vue-nav-scroll">
-            <el-menu class="portal-vue-menu" :collapse="collapsed" :default-active="menuActive" :default-openeds="openGroups" @select="selectPage">
+            <el-menu class="portal-vue-menu" popper-class="lanhu-menu-popper" :collapse="collapsed" :default-active="menuActive" :default-openeds="openGroups" @select="selectPage">
               <template v-for="section in sections" :key="section.group">
                 <el-menu-item v-if="section.leaf || (section.items.length === 1 && section.items[0].name === section.group)" :index="section.items[0].name">
                   <img class="portal-nav-icon" :class="section.icon" :src="iconPath(section)" alt="" />
@@ -71,7 +71,10 @@
     },
     methods: {
       isActive(section) { return section.items.some(item => item.name === this.menuActive); },
-      iconPath(section) { return bridge.navIconPath(section.icon, this.isActive(section)); },
+      iconPath(section) {
+        const asLeaf = section.leaf || (section.items.length === 1 && section.items[0].name === section.group);
+        return bridge.navIconPath(section.icon, asLeaf && this.isActive(section));
+      },
       navBadges(entry) { return Array.isArray(entry?.badge) ? entry.badge : entry?.badge ? [entry.badge] : []; },
       badgeClass(badge) { return badge === "3.1" ? "portal-nav-badge--v31" : badge === "4.0" ? "portal-nav-badge--v40" : "portal-nav-badge--v20"; },
       selectPage(page) { bridge.setPage(page); },

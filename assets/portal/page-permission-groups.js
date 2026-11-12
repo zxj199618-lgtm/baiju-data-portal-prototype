@@ -121,7 +121,7 @@
     methods:{
       userCount(name){return state.users.filter(user=>user.group===name).length;},
       avatarText(name){return String(name||"用").slice(0,1);},
-      avatarStyle(name){const colors=["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"];const seed=[...String(name||"")].reduce((total,char)=>total+char.charCodeAt(0),0);return{background:colors[seed%colors.length],color:"#fff"};},
+      avatarStyle(name){const colors=["#0066FF","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"];const seed=[...String(name||"")].reduce((total,char)=>total+char.charCodeAt(0),0);return{background:colors[seed%colors.length],color:"#fff"};},
       // 字段面板以网关的真实字段为准：首次取到后（未改动时）按新的字段来源重新载入当前组
       loadFields(){loadGatewayFields().then(changed=>{if(changed&&!this.dirty)this.loadGroup();});},
       selectGroup(index){this.selectedIndex=index;this.activeTab="menus";this.memberDrawer=false;this.loadGroup();},syncRouteGroup(){const name=bridge.getRouteGroup?.();const index=name?state.groups.findIndex(group=>group.name===name):-1;if(index>=0&&index!==this.selectedIndex)this.selectGroup(index);else bridge.setRouteGroup?.(this.activeGroup?.name);},

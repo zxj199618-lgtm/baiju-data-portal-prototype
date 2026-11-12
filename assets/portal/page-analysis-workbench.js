@@ -1220,7 +1220,7 @@
           const startY=(height-colHeight)/2;
           pos[n.id]={x:colX[ci],y:startY+ri*(nodeH+gapY)};
         }));
-        const colors=["#1677ff","#13a8a8","#7c3aed","#d97706","#35805b"];
+        const colors=["#0066FF","#13a8a8","#7c3aed","#d97706","#35805b"];
         let svg=`<div class="portal-vue-mermaid-figure"><div class="portal-vue-mermaid-title">血缘图（${direction==="LR"?"从左到右":"从上到下"} · ${nodes.length} 个节点）</div>`;
         svg+=`<svg viewBox="0 0 ${width} ${height}" style="width:100%;height:auto">`;
         nodes.forEach(n=>{

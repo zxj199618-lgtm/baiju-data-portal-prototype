@@ -252,31 +252,37 @@
               <template #default="scope">{{ ipOf(scope.row) }}</template>
             </el-table-column>
             <el-table-column label="操作" width="80" fixed="right">
-              <template #default="scope"><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button></template>
+              <template #default="scope"><el-button link class="lanhu-action" @click="openDetail(scope.row)">详情</el-button></template>
             </el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
 
-        <el-drawer v-model="detailVisible" :title="detailTitle" size="620px" :close-on-click-modal="true">
+        <el-drawer v-model="detailVisible" size="560px" class="lanhu-detail-drawer" :close-on-click-modal="true">
+          <template #header>
+            <button type="button" class="lanhu-drawer-back" @click="detailVisible = false">← {{ detailTitle }}</button>
+          </template>
           <div class="portal-vue-skill-drawer">
-            <div class="portal-vue-alert-field"><label>埋点事件</label><div>{{ detailEvent }}</div></div>
+            <h3 class="lanhu-section-title">基本信息</h3>
             <div class="portal-vue-log-attrs">
+              <div class="portal-vue-log-attr"><span>埋点事件</span><strong>{{ detailEvent }}</strong></div>
               <div v-for="attr in detailAttrs" :key="attr.key" class="portal-vue-log-attr">
                 <span>{{ attr.cn }}</span>
                 <strong :class="{ 'portal-vue-log-ua': attr.type === 'ua' }">{{ attr.value }}</strong>
               </div>
             </div>
             <template v-if="detailBeats.length">
-              <div class="portal-vue-alert-field"><label>心跳明细（{{ detailBeats.length }} 次）</label></div>
-              <div class="portal-vue-log-attrs">
-                <div v-for="beat in detailBeats" :key="beat.id" class="portal-vue-log-attr">
-                  <span>{{ beat.values.event_time }}</span>
-                  <strong>{{ beat.values.duration_seconds }} 秒</strong>
-                </div>
-              </div>
+              <h3 class="lanhu-section-title">心跳明细（{{ detailBeats.length }}次）</h3>
+              <el-table :data="detailBeats" class="portal-vue-table" border>
+                <el-table-column type="index" label="序号" width="70"></el-table-column>
+                <el-table-column label="心跳时间" min-width="180"><template #default="scope">{{ scope.row.values.event_time }}</template></el-table-column>
+                <el-table-column label="心跳时长" width="120"><template #default="scope">{{ scope.row.values.duration_seconds }} 秒</template></el-table-column>
+              </el-table>
             </template>
           </div>
+          <template #footer>
+            <el-button class="lanhu-drawer-close" @click="detailVisible = false">关闭</el-button>
+          </template>
         </el-drawer>
       </el-config-provider>
     `,
@@ -382,7 +388,7 @@
       uaSummaryOf(row) { return operationLogUaSummary(this.headValue(row, "user_agent")); },
       openDetail(row) {
         const schema = operationLogEvents[row.head.event];
-        this.detailTitle = schema.name + " · " + this.rowUserName(row);
+        this.detailTitle = schema.name + "（" + this.rowUserName(row) + "）";
         this.detailEvent = row.head.event;
         this.detailAttrs = schema.attrs.map(([key, cn, type]) => ({
           key, cn, type,

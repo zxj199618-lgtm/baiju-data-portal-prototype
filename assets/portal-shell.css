@@ -3404,7 +3404,7 @@
     }
 
     .gateway-login-demo button:hover {
-      border-color: #1677ff;
+      border-color: #0066FF;
       background: #eef5ff;
     }
 
@@ -3428,7 +3428,7 @@
     .portal-vue-ai-feedback button:hover,
     .portal-vue-ai-feedback button.on {
       opacity: 1;
-      border-color: #1677ff;
+      border-color: #0066FF;
       background: #eef5ff;
     }
 
@@ -3631,13 +3631,13 @@
     .cp-enum label.on { border-color: var(--blue); background: var(--blue-50); color: var(--blue-600); }
     .cp-enum input { display: none; }
     .cp-sql-editor { position: relative; width: var(--cp-control-width); max-width: 100%; height: 180px; overflow: hidden; border: 1px solid #dfe5ee; border-radius: 8px; background: #f7f8fa; box-sizing: border-box; }
-    .cp-sql-editor:focus-within { border-color: #8ab7ff; box-shadow: 0 0 0 2px rgba(22,119,255,.08); }
+    .cp-sql-editor:focus-within { border-color: #8ab7ff; box-shadow: 0 0 0 2px rgba(0,102,255,.08); }
     .cp-sql,
     .cp-sql-highlight { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; margin: 0; padding: 12px; border: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12.5px; line-height: 1.55; letter-spacing: 0; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2; }
     .cp-sql-highlight { pointer-events: none; overflow: hidden; color: #344054; background: transparent; }
     .cp-sql { z-index: 1; resize: none; overflow: auto; outline: 0; color: transparent; caret-color: #1f2937; background: transparent; -webkit-text-fill-color: transparent; }
     .cp-sql::placeholder { color: #98a2b3; -webkit-text-fill-color: #98a2b3; }
-    .cp-sql::selection { background: rgba(22,119,255,.18); }
+    .cp-sql::selection { background: rgba(0,102,255,.18); }
     .sql-token.keyword { color: #7c3aed; font-weight: 650; }
     .sql-token.function { color: #0969da; }
     .sql-token.string { color: #087f5b; }
@@ -3898,4 +3898,4 @@
 .portal-vue-ai-followups { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .portal-vue-ai-followups-label { font-size: 12px; color: #8a93a6; }
 .portal-vue-ai-followup { border: 1px solid #d6e2fb; background: #f4f8ff; color: #2f5bd8; border-radius: 14px; padding: 4px 12px; font-size: 12.5px; line-height: 1.4; cursor: pointer; text-align: left; }
-.portal-vue-ai-followup:hover { background: #1677ff; border-color: #1677ff; color: #fff; }
+.portal-vue-ai-followup:hover { background: #0066FF; border-color: #0066FF; color: #fff; }

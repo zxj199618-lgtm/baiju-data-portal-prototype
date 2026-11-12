@@ -124,7 +124,7 @@
         return [...byGroup.map(user => ({ ...user, direct: directUsers.includes(user.name) })), ...direct.map(user => ({ ...user, direct: true }))];
       },
       avatarText(name) { return String(name || "用").slice(0,1); },
-      avatarStyle(name) { const colors = ["#1677ff","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"]; const seed = [...String(name || "")].reduce((total,char)=>total+char.charCodeAt(0),0); return { background: colors[seed % colors.length], color: "#fff" }; },
+      avatarStyle(name) { const colors = ["#0066FF","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"]; const seed = [...String(name || "")].reduce((total,char)=>total+char.charCodeAt(0),0); return { background: colors[seed % colors.length], color: "#fff" }; },
       openForm(board = null) { this.editingIndex = board ? state.boards.indexOf(board) : -1; this.form = board ? { ...board, groups: [...board.groups], users: [...(board.users || [])] } : { name: "", quickBiId: `QB_${String(state.boards.length + 1).padStart(3,"0")}`, category: this.categories[0] || "", owner: "曾祥竞", desc: "", groups: ["门户管理员"], users: [], status: "已上线", updatedAt: "2026-07-15 10:00" }; this.formVisible = true; },
       saveBoard() {
         if (!this.form.name.trim() || !this.form.quickBiId.trim() || !this.form.category || !this.form.owner || !this.form.groups.length) return ep.ElMessage.warning("请补全看板必填信息");
