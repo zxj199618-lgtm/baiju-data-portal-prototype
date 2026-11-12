@@ -1675,6 +1675,29 @@ describe("浏览器端到端", () => {
     assert.match(await page.locator("#skillDetailView:not(.hidden) .el-page-header").textContent(), /数据查询与指标解答/);
   }));
 
+  test("Skill 详情：直接打开规范包 Skill（不经列表）也自动列出它引用的表", async t => withPage(t, async page => {
+    await login(page, "曾祥竞");
+    await appVisible(page);
+    await page.evaluate(hash => { location.hash = hash; }, "#/ai/skills/equity-union-analyst");
+    await page.waitForFunction(() => window.portalVueBridge.getPage() === "Skill 详情");
+    await page.waitForSelector("#skillDetailView:not(.hidden)");
+    await page.getByRole("tab", { name: "引用的表" }).click();
+    await page.locator("#skillDetailView .el-select").getByText("权益-账号维度消耗统计表").first().waitFor({ timeout: 15000 });
+  }));
+
+  test("权限设置：表权限页列出 Skill 引用的表，可直接勾选授权", async t => withPage(t, async page => {
+    await login(page, "曾祥竞");
+    await appVisible(page);
+    await page.evaluate(() => { window.portalVueBridge.setActiveUserIndex(0); window.portalVueBridge.setPage("配置权限"); });
+    await page.getByRole("tab", { name: /表权限/ }).click();
+    const block = page.locator('[data-test="skill-table-refs"]');
+    await block.waitFor({ timeout: 15000 });
+    const row = block.locator(".portal-vue-table-perm", { hasText: "权益-账号维度消耗统计表" });
+    await row.waitFor();
+    assert.match(await row.textContent(), /权益投放分析/, "引用它的 Skill 名称应显示在表旁边");
+    assert.equal(await row.locator("input[type=checkbox]").count(), 1, "已在表清单中的表应可勾选");
+  }));
+
   test("Skill 详情：在基本信息改展示文案并保存后，版本管理出现未发布版本", async t => withPage(t, async page => {
     const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
     const before = skipReason ? null : await skillFromGateway(admin);

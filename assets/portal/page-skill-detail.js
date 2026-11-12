@@ -259,6 +259,10 @@
           const list = await response.json();
           const remote = Array.isArray(list) ? list.find(item => item.id === this.skillId) : null;
           if (!remote) return;
+          // 直接打开详情页时本地列表可能还没有这个 Skill（如规范包 Skill），按网关数据补上，否则「引用的表」会空着
+          if (!(state.skills || []).some(item => item.id === this.skillId)) {
+            state.skills = [...(state.skills || []), { ...remote, versions: remote.versions || [], stats: remote.stats || { calls: 0, successRate: "—", avgLatency: "—", tokens: "—" } }];
+          }
           const skill = (state.skills || []).find(item => item.id === this.skillId);
           if (!skill) return;
           ["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt", "fallbackSkillId", "name"].forEach(key => {
