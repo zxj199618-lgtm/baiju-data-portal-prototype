@@ -127,6 +127,62 @@
     }
   };
 
+  /* ===== 业务线与表知识库：服务端是唯一数据源 =====
+     登录后读取 /v1/knowledge；表所属业务线（tableLines）只在加载时覆盖页面里资产的 bizLine，不反向写回。
+     只有网关认识的表（knownTables）才会提交归属，演示用的门户表只留在页面里。 */
+  const knowledgeData = reactive({ rev: 0, businessLines: [], tableLines: {}, canEdit: false, knownTables: [], ready: false });
+  const knowledgeSync = {
+    async load() {
+      if (!window.portalAuth?.token()) return;
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/knowledge`);
+        if (!response.ok) return;
+        const data = await response.json();
+        knowledgeData.rev = Number(data.rev) || 0;
+        knowledgeData.businessLines = Array.isArray(data.businessLines) ? data.businessLines : [];
+        knowledgeData.tableLines = data.tableLines && typeof data.tableLines === "object" ? data.tableLines : {};
+        knowledgeData.canEdit = !!data.canEdit;
+        knowledgeData.knownTables = Array.isArray(data.knownTables) ? data.knownTables : [];
+        knowledgeData.ready = true;
+        state.assets.forEach(asset => { asset.bizLine = knowledgeData.tableLines[asset.cnName] || ""; });
+        refreshTick.value += 1;
+      } catch (error) { /* 网关未启动时保持界面自带的内容 */ }
+    },
+    /** 提交 knowledgeData 里当前的业务线与归属（只含网关认识的表）；失败时提示原因并回退到服务端状态 */
+    async saveBusinessLines() {
+      const known = new Set(knowledgeData.knownTables);
+      const tableLines = {};
+      Object.entries(knowledgeData.tableLines).forEach(([table, line]) => { if (known.has(table)) tableLines[table] = line || ""; });
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/knowledge/business-lines`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rev: knowledgeData.rev, businessLines: knowledgeData.businessLines, tableLines }) });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok) { knowledgeData.rev = Number(data.rev) || knowledgeData.rev; refreshTick.value += 1; return true; }
+        ep.ElMessage.warning(`业务线没有保存：${data.error || "未知错误"}`);
+        await this.load();
+        return false;
+      } catch (error) {
+        ep.ElMessage.warning("业务线没有保存：无法连接分析网关");
+        return false;
+      }
+    },
+    async loadTable(table) {
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/knowledge/tables/${encodeURIComponent(table)}`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        return data.knowledge || null;
+      } catch (error) { return null; }
+    },
+    async saveTable(table, markdown) {
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/knowledge/tables/${encodeURIComponent(table)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ markdown }) });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok) return { ok: true, knowledge: data.knowledge };
+        return { ok: false, error: data.error || `保存失败（${response.status}）` };
+      } catch (error) { return { ok: false, error: "无法连接分析网关" }; }
+    }
+  };
+
   async function confirmAction(title, message, confirmButtonText = "确认") {
     try {
       await ep.ElMessageBox.confirm(message, title, {
@@ -569,6 +625,8 @@
     isImageIconValue,
     isOverviewItem,
     isUserScopeItem,
+    knowledgeData,
+    knowledgeSync,
     loadGatewayFields,
     loginUser,
     loginUserName,

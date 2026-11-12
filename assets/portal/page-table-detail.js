@@ -9,6 +9,7 @@
     bridge,
     enabledDictItems,
     ep,
+    knowledgeSync,
     loginUser,
     mount,
     notify,
@@ -27,73 +28,9 @@ function injectStyle(id, css) {
   }
 
   /* ===== 表知识库：每张表一份 Markdown 文本，灵犀智析回答本表问题时整篇读取。
-     第一版只提供一个 Markdown 输入框，角色、指标口径、特殊规则都写在正文里。
-     当前仅「广告计划日报表」有示例内容，其余表显示空态。 ===== */
+     内容保存在服务端（knowledgeSync.loadTable / saveTable），页面不留示例。
+     第一版只提供一个 Markdown 输入框，角色、指标口径、特殊规则都写在正文里。 ===== */
   const { renderKnowledgeMarkdown, normalizeToMarkdown, knowledgeTemplate, knowledgeNow } = window.PortalKnowledgeMd;
-  const tableKnowledgeStore = reactive({
-    "dm_ad_plan_daily_media_account_product_performance_detail": {
-      updatedBy: "曾祥竞",
-      updatedAt: "2026-10-09 18:20",
-      markdown: `# 广告计划日报表
-
-## 表说明
-- 用途：媒体 × 账户 × 计划 × 产品粒度的日投放绩效明细，是对外投放日报、灵犀智析投放类问题的主要数据源。
-- 粒度：一行 = 一天 × 一个媒体来源 × 一个计划。stat_date + media_source + plan_id 唯一（已用样例核对，无重复）。
-- 主键：stat_date + media_source + plan_id
-- 数据时效：stat_date 为媒体侧自然日（北京时间）。每日 02:30 同步前一日数据，当日数据不完整，不能作为「当日」结论。
-- 数据范围：巨量、广点通、快手、OPPO、VIVO 五个媒体来源，仅包含同步成功的广告账户。
-
-## 角色
-- 投放组长：可看组内所有账户，组内合计按各优化师负责账户求和。
-- 优化师：只看本人负责的账户与计划。
-- 数据分析师：可看全部账户，CPA 使用 T+7 回溯归因口径。
-- 只读访客：只能看媒体维度的汇总，不能下钻到计划与账户。
-
-## 指标口径
-### 消耗
-- 计算公式：SUM(cost)，单位元，展示保留两位小数。
-- 依赖字段：cost
-- 默认口径：直接汇总 cost 字段。
-- 投放组长口径：组内合计 = 组内各优化师负责账户的 cost 之和，不另行重算。
-- 优化师口径：只汇总 account_id 属于本人负责账户的 cost。
-- 只读访客口径：只展示媒体维度的汇总消耗。
-
-### 点击率 CTR
-- 计算公式：SUM(click_cnt) ÷ SUM(show_cnt)
-- 依赖字段：click_cnt、show_cnt
-- 默认口径：分子分母分别汇总后相除。禁止对计划级 CTR 直接求平均。
-
-### 激活成本 CPA
-- 计算公式：SUM(cost) ÷ SUM(activate_cnt)
-- 依赖字段：cost、activate_cnt
-- 默认口径：与字段 cpa 的单行口径一致。汇总时必须用分子分母重算，不能对 cpa 字段求和或取平均。
-- 投放组长口径：组内 SUM(cost) ÷ 组内 SUM(activate_cnt)，不取优化师 CPA 的算术平均。
-- 优化师口径：只统计本人计划，按当日归因数据计算，不回补后续归因。
-- 数据分析师口径：使用 T+7 回溯归因口径（以 dwd_campaign_conversion_daily 为准），与日报 CPA 不同，对比时需注明。
-- 只读访客口径：只展示媒体维度的 CPA，不展示计划明细。
-
-### 注册成本
-- 计算公式：SUM(cost) ÷ SUM(register_cnt)
-- 依赖字段：cost、register_cnt
-- 默认口径：分子分母分别汇总后相除。register_cnt 为 0 时结果置空，不显示为 0。
-
-### ROI
-- 计算公式：SUM(收入) ÷ SUM(cost)
-- 依赖字段：roi（预计算）、cost
-- 默认口径：roi 字段是单行预计算值，跨行不能加总或平均。汇总 ROI 需按收入重算，收入来源待数据团队确认。
-- 投放组长口径：按组内 SUM(收入) ÷ SUM(cost) 重算，不使用 roi 字段的均值。
-- 数据分析师口径：按 SUM(收入) ÷ SUM(cost) 重算，收入口径需与订单明细对齐后再对外使用。
-
-## 特殊规则
-1. 归因回补：激活、注册、订单数按归因口径统计，历史日期可能随归因窗口回补而变化。回答时需注明查询时间。
-2. 比率禁止直接加总：CTR、CPA、ROI 等比率指标，跨日、跨计划汇总时先分别求分子与分母的和，再相除。
-3. 按 plan_id 聚合：plan_name 可能改名，也存在同名计划。分组与去重一律按 plan_id。
-4. 媒体来源枚举：media_source 仅取 巨量、广点通、快手、OPPO、VIVO。
-5. 数据时效：T-1 的 02:30 之后可查询。查询当天数据时，回答需标注「数据不完整」。
-6. 角色口径：回答中必须注明所用口径（如「投放组长口径」），不能混用不同角色的口径。
-`
-    }
-  });
 
   const TableDetailApp = {
     template: `
@@ -241,6 +178,9 @@ function injectStyle(id, css) {
     data: () => ({
       tab: "basic",
       knowledgeEditing: false,
+      knowledgeSaving: false,
+      knowledge: null,
+      knowledgeLoading: false,
       knowledgeText: "",
       editingBasic: false,
       detail: null,
@@ -287,7 +227,6 @@ function injectStyle(id, css) {
       }
     }),
     computed: {
-      knowledge() { if (!this.detail) return null; return tableKnowledgeStore[this.detail.table] || null; },
       renderedDraft() { return renderKnowledgeMarkdown(normalizeToMarkdown(this.knowledgeText)); },
       renderedKnowledge() { return this.knowledge ? renderKnowledgeMarkdown(this.knowledge.markdown) : ""; },
       headerTitle() { return this.detail ? (this.detail.cnName || this.detail.table) + " · 表详情" : "表详情"; },
@@ -303,13 +242,28 @@ function injectStyle(id, css) {
     methods: {
       startKnowledgeEdit() { this.knowledgeText = this.knowledge?.markdown || knowledgeTemplate(this.detail.cnName || this.detail.table); this.knowledgeEditing = true; },
       cancelKnowledgeEdit() { this.knowledgeEditing = false; this.knowledgeText = ""; },
-      saveKnowledge() {
+      /** 知识库按表的中文名存取（服务端以表名为键）；进入页面或切到知识库页签时读取 */
+      async fetchKnowledge() {
+        if (!this.detail) return;
+        const name = this.detail.cnName || this.detail.table;
+        this.knowledgeLoading = true;
+        const knowledge = await knowledgeSync.loadTable(name);
+        if (this.detail && (this.detail.cnName || this.detail.table) === name) this.knowledge = knowledge;
+        this.knowledgeLoading = false;
+      },
+      async saveKnowledge() {
+        if (this.knowledgeSaving) return;
         const raw = this.knowledgeText.trim();
         if (!raw) return ep.ElMessage.warning("知识库内容不能为空");
         const markdown = normalizeToMarkdown(raw);
-        tableKnowledgeStore[this.detail.table] = { markdown, updatedBy: loginUser()?.name || "", updatedAt: knowledgeNow() };
+        const name = this.detail.cnName || this.detail.table;
+        this.knowledgeSaving = true;
+        const result = await knowledgeSync.saveTable(name, markdown);
+        this.knowledgeSaving = false;
+        if (!result.ok) return ep.ElMessage.warning(`知识库没有保存：${result.error}`);
+        this.knowledge = result.knowledge || { markdown, updatedBy: loginUser()?.name || "", updatedAt: knowledgeNow() };
         this.knowledgeEditing = false;
-        notify(`「${this.detail.cnName || this.detail.table}」知识库已保存${markdown !== raw ? "，已自动转换为 Markdown 格式" : ""}`);
+        notify(`「${name}」知识库已保存${markdown !== raw ? "，已自动转换为 Markdown 格式" : ""}`);
       },
       mdWrap(prefix, suffix, placeholder) {
         const el = this.$refs.mdArea; if (!el) return;
@@ -348,6 +302,8 @@ function injectStyle(id, css) {
         this.cat = "qb";
         this.editingBasic = false;
         this.knowledgeEditing = false;
+        this.knowledge = null;
+        this.fetchKnowledge();
       },
       rebuildDraft() {
         const tag = state.tables.find(table => table.name === this.detail.table);
@@ -383,6 +339,7 @@ function injectStyle(id, css) {
       cancelBasic() { this.rebuildDraft(); this.editingBasic = false; },
       cancelEdit() { if (this.tab === "basic") this.cancelBasic(); },
       onTabChange(name) {
+        if (name === "knowledge" && !this.knowledgeEditing) this.fetchKnowledge();
         if (name === "lineage" && !this.result && !this.lineageLoading) this.runQuery();
         if (this.editingBasic && name !== this.tab) ep.ElMessage.warning("当前有未保存的编辑，请先保存或取消");
       },

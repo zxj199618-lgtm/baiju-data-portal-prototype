@@ -12,6 +12,7 @@
     canViewMenu,
     currentPage,
     denyEdit,
+    knowledgeSync,
     orgSync,
     refreshTick,
     state,
@@ -32,5 +33,6 @@
   };
   syncPrimaryAction();
   window.dispatchEvent(new CustomEvent("portal:page-change", { detail: { page: bridge.getPage() } }));
+  Promise.resolve(knowledgeSync.load());
   Promise.resolve(orgSync.load()).finally(() => bridge.recheckRoute?.());
 })();

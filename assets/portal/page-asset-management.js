@@ -12,6 +12,8 @@
     enabledDictItems,
     ep,
     groupOfUser,
+    knowledgeData,
+    knowledgeSync,
     loginUser,
     mount,
     notify,
@@ -123,7 +125,7 @@
       sources() { return [...new Set(this.scopeAssets.map(item => item.source))]; },
       databases() { return [...new Set(this.scopeAssets.filter(item => !this.source || item.source === this.source).map(item => item.database))]; },
       owners() { return [...new Set(this.scopeAssets.map(item => item.owner).filter(Boolean))].sort((left, right) => left.localeCompare(right, "zh-CN")); },
-      bizLines() { return [...new Set(this.scopeAssets.map(item => item.bizLine).filter(Boolean))]; },
+      bizLines() { refreshTick.value; return knowledgeData.businessLines.map(line => line.name); },
       filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.assets.filter(item => this.scopeTableNames.has(item.cnName) && (item.serviceStatus || "启用") === this.status && (!this.source || item.source === this.source) && (!this.database || item.database === this.database) && (!this.owner || item.owner === this.owner) && (!this.bizLine || item.bizLine === this.bizLine) && (!keyword || `${item.table} ${item.externalName} ${item.cnName}`.toLowerCase().includes(keyword))); },
       pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
       rangeText() { if (!this.filteredRows.length) return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; },
@@ -142,7 +144,7 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
       enabledDictItems,
       dictHint,
       openCreate() { this.createForm = { source: "StarRocks-拉端", database: "", table: "", externalName: "", cnName: "", bizLine: "", desc: "", dimension: false, tagTable: false }; this.createVisible = true; },
-      saveCreate() {
+      async saveCreate() {
         const form = this.createForm;
         if (![form.source,form.database,form.table,form.externalName,form.cnName,form.bizLine].every(value => String(value).trim())) return ep.ElMessage.warning("请补全数据表必填信息");
         if (!/^[a-z]+(?:_[a-z0-9]+)*$/.test(form.table)) return ep.ElMessage.warning("表名仅支持小写字母、数字与下划线");
@@ -154,6 +156,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           if (!state.tables.some(table => table.name === form.table)) state.tables.push({ name:form.table, cn:form.cnName, exportFields:[], fields:[] });
           notes.push("已加入标签管理");
         }
+        // 只有网关认识的表才把业务线写进服务端；其余表的业务线只留在页面里
+        if (knowledgeData.knownTables.includes(form.cnName)) { knowledgeData.tableLines[form.cnName] = form.bizLine; await knowledgeSync.saveBusinessLines(); }
         this.createVisible = false; notify(`数据表「${form.externalName}」已新增${notes.length ? "，" + notes.join("，") : ""}`);
       },
       openDetail(asset) { bridge.setTableDetailAsset(asset); bridge.setPage("表详情"); },

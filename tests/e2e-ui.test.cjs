@@ -948,4 +948,71 @@ describe("浏览器端到端", () => {
     assert.deepEqual(after.hiddenFields, {});
     assert.deepEqual(after.grantedFields, {});
   }));
+  /* ===== 业务线知识库：表知识库与业务线选项读写服务端 ===== */
+  const openTableDetail = async (page, cnName) => {
+    await page.evaluate(name => {
+      const asset = window.portalVueModuleApi.state.assets.find(item => item.cnName === name);
+      window.portalVueBridge.setTableDetailAsset(asset);
+      window.portalVueBridge.setPage("表详情");
+    }, cnName);
+    await page.getByRole("tab", { name: "知识库" }).click();
+  };
+  test("表详情：编辑并保存知识库后刷新页面仍在（证明落到了服务端）", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const marker = `E2E-KB-${Date.now()}`;
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+      await openTableDetail(page, "广告计划日报表");
+      await page.getByRole("button", { name: "编辑知识库" }).click();
+      await page.locator(".portal-vue-md-textarea").fill(`# 广告计划日报表\n\n${marker}`);
+      await page.getByRole("button", { name: "保存知识库" }).click();
+      await page.locator(".portal-vue-knowledge-doc", { hasText: marker }).waitFor();
+      await page.reload();
+      await appVisible(page);
+      await openTableDetail(page, "广告计划日报表");
+      await page.locator(".portal-vue-knowledge-doc", { hasText: marker }).waitFor();
+      const server = await harness.call("GET", `/v1/knowledge/tables/${encodeURIComponent("广告计划日报表")}`, { token: admin });
+      assert.match(server.data.knowledge.markdown, new RegExp(marker));
+    } finally {
+      if (!skipReason) await harness.call("PUT", `/v1/knowledge/tables/${encodeURIComponent("广告计划日报表")}`, { token: admin, body: { markdown: "# 广告计划日报表\n恢复" } });
+    }
+  }));
+  test("表管理的业务线筛选下拉包含 公共 与 种子业务线", async t => withPage(t, async page => {
+    await login(page, "曾祥竞");
+    await appVisible(page);
+    await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+    await page.evaluate(() => window.portalVueBridge.setPage("表管理"));
+    await page.locator(".el-select", { hasText: "全部业务线" }).first().click();
+    await page.locator(".el-select-dropdown__item:visible").first().waitFor();
+    const options = await page.locator(".el-select-dropdown__item:visible").allTextContents();
+    const labels = options.map(text => text.trim());
+    for (const name of ["公共", "权益", "存量", "号卡", "保险"]) assert.ok(labels.includes(name), `${name} 不在 ${JSON.stringify(labels)}`);
+  }));
+  test("没有「表管理」编辑权限的账号看不到「编辑知识库」按钮", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const before = skipReason ? null : (await harness.call("GET", "/v1/org", { token: admin })).data;
+    let baseGroups = [];
+    try {
+      // 只给「表管理」查看权限（不给编辑权限）
+      const full = (name, tables, extra = {}) => ({ name, desc: "", menus: ["灵犀智析"], menuEdits: [], boards: [], tables, status: "启用", ...extra });
+      baseGroups = before.groups.length ? before.groups : [
+        full("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心"] }), full("投放组长", ["广告计划日报表"]), full("优化师", ["广告计划日报表"]),
+        full("数据分析师", ["广告计划日报表", "用户订单明细"], { menus: ["灵犀智析", "数据看板"], boards: ["大盘数据"] }), full("只读访客", [])
+      ];
+      const groups = baseGroups.map(group => group.name === "数据分析师" ? { ...group, menus: [...new Set([...group.menus, "表管理"])], menuEdits: group.menuEdits.filter(name => name !== "表管理") } : group);
+      const put = await harness.call("PUT", "/v1/org", { token: admin, body: { groups } });
+      assert.equal(put.status, 200, JSON.stringify(put.data));
+      await login(page, "李雨航");
+      await appVisible(page);
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+      await openTableDetail(page, "广告计划日报表");
+      await page.locator(".portal-vue-knowledge-bar").waitFor();
+      assert.equal(await page.getByRole("button", { name: "编辑知识库" }).count(), 0);
+      assert.equal(await page.evaluate(() => window.PortalVue.knowledgeData.canEdit), false);
+    } finally {
+      if (!skipReason && baseGroups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups: baseGroups } });
+    }
+  }));
 });
