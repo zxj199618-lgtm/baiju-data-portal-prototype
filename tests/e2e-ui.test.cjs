@@ -1494,4 +1494,27 @@ describe("浏览器端到端", () => {
     assert.equal(last.conversation.length, 1, "回到旧会话后上文不应丢");
     assert.match(last.conversation[0].question, /7021/);
   }));
+
+  test("刷新页面后业务线跟着当前会话恢复：选择框显示原业务线，追问带完整上文和同一 businessLine", async t => withPage(t, async page => {
+    await openWorkbench(page, "曾祥竞");
+    const bodies = await captureAnalyze(page);
+    await pickLine(page, "权益");
+    await askAndWait(page, "刷新恢复第一问 7031");
+    // 等历史写到服务端（回答完成时立即保存）
+    await page.waitForFunction(async () => {
+      const response = await fetch("/v1/history");
+      const data = await response.json();
+      return (data.sessions || []).some(session => (session.messages || []).some(message => /7031/.test(message.text || message.question || JSON.stringify(message))));
+    }, null, { polling: 300 });
+    await page.reload();
+    await appVisible(page);
+    await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+    await page.getByPlaceholder(/输入分析问题/).waitFor();
+    await page.waitForFunction(() => /权益/.test(document.querySelector(".portal-vue-ai-chip-line-select").textContent));
+    await askAndWait(page, "刷新恢复追问 7032");
+    const last = bodies[bodies.length - 1];
+    assert.equal(last.businessLine, "权益", "刷新后追问应沿用会话的业务线");
+    assert.equal(last.conversation.length, 1, "刷新后追问应带上之前的对话");
+    assert.match(last.conversation[0].question, /7031/);
+  }));
 });

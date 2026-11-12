@@ -2112,6 +2112,8 @@ function sanitizeHistoryMessage(msg) {
     } : undefined,
     resolved: (Array.isArray(msg?.resolved) ? msg.resolved : []).slice(0, 6).map(item => ({ term: String(item?.term || "").slice(0, 20), kind: String(item?.kind || "").slice(0, 20), means: String(item?.means || "").slice(0, 80), carried: item?.carried === true })),
     trailMsg: String(msg?.trailMsg || "").slice(0, 300),
+    // 提问时选的业务线：刷新页面后据此恢复会话的业务线，追问时按它保留同一业务线的上文
+    businessLine: String(msg?.businessLine || "").slice(0, 30) || undefined,
     contextReset: msg?.contextReset && typeof msg.contextReset === "object" ? {
       from: (Array.isArray(msg.contextReset.from) ? msg.contextReset.from : []).slice(0, 8).map(name => String(name).slice(0, 60)),
       to: (Array.isArray(msg.contextReset.to) ? msg.contextReset.to : []).slice(0, 8).map(name => String(name).slice(0, 60))
@@ -2122,8 +2124,10 @@ function sanitizeHistoryMessage(msg) {
 
 // 工作台历史：每个账号一份。同一账号多标签页并发时按 id 合并（旧标签页的旧状态不会覆盖新记录）
 function mergeHistory(incoming, existing) {
-  const sessions = new Map((existing.sessions || []).map(s => [s.id, s]));
+  // 会话顺序以本次保存的为准（界面把最新的会话放在最前，刷新后据此打开最近的会话）；只在服务端有的会话排在后面，不丢
+  const sessions = new Map();
   for (const s of incoming.sessions || []) if (s.id) sessions.set(s.id, s);
+  for (const s of existing.sessions || []) if (s.id && !sessions.has(s.id)) sessions.set(s.id, s);
   const reports = new Map((existing.reports || []).map(r => [r.id, r]));
   for (const r of incoming.reports || []) if (r.id) reports.set(r.id, r);
   return {

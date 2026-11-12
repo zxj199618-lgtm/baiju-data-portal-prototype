@@ -330,6 +330,19 @@ describe("工作台历史按人隔离", () => {
     assert.deepEqual(analystView.data.reports.map(item => item.id), ["r-analyst"]);
   });
 
+  test("会话顺序以最近一次保存为准（新会话在前，刷新后打开的就是它），提问的业务线随历史保存；只在服务端有的会话保留在后面", async () => {
+    const token = await tokenFor("林金维");
+    const put = sessions => call("PUT", "/v1/history", { token, body: { sessions, reports: [] } });
+    const before = (await call("GET", "/v1/history", { token })).data.sessions.map(item => item.id);
+    await put([sessionFor("s-old-1", "旧会话一"), sessionFor("s-old-2", "旧会话二")]);
+    const withLine = { ...sessionFor("s-new", "新会话"), messages: [{ role: "user", lines: ["新会话"], businessLine: "权益" }] };
+    await put([withLine, sessionFor("s-old-1", "旧会话一")]);
+    const view = await call("GET", "/v1/history", { token });
+    assert.equal(view.data.sessions[0].messages[0].businessLine, "权益", "提问的业务线应随历史保存");
+    assert.equal(view.data.sessions[1].messages[0].businessLine, undefined);
+    assert.deepEqual(view.data.sessions.map(item => item.id), ["s-new", "s-old-1", "s-old-2", ...before.filter(id => !["s-new", "s-old-1", "s-old-2"].includes(id))]);
+  });
+
   test("删除报告只影响自己的记录：别人的报告 id 无效", async () => {
     const analyst = await tokenFor(ANALYST);
     const optimizer = await tokenFor("林金维");

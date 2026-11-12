@@ -332,6 +332,7 @@
       mentionOpen: false,
       mentionKeyword: "",
       activeBusinessLine: "",
+      lineChoicesSeen: false,
       models: [],
       modelsLoading: false,
       model: "",
@@ -440,7 +441,15 @@
     },
     watch:{
       // 选中的业务线不再可选（知识库更新、权限或账号变化）就清掉，避免把失效的名字发出去
-      lineChoices(list){if(this.activeBusinessLine&&!list.includes(this.activeBusinessLine))this.activeBusinessLine="";}
+      lineChoices(list){
+        if(this.activeBusinessLine&&!list.includes(this.activeBusinessLine)){this.activeBusinessLine="";return;}
+        // 知识库是异步加载的：第一次拿到可选业务线时，补上当前会话的业务线（刷新页面后历史可能先于知识库到）。
+        // 只在还没选业务线时补，且只补仍可选的名字，所以不会和上面的清空来回打架
+        if(list.length&&!this.lineChoicesSeen){
+          this.lineChoicesSeen=true;
+          if(!this.activeBusinessLine){const line=this.sessionLine(this.activeSession);if(line&&list.includes(line))this.activeBusinessLine=line;}
+        }
+      }
     },
     mounted(){
       this.pageHandler=event=>{if(event.detail?.page==="灵犀智析"){this.loadGatewaySkills();this.loadMyTables();this.loadModels();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
@@ -481,6 +490,7 @@
             }));
             this.sessions.forEach(s=>{if(s.status==="进行中")s.status="已完成";});
             this.activeId=this.sessions[0]?.id||this.activeId;
+            this.restoreSessionLine(); // 刷新页面后业务线也跟着当前会话恢复（可选业务线还没加载时由 lineChoices 的 watch 补上）
           }
           if(reports.length){
             this.reports=reports.map(r=>createAnalysisReport({
@@ -582,13 +592,20 @@
         this.mentionOpen=false;
         this.persistHistory();
       },
+      /** 会话的业务线 = 该会话最近一次提问带的业务线 */
+      sessionLine(session){
+        const lastUser=[...(session?.messages||[])].reverse().find(msg=>msg.role==="user");
+        return lastUser?.businessLine||"";
+      },
+      /** 业务线跟着会话走：恢复该会话最近一次提问的业务线（已不可选就清空） */
+      restoreSessionLine(session=this.activeSession){
+        const line=this.sessionLine(session);
+        this.activeBusinessLine=line&&this.lineChoices.includes(line)?line:"";
+      },
       openSession(id){
         this.activeId=id;
         const session=this.sessions.find(item=>item.id===id);
-        // 业务线跟着会话走：恢复该会话最近一次提问的业务线（已不可选就清空）
-        const lastUser=[...(session?.messages||[])].reverse().find(msg=>msg.role==="user");
-        const line=lastUser?.businessLine||"";
-        this.activeBusinessLine=line&&this.lineChoices.includes(line)?line:"";
+        this.restoreSessionLine(session);
         if(session)this.scenario=this.skillScenarios.find(scene=>scene.name===session.scenario)?.key||this.skillScenarios[0]?.key||"single";
         this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));
       },
