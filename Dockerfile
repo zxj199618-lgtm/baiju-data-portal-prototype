@@ -11,6 +11,9 @@ COPY scripts/field-scope.cjs ./field-scope.cjs
 COPY scripts/feedback-store.cjs ./feedback-store.cjs
 COPY scripts/org-store.cjs ./org-store.cjs
 COPY scripts/account-store.cjs ./account-store.cjs
+COPY scripts/knowledge-store.cjs ./knowledge-store.cjs
+COPY scripts/join-engine.cjs ./join-engine.cjs
+COPY scripts/knowledge-tools.cjs ./knowledge-tools.cjs
 COPY scripts/equity-sample.cjs ./equity-sample.cjs
 COPY scripts/skill-pack.cjs ./skill-pack.cjs
 COPY scripts/report-skill.cjs ./report-skill.cjs

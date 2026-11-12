@@ -35,9 +35,11 @@ const { computeAttribution, parseWindowDays } = require("./attribution-calc.cjs"
 const { createAnalysisToolkit } = require("./analysis-tools.cjs");
 const { createUsageTracker } = require("./usage-quota.cjs");
 const { createSemanticLayer } = require("./semantic-layer.cjs");
-const { scopeTables, scopeRowsOf, isHidden, hiddenNamesOf } = require("./field-scope.cjs");
+const { scopeTables, scopeRowsOf, isHidden, hiddenNamesOf, redactLines } = require("./field-scope.cjs");
 const { createFeedbackStore, RATINGS } = require("./feedback-store.cjs");
 const { createOrgStore } = require("./org-store.cjs");
+const { createKnowledgeStore } = require("./knowledge-store.cjs");
+const { usableRelations } = require("./join-engine.cjs");
 const { createAccountStore } = require("./account-store.cjs");
 const equitySample = require("./equity-sample.cjs");
 const skillPack = require("./skill-pack.cjs");
@@ -993,6 +995,84 @@ const orgStore = createOrgStore({
   accounts: () => accountStore.names(),
   isActive: name => accountStore.isActive(name),
   tableNames: allTableNames
+});
+/* ================= 业务线知识库 ================= */
+
+/** 种子：首次启动（还没有人保存过）时的默认业务线与表归属；之后以管理员保存的 knowledge.json 为准 */
+const DEFAULT_BUSINESS_LINES = ["权益", "存量", "号卡", "保险"];
+const DEFAULT_TABLE_LINES = {
+  "广告计划日报表": "权益", "广告账户日报": "权益", "广告组转化日报": "权益", "媒体消耗汇总": "权益", "产品 ROI 日报": "权益", "媒体账户健康度": "权益", "权益-账号维度消耗统计表": "权益",
+  "用户画像标签明细表": "存量", "用户设备关系明细": "存量", "用户生命周期日报": "存量",
+  "RTA 请求小时监控表": "号卡", "用户订单明细": "号卡",
+  "渠道归因明细": "保险",
+  "渠道维表": "公共", "产品维表": "公共"
+};
+/** 种子表知识库：原型里「广告计划日报表」的示例，键是中文表名 */
+const DEFAULT_TABLE_KNOWLEDGE = {
+  "广告计划日报表": { updatedBy: "曾祥竞", updatedAt: "2026-10-09T18:20:00.000Z", markdown: `# 广告计划日报表
+
+## 表说明
+- 用途：媒体 × 账户 × 计划 × 产品粒度的日投放绩效明细，是对外投放日报、灵犀智析投放类问题的主要数据源。
+- 粒度：一行 = 一天 × 一个媒体来源 × 一个计划。stat_date + media_source + plan_id 唯一（已用样例核对，无重复）。
+- 主键：stat_date + media_source + plan_id
+- 数据时效：stat_date 为媒体侧自然日（北京时间）。每日 02:30 同步前一日数据，当日数据不完整，不能作为「当日」结论。
+- 数据范围：巨量、广点通、快手、OPPO、VIVO 五个媒体来源，仅包含同步成功的广告账户。
+
+## 角色
+- 投放组长：可看组内所有账户，组内合计按各优化师负责账户求和。
+- 优化师：只看本人负责的账户与计划。
+- 数据分析师：可看全部账户，CPA 使用 T+7 回溯归因口径。
+- 只读访客：只能看媒体维度的汇总，不能下钻到计划与账户。
+
+## 指标口径
+### 消耗
+- 计算公式：SUM(cost)，单位元，展示保留两位小数。
+- 依赖字段：cost
+- 默认口径：直接汇总 cost 字段。
+- 投放组长口径：组内合计 = 组内各优化师负责账户的 cost 之和，不另行重算。
+- 优化师口径：只汇总 account_id 属于本人负责账户的 cost。
+- 只读访客口径：只展示媒体维度的汇总消耗。
+
+### 点击率 CTR
+- 计算公式：SUM(click_cnt) ÷ SUM(show_cnt)
+- 依赖字段：click_cnt、show_cnt
+- 默认口径：分子分母分别汇总后相除。禁止对计划级 CTR 直接求平均。
+
+### 激活成本 CPA
+- 计算公式：SUM(cost) ÷ SUM(activate_cnt)
+- 依赖字段：cost、activate_cnt
+- 默认口径：与字段 cpa 的单行口径一致。汇总时必须用分子分母重算，不能对 cpa 字段求和或取平均。
+- 投放组长口径：组内 SUM(cost) ÷ 组内 SUM(activate_cnt)，不取优化师 CPA 的算术平均。
+- 优化师口径：只统计本人计划，按当日归因数据计算，不回补后续归因。
+- 数据分析师口径：使用 T+7 回溯归因口径（以 dwd_campaign_conversion_daily 为准），与日报 CPA 不同，对比时需注明。
+- 只读访客口径：只展示媒体维度的 CPA，不展示计划明细。
+
+### 注册成本
+- 计算公式：SUM(cost) ÷ SUM(register_cnt)
+- 依赖字段：cost、register_cnt
+- 默认口径：分子分母分别汇总后相除。register_cnt 为 0 时结果置空，不显示为 0。
+
+### ROI
+- 计算公式：SUM(收入) ÷ SUM(cost)
+- 依赖字段：roi（预计算）、cost
+- 默认口径：roi 字段是单行预计算值，跨行不能加总或平均。汇总 ROI 需按收入重算，收入来源待数据团队确认。
+- 投放组长口径：按组内 SUM(收入) ÷ SUM(cost) 重算，不使用 roi 字段的均值。
+- 数据分析师口径：按 SUM(收入) ÷ SUM(cost) 重算，收入口径需与订单明细对齐后再对外使用。
+
+## 特殊规则
+1. 归因回补：激活、注册、订单数按归因口径统计，历史日期可能随归因窗口回补而变化。回答时需注明查询时间。
+2. 比率禁止直接加总：CTR、CPA、ROI 等比率指标，跨日、跨计划汇总时先分别求分子与分母的和，再相除。
+3. 按 plan_id 聚合：plan_name 可能改名，也存在同名计划。分组与去重一律按 plan_id。
+4. 媒体来源枚举：media_source 仅取 巨量、广点通、快手、OPPO、VIVO。
+5. 数据时效：T-1 的 02:30 之后可查询。查询当天数据时，回答需标注「数据不完整」。
+6. 角色口径：回答中必须注明所用口径（如「投放组长口径」），不能混用不同角色的口径。
+` }
+};
+const knowledgeStore = createKnowledgeStore({
+  dataDir: DATA_DIR,
+  tableNames: () => allTableNames,
+  fieldsOf: name => (tables.find(table => table.cnName === name)?.fields || []).map(field => field.name),
+  defaults: { businessLines: DEFAULT_BUSINESS_LINES, tableLines: DEFAULT_TABLE_LINES, tableKnowledge: DEFAULT_TABLE_KNOWLEDGE }
 });
 const auth = createAuth(DATA_DIR);
 const DEMO_LOGIN_PASSWORD = String(process.env.PORTAL_DEMO_LOGIN_PASSWORD || "");
@@ -2392,6 +2472,37 @@ async function relayChatStream(model, payload, onEvent) {
   return { ok: false, lastResult };
 }
 
+
+/* 能编辑「表管理」：门户管理员，或所在权限组 menuEdits 含「表管理」 */
+function canEditTableAdmin(session) {
+  if (session.role === "admin") return true;
+  const groupName = orgStore.groupOf(session.name);
+  return Boolean(orgStore.effective().groups.find(group => group.name === groupName)?.menuEdits?.includes("表管理"));
+}
+
+/**
+ * 业务线视图：集中在这里决定看到什么。
+ * - 能编辑的人拿完整快照（所有业务线、关联、归属、知识库原文）：编辑界面会把它整份存回去，给裁剪或脱敏后的版本会悄悄丢数据、把「（已隐藏）」写进正文；
+ * - 其余人只拿到自己有权限的表所在的业务线与「公共」，关联按其字段权限过滤，知识库正文按其隐藏字段脱敏。
+ */
+function knowledgeViewFor(userName) {
+  const state = knowledgeStore.effective();
+  if (canEditTableAdmin({ name: userName, role: roleOf(userName) })) {
+    return { rev: state.rev, businessLines: state.businessLines, tableLines: state.tableLines };
+  }
+  const scope = scopeFor(userName);
+  const mine = new Set(scope.tables.map(table => table.cnName));
+  const tableLines = Object.fromEntries(Object.entries(state.tableLines).filter(([table]) => mine.has(table)));
+  const visible = new Set([knowledgeStore.PUBLIC, ...Object.values(tableLines)]);
+  const hidden = hiddenNamesOf(scope.hidden, [...mine]);
+  const businessLines = state.businessLines.filter(line => visible.has(line.name)).map(line => ({
+    ...line,
+    knowledge: line.knowledge ? { ...line.knowledge, markdown: redactLines(line.knowledge.markdown, hidden) } : null,
+    relations: usableRelations(line.relations, scope.tables).usable
+  }));
+  return { rev: state.rev, businessLines, tableLines };
+}
+
 /* ================= 路由 ================= */
 
 /* 公开接口：登录本身，以及同事通过链接打开的分享报告（只读） */
@@ -2818,6 +2929,46 @@ async function handleRequest(req, res) {
     prunePermissionOverrides();
     appendAuditEntry({ type: "org-change", user: req.session.name, groups: Array.isArray(body.groups) ? body.groups.length : undefined });
     return sendJson(res, 200, orgView());
+  }
+
+
+  // 业务线知识库：写权限 = 门户管理员，或所在权限组 menuEdits 含「表管理」（不走 requiresAdmin，在这里判断）
+  if (url.pathname === "/v1/knowledge" || url.pathname.startsWith("/v1/knowledge/")) {
+    const user = req.session.name;
+    const canEdit = canEditTableAdmin(req.session);
+    const denyEdit = () => sendJson(res, 403, { error: "需要「表管理」编辑权限才能修改业务线与表知识库" });
+    const NOT_FOUND = "找不到这张表，或你没有它的权限";
+    if (req.method === "GET" && url.pathname === "/v1/knowledge") return sendJson(res, 200, { ...knowledgeViewFor(user), canEdit, knownTables: [...allTableNames] });
+    if (req.method === "PUT" && url.pathname === "/v1/knowledge/business-lines") {
+      if (!canEdit) return denyEdit();
+      const body = await readBody(req, 2000000);
+      // tableLines 是对已存归属的覆盖：没给出的表保持原归属，客户端要取消某表的分组必须显式发 ""
+      const outcome = knowledgeStore.saveBusinessLines({ rev: body.rev, businessLines: body.businessLines, tableLines: body.tableLines }, user);
+      if (!outcome.ok) return sendJson(res, outcome.conflict ? 409 : 400, { error: outcome.error });
+      appendAuditEntry({ type: "knowledge-change", user, target: "business-lines", rev: outcome.rev, lines: Array.isArray(body.businessLines) ? body.businessLines.map(line => String(line?.name ?? "").slice(0, 30)) : [] });
+      return sendJson(res, 200, { rev: outcome.rev });
+    }
+    const tableMatch = url.pathname.match(/^\/v1\/knowledge\/tables\/([^/]+)$/);
+    if (tableMatch) {
+      let table = "";
+      try { table = decodeURIComponent(tableMatch[1]); } catch { return sendJson(res, 404, { error: NOT_FOUND }); }
+      if (req.method === "GET") {
+        if (!allTableNames.includes(table) || !userTables(user).includes(table)) return sendJson(res, 404, { error: NOT_FOUND });
+        const knowledge = knowledgeStore.effective().tableKnowledge[table] || null;
+        const hidden = canEdit ? new Set() : hiddenNamesOf(scopeFor(user).hidden, [table]);
+        return sendJson(res, 200, { table, knowledge: knowledge ? { ...knowledge, markdown: redactLines(knowledge.markdown, hidden) } : null });
+      }
+      if (req.method === "PUT") {
+        if (!canEdit) return denyEdit();
+        if (!allTableNames.includes(table) || !userTables(user).includes(table)) return sendJson(res, 404, { error: NOT_FOUND });
+        const body = await readBody(req, 100000);
+        const outcome = knowledgeStore.saveTableKnowledge(table, body.markdown, user);
+        if (!outcome.ok) return sendJson(res, 400, { error: outcome.error });
+        appendAuditEntry({ type: "knowledge-change", user, target: "table", table, cleared: !String(body.markdown ?? "").trim() });
+        return sendJson(res, 200, { knowledge: outcome.entry.markdown.trim() ? outcome.entry : null });
+      }
+    }
+    return sendJson(res, 404, { error: "接口不存在" });
   }
 
   // 语义层：当前用户有权限的业务指标与口径（校验警告只给管理员看）
