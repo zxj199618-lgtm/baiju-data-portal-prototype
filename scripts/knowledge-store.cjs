@@ -42,7 +42,25 @@ function relationOf(raw) {
 
 function createKnowledgeStore({ dataDir, tableNames, fieldsOf, defaults = {} }) {
   const file = path.join(dataDir, "knowledge.json");
-  const load = () => { try { const data = JSON.parse(fs.readFileSync(file, "utf8")); return isObject(data) ? data : {}; } catch { return {}; } };
+  /* 文件不存在（首次启动）不是错误；存在但解析不了时告警，并在任何写入覆盖它之前备份一次原文件 */
+  let corruptSeen = null; // 已处理过的损坏内容，同一份内容只告警、备份一次
+  const load = () => {
+    let raw;
+    try { raw = fs.readFileSync(file); } catch (error) {
+      if (error.code !== "ENOENT") console.warn(`[knowledge] 读取 ${file} 失败（${error.message}），本次使用代码里的种子`);
+      return {};
+    }
+    try { const data = JSON.parse(raw.toString("utf8")); if (isObject(data)) return data; } catch { /* 下面处理 */ }
+    if (!corruptSeen || !corruptSeen.equals(raw)) {
+      corruptSeen = raw;
+      const backup = `${file}.corrupt-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+      let saved = "";
+      try { fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL); saved = `，原文件已备份到 ${backup}`; } catch (error) { saved = `，备份失败：${error.message}`; }
+      console.warn(`[knowledge] ${file} 无法解析，改用代码里的种子；下次保存会覆盖它${saved}`);
+    }
+    return {};
+  };
+  load(); // 启动时就检查一次：损坏的文件在第一次保存之前已经备份并告警
 
   /** 种子：默认业务线名称 → 带 id 的业务线（「公共」在第一位） */
   function seedLines() {
@@ -98,6 +116,28 @@ function createKnowledgeStore({ dataDir, tableNames, fieldsOf, defaults = {} }) 
     const tmp = `${file}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify({ ...state, updatedAt: new Date().toISOString() }, null, 2));
     fs.renameSync(tmp, file);
+  }
+
+  /**
+   * 关联为什么用不上（派生值，不落盘）：表或字段不存在；业务线的关联两端必须在该业务线或「公共」里；
+   * 「公共」的关联会被每条业务线带上，所以两端要已分组、且不能分属两条不同的业务线。正常返回 ""。
+   */
+  function relationIssue(relation, lineName, tableLines) {
+    const known = tableNames();
+    for (const side of [relation?.left, relation?.right]) {
+      const table = String(side?.table || "");
+      if (!known.includes(table)) return `表「${table || "（空）"}」不存在`;
+      if (!fieldsOf(table).includes(side.field)) return `字段 ${table}.${side.field || "（空）"} 不存在`;
+    }
+    const owners = [relation.left.table, relation.right.table].map(table => [table, tableLines?.[table] || ""]);
+    if (lineName !== PUBLIC) {
+      const outside = owners.find(([, owner]) => owner !== lineName && owner !== PUBLIC);
+      return outside ? `表「${outside[0]}」不在「${lineName}」或「${PUBLIC}」业务线里（当前：${outside[1] || "未分组"}）` : "";
+    }
+    const ungrouped = owners.find(([, owner]) => !owner);
+    if (ungrouped) return `表「${ungrouped[0]}」未分组，任何业务线都用不上这条关联`;
+    const lines = [...new Set(owners.map(([, owner]) => owner).filter(owner => owner !== PUBLIC))];
+    return lines.length > 1 ? `两张表不在同一业务线（${owners.map(([table, owner]) => `${table}：${owner}`).join("，")}）` : "";
   }
 
   const lineOf = table => effective().tableLines[table] || "";
@@ -213,7 +253,7 @@ function createKnowledgeStore({ dataDir, tableNames, fieldsOf, defaults = {} }) 
     return { ok: true, entry };
   }
 
-  return { PUBLIC, effective, saveBusinessLines, saveTableKnowledge, lineOf, tablesOfLine };
+  return { PUBLIC, effective, saveBusinessLines, saveTableKnowledge, lineOf, tablesOfLine, relationIssue };
 }
 
 module.exports = { createKnowledgeStore, PUBLIC, RELATION_TYPES };

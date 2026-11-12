@@ -148,4 +148,58 @@ describe("知识库存储（单元）", () => {
     assert.equal(eff.businessLines[0].name, "公共");
     assert.equal(eff.tableKnowledge["表甲"].markdown, "表甲说明");
   });
+
+  /** 临时替换 console.warn，收集告警文本 */
+  const captureWarn = run => {
+    const warnings = [];
+    const original = console.warn;
+    console.warn = (...args) => warnings.push(args.map(String).join(" "));
+    try { run(); } finally { console.warn = original; }
+    return warnings;
+  };
+
+  test("knowledge.json 损坏：告警含文件路径、原文件先备份为 knowledge.json.corrupt-<时间>（只备份一次），之后保存正常", () => {
+    const file = path.join(dir, "knowledge.json");
+    const bad = Buffer.from("{broken 坏的");
+    fs.writeFileSync(file, bad);
+    let corrupted;
+    const warnings = captureWarn(() => {
+      corrupted = make();
+      assert.equal(corrupted.effective().rev, 0);
+      assert.equal(corrupted.effective().businessLines[0].name, "公共");
+    });
+    assert.equal(warnings.length, 1, `只告警一次：${warnings}`);
+    assert.ok(warnings[0].includes(file), "告警应含文件路径");
+    assert.match(warnings[0], /种子/);
+    const backups = fs.readdirSync(dir).filter(name => name.startsWith("knowledge.json.corrupt-"));
+    assert.equal(backups.length, 1);
+    assert.deepEqual(fs.readFileSync(path.join(dir, backups[0])), bad, "备份应是原始字节");
+    const saved = captureWarn(() => {
+      const cur = corrupted.effective();
+      const result = corrupted.saveBusinessLines({ rev: cur.rev, businessLines: cur.businessLines, tableLines: {} }, "tester");
+      assert.equal(result.ok, true);
+    });
+    assert.deepEqual(saved, [], "保存时不再告警");
+    assert.equal(make().effective().rev, 1, "保存后文件可正常读回");
+    assert.equal(fs.readdirSync(dir).filter(name => name.startsWith("knowledge.json.corrupt-")).length, 1, "备份不被覆盖、不重复生成");
+  });
+
+  test("knowledge.json 不存在（首次启动）不告警、不生成备份", () => {
+    const warnings = captureWarn(() => { assert.equal(make().effective().rev, 0); });
+    assert.deepEqual(warnings, []);
+    assert.equal(fs.readdirSync(dir).filter(name => name.startsWith("knowledge.json.corrupt-")).length, 0);
+  });
+
+  test("relationIssue：表或字段不存在、表不在该业务线 ∪「公共」时给出原因；正常关联为空", () => {
+    const tableLines = { 表甲: "保险", 表乙: "公共" };
+    assert.equal(store.relationIssue(rel(), "保险", tableLines), "");
+    assert.match(store.relationIssue(rel(), "权益", tableLines), /表甲.*不在/);
+    assert.match(store.relationIssue(rel({ left: { table: "表甲", field: "nope" } }), "保险", tableLines), /字段.*nope/);
+    assert.match(store.relationIssue(rel({ right: { table: "没有的表", field: "x" } }), "保险", tableLines), /没有的表.*不存在/);
+    assert.match(store.relationIssue(rel(), "保险", { 表乙: "公共" }), /表甲.*不在/, "未分组的表也算不在");
+    // 「公共」的关联：两张表在同一业务线或「公共」即可被使用
+    assert.equal(store.relationIssue(rel(), "公共", tableLines), "");
+    assert.match(store.relationIssue(rel(), "公共", { 表甲: "保险", 表乙: "权益" }), /不在同一业务线/);
+    assert.match(store.relationIssue(rel(), "公共", { 表乙: "公共" }), /表甲.*未分组/);
+  });
 });
