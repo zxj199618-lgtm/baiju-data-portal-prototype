@@ -1116,6 +1116,7 @@
 .portal-vue-bizline-title { margin: 14px 0 0; font-size: 18px; font-weight: 600; }
 .portal-vue-bizline-readonly { margin-left: 10px; font-size: 12px; font-weight: 400; }
 .portal-vue-bizline-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }
+.portal-vue-bizline-invalid-alert { margin: 0 0 12px; }
 .portal-vue-bizline-move-in { width: 260px; }
 .portal-vue-bizline-editor { padding-bottom: 8px; }
 .portal-vue-bizline-editor-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
