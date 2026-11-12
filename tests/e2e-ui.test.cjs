@@ -1215,4 +1215,81 @@ describe("浏览器端到端", () => {
       if (!skipReason && baseGroups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups: baseGroups } });
     }
   }));
+
+  test("业务线：保存遇到网络失败后界面恢复原状，之后别的保存不会把失败的修改一起提交", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const snap = skipReason ? null : await bizSnapshot(admin);
+    const lineBody = line => ({ id: line.id, name: line.name, knowledge: line.knowledge ? { markdown: line.knowledge.markdown } : "", relations: line.relations });
+    try {
+      // 准备一条没有表的业务线，用来测删除
+      const seed = await harness.call("PUT", "/v1/knowledge/business-lines", { token: admin, body: { rev: snap.rev, businessLines: [...snap.businessLines.map(lineBody), { name: "E2E-空线", knowledge: "", relations: [] }], tableLines: {} } });
+      assert.equal(seed.status, 200, JSON.stringify(seed.data));
+      await openBizView(page);
+      const pattern = "**/v1/knowledge/business-lines";
+      await page.route(pattern, route => route.request().method() === "PUT" ? route.abort() : route.continue());
+      const failed = () => page.locator(".el-message", { hasText: "无法连接分析网关" }).first();
+      const names = () => page.locator(".portal-vue-bizline-name").allTextContents();
+
+      // 1) 删除空业务线：失败后仍在列表里
+      await bizItem(page, "E2E-空线").click();
+      await page.getByRole("button", { name: "删除", exact: true }).click();
+      await page.locator(".el-message-box").getByRole("button", { name: "删除" }).click();
+      await failed().waitFor();
+      assert.ok((await names()).includes("E2E-空线"), "删除失败后业务线应仍在列表里");
+
+      // 2) 把表移出：失败后仍在「包含的表」里
+      await bizItem(page, "存量").click();
+      await page.getByRole("tab", { name: "包含的表" }).click();
+      await page.locator(".portal-vue-bizline .el-table__row", { hasText: "用户画像标签明细表" }).getByRole("button", { name: "移出" }).click();
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.tableLines["用户画像标签明细表"] === "存量" && document.querySelector(".portal-vue-bizline-tabs"));
+      assert.equal(await page.locator(".portal-vue-bizline .el-table__row", { hasText: "用户画像标签明细表" }).count(), 1, "移出失败后表应仍在该业务线下");
+      assert.equal(await page.evaluate(() => window.PortalVue.knowledgeData.tableLines["用户画像标签明细表"]), "存量");
+
+      // 3) 改名：失败后名称不变，对话框仍开着、输入还在
+      await page.getByRole("button", { name: "改名" }).click();
+      await page.getByPlaceholder("例如：AI 短剧").fill("存量X");
+      await page.locator(".el-dialog:visible").getByRole("button", { name: "确定" }).click();
+      await page.waitForFunction(() => !window.PortalVue.knowledgeData.businessLines.some(line => line.name === "存量X"));
+      assert.ok((await names()).includes("存量") && !(await names()).includes("存量X"));
+      assert.equal(await page.getByPlaceholder("例如：AI 短剧").inputValue(), "存量X", "保存失败时输入应保留");
+      await page.locator(".el-dialog:visible").getByRole("button", { name: "取消" }).click();
+
+      // 恢复网络后做一次无关的保存：新增一条业务线
+      await page.unroute(pattern);
+      await page.getByRole("button", { name: "新增业务线" }).click();
+      await page.getByPlaceholder("例如：AI 短剧").fill("E2E-无关");
+      await page.locator(".el-dialog:visible").getByRole("button", { name: "确定" }).click();
+      await bizItem(page, "E2E-无关").waitFor();
+      const server = await bizSnapshot(admin);
+      assert.ok(server.businessLines.some(line => line.name === "E2E-无关"), "无关保存应成功");
+      assert.ok(server.businessLines.some(line => line.name === "E2E-空线"), "失败的删除不应被提交");
+      assert.ok(server.businessLines.some(line => line.name === "存量") && !server.businessLines.some(line => line.name === "存量X"), "失败的改名不应被提交");
+      assert.equal(server.tableLines["用户画像标签明细表"], "存量", "失败的移出不应被提交");
+    } finally {
+      if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
+
+  test("业务线：重复点击「上移」只发一次保存请求，不出现版本冲突提示", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const snap = skipReason ? null : await bizSnapshot(admin);
+    try {
+      await openBizView(page);
+      let puts = 0;
+      await page.route("**/v1/knowledge/business-lines", async route => {
+        if (route.request().method() === "PUT") { puts += 1; await new Promise(resolve => setTimeout(resolve, 400)); }
+        await route.continue();
+      });
+      await bizItem(page, "号卡").click();
+      await page.getByRole("button", { name: "上移", exact: true }).dblclick();
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.businessLines.map(line => line.name).indexOf("号卡") === 2);
+      await page.waitForTimeout(600);
+      assert.equal(puts, 1, "重复点击只应发一次 PUT");
+      assert.equal(await page.locator(".el-message", { hasText: "已被其他人更新" }).count(), 0);
+      const server = await bizSnapshot(admin);
+      assert.equal(server.businessLines.map(line => line.name).indexOf("号卡"), 2);
+    } finally {
+      if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
 });
