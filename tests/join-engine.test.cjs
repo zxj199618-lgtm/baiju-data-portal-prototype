@@ -171,6 +171,64 @@ describe("关联引擎（单元）", () => {
     assert.deepEqual(result.data.合计, { "订单.cost": 110 });
   });
 
+  test("窗口对每个指标表都生效：共用一个锚点与同一段 [起, 止]", () => {
+    const rows = {
+      ...ROWS,
+      订单: [
+        { dt: "2026-11-01", order_id: "a", user_id: "u1", product_id: "p1", cost: 100 },
+        { dt: "2026-11-10", order_id: "b", user_id: "u1", product_id: "p1", cost: 10 },
+        { dt: "2026-11-10", order_id: "c", user_id: "u2", product_id: "p1", cost: "5" }
+      ],
+      退款: [
+        { dt: "2026-01-01", user_id: "u1", refund: 50 },
+        { dt: "2026-11-10", user_id: "u1", refund: 1 }
+      ]
+    };
+    const result = make({ rows }).query({
+      metrics: [{ name: "金额", table: "订单", field: "cost", agg: "sum" }, { name: "退款", table: "退款", field: "refund", agg: "sum" }],
+      ratios: [{ name: "退款率", numerator: "退款", denominator: "金额" }],
+      days: 1
+    });
+    assert.equal(result.ok, true, result.error);
+    assert.deepEqual(result.data.窗口, { 起: "2026-11-10", 止: "2026-11-10", N: 1 });
+    assert.deepEqual(result.data.合计, { 金额: 15, 退款: 1, 退款率: 0.0667 });
+  });
+
+  test("窗口：dateTable 必须是指标所在的表之一", () => {
+    const result = make().query({ metrics: [{ table: "订单", field: "cost", agg: "sum" }], days: 1, dateTable: "活动" });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /dateTable「活动」/);
+    const ok = make().query({ metrics: [{ table: "订单", field: "cost", agg: "sum" }, { table: "退款", field: "refund", agg: "sum" }], days: 1, dateTable: "退款" });
+    assert.equal(ok.ok, true, ok.error);
+    assert.deepEqual(ok.data.窗口, { 起: "2026-11-03", 止: "2026-11-03", N: 1 });
+    assert.deepEqual(ok.data.合计, { "订单.cost": 57, "退款.refund": 5 });
+  });
+
+  test("窗口：指标表没有日期字段时拒绝并点名该表", () => {
+    const result = make().query({ metrics: [{ table: "订单", field: "cost", agg: "sum" }, { table: "用户", field: "cost", agg: "sum" }], days: 7 });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /用户/);
+    assert.match(result.error, /日期字段/);
+  });
+
+  test("窗口：锚点日期无效时返回 error 而不是抛异常", () => {
+    const rows = { ...ROWS, 订单: [{ dt: "20261101", order_id: "x", user_id: "u1", product_id: "p1", cost: 1 }] };
+    const result = make({ rows }).query({ metrics: [{ table: "订单", field: "cost", agg: "sum" }], days: 3 });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /20261101/);
+  });
+
+  test("维度表关联键重复：固定取第一行，并在 提示 里点名", () => {
+    const rows = { ...ROWS, 用户: [...ROWS.用户, { user_id: "u1", channel: "微信", cost: 0 }] };
+    const first = make({ rows }).query({ metrics: [{ table: "订单", field: "cost", agg: "sum" }], groupBy: [{ table: "用户", field: "channel" }] });
+    assert.equal(first.ok, true, first.error);
+    assert.equal(byGroup(first.data, "用户.channel")["抖音"]["订单.cost"], 150);
+    assert.equal(byGroup(first.data, "用户.channel")["微信"], undefined);
+    assert.match(first.data.提示, /用户\.user_id/);
+    const clean = make().query({ metrics: [{ table: "订单", field: "cost", agg: "sum" }], groupBy: [{ table: "用户", field: "channel" }] });
+    assert.equal(clean.data.提示, undefined);
+  });
+
   test("空表、窗口内没有数据：返回 ok 且 明细 为空数组或 合计 为 null，不出现 NaN", () => {
     const empty = make({ rows: { ...ROWS, 订单: [] } }).query({
       metrics: [{ name: "金额", table: "订单", field: "cost", agg: "sum" }, { name: "单数", table: "订单", field: "order_id", agg: "count" }],

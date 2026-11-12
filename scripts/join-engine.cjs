@@ -6,6 +6,7 @@
  * - 每个指标表独立汇总：先应用自身窗口与筛选，再沿「对一」路径把分组 / 筛选字段查到行上，按分组值汇总；
  *   多个指标表的结果按分组值拼接（缺的一侧补 0），不会因为 一对多 关联被互相放大；
  * - 路径上任何一段从指标表方向看是「对多」，就拒绝并点名关联与指标，不返回数字；
+ * - 给了 days 时，每个指标表用同一个锚点日期、同一段 [起, 止] 过滤；维度表不按日期过滤；
  * - 比率先分别汇总再相除（总分子 / 总分母），除数为 0 时为 null；
  * - 不限制表数与跳数，限制按资源：访问的行数、耗时、返回的组数。
  */
@@ -128,10 +129,15 @@ function createJoinEngine({ tables, rowsOf, relations, limits } = {}) {
     }
     if (request.days !== undefined && request.days !== null) {
       if (!Number.isInteger(request.days) || request.days <= 0) return "days 必须是正整数";
-      const dateTable = request.dateTable || request.metrics[0].table;
-      const dateKey = tableMap.get(dateTable)?.agg?.dateKey;
-      if (!tableMap.has(dateTable)) return `数据表「${dateTable}」不存在或无权限`;
-      if (!dateKey || !fieldOf(dateTable, dateKey)) return `数据表「${dateTable}」没有可用的日期字段，不能按天数取窗口`;
+      const metricTables = new Set(request.metrics.map(metric => metric.table));
+      if (request.dateTable !== undefined && request.dateTable !== null && !metricTables.has(request.dateTable)) {
+        return `dateTable「${request.dateTable}」必须是指标所在的表之一（${[...metricTables].join("、")}）`;
+      }
+      // 窗口对每个指标表都生效，所以每个指标表都必须有可用的日期字段
+      for (const table of metricTables) {
+        const dateKey = tableMap.get(table)?.agg?.dateKey;
+        if (!dateKey || !fieldOf(table, dateKey)) return `数据表「${table}」没有可用的日期字段，不能按天数取窗口`;
+      }
     }
     return "";
   }
@@ -179,37 +185,54 @@ function createJoinEngine({ tables, rowsOf, relations, limits } = {}) {
     };
 
     try {
-      // 窗口：只对 dateTable 按其日期字段过滤，以该表最大日期为锚
-      let window;
-      const dateTable = request.days ? (request.dateTable || metrics[0].table) : null;
       const rowCache = new Map();
       const loadRows = name => {
-        if (rowCache.has(name)) return rowCache.get(name);
-        let rows = rowsOf(name) || [];
-        tick(rows.length);
-        if (name === dateTable) {
-          const dateKey = tableMap.get(name).agg.dateKey;
-          const anchor = rows.reduce((max, row) => { const day = dayOf(row[dateKey]); return day && day > max ? day : max; }, "");
-          if (anchor) {
-            const start = shiftDay(anchor, -(request.days - 1));
-            window = { 起: start, 止: anchor, N: request.days };
-            rows = rows.filter(row => { const day = dayOf(row[dateKey]); return day >= start && day <= anchor; });
-          } else rows = [];
+        if (!rowCache.has(name)) {
+          const rows = rowsOf(name) || [];
+          tick(rows.length);
+          rowCache.set(name, rows);
         }
-        rowCache.set(name, rows);
-        return rows;
+        return rowCache.get(name);
       };
-      if (dateTable) loadRows(dateTable);
+
+      // 窗口：对每个指标表用同一个锚点、同一段 [起, 止] 过滤；锚点 = dateTable（给了时）或全部指标表的最大日期；维度表不按日期过滤
+      let window;
+      const metricRows = new Map(metricTables.map(table => [table, loadRows(table)]));
+      if (request.days) {
+        const dateKeyOf = table => tableMap.get(table).agg.dateKey;
+        const anchorTables = request.dateTable ? [request.dateTable] : metricTables;
+        let anchor = "";
+        for (const table of anchorTables) {
+          for (const row of metricRows.get(table)) { const day = dayOf(row[dateKeyOf(table)]); if (day > anchor) anchor = day; }
+        }
+        if (anchor) {
+          const valid = /^\d{4}-\d{2}-\d{2}$/.test(anchor) && !Number.isNaN(Date.parse(`${anchor}T00:00:00Z`)) && shiftDay(anchor, 0) === anchor;
+          if (!valid) return { ok: false, error: `日期字段的值「${anchor}」不是 YYYY-MM-DD 格式的有效日期，无法按天数取窗口` };
+          const start = shiftDay(anchor, -(request.days - 1));
+          window = { 起: start, 止: anchor, N: request.days };
+        }
+        for (const table of metricTables) {
+          const dateKey = dateKeyOf(table);
+          metricRows.set(table, window
+            ? metricRows.get(table).filter(row => { const day = dayOf(row[dateKey]); return day >= window.起 && day <= window.止; })
+            : []);
+        }
+      }
 
       const indexCache = new Map();
+      const duplicateKeys = [];
       const indexOf = (table, field) => {
         const key = `${table}\u0000${field}`;
         if (!indexCache.has(key)) {
           const index = new Map();
+          let duplicated = false;
           for (const row of loadRows(table)) {
             const value = row[field];
-            if (!isBlank(value) && !index.has(String(value))) index.set(String(value), row);
+            if (isBlank(value)) continue;
+            if (index.has(String(value))) duplicated = true;
+            else index.set(String(value), row);
           }
+          if (duplicated) duplicateKeys.push(`${table}.${field}`);
           indexCache.set(key, index);
         }
         return indexCache.get(key);
@@ -233,7 +256,7 @@ function createJoinEngine({ tables, rowsOf, relations, limits } = {}) {
         const tableMetrics = metricsByTable.get(table);
         const filterSets = filters.map(filter => new Set(filter.values.map(String)));
         let checked = 0;
-        for (const row of loadRows(table)) {
+        for (const row of metricRows.get(table)) {
           if (++checked % 1000 === 0) tick(0);
           let keep = true;
           for (let i = 0; i < filters.length && keep; i += 1) {
@@ -291,6 +314,7 @@ function createJoinEngine({ tables, rowsOf, relations, limits } = {}) {
         其余组数: Math.max(0, entries.length - limit.maxGroups)
       };
       if (window) data.窗口 = window;
+      if (duplicateKeys.length) data.提示 = `维度表的关联键有重复值，已固定取第一行：${duplicateKeys.join("、")}`;
       return { ok: true, data };
     } catch (error) {
       if (error instanceof LimitError) return { ok: false, error: error.message };
