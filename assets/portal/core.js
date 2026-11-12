@@ -130,7 +130,8 @@
   /* ===== 业务线与表知识库：服务端是唯一数据源 =====
      登录后读取 /v1/knowledge；表所属业务线（tableLines）只在加载时覆盖页面里资产的 bizLine，不反向写回。
      只有网关认识的表（knownTables）才会提交归属，演示用的门户表只留在页面里。 */
-  const knowledgeData = reactive({ rev: 0, businessLines: [], tableLines: {}, canEdit: false, knownTables: [], ready: false });
+  // tableFields：编辑者才有，网关真实表定义的字段名（登记关联时选字段用，与服务端校验同一份）
+  const knowledgeData = reactive({ rev: 0, businessLines: [], tableLines: {}, canEdit: false, knownTables: [], tableFields: {}, ready: false });
   const knowledgeSync = {
     async load() {
       if (!window.portalAuth?.token()) return;
@@ -143,6 +144,7 @@
         knowledgeData.tableLines = data.tableLines && typeof data.tableLines === "object" ? data.tableLines : {};
         knowledgeData.canEdit = !!data.canEdit;
         knowledgeData.knownTables = Array.isArray(data.knownTables) ? data.knownTables : [];
+        knowledgeData.tableFields = data.tableFields && typeof data.tableFields === "object" && !Array.isArray(data.tableFields) ? data.tableFields : {};
         knowledgeData.ready = true;
         state.assets.forEach(asset => { asset.bizLine = knowledgeData.tableLines[asset.cnName] || ""; });
         refreshTick.value += 1;

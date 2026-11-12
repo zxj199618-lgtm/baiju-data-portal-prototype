@@ -69,7 +69,9 @@
               </el-tab-pane>
               <el-tab-pane label="表关联" name="relations">
                 <div class="portal-vue-bizline-bar"><span class="portal-vue-muted">说明两张表怎样关联（关系读作 左:右），灵犀智析取数时会据此做关联。共 {{ relations.length }} / ${MAX_RELATIONS} 条</span><el-button v-if="editable" type="primary" :disabled="busy" @click="openRelation()">添加关联</el-button></div>
+                <el-alert v-if="invalidCount" type="warning" show-icon :closable="false" class="portal-vue-bizline-invalid-alert" :title="'有 ' + invalidCount + ' 条关联已失效，灵犀智析取数时不会使用：请修正两端的表与字段，或把表移回该业务线 / 公共'"></el-alert>
                 <el-table :data="relations" class="portal-vue-table" border empty-text="暂无表关联">
+                  <el-table-column label="状态" width="80" align="center"><template #default="scope"><el-tooltip v-if="scope.row.invalid" :content="scope.row.invalid" placement="top"><el-tag type="danger" size="small" effect="plain" class="portal-vue-bizline-invalid" :title="scope.row.invalid">失效</el-tag></el-tooltip><span v-else class="portal-vue-muted">正常</span></template></el-table-column>
                   <el-table-column label="左表" prop="left.table" min-width="150" show-overflow-tooltip></el-table-column>
                   <el-table-column label="左字段" min-width="120"><template #default="scope"><code class="portal-vue-code">{{ scope.row.left.field }}</code></template></el-table-column>
                   <el-table-column label="关系" prop="type" width="80" align="center"></el-table-column>
@@ -105,11 +107,11 @@
         <el-dialog v-model="relationVisible" :title="relationForm.id ? '编辑表关联' : '添加表关联'" width="640px" append-to-body>
           <el-form label-position="top" class="portal-vue-dialog-form">
             <div class="portal-vue-bizline-relation-grid">
-              <el-form-item label="左表" required><el-select v-model="relationForm.leftTable" filterable placeholder="选择左表" @change="relationForm.leftField=''"><el-option v-for="name in tableChoices" :key="name" :label="name" :value="name"></el-option></el-select></el-form-item>
+              <el-form-item label="左表" required><el-select v-model="relationForm.leftTable" filterable placeholder="选择左表" @change="relationForm.leftField=''"><el-option v-for="name in relationTableChoices" :key="name" :label="name" :value="name"></el-option></el-select></el-form-item>
               <el-form-item label="左字段" required><el-select v-model="relationForm.leftField" filterable placeholder="选择左字段" class="portal-vue-bizline-left-field"><el-option v-for="name in fieldChoices(relationForm.leftTable)" :key="name" :label="name" :value="name"></el-option></el-select></el-form-item>
               <el-form-item label="关系（左:右）" required><el-select v-model="relationForm.type"><el-option v-for="item in RELATION_TYPES" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
               <span></span>
-              <el-form-item label="右表" required><el-select v-model="relationForm.rightTable" filterable placeholder="选择右表" @change="relationForm.rightField=''"><el-option v-for="name in tableChoices" :key="name" :label="name" :value="name"></el-option></el-select></el-form-item>
+              <el-form-item label="右表" required><el-select v-model="relationForm.rightTable" filterable placeholder="选择右表" @change="relationForm.rightField=''"><el-option v-for="name in relationTableChoices" :key="name" :label="name" :value="name"></el-option></el-select></el-form-item>
               <el-form-item label="右字段" required><el-select v-model="relationForm.rightField" filterable placeholder="选择右字段" class="portal-vue-bizline-right-field"><el-option v-for="name in fieldChoices(relationForm.rightTable)" :key="name" :label="name" :value="name"></el-option></el-select></el-form-item>
             </div>
             <el-form-item label="备注"><el-input v-model="relationForm.note" maxlength="200" placeholder="例如：一个用户可以有多笔订单"></el-input></el-form-item>
@@ -130,6 +132,13 @@
         const visible = this.visibleTables ? new Set(this.visibleTables) : null;
         return knowledgeData.knownTables.filter(name => assets.has(name) && (!visible || visible.has(name)));
       },
+      /** 关联两端只能选该业务线或「公共」里的表：其他表在取数时用不上 */
+      relationTableChoices() {
+        refreshTick.value;
+        const name = this.selected?.name;
+        return this.tableChoices.filter(table => { const owner = knowledgeData.tableLines[table]; return owner && (owner === name || owner === PUBLIC); });
+      },
+      invalidCount() { return this.relations.filter(rel => rel.invalid).length; },
       selectedTables() {
         refreshTick.value;
         return this.tablesOf(this.selected).map(table => { const asset = state.assets.find(item => item.cnName === table); return { table, raw: asset?.table || "", owner: asset?.owner || "" }; });
@@ -264,6 +273,9 @@
       fieldChoices(table) {
         refreshTick.value;
         if (!table) return [];
+        // 优先用 /v1/knowledge 给编辑者的网关字段（非管理员拿不到 /v1/table-fields）；没有时沿用字段权限面板的来源
+        const gateway = knowledgeData.tableFields?.[table];
+        if (Array.isArray(gateway)) return gateway.filter(Boolean);
         return permissionFieldsOf(table).map(field => field.name).filter(Boolean);
       },
       openRelation(row) {
@@ -304,6 +316,9 @@
         if (await this.commit(() => { knowledgeData.tableLines[table] = name; })) notify(`「${table}」已移入业务线「${name}」`);
       },
       async moveOut(table) {
+        if (this.busy || !this.selected) return;
+        const used = (this.selected.relations || []).filter(rel => rel.left?.table === table || rel.right?.table === table).length;
+        if (used && !(await window.PortalVue.confirmAction("移出数据表", `该表在 ${used} 条关联里被引用，移出后这些关联将失效。确认把「${table}」移出「${this.selected.name}」？`, "移出"))) return;
         if (this.busy) return;
         // 服务端把 tableLines 当作覆盖：没写的表保持原归属，所以未分组要明确写成 ""
         if (await this.commit(() => { knowledgeData.tableLines[table] = ""; })) notify(`「${table}」已移出，当前未分组`);

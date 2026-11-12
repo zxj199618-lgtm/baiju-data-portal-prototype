@@ -1096,7 +1096,7 @@ describe("浏览器端到端", () => {
     }
   }));
 
-  test("表关联：添加一条 订单.user_id N:1 用户.user_id 后刷新仍在；两端字段下拉里只有该表的字段", async t => withPage(t, async page => {
+  test("表关联：添加一条 订单.product_name N:1 产品维表.product_name 后刷新仍在；表只能选该业务线或「公共」里的；两端字段下拉里只有该表的字段", async t => withPage(t, async page => {
     const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
     const snap = skipReason ? null : await bizSnapshot(admin);
     try {
@@ -1106,18 +1106,24 @@ describe("浏览器端到端", () => {
       await bizItem(page, "号卡").click();
       await page.getByRole("tab", { name: "表关联" }).click();
       await page.getByRole("button", { name: "添加关联" }).click();
+      await page.locator(".el-dialog:visible .el-form-item", { hasText: "左表" }).locator(".el-select").click();
+      const tableOptions = await openOptions(page);
+      await page.keyboard.press("Escape");
+      for (const table of ["用户订单明细", "产品维表", "渠道维表"]) assert.ok(tableOptions.includes(table), `号卡 ∪ 公共 的表应可选：${table}`);
+      for (const table of ["用户画像标签明细表", "广告计划日报表"]) assert.ok(!tableOptions.includes(table), `其他业务线的表不应可选：${table}`);
+      assert.ok(tableOptions.every(table => ["号卡", "公共"].includes(snap.tableLines[table])), `只应有号卡与公共的表：${tableOptions}`);
       await pickOption(page, "左表", "用户订单明细");
       await page.locator(".el-dialog:visible .el-form-item", { hasText: "左字段" }).locator(".el-select").click();
       const leftOptions = (await openOptions(page)).sort();
       assert.deepEqual(leftOptions, names("用户订单明细"), "左字段只应有左表的字段");
-      await page.getByRole("option", { name: "user_id", exact: true }).click();
+      await page.getByRole("option", { name: "product_name", exact: true }).click();
       await page.waitForFunction(() => ![...document.querySelectorAll(".el-select-dropdown")].some(d => getComputedStyle(d.parentElement).display !== "none"));
       await pickOption(page, "关系", "N:1");
-      await pickOption(page, "右表", "用户画像标签明细表");
+      await pickOption(page, "右表", "产品维表");
       await page.locator(".el-dialog:visible .el-form-item", { hasText: "右字段" }).locator(".el-select").click();
       const rightOptions = (await openOptions(page)).sort();
-      assert.deepEqual(rightOptions, names("用户画像标签明细表"), "右字段只应有右表的字段");
-      await page.getByRole("option", { name: "user_id", exact: true }).click();
+      assert.deepEqual(rightOptions, names("产品维表"), "右字段只应有右表的字段");
+      await page.getByRole("option", { name: "product_name", exact: true }).click();
       await page.waitForFunction(() => ![...document.querySelectorAll(".el-select-dropdown")].some(d => getComputedStyle(d.parentElement).display !== "none"));
       await page.locator(".el-dialog:visible").getByRole("button", { name: "保存" }).click();
       const row = () => page.locator(".portal-vue-bizline .el-table__row", { hasText: "N:1" });
@@ -1129,14 +1135,84 @@ describe("浏览器端到端", () => {
       await bizItem(page, "号卡").click();
       await page.getByRole("tab", { name: "表关联" }).click();
       const text = await row().first().textContent();
-      assert.match(text, /user_id/); assert.match(text, /N:1/); assert.match(text, /用户画像标签明细表/);
+      assert.match(text, /product_name/); assert.match(text, /N:1/); assert.match(text, /产品维表/); assert.match(text, /正常/);
       const server = (await bizSnapshot(admin)).businessLines.find(line => line.name === "号卡");
       assert.equal(server.relations.length, 1);
-      assert.deepEqual(server.relations[0].left, { table: "用户订单明细", field: "user_id" });
+      assert.deepEqual(server.relations[0].left, { table: "用户订单明细", field: "product_name" });
       assert.equal(server.relations[0].type, "N:1");
       assert.ok(server.relations[0].id, "服务端应分配关联 id");
     } finally {
       if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
+
+  test("移出被关联引用的表：先确认（取消则不动）；确认后该关联标「失效」并给出原因", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const snap = skipReason ? null : await bizSnapshot(admin);
+    try {
+      const relation = { left: { table: "用户订单明细", field: "product_name" }, right: { table: "产品维表", field: "product_name" }, type: "N:1", note: "" };
+      const businessLines = snap.businessLines.map(line => ({ id: line.id, name: line.name, knowledge: line.knowledge ? { markdown: line.knowledge.markdown } : "", relations: line.name === "号卡" ? [relation] : line.relations }));
+      const seed = await harness.call("PUT", "/v1/knowledge/business-lines", { token: admin, body: { rev: snap.rev, businessLines, tableLines: {} } });
+      assert.equal(seed.status, 200, JSON.stringify(seed.data));
+      await openBizView(page);
+      await bizItem(page, "号卡").click();
+      await page.getByRole("tab", { name: "表关联" }).click();
+      assert.equal(await page.locator(".portal-vue-bizline-invalid").count(), 0, "移出前关联正常");
+      await page.getByRole("tab", { name: "包含的表" }).click();
+      const orderRow = () => page.locator(".portal-vue-bizline #pane-tables .el-table__row", { hasText: "用户订单明细" });
+      // 取消：不移出
+      await orderRow().getByRole("button", { name: "移出" }).click();
+      const box = page.locator(".el-message-box");
+      await box.waitFor();
+      assert.match(await box.textContent(), /该表在 1 条关联里被引用，移出后这些关联将失效/);
+      await box.getByRole("button", { name: "取消" }).click();
+      await box.waitFor({ state: "hidden" });
+      assert.equal(await orderRow().count(), 1, "取消后表仍在");
+      assert.equal((await bizSnapshot(admin)).tableLines["用户订单明细"], "号卡", "取消后不应保存");
+      // 确认：移出，关联标失效
+      await orderRow().getByRole("button", { name: "移出" }).click();
+      await box.waitFor();
+      await box.getByRole("button", { name: "移出" }).click();
+      await orderRow().waitFor({ state: "detached" });
+      assert.equal((await bizSnapshot(admin)).tableLines["用户订单明细"], undefined, "确认后应保存为未分组");
+      await page.getByRole("tab", { name: "表关联" }).click();
+      const tag = page.locator(".portal-vue-bizline-invalid");
+      await tag.waitFor();
+      assert.equal((await tag.textContent()).trim(), "失效");
+      assert.match(await tag.getAttribute("title"), /用户订单明细.*不在「号卡」/);
+      assert.match(await page.locator(".portal-vue-bizline-invalid-alert").textContent(), /1 条关联已失效/);
+    } finally {
+      if (!skipReason) await bizRestore(admin, snap);
+    }
+  }));
+
+  test("权限组含「表管理」编辑权限的非管理员：添加关联时字段下拉用网关真实字段", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const before = skipReason ? null : (await harness.call("GET", "/v1/org", { token: admin })).data;
+    let baseGroups = [];
+    try {
+      const full = (name, tables, extra = {}) => ({ name, desc: "", menus: ["灵犀智析"], menuEdits: [], boards: [], tables, status: "启用", ...extra });
+      baseGroups = before.groups.length ? before.groups : [
+        full("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心", "表管理"], menuEdits: ["表管理"] }), full("投放组长", ["广告计划日报表"]), full("优化师", ["广告计划日报表"]),
+        full("数据分析师", ["广告计划日报表", "用户订单明细"], { menus: ["灵犀智析", "数据看板"], boards: ["大盘数据"] }), full("只读访客", [])
+      ];
+      const groups = baseGroups.map(group => group.name === "数据分析师" ? { ...group, menus: [...new Set([...group.menus, "表管理"])], menuEdits: [...new Set([...group.menuEdits, "表管理"])] } : group);
+      const put = await harness.call("PUT", "/v1/org", { token: admin, body: { groups } });
+      assert.equal(put.status, 200, JSON.stringify(put.data));
+      const gatewayFields = (await harness.call("GET", "/v1/table-fields", { token: admin })).data.tables["用户订单明细"].map(field => field.name).sort();
+      await login(page, "李雨航");
+      await appVisible(page);
+      await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+      assert.equal(await page.evaluate(() => window.PortalVue.knowledgeData.canEdit), true);
+      await openBizViewNoLogin(page);
+      await bizItem(page, "号卡").click();
+      await page.getByRole("tab", { name: "表关联" }).click();
+      await page.getByRole("button", { name: "添加关联" }).click();
+      await pickOption(page, "左表", "用户订单明细");
+      await page.locator(".el-dialog:visible .el-form-item", { hasText: "左字段" }).locator(".el-select").click();
+      assert.deepEqual((await openOptions(page)).sort(), gatewayFields, "非管理员编辑者也应看到网关字段");
+    } finally {
+      if (!skipReason && baseGroups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups: baseGroups } });
     }
   }));
 
