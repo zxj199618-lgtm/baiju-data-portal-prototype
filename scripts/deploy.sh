@@ -108,10 +108,11 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     die "工作区有未提交改动。请先提交，或用 DEPLOY_ALLOW_DIRTY=1 强制继续。"
   fi
 fi
-COMMIT="$(git rev-parse --short HEAD)"
+COMMIT="$(git rev-parse HEAD)"
+COMMIT_SHORT="${COMMIT:0:12}"
 # 只打包 main：当前分支必须是 main，否则线上不会得到你以为的代码
 [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ] || die "当前分支不是 main（脚本只发布 main），请先合并到 main 再发版"
-ok "HEAD = $COMMIT"
+ok "HEAD = $COMMIT_SHORT"
 
 log "检查脚本语法"
 for f in assets/portal/*.js; do node --check "$f" >/dev/null; done
@@ -160,10 +161,10 @@ if [ -n \"\$(git status --porcelain --untracked-files=no)\" ]; then
 fi
 git fetch '$BUNDLE_REMOTE' main >/dev/null 2>&1
 git merge --ff-only FETCH_HEAD >/dev/null
-echo \"HEAD=\$(git rev-parse --short HEAD)\"" | tee /tmp/gxt-remote-head.$$ || die "服务器端代码更新失败（若为 DIRTY，请先清理服务器上的未提交改动）"
+echo \"HEAD=\$(git rev-parse HEAD)\"" | tee /tmp/gxt-remote-head.$$ || die "服务器端代码更新失败（若为 DIRTY，请先清理服务器上的未提交改动）"
 REMOTE_HEAD="$(grep -oE 'HEAD=[0-9a-f]+' /tmp/gxt-remote-head.$$ | tail -1 | cut -d= -f2)"; rm -f /tmp/gxt-remote-head.$$
 [ "$REMOTE_HEAD" = "$COMMIT" ] || die "服务器 HEAD($REMOTE_HEAD) 与本地 $COMMIT 不一致，已中止"
-ok "服务器代码已更新到 $COMMIT"
+ok "服务器代码已更新到 $COMMIT_SHORT"
 
 # ---------------------------------------------------------------------------
 # 4. 服务器：重建容器
@@ -244,5 +245,5 @@ if [ "$DEPLOY_EVAL" = "1" ]; then
   fi
 fi
 
-printf '\n\033[1;32m发版完成\033[0m：%s @ %s\n' "$COMMIT" "$(date '+%Y-%m-%d %H:%M:%S')"
+printf '\n\033[1;32m发版完成\033[0m：%s @ %s\n' "$COMMIT_SHORT" "$(date '+%Y-%m-%d %H:%M:%S')"
 [ -n "$DEPLOY_URL" ] && printf '线上地址：%s\n' "$DEPLOY_URL"

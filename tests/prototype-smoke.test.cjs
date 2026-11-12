@@ -611,6 +611,7 @@ const deployScript = read("scripts/deploy.sh");
 assert(deployScript.includes("set -euo pipefail"), "发版脚本应启用 pipefail，避免管道吞掉失败退出码");
 assert(!/(\d{1,3}\.){3}\d{1,3}/.test(deployScript), "发版脚本不应硬编码服务器 IP，须从环境变量或 .deploy.env 读取");
 assert(deployScript.includes("git bundle create") && deployScript.includes("merge --ff-only"), "发版脚本应通过 git bundle 直传并快进合并，不依赖服务器访问 GitHub");
+assert(deployScript.includes('COMMIT="$(git rev-parse HEAD)"') && deployScript.includes("git rev-parse HEAD") && !deployScript.includes('COMMIT="$(git rev-parse --short HEAD)"'), "发版脚本应用完整提交号核对服务器 HEAD，避免短号位数不同误判");
 assert(deployScript.includes("EXPECT_VERSION") && deployScript.includes("线上版本号"), "发版脚本应在发布后核对线上静态资源版本号");
 assert(exists(".deploy.env.example") && read(".gitignore").includes(".deploy.env"), "应提供发版配置样例，且本地 .deploy.env 不入库");
 assert(read("package.json").includes('"deploy": "bash scripts/deploy.sh"'), "应提供 npm run deploy 入口");
