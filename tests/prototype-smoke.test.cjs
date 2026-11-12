@@ -402,10 +402,10 @@ assert(html.includes('id="skillDetailView"') && portalVue.includes("mount(\"#ski
 assert(portalVue.includes("SkillDetailApp") && portalVue.includes("返回 Skill 管理") && html.includes("page-skill-detail.js"), "Skill 详情页应提供返回 Skill 管理的页头");
 assert(portalRoutes.includes('page: "Skill 详情"') && portalRoutes.includes('path: "/ai/skills/:skill"'), "Skill 详情应注册 #/ai/skills/:skill 地址");
 assert(portalBridge.includes("getSkillDetailId") && portalBridge.includes("setSkillDetailId") && portalBridge.includes("portalSkillDetailId"), "Skill 详情应通过 bridge 读写当前 Skill id");
-assert(portalVue.includes("SkillManagementApp") && portalVue.includes("提示词") && portalVue.includes("回滚到此版本") && portalVue.includes("保存为新版本") && portalVue.includes("versionNote"), "Skill 配置应合并为单一编辑页，保存即创建新版本（版本号+说明+发布/灰度）");
+assert(portalVue.includes("SkillManagementApp") && portalVue.includes("openDetail(") && portalVue.includes('bridge.setSkillDetailId') && portalVue.includes('bridge.setPage("Skill 详情")'), "Skill 列表应通过 openDetail 进入详情页");
 assert(portalVue.includes("grayUsers") && portalVue.includes("灰度用户") && portalVue.includes("toggleEnabled") && portalVue.includes("skillStatus"), "Skill 灰度应按系统内用户配置（不再按流量），并支持上下线开关");
 assert("testVisible" in portalVue.match(/SkillManagementApp[\s\S]{0,200}/g) === false || !portalVue.includes("沙箱试跑"), "Skill 配置不应再包含沙箱试跑");
-assert(portalVue.includes("skillScenarios") && portalVue.includes("工作台展示") && portalVue.includes("openEdit") && portalVue.includes("saveAll"), "工作台场景卡片应由 Skill 配置驱动（icon/标题/描述/排序），操作列只保留单个编辑按钮");
+assert(portalVue.includes("skillScenarios") && portalVue.includes("工作台展示") && portalVue.includes("openDetail("), "工作台场景卡片应由 Skill 配置驱动（icon/标题/描述/排序），列表点名称或详情进入详情页");
 // 旧入口断言只针对 Skill 组件：模型配置新增的「能力」抽屉也用了 openCapability 这个名字，
 // 全文件字符串匹配会误伤，因此收敛到 SkillManagementApp 组件块内。
 const skillComponentBlock = (portalVue.match(/const SkillManagementApp = \{[\s\S]*?\n  \};\n/) || [""])[0];
@@ -413,17 +413,12 @@ assert(skillComponentBlock && !skillComponentBlock.includes("openCapability(") &
 assert(portalVue.includes('id: "warehouse-analyst", name: "数仓分析 Skill", source: "maxcompute-warehouse-analyst", version: "v1.2-portal", status: "已发布", traffic: 100') === false || portalVue.includes('scenarioKey: "single"'), "Skill 注册表应包含工作台展示元数据");
 assert(!portalVue.includes('label="来源包"') && !portalVue.includes("搜索 Skill 名称、来源"), "Skill 列表应去掉「来源包」列，搜索也不再按来源匹配（此断言防止回退）");
 assert(portalVue.includes('@click="openCreate">＋ 新增 Skill') && !portalVue.includes("上传 Skill</el-button>") && !portalVue.includes("onUploadFile") && !portalVue.includes("Skill 以 ZIP 包"), "右上角应改为「新增 Skill」手动新增，移除 ZIP 上传按钮与上传说明");
-assert(portalVue.includes("openCreate(){") && portalVue.includes("saveCreate(){") && portalVue.includes("state.skills.unshift(skill)") && portalVue.includes("versions:[{version,time:now"), "新增 Skill 应写入注册表并自动生成初始版本（v1.0 / 已发布 / 操作人）");
-assert(portalVue.includes('v-model="createForm.name"') && portalVue.includes('v-model="createForm.prompt"') && portalVue.includes("onCreateIconUpload") && portalVue.includes("applyIcon(event,target)"), "新增 Skill 表单应覆盖名称/标题/图标/描述/排序/提示词/版本/上线状态，图标复用同一套上传逻辑");
+assert(portalVue.includes("openCreate()") && portalVue.includes("saveCreate()") && portalVue.includes("state.skills.unshift(skill)") && portalVue.includes("note: \"新建 Skill\"") && portalVue.includes('status: "已发布"'), "新增 Skill 应写入注册表并自动生成初始版本（v1.0 / 已发布 / 操作人）");
+assert(portalVue.includes('v-model="createForm.name"') && portalVue.includes("openDetail(skill)") && portalVue.includes("setSkillDetailId") && portalVue.includes("已创建，请在详情页补全配置"), "新增 Skill 只必填名称，成功后进入详情页补全配置");
 
-// 新增 Skill 字段多（含 6 行提示词）。弹窗 15vh 顶距 + body max-height:calc(100vh - 220px)
-// 在 958px 视口下正好把底部「取消 / 新增 Skill」推出视口，因此改为右侧抽屉：整屏高、内容区滚动、底部常驻。
-assert(portalVue.includes('<el-drawer v-model="createVisible" title="新增 Skill" size="620px" direction="rtl" class="portal-vue-skill-create-drawer"'), "新增 Skill 应改为右侧抽屉展开（direction=rtl、620px）");
-assert(!portalVue.includes('<el-dialog v-model="createVisible" title="新增 Skill"'), "新增 Skill 不应再使用居中弹窗（此断言防止回退成被裁掉底部的样式）");
-const createDrawerBodyRule = portalCss.match(/\.el-drawer\.portal-vue-skill-create-drawer\s+\.el-drawer__body\s*\{([^}]*)\}/);
-const createDrawerFooterRule = portalCss.match(/\.el-drawer\.portal-vue-skill-create-drawer\s+\.el-drawer__footer\s*\{([^}]*)\}/);
-assert(createDrawerBodyRule && /overflow-y:\s*auto/.test(createDrawerBodyRule[1]) && createDrawerFooterRule && /flex:\s*none/.test(createDrawerFooterRule[1]), "新增 Skill 抽屉必须「内容区滚动 + 底部按钮常驻」（body overflow-y:auto、footer flex:none）");
-assert(portalVue.includes('@click="createVisible=false">取消</el-button>') && portalVue.includes('@click="saveCreate">新增 Skill</el-button>'), "新增 Skill 抽屉底部应保留「取消 / 新增 Skill」两个按钮");
+assert(skillComponentBlock.includes('<el-dialog v-model="createVisible" title="新增 Skill"') && !skillComponentBlock.includes('<el-drawer v-model="createVisible" title="新增 Skill"'), "新增 Skill 应使用只填名称的短对话框");
+assert(!skillComponentBlock.includes('v-model="createForm.prompt"') && !skillComponentBlock.includes("onCreateIconUpload") && !skillComponentBlock.includes('v-model="createForm.version"'), "新增 Skill 短表单不应再包含提示词、图标或版本号");
+assert(portalVue.includes('@click="createVisible=false">取消</el-button>') && portalVue.includes('@click="saveCreate">新增 Skill</el-button>'), "新增 Skill 对话框底部应保留「取消 / 新增 Skill」两个按钮");
 assert(portalVue.includes("item.local&&!list.some(entry=>entry.id===item.id)") && portalVue.includes("filter(item=>item.local&&!remotes.some(entry=>entry.id===item.id))"), "门户手动新增的 Skill 在网关数据刷新后仍保留，不会建完就消失");
 assert(portalBridge.includes('name: "模型配置"') && portalVue.includes("ModelConfigApp") && portalVue.includes("modelConfigView"), "AI 中心应提供模型配置页");
 assert(portalVue.includes("v1/model-config") && portalVue.includes("已禁用"), "模型配置应支持禁用历史模型并持久化到网关");
@@ -591,18 +586,11 @@ assert(portalVue.includes('questions: [') && portalVue.includes("timeRange") && 
 assert(portalVue.includes("存量") && portalVue.includes("权益") && portalVue.includes("保险") && portalVue.includes("短剧") && portalVue.includes("其他"), "业务线咨询应提供完整选项");
 assert(portalVue.includes("assetCandidates") && portalVue.includes("businessLine") && gatewaySource.includes("assetCandidates") && gatewaySource.includes("业务线范围"), "选择业务线后应把候选数据资产范围交给 Skill");
 // 同样收敛到 Skill 组件：模型配置新增的「能力」抽屉（openCapability）会让 ability 变成全局命中。
-assert(skillComponentBlock.includes("ability") === false || (skillComponentBlock.includes("自动向用户追问") && !skillComponentBlock.includes("资产检索范围") && !skillComponentBlock.includes("回答契约")), "Skill 编辑页应精简为标题/图标/描述/排序/提示词/上线状态，澄清改为模型自动追问");
-assert(portalVue.includes("openVersionManage") && portalVue.includes("openNewVersion") && portalVue.includes("saveGrayDraft") && portalVue.includes("publishVersion") && portalVue.includes("versionStatusName") && portalVue.includes("回滚到此版本"), "Skill 版本管理应支持新增/未发布编辑/灰度/发版/查看历史/回滚全流程");
-/* 第十二轮：「新增版本」从版本管理里搬到列表行；表单样式与「新增 Skill」统一，抽屉不再叠抽屉 */
-assert(portalVue.includes('@click="openNewVersion(scope.row)">新增版本') && portalVue.includes('label="操作" width="170"'), "Skill 列表行应直接提供「新增版本」入口");
-const versionListSource = portalVue.slice(portalVue.indexOf('<el-drawer v-model="publishVisible"'), portalVue.indexOf('<el-drawer v-model="viewVisible"'));
-assert(!versionListSource.includes("openNewVersion") && !versionListSource.includes("openEditVersion") && !versionListSource.includes("＋ 新增版本"), "版本管理不应再有新增/编辑入口（它们会叠出第二层抽屉）");
-assert(versionListSource.includes("openViewVersion") && versionListSource.includes("openGrayDraft") && versionListSource.includes("publishVersion") && versionListSource.includes("rollback("), "版本管理只保留 查看 / 灰度 / 发版 / 回滚 这些版本操作");
-const versionFormSource = portalVue.slice(portalVue.indexOf("<el-drawer v-model=\"editVisible\" :title=\"'新增版本 · '"), portalVue.indexOf('<el-drawer v-model="publishVisible"'));
-assert(versionFormSource.includes('class="portal-vue-dialog-form" label-position="top"') && !versionFormSource.includes("portal-vue-skill-section"), "「新增版本」表单要与「新增 Skill」同一套样式（portal-vue-dialog-form + 顶部标签）");
-assert(!portalVue.includes("openEditVersion") && !portalVue.includes("addMode") && !portalVue.includes("editingVersion"), "版本表单只用于新增版本，编辑态相关代码应清掉（此断言防止回退）");
-assert(portalVue.includes('desc:skill.desc||""') && portalVue.includes("desc:item.snapshot.desc") && gatewaySource.includes('["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt"'), "版本快照要覆盖 描述/提示词，回滚与网关持久化都要带上");
-assert(portalVue.includes("iconInput") && portalVue.includes("onIconUpload") && portalVue.includes("isImageIcon"), "Skill 图标应支持上传图片（列表与工作台卡片均可展示）");
+assert(skillComponentBlock.includes('@click="openDetail(scope.row)"') && skillComponentBlock.includes("portal-vue-name") && skillComponentBlock.includes(">详情</el-button>"), "Skill 名称可点击进入详情，操作列只保留详情");
+assert(!skillComponentBlock.includes("openNewVersion") && !skillComponentBlock.includes("openVersionManage") && !skillComponentBlock.includes(">新增版本") && !skillComponentBlock.includes(">版本管理"), "Skill 列表不应再有新增版本或版本管理入口");
+assert(!skillComponentBlock.includes("editVisible") && !skillComponentBlock.includes("publishVisible") && !skillComponentBlock.includes("viewVisible") && !skillComponentBlock.includes("grayDialogVisible"), "Skill 列表页不应再保留配置、版本或灰度抽屉");
+assert(gatewaySource.includes('["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt"'), "网关 Skill 配置持久化应覆盖描述与提示词");
+assert(portalVue.includes("isImageIcon") && portalVue.includes("portal-vue-skill-cell-icon"), "Skill 列表应继续展示图标");
 
 const deployScript = read("scripts/deploy.sh");
 assert(deployScript.includes("set -euo pipefail"), "发版脚本应启用 pipefail，避免管道吞掉失败退出码");
