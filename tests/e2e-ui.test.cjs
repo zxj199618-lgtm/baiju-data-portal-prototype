@@ -1517,4 +1517,159 @@ describe("浏览器端到端", () => {
     assert.equal(last.conversation.length, 1, "刷新后追问应带上之前的对话");
     assert.match(last.conversation[0].question, /7031/);
   }));
+
+  /* ===== Skill 详情 ===== */
+  const SKILL_ID = "warehouse-analyst";
+  const SKILL_NAME = "数据查询与指标解答 Skill";
+  const openSkillList = async page => {
+    await page.evaluate(() => window.portalVueBridge.setPage("Skill 配置"));
+    await page.waitForSelector("#skillManagementView:not(.hidden)");
+    await page.locator("#skillManagementView .el-table__body tr").first().waitFor();
+  };
+  const openSkillDetail = async page => {
+    await openSkillList(page);
+    await page.locator("#skillManagementView tr", { hasText: SKILL_NAME }).getByRole("button", { name: "详情" }).click();
+    await page.waitForFunction(() => window.portalVueBridge.getPage() === "Skill 详情");
+    await page.waitForSelector("#skillDetailView:not(.hidden)");
+  };
+  const backToSkillList = async page => {
+    const title = page.locator("#skillDetailView .el-page-header").getByText("返回 Skill 管理");
+    if (await title.count()) await title.click();
+    else await page.locator("#skillDetailView .el-page-header__back").click();
+    await page.waitForFunction(() => window.portalVueBridge.getPage() === "Skill 配置");
+  };
+  const skillFromGateway = async (admin, id = SKILL_ID) => {
+    const list = (await harness.call("GET", "/v1/skills", { token: admin })).data;
+    return (Array.isArray(list) ? list : []).find(item => item.id === id);
+  };
+
+  test("Skill 详情：从列表进入后侧栏仍高亮 Skill 配置，返回列表，刷新地址仍是同一 Skill", async t => withPage(t, async page => {
+    await login(page, "曾祥竞");
+    await appVisible(page);
+    await openSkillDetail(page);
+    assert.equal(await page.evaluate(() => window.portalVueBridge.getPage()), "Skill 详情");
+    assert.equal(await page.evaluate(() => decodeURIComponent(location.hash)), `#/ai/skills/${SKILL_ID}`);
+    const active = (await page.locator("#sidebar .el-menu-item.is-active").allTextContents()).join(" ");
+    assert.match(active, /Skill 配置/, `侧栏高亮应为 Skill 配置，实际：${active}`);
+    await backToSkillList(page);
+    assert.equal(await page.evaluate(() => decodeURIComponent(location.hash)), "#/ai/skills");
+    assert.equal(await page.locator("#skillManagementView.hidden").count(), 0);
+
+    await page.evaluate(hash => { location.hash = hash; }, `#/ai/skills/${SKILL_ID}`);
+    await page.waitForFunction(() => window.portalVueBridge.getPage() === "Skill 详情");
+    await page.reload();
+    await appVisible(page);
+    assert.equal(await page.evaluate(() => window.portalVueBridge.getPage()), "Skill 详情");
+    assert.equal(await page.evaluate(() => window.portalVueBridge.getSkillDetailId()), SKILL_ID);
+    assert.equal(await page.evaluate(() => decodeURIComponent(location.hash)), `#/ai/skills/${SKILL_ID}`);
+    assert.match(await page.locator("#skillDetailView:not(.hidden) .el-page-header").textContent(), /数据查询与指标解答/);
+  }));
+
+  test("Skill 详情：在基本信息改展示文案并保存后，版本管理出现未发布版本", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const before = skipReason ? null : await skillFromGateway(admin);
+    const marker = `E2E-Skill展示-${Date.now()}`;
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      await openSkillDetail(page);
+      await page.getByRole("tab", { name: "基本信息" }).click();
+      await page.locator("#skillDetailView .el-form-item", { hasText: "工作台展示描述" }).locator("input").fill(marker);
+      await page.getByRole("button", { name: "保存", exact: true }).click();
+      await page.waitForFunction(() => [...document.querySelectorAll(".el-message")].some(el => /已保存为/.test(el.textContent) && /未发布/.test(el.textContent)));
+      await page.getByRole("tab", { name: "版本管理" }).click();
+      const current = page.locator("#skillDetailView .portal-vue-skill-version.current").first();
+      await current.waitFor();
+      assert.match(await current.textContent(), /未发布/);
+      const saved = await skillFromGateway(admin);
+      assert.equal(saved.displayDesc, marker, "展示文案应写到服务端");
+    } finally {
+      if (!skipReason && before) {
+        await harness.call("PUT", `/v1/skills/${SKILL_ID}/config`, { token: admin, body: { displayDesc: before.displayDesc } });
+      }
+    }
+  }));
+
+  test("Skill 详情：引用的表可保存并回显，不存在的表名选不中", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const before = skipReason ? null : await skillFromGateway(admin);
+    const originalTables = before ? [...(before.tables || [])] : [];
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      await openSkillDetail(page);
+      await page.getByRole("tab", { name: "引用的表" }).click();
+      const add = await page.evaluate(() => {
+        const skill = window.portalVueModuleApi.state.skills.find(item => item.id === "warehouse-analyst");
+        const known = (window.portalVueModuleApi.state.assets || []).map(item => item.cnName).filter(Boolean);
+        const current = skill.tables || [];
+        return known.find(name => !current.includes(name)) || "";
+      });
+      assert.ok(add, "应有一张尚未引用的已知表可供加入");
+      const select = page.locator("#skillDetailView .el-form-item", { hasText: "引用的表" }).locator(".el-select").first();
+      await select.click();
+      await page.locator(".el-select-dropdown:visible").first().waitFor();
+      await page.keyboard.type("不存在的表XYZ123");
+      const fake = await page.locator(".el-select-dropdown__item:visible").allTextContents();
+      assert.equal(fake.some(text => text.includes("不存在的表XYZ123")), false, "不存在的表名不应出现在选项里");
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Escape");
+      await page.evaluate(() => {
+        document.querySelectorAll("#skillDetailView .el-select input").forEach(input => {
+          input.value = "";
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      });
+      await select.click();
+      await page.getByRole("option", { name: add, exact: true }).waitFor();
+      await page.getByRole("option", { name: add, exact: true }).click();
+      await page.keyboard.press("Escape");
+      await page.locator(".el-select-dropdown:visible").waitFor({ state: "hidden" });
+      await page.getByRole("button", { name: "保存引用的表" }).click();
+      await page.waitForFunction(() => [...document.querySelectorAll(".el-message")].some(el => el.textContent.includes("引用的表已更新")));
+      await backToSkillList(page);
+      await openSkillDetail(page);
+      await page.getByRole("tab", { name: "引用的表" }).click();
+      const tags = (await page.locator("#skillDetailView .el-select__tags, #skillDetailView .el-tag, #skillDetailView .el-select").allTextContents()).join(" ");
+      assert.match(tags, new RegExp(add.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `再进入详情应仍看到 ${add}，实际：${tags}`);
+      const saved = await skillFromGateway(admin);
+      assert.ok((saved.tables || []).includes(add), "引用的表应写到服务端");
+    } finally {
+      if (!skipReason && before) {
+        await harness.call("PUT", `/v1/skills/${SKILL_ID}/config`, { token: admin, body: { tables: originalTables } });
+      }
+    }
+  }));
+
+  test("没有「Skill 配置」编辑权限的账号看不到保存、灰度和发版", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const before = skipReason ? null : (await harness.call("GET", "/v1/org", { token: admin })).data;
+    let baseGroups = [];
+    try {
+      const full = (name, tables, extra = {}) => ({ name, desc: "", menus: ["灵犀智析"], menuEdits: [], boards: [], tables, status: "启用", ...extra });
+      baseGroups = before.groups.length ? before.groups : [
+        full("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心", "表管理"], menuEdits: ["表管理"] }),
+        full("投放组长", ["广告计划日报表"]), full("优化师", ["广告计划日报表"]),
+        full("数据分析师", ["广告计划日报表", "用户订单明细"], { menus: ["灵犀智析", "数据看板"], boards: ["大盘数据"] }),
+        full("只读访客", [])
+      ];
+      const groups = baseGroups.map(group => group.name === "数据分析师"
+        ? { ...group, menus: [...new Set([...group.menus, "AI 中心", "Skill 配置"])], menuEdits: (group.menuEdits || []).filter(name => name !== "Skill 配置" && name !== "AI 中心") }
+        : group);
+      const put = await harness.call("PUT", "/v1/org", { token: admin, body: { groups } });
+      assert.equal(put.status, 200, JSON.stringify(put.data));
+      await login(page, "李雨航");
+      await appVisible(page);
+      await openSkillDetail(page);
+      assert.equal(await page.getByRole("button", { name: "保存", exact: true }).count(), 0, "只读账号不应看到保存");
+      assert.equal(await page.getByRole("button", { name: "保存引用的表" }).count(), 0);
+      await page.getByRole("tab", { name: "版本管理" }).click();
+      assert.equal(await page.getByRole("button", { name: "灰度" }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "调整灰度" }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "发版" }).count(), 0);
+    } finally {
+      if (!skipReason && baseGroups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups: baseGroups } });
+    }
+  }));
 });
