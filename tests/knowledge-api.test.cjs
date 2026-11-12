@@ -183,3 +183,111 @@ describe("业务线知识库接口", () => {
     assert.ok(!JSON.stringify(audit.data).includes("AUDIT-SECRET-BODY"));
   });
 });
+
+describe("业务线接口：大请求体、失效关联、编辑者字段", () => {
+  let harness;
+  before(async () => { harness = await startHarness(); });
+  after(async () => { await harness.stop(); });
+
+  const get = async (name, route) => harness.call("GET", route, { token: await harness.tokenFor(name) });
+  const send = async (method, name, route, body) => harness.call(method, route, { token: await harness.tokenFor(name), body });
+  const group = (name, tables, extra = {}) => ({ name, desc: "", menus: ["灵犀智析"], menuEdits: [], boards: [], tables, status: "启用", ...extra });
+  const lineOf = (view, name) => view.businessLines.find(line => line.name === name);
+
+  test("超过 64KB 的中文请求体原样往返，不出现 U+FFFD", async () => {
+    const current = (await get("曾祥竞", "/v1/knowledge")).data;
+    const text = i => `# 业务线${i}\n` + "指标口径：消耗按产品归并，订单按首单日统计。\n".repeat(520);
+    const lines = current.businessLines.map((line, i) => ({ ...line, knowledge: text(i) }));
+    const body = { rev: current.rev, businessLines: lines, tableLines: {} };
+    assert.ok(Buffer.byteLength(JSON.stringify(body)) > 64 * 1024 * 2, "请求体应跨越多个 64KB 分块");
+    const saved = await send("PUT", "曾祥竞", "/v1/knowledge/business-lines", body);
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    const after = (await get("曾祥竞", "/v1/knowledge")).data;
+    after.businessLines.forEach((line, i) => {
+      assert.ok(!line.knowledge.markdown.includes("�"), `${line.name} 出现了 U+FFFD`);
+      assert.equal(line.knowledge.markdown, text(i));
+    });
+  });
+
+  test("50 条业务线 × 20000 字中文（约 3MB）可以保存", async () => {
+    const current = (await get("曾祥竞", "/v1/knowledge")).data;
+    const lines = current.businessLines.map(line => ({ ...line, knowledge: "中".repeat(20000) }));
+    while (lines.length < 50) lines.push({ name: `线${lines.length}`, knowledge: "文".repeat(20000), relations: [] });
+    const body = { rev: current.rev, businessLines: lines, tableLines: {} };
+    assert.ok(Buffer.byteLength(JSON.stringify(body)) > 2e6);
+    const saved = await send("PUT", "曾祥竞", "/v1/knowledge/business-lines", body);
+    assert.equal(saved.status, 200, JSON.stringify(saved.data).slice(0, 200));
+    const after = (await get("曾祥竞", "/v1/knowledge")).data;
+    assert.equal(after.businessLines.length, 50);
+    assert.equal(lineOf(after, "线49").knowledge.markdown, "文".repeat(20000));
+    // 恢复成种子业务线，避免影响后面的用例
+    const restore = await send("PUT", "曾祥竞", "/v1/knowledge/business-lines", { rev: after.rev, businessLines: current.businessLines, tableLines: {} });
+    assert.equal(restore.status, 200, JSON.stringify(restore.data).slice(0, 200));
+  });
+
+  test("超过上限的请求体返回 413 和明确的错误，不是断开连接；其他接口沿用原上限", async () => {
+    const huge = await send("PUT", "曾祥竞", "/v1/knowledge/business-lines", { rev: 0, businessLines: [{ name: "x", knowledge: "中".repeat(3_000_000) }] });
+    assert.equal(huge.status, 413);
+    assert.match(huge.data.error, /请求内容过大/);
+    const feedback = await send("POST", "曾祥竞", "/v1/feedback", { note: "a".repeat(9000) });
+    assert.equal(feedback.status, 413, "反馈接口原上限 8000 字符");
+    assert.match(feedback.data.error, /请求内容过大/);
+    // 服务仍可用
+    assert.equal((await get("曾祥竞", "/v1/knowledge")).status, 200);
+  });
+
+  test("关联失效原因：编辑者视图与裁剪视图都带派生的 invalid；PUT 时客户端带来的 invalid 被忽略；表移出后标记失效", async () => {
+    const current = (await get("曾祥竞", "/v1/knowledge")).data;
+    const ok = { id: "rel-ok", left: { table: "广告计划日报表", field: "media_source" }, right: { table: "媒体消耗汇总", field: "media_source" }, type: "N:1", note: "", invalid: "客户端伪造" };
+    const cross = { id: "rel-cross", left: { table: "广告计划日报表", field: "product_name" }, right: { table: "用户订单明细", field: "product_name" }, type: "N:1", note: "" };
+    const lines = current.businessLines.map(line => line.name === "权益" ? { ...line, relations: [ok, cross] } : line);
+    const saved = await send("PUT", "曾祥竞", "/v1/knowledge/business-lines", { rev: current.rev, businessLines: lines, tableLines: {} });
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    const stored = JSON.parse(require("node:fs").readFileSync(require("node:path").join(harness.dataDir, "knowledge.json"), "utf8"));
+    assert.ok(!JSON.stringify(stored).includes("invalid"), "invalid 不应落盘");
+    let view = (await get("曾祥竞", "/v1/knowledge")).data;
+    let rels = lineOf(view, "权益").relations;
+    assert.equal(rels.find(item => item.id === "rel-ok").invalid, undefined, "有效关联没有 invalid");
+    assert.match(rels.find(item => item.id === "rel-cross").invalid, /用户订单明细.*不在「权益」/);
+    // 把媒体消耗汇总移出 → rel-ok 失效
+    const moved = await send("PUT", "曾祥竞", "/v1/knowledge/business-lines", { rev: view.rev, businessLines: view.businessLines, tableLines: { 媒体消耗汇总: "" } });
+    assert.equal(moved.status, 200, JSON.stringify(moved.data));
+    view = (await get("曾祥竞", "/v1/knowledge")).data;
+    rels = lineOf(view, "权益").relations;
+    assert.match(rels.find(item => item.id === "rel-ok").invalid, /媒体消耗汇总.*未分组/);
+    // 非编辑者的裁剪视图同样标记（只含字段都可见的关联）
+    const groups = [
+      group("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心"] }),
+      group("投放组长", ["广告计划日报表"]),
+      group("优化师", ["广告计划日报表", "媒体消耗汇总", "用户订单明细"]),
+      group("数据分析师", ["广告计划日报表"]),
+      group("只读访客", [])
+    ];
+    assert.equal((await send("PUT", "曾祥竞", "/v1/org", { groups })).status, 200);
+    const reader = (await get("谭嘉颖", "/v1/knowledge")).data;
+    assert.equal(reader.canEdit, false);
+    const readerRels = lineOf(reader, "权益").relations;
+    assert.match(readerRels.find(item => item.id === "rel-ok").invalid, /媒体消耗汇总/);
+    assert.match(readerRels.find(item => item.id === "rel-cross").invalid, /用户订单明细/);
+  });
+
+  test("编辑者的 GET /v1/knowledge 带 tableFields（网关真实字段，仅 knownTables）；非编辑者没有；/v1/table-fields 仍只给管理员", async () => {
+    const groups = [
+      group("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心"] }),
+      group("投放组长", ["广告计划日报表"]),
+      group("优化师", ["广告计划日报表"]),
+      group("数据分析师", ["广告计划日报表", "用户订单明细"], { menus: ["灵犀智析", "表管理"], menuEdits: ["表管理"] }),
+      group("只读访客", [])
+    ];
+    assert.equal((await send("PUT", "曾祥竞", "/v1/org", { groups })).status, 200);
+    const real = (await get("曾祥竞", "/v1/table-fields")).data.tables;
+    const editor = (await get("李雨航", "/v1/knowledge")).data;
+    assert.equal(editor.canEdit, true);
+    assert.deepEqual(Object.keys(editor.tableFields).sort(), [...editor.knownTables].sort());
+    for (const table of editor.knownTables) assert.deepEqual(editor.tableFields[table], real[table].map(field => field.name), table);
+    assert.equal((await get("李雨航", "/v1/table-fields")).status, 403, "/v1/table-fields 仍只给管理员");
+    const reader = (await get("谭嘉颖", "/v1/knowledge")).data;
+    assert.equal(reader.canEdit, false);
+    assert.equal(reader.tableFields, undefined);
+  });
+});

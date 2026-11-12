@@ -2377,11 +2377,43 @@ function sendJson(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
-function readBody(req, maxSize = 2e6) {
+/** 请求体超过上限：handleRequest 的兜底按 error.status 返回 413 */
+function payloadTooLarge(limitText) {
+  const error = new Error(`请求内容过大（上限 ${limitText}），请精简后重试`);
+  error.status = 413;
+  error.publicMessage = true;
+  return error;
+}
+const formatBytes = bytes => (bytes >= 1024 * 1024 ? `${Math.round(bytes / 1024 / 1024 * 10) / 10} MB` : `${Math.round(bytes / 1024)} KB`);
+
+/**
+ * 读取 JSON 请求体。先收集原始 Buffer、按字节计数，最后一次性按 UTF-8 解码（逐块解码会把跨块的中文切坏成 U+FFFD）。
+ * - maxChars：解码后的字符上限（各接口原有的上限，语义不变）；
+ * - maxBytes：字节上限，默认 maxChars × 3（UTF-8 一个 UTF-16 码元最多 3 字节，原来能收的请求体都还能收）。
+ * 超限时立即以 413 结束（不再缓存后续数据，但继续读掉剩余内容，避免客户端只看到连接被重置）。
+ */
+function readBody(req, maxChars = 2e6, maxBytes = maxChars * 3) {
   return new Promise((resolve, reject) => {
-    let raw = "";
-    req.on("data", chunk => { raw += chunk; if (raw.length > maxSize) req.destroy(); });
-    req.on("end", () => { try { resolve(raw ? JSON.parse(raw) : {}); } catch (error) { reject(error); } });
+    const chunks = [];
+    let bytes = 0;
+    let rejected = false;
+    const limitText = Number.isFinite(maxChars) ? `${maxChars} 字符` : formatBytes(maxBytes);
+    req.on("data", chunk => {
+      bytes += chunk.length;
+      if (rejected) {
+        if (bytes > maxBytes * 4 + 64 * 1024 * 1024) req.destroy(); // 读掉剩余内容也有个头，避免被无限灌数据
+        return;
+      }
+      if (bytes > maxBytes) { rejected = true; chunks.length = 0; req.tooLarge = true; reject(payloadTooLarge(limitText)); return; }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      if (rejected) return;
+      const raw = Buffer.concat(chunks, bytes).toString("utf8");
+      if (raw.length > maxChars) { req.tooLarge = true; return reject(payloadTooLarge(limitText)); }
+      try { resolve(raw ? JSON.parse(raw) : {}); } catch (error) { reject(error); }
+    });
+    req.on("error", error => { if (!rejected) { rejected = true; reject(error); } });
   });
 }
 
@@ -2515,8 +2547,19 @@ function canEditTableAdmin(session) {
  */
 function knowledgeViewFor(userName) {
   const state = knowledgeStore.effective();
+  // 关联用不上的原因是派生值（不落盘，PUT 时 relationOf 会丢掉客户端带来的 invalid）：界面据此标「失效」
+  const markInvalid = (relations, lineName) => relations.map(relation => {
+    const invalid = knowledgeStore.relationIssue(relation, lineName, state.tableLines);
+    return invalid ? { ...relation, invalid } : relation;
+  });
   if (canEditTableAdmin({ name: userName, role: roleOf(userName) })) {
-    return { rev: state.rev, businessLines: state.businessLines, tableLines: state.tableLines };
+    return {
+      rev: state.rev,
+      businessLines: state.businessLines.map(line => ({ ...line, relations: markInvalid(line.relations, line.name) })),
+      tableLines: state.tableLines,
+      // 编辑者登记关联时选字段用：网关真实表定义（与保存时的校验同一份），/v1/table-fields 仍只给管理员
+      tableFields: Object.fromEntries(tables.map(table => [table.cnName, (table.fields || []).map(field => String(field.name))]))
+    };
   }
   const scope = scopeFor(userName);
   const mine = new Set(scope.tables.map(table => table.cnName));
@@ -2526,7 +2569,7 @@ function knowledgeViewFor(userName) {
   const businessLines = state.businessLines.filter(line => visible.has(line.name)).map(line => ({
     ...line,
     knowledge: line.knowledge ? { ...line.knowledge, markdown: redactLines(line.knowledge.markdown, hidden) } : null,
-    relations: usableRelations(line.relations, scope.tables).usable
+    relations: markInvalid(usableRelations(line.relations, scope.tables).usable, line.name)
   }));
   return { rev: state.rev, businessLines, tableLines };
 }
@@ -2969,7 +3012,8 @@ async function handleRequest(req, res) {
     if (req.method === "GET" && url.pathname === "/v1/knowledge") return sendJson(res, 200, { ...knowledgeViewFor(user), canEdit, knownTables: [...allTableNames] });
     if (req.method === "PUT" && url.pathname === "/v1/knowledge/business-lines") {
       if (!canEdit) return denyEdit();
-      const body = await readBody(req, 2000000);
+      // 整份快照：50 条业务线 × 2 万字中文就有 3MB 多，单独放宽到 8 MiB（按字节）
+      const body = await readBody(req, Infinity, 8 * 1024 * 1024);
       // tableLines 是对已存归属的覆盖：没给出的表保持原归属，客户端要取消某表的分组必须显式发 ""
       const outcome = knowledgeStore.saveBusinessLines({ rev: body.rev, businessLines: body.businessLines, tableLines: body.tableLines }, user);
       if (!outcome.ok) return sendJson(res, outcome.conflict ? 409 : 400, { error: outcome.error });
@@ -3710,6 +3754,10 @@ const server = http.createServer((req, res) => {
         // 流式响应已经打开：不能再改状态码，用 error 事件告知前端并结束连接，避免界面一直等待
         res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
         res.end();
+      } else if (error && error.status === 413) {
+        // 请求体还没读完：告诉客户端这次连接不再复用
+        res.setHeader("Connection", "close");
+        sendJson(res, 413, { error: error.message });
       } else {
         sendJson(res, 400, { error: message });
       }
