@@ -92,7 +92,7 @@ function injectStyle(id, css) {
               <el-tab-pane label="知识库" name="knowledge">
                 <div class="portal-vue-knowledge-bar">
                   <span class="portal-vue-muted">{{ knowledge && !knowledgeEditing ? "最近编辑：" + knowledge.updatedBy + " · " + knowledge.updatedAt : "" }}</span>
-                  <el-button v-if="!knowledgeEditing && canEdit('表管理')" type="primary" round class="portal-vue-knowledge-edit" @click="startKnowledgeEdit">编辑知识库</el-button>
+                  <el-button v-if="!knowledgeEditing && knowledgeLoaded && canEdit('表管理')" type="primary" round class="portal-vue-knowledge-edit" @click="startKnowledgeEdit">编辑知识库</el-button>
                   
                 </div>
                 <div v-if="knowledgeEditing" class="portal-vue-md-editor">
@@ -114,8 +114,10 @@ function injectStyle(id, css) {
             <div class="portal-vue-knowledge-floating"><el-button round @click="cancelKnowledgeEdit">取消</el-button><el-button type="primary" round @click="saveKnowledge">保存知识库</el-button></div>
           </div>
           <template v-else>
-                  <div v-if="knowledge" class="portal-vue-knowledge-doc" v-html="renderedKnowledge"></div>
-                  <el-empty v-else description="该表还没有知识库。灵犀智析只能依据字段注释回答，指标口径可能不准确。"><el-button v-if="canEdit('表管理')" type="primary" round @click="startKnowledgeEdit">新建知识库</el-button></el-empty>
+                  <div v-if="knowledgeLoading" v-loading="true" class="portal-vue-knowledge-loading" style="min-height:120px"></div>
+                  <el-empty v-else-if="knowledgeError" class="portal-vue-knowledge-error" :description="'知识库读取失败：' + knowledgeError"><el-button type="primary" round @click="fetchKnowledge">重试</el-button></el-empty>
+                  <div v-else-if="knowledge" class="portal-vue-knowledge-doc" v-html="renderedKnowledge"></div>
+                  <el-empty v-else description="该表还没有知识库。灵犀智析只能依据字段注释回答，指标口径可能不准确。"><el-button v-if="knowledgeLoaded && canEdit('表管理')" type="primary" round @click="startKnowledgeEdit">新建知识库</el-button></el-empty>
                 </template>
               </el-tab-pane>
               <el-tab-pane label="血缘查询" name="lineage">
@@ -181,6 +183,8 @@ function injectStyle(id, css) {
       knowledgeSaving: false,
       knowledge: null,
       knowledgeLoading: false,
+      knowledgeLoaded: false,
+      knowledgeError: "",
       knowledgeText: "",
       editingBasic: false,
       detail: null,
@@ -240,19 +244,23 @@ function injectStyle(id, css) {
       total() { return this.result ? this.result.qb.length + this.result.api.length + this.result.dx.length : 0; }
     },
     methods: {
-      startKnowledgeEdit() { this.knowledgeText = this.knowledge?.markdown || knowledgeTemplate(this.detail.cnName || this.detail.table); this.knowledgeEditing = true; },
+      startKnowledgeEdit() { if (!this.knowledgeLoaded) return; this.knowledgeText = this.knowledge?.markdown || knowledgeTemplate(this.detail.cnName || this.detail.table); this.knowledgeEditing = true; },
       cancelKnowledgeEdit() { this.knowledgeEditing = false; this.knowledgeText = ""; },
       /** 知识库按表的中文名存取（服务端以表名为键）；进入页面或切到知识库页签时读取 */
       async fetchKnowledge() {
         if (!this.detail) return;
         const name = this.detail.cnName || this.detail.table;
         this.knowledgeLoading = true;
-        const knowledge = await knowledgeSync.loadTable(name);
-        if (this.detail && (this.detail.cnName || this.detail.table) === name) this.knowledge = knowledge;
+        this.knowledgeError = "";
+        const result = await knowledgeSync.loadTable(name);
+        if (!this.detail || (this.detail.cnName || this.detail.table) !== name) return;
         this.knowledgeLoading = false;
+        this.knowledgeLoaded = result.ok;
+        this.knowledgeError = result.ok ? "" : (result.error || "未知错误");
+        this.knowledge = result.ok ? result.knowledge : null;
       },
       async saveKnowledge() {
-        if (this.knowledgeSaving) return;
+        if (this.knowledgeSaving || !this.knowledgeLoaded) return;
         const raw = this.knowledgeText.trim();
         if (!raw) return ep.ElMessage.warning("知识库内容不能为空");
         const markdown = normalizeToMarkdown(raw);
@@ -303,6 +311,7 @@ function injectStyle(id, css) {
         this.editingBasic = false;
         this.knowledgeEditing = false;
         this.knowledge = null;
+        this.knowledgeLoaded = false;
         this.fetchKnowledge();
       },
       rebuildDraft() {

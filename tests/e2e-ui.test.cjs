@@ -998,7 +998,7 @@ describe("浏览器端到端", () => {
       // 只给「表管理」查看权限（不给编辑权限）
       const full = (name, tables, extra = {}) => ({ name, desc: "", menus: ["灵犀智析"], menuEdits: [], boards: [], tables, status: "启用", ...extra });
       baseGroups = before.groups.length ? before.groups : [
-        full("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心"] }), full("投放组长", ["广告计划日报表"]), full("优化师", ["广告计划日报表"]),
+        full("门户管理员", ["全部数据表"], { menus: ["灵犀智析", "AI 中心", "表管理"], menuEdits: ["表管理"] }), full("投放组长", ["广告计划日报表"]), full("优化师", ["广告计划日报表"]),
         full("数据分析师", ["广告计划日报表", "用户订单明细"], { menus: ["灵犀智析", "数据看板"], boards: ["大盘数据"] }), full("只读访客", [])
       ];
       const groups = baseGroups.map(group => group.name === "数据分析师" ? { ...group, menus: [...new Set([...group.menus, "表管理"])], menuEdits: group.menuEdits.filter(name => name !== "表管理") } : group);
@@ -1014,5 +1014,22 @@ describe("浏览器端到端", () => {
     } finally {
       if (!skipReason && baseGroups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups: baseGroups } });
     }
+  }));
+  test("表详情：知识库读取失败时显示错误与重试，不出现新建/编辑按钮；重试成功后恢复", async t => withPage(t, async page => {
+    await login(page, "曾祥竞");
+    await appVisible(page);
+    await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
+    const pattern = /\/v1\/knowledge\/tables\//;
+    await page.route(pattern, route => route.request().method() === "GET" ? route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "服务暂时不可用" }) }) : route.continue());
+    await openTableDetail(page, "广告计划日报表");
+    await page.locator(".portal-vue-knowledge-error").waitFor();
+    assert.match(await page.locator(".portal-vue-knowledge-error").textContent(), /服务暂时不可用/);
+    assert.equal(await page.getByRole("button", { name: "编辑知识库" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "新建知识库" }).count(), 0);
+    await page.unroute(pattern);
+    await page.getByRole("button", { name: "重试" }).click();
+    await page.locator(".portal-vue-knowledge-doc").waitFor();
+    assert.equal(await page.locator(".portal-vue-knowledge-error").count(), 0);
+    await page.getByRole("button", { name: "编辑知识库" }).waitFor();
   }));
 });

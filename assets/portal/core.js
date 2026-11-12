@@ -165,13 +165,14 @@
         return false;
       }
     },
+    /** → { ok, knowledge, error? }：ok:true 且 knowledge:null 才表示「该表确实没有知识库」；非 2xx 或网络失败一律 ok:false（不能当成空） */
     async loadTable(table) {
       try {
         const response = await fetch(`${analysisGatewayBase}/v1/knowledge/tables/${encodeURIComponent(table)}`);
-        if (!response.ok) return null;
-        const data = await response.json();
-        return data.knowledge || null;
-      } catch (error) { return null; }
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) return { ok: false, knowledge: null, error: data.error || `读取失败（${response.status}）` };
+        return { ok: true, knowledge: data.knowledge || null };
+      } catch (error) { return { ok: false, knowledge: null, error: "无法连接分析网关" }; }
     },
     async saveTable(table, markdown) {
       try {
