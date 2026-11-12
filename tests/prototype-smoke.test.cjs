@@ -410,6 +410,11 @@ assert(skillDetailSource.includes("beforeLeave") && skillDetailSource.includes("
 assert(skillDetailSource.includes("canEdit('Skill 配置')"), "详情页编辑与保存应受 Skill 配置权限控制");
 assert(skillDetailSource.includes("saveTables") && skillDetailSource.includes("multiple") && skillDetailSource.includes("filterable") && skillDetailSource.includes("失效") && skillDetailSource.includes("不预置默认表"), "引用的表页签应可多选增删，失效表需标记，空清单说明不预置默认表");
 assert(skillDetailSource.includes("请先移除已失效的表") && skillDetailSource.includes("引用的表已更新，分析默认范围即时生效") && skillDetailSource.includes("没有写到服务端"), "引用的表保存应拦截失效表，成功或未写到服务端都要有明确提示");
+assert(["灰度", "调整灰度", "发版", "回滚到此版本", "查看"].every(label => skillDetailSource.includes(label)) && skillDetailSource.includes("ElMessageBox.confirm") && skillDetailSource.includes("发版确认"), "版本管理页签应支持灰度、发版、查看与回滚，发版前需确认");
+assert(skillDetailSource.includes("openViewVersion") && skillDetailSource.includes("versionStatusName") && !skillDetailSource.includes("viewVersion.snapshot?.tables") && !skillDetailSource.includes("snapshot.tables"), "查看快照应展示基本信息、提示词或路由规则、版本说明，且不把引用的表放进快照");
+const skillListSource = read("assets/portal/page-skill-management.js");
+assert(!skillListSource.includes("<el-drawer") && !skillListSource.includes("新增版本 ·") && !skillListSource.includes("publishVisible") && !skillListSource.includes("openVersionManage"), "Skill 列表页不应再保留配置或版本管理抽屉");
+
 
 
 assert(portalVue.includes("SkillManagementApp") && portalVue.includes("openDetail(") && portalVue.includes('bridge.setSkillDetailId') && portalVue.includes('bridge.setPage("Skill 详情")'), "Skill 列表应通过 openDetail 进入详情页");
