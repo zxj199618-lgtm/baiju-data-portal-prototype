@@ -115,4 +115,25 @@ describe("评测运行器", () => {
     });
     assert.ok(golden.cases.length >= 10);
   });
+  test("evals/cases.json 里含 businessLine 字段的用例都能被 run-evals 的格式校验接受，且至少有 3 条跨表用例", async () => {
+    const golden = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "evals", "cases.json"), "utf8"));
+    const lineCases = golden.cases.filter(item => item.businessLine !== undefined);
+    assert.ok(lineCases.length >= 3, "至少 3 条带 businessLine 的跨表用例");
+    lineCases.forEach(item => {
+      assert.ok(typeof item.businessLine === "string" && item.businessLine && item.businessLine !== "公共", `${item.id} 的 businessLine 必须是非「公共」的业务线名`);
+      assert.ok(item.question && item.expect && item.title, `${item.id} 缺少标题、问题或期望`);
+      assert.ok(!item.tables || item.tables.length === 0, `${item.id} 不应再指定 tables（候选表由业务线决定）`);
+    });
+    // 运行器必须把 businessLine 带进 /v1/analyze 请求
+    let seen;
+    const originalFetch = global.fetch;
+    global.fetch = async (url, options) => {
+      if (String(url).endsWith("/v1/analyze")) { seen = JSON.parse(options.body); return { status: 200, text: async () => "{}", json: async () => ({}) }; }
+      return originalFetch(url, options);
+    };
+    try {
+      await runEvals({ baseUrl: harness.baseUrl, password: harness.PASSWORD, cases: { cases: [{ id: "x", title: "x", question: "q", businessLine: "权益", expect: {} }] }, models: [harness.MODEL] });
+    } finally { global.fetch = originalFetch; }
+    assert.equal(seen?.businessLine, "权益", "runEvals 应透传 businessLine");
+  });
 });
