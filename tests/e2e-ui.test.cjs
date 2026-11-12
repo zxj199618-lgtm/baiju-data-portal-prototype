@@ -1681,7 +1681,7 @@ describe("浏览器端到端", () => {
     await page.evaluate(hash => { location.hash = hash; }, "#/ai/skills/equity-union-analyst");
     await page.waitForFunction(() => window.portalVueBridge.getPage() === "Skill 详情");
     await page.waitForSelector("#skillDetailView:not(.hidden)");
-    await page.getByRole("tab", { name: "引用的表" }).click();
+    await page.getByRole("tab", { name: "提示词" }).click();
     await page.locator("#skillDetailView .el-select").getByText("权益-账号维度消耗统计表").first().waitFor({ timeout: 15000 });
   }));
 
@@ -1731,7 +1731,7 @@ describe("浏览器端到端", () => {
       await login(page, "曾祥竞");
       await appVisible(page);
       await openSkillDetail(page);
-      await page.getByRole("tab", { name: "引用的表" }).click();
+      await page.getByRole("tab", { name: "提示词" }).click();
       const add = await page.evaluate(() => {
         const skill = window.portalVueModuleApi.state.skills.find(item => item.id === "warehouse-analyst");
         const known = (window.portalVueModuleApi.state.assets || []).map(item => item.cnName).filter(Boolean);
@@ -1759,11 +1759,11 @@ describe("浏览器端到端", () => {
       await page.getByRole("option", { name: add, exact: true }).click();
       await page.keyboard.press("Escape");
       await page.locator(".el-select-dropdown:visible").waitFor({ state: "hidden" });
-      await page.getByRole("button", { name: "保存引用的表" }).click();
-      await page.waitForFunction(() => [...document.querySelectorAll(".el-message")].some(el => el.textContent.includes("引用的表已更新")));
+      await page.getByRole("button", { name: "保存", exact: true }).click();
+      await page.waitForFunction(() => [...document.querySelectorAll(".el-message")].some(el => el.textContent.includes("已保存为")));
       await backToSkillList(page);
       await openSkillDetail(page);
-      await page.getByRole("tab", { name: "引用的表" }).click();
+      await page.getByRole("tab", { name: "提示词" }).click();
       const tags = (await page.locator("#skillDetailView .el-select__tags, #skillDetailView .el-tag, #skillDetailView .el-select").allTextContents()).join(" ");
       assert.match(tags, new RegExp(add.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `再进入详情应仍看到 ${add}，实际：${tags}`);
       const saved = await skillFromGateway(admin);
@@ -1771,6 +1771,35 @@ describe("浏览器端到端", () => {
     } finally {
       if (!skipReason && before) {
         await harness.call("PUT", `/v1/skills/${SKILL_ID}/config`, { token: admin, body: { tables: originalTables } });
+      }
+    }
+  }));
+
+  test("Skill 详情：新增版本进入提示词，写到的数据表自动加入引用的表，保存版本时一起保存", async t => withPage(t, async page => {
+    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
+    const before = skipReason ? null : await skillFromGateway(admin, "equity-union-analyst");
+    const originalTables = before ? [...(before.tables || [])] : [];
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      await page.evaluate(hash => { location.hash = hash; }, "#/ai/skills/equity-union-analyst");
+      await page.waitForFunction(() => window.portalVueBridge.getPage() === "Skill 详情");
+      await page.waitForSelector("#skillDetailView:not(.hidden)");
+      await page.getByRole("tab", { name: "版本管理" }).click();
+      await page.getByRole("button", { name: "新增版本" }).click();
+      const prompt = page.locator("#skillDetailView .portal-vue-skill-prompt-input textarea");
+      await prompt.waitFor();
+      await prompt.fill("先看 E2E-自动识别 相关情况，再结合 广告计划日报表 的口径回答");
+      await page.locator("#skillDetailView .el-select").getByText("广告计划日报表").first().waitFor({ timeout: 5000 });
+      const version = `v9.${Date.now() % 1000}`;
+      await page.locator("#skillDetailView .el-form-item", { hasText: "版本号" }).locator("input").fill(version);
+      await page.getByRole("button", { name: "保存", exact: true }).click();
+      await page.waitForFunction(() => [...document.querySelectorAll(".el-message")].some(el => el.textContent.includes("已保存为")));
+      const saved = await skillFromGateway(admin, "equity-union-analyst");
+      assert.ok((saved.tables || []).includes("广告计划日报表"), "提示词里写到的表应随版本保存到服务端");
+    } finally {
+      if (!skipReason && before) {
+        await harness.call("PUT", "/v1/skills/equity-union-analyst/config", { token: admin, body: { tables: originalTables } });
       }
     }
   }));
@@ -1796,7 +1825,6 @@ describe("浏览器端到端", () => {
       await appVisible(page);
       await openSkillDetail(page);
       assert.equal(await page.getByRole("button", { name: "保存", exact: true }).count(), 0, "只读账号不应看到保存");
-      assert.equal(await page.getByRole("button", { name: "保存引用的表" }).count(), 0);
       await page.getByRole("tab", { name: "版本管理" }).click();
       assert.equal(await page.getByRole("button", { name: "灰度" }).count(), 0);
       assert.equal(await page.getByRole("button", { name: "调整灰度" }).count(), 0);

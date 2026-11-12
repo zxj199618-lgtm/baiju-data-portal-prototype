@@ -75,25 +75,23 @@
                   <el-form-item label="兜底技能（未命中关键词时使用）"><el-select v-model="draft.fallbackSkillId" placeholder="选择兜底技能" style="width:260px" :disabled="!editable"><el-option v-for="item in routeOptions" :key="item.id" :label="item.name" :value="item.id"></el-option></el-select></el-form-item>
                 </el-form>
                 <el-form v-else class="portal-vue-dialog-form" label-position="top">
-                  <el-form-item label="提示词"><el-input v-model="draft.prompt" type="textarea" resize="none" class="portal-vue-skill-prompt-input" :disabled="!editable" placeholder="该 Skill 的分析指令"></el-input></el-form-item>
+                  <el-form-item label="提示词"><el-input v-model="draft.prompt" type="textarea" resize="none" class="portal-vue-skill-prompt-input" :disabled="!editable" placeholder="该 Skill 的分析指令" @input="autoAddTablesFrom"></el-input></el-form-item>
                 </el-form>
-              </el-tab-pane>
-              <el-tab-pane label="引用的表" name="tables">
                 <el-form class="portal-vue-dialog-form" label-position="top" style="max-width:760px">
-                  <el-form-item label="引用的表">
+                  <el-form-item label="引用的表（提示词里写到的表会自动识别加入，与提示词一起保存为版本）">
                     <el-select v-model="tableDraft" multiple filterable clearable :disabled="!editable" placeholder="从已有数据表中选择" style="width:100%">
                       <el-option v-for="name in tableOptions" :key="name" :label="name" :value="name">
                         <span>{{ name }}</span>
                         <el-tag v-if="isInvalidTable(name)" size="small" type="danger" style="margin-left:8px">失效</el-tag>
                       </el-option>
                     </el-select>
-                    <p class="portal-vue-muted" style="margin:8px 0 0;font-size:12px">{{ tableDraft.length ? "已失效的表请先移除再保存。保存后分析默认范围即时生效，不会生成新版本。" : "不预置默认表。未选择时，分析不会预置默认表。" }}</p>
+                    <p class="portal-vue-muted" style="margin:8px 0 0;font-size:12px">{{ tableDraft.length ? "已失效的表请先移除再保存。" : "不预置默认表。提示词里没有提到任何数据表时，分析不会预置默认表。" }}</p>
                   </el-form-item>
                 </el-form>
-                <div v-if="editable" class="portal-vue-actions" style="padding:8px 0 16px"><el-button type="primary" @click="saveTables">保存引用的表</el-button></div>
               </el-tab-pane>
               <el-tab-pane label="版本管理" name="versions">
-                <el-alert type="info" :closable="false" title="新版本在「基本信息」或「提示词」保存后先为未发布；未发布可选灰度用户测试，灰度中可调整灰度或发版成为正式版本；历史正式版本可查看或回滚。引用的表不进入版本快照。" :show-icon="true" style="margin-bottom:12px"></el-alert>
+                <el-alert type="info" :closable="false" title="新版本在「基本信息」或「提示词」保存后先为未发布；未发布可选灰度用户测试，灰度中可调整灰度或发版成为正式版本；历史正式版本可查看或回滚。提示词与引用的表一起保存进版本快照。" :show-icon="true" style="margin-bottom:12px"></el-alert>
+                <el-button v-if="editable" type="primary" plain style="margin-bottom:12px" @click="startNewVersion">新增版本</el-button>
                 <div v-for="item in skill.versions || []" :key="item.version" class="portal-vue-skill-version" :class="{ current: item.current }">
                   <div class="portal-vue-skill-version-head">
                     <strong>{{ item.version }}</strong><el-tag v-if="item.current" size="small" type="success" effect="light">当前</el-tag><el-tag size="small" :type="versionStatusType(item)" effect="light">{{ versionStatusName(item) }}</el-tag><time>{{ item.time }}</time>
@@ -143,6 +141,7 @@
                   <div class="portal-vue-alert-field"><label>兜底技能</label><span>{{ routeSkillName(viewVersion.snapshot?.fallbackSkillId) || "—" }}</span></div>
                 </template>
                 <div v-else class="portal-vue-alert-field"><label>提示词</label><pre class="portal-vue-alert-sql" style="white-space:pre-wrap">{{ viewVersion.snapshot?.prompt || skill?.prompt || "（无）" }}</pre></div>
+                <div class="portal-vue-alert-field"><label>引用的表</label><span>{{ (viewVersion.snapshot?.tables || []).join("、") || "—" }}</span></div>
                 <div class="portal-vue-muted" style="font-size:12px">版本时间：{{ viewVersion.time }} · 操作人：{{ viewVersion.operator }}</div>
               </div>
             </el-dialog>
@@ -191,6 +190,7 @@
       dirty() {
         if (!this.skill) return false;
         return JSON.stringify(this.currentSnapshot()) !== JSON.stringify(this.draftSnapshot(this.draft))
+          || JSON.stringify([...(this.tableDraft || [])].sort()) !== JSON.stringify([...(this.skill.tables || [])].sort())
           || String(this.draft.versionNote || "") !== ""
           || String(this.draft.version || "") !== this.nextVersion();
       }
@@ -299,6 +299,17 @@
         };
       },
       cancelDraft() { this.loadSkill(); },
+      startNewVersion() {
+        this.draft.versionNote = "";
+        this.draft.version = this.nextVersion();
+        this.tab = "prompt";
+      },
+      /* 提示词里写到的已知数据表名自动加入引用的表（只增不减，删除仍可手动） */
+      autoAddTablesFrom(text) {
+        if (!this.editable) return;
+        const found = this.knownTables.filter(name => name && String(text || "").includes(name) && !(this.tableDraft || []).includes(name));
+        if (found.length) this.tableDraft = [...(this.tableDraft || []), ...found];
+      },
       async confirmLeave() {
         if (!this.dirty || !this.editable) return true;
         try {
@@ -310,7 +321,7 @@
       },
       async beforeLeave(newName, oldName) {
         const editing = oldName === "basic" || oldName === "prompt";
-        const leaving = newName === "tables" || newName === "versions";
+        const leaving = newName === "versions";
         if (editing && leaving && !(await this.confirmLeave())) return false;
         return true;
       },
@@ -327,8 +338,10 @@
         if (!name) return ep.ElMessage.warning("请输入 Skill 名称");
         if (!title) return ep.ElMessage.warning("请输入工作台展示标题");
         if ((state.skills || []).some(item => item.id !== skill.id && item.name === name)) return ep.ElMessage.warning("Skill 名称已存在");
+        if ((this.tableDraft || []).some(name => this.isInvalidTable(name))) return ep.ElMessage.warning("请先移除已失效的表");
         const note = String(form.versionNote || "").trim() || "更新配置";
         const routing = skill.kind === "router";
+        const tables = [...(this.tableDraft || [])];
         const routes = routing ? this.parsedRoutes() : undefined;
         const snapshot = {
           icon: form.icon || "✦",
@@ -338,8 +351,10 @@
           sort: form.sort,
           enabled: form.enabled,
           prompt: form.prompt,
+          tables,
           ...(routing ? { routes, fallbackSkillId: form.fallbackSkillId } : {})
         };
+        skill.tables = tables;
         Object.assign(skill, snapshot, { name });
         const version = String(form.version || "").trim() || this.nextVersion();
         skill.versions = (skill.versions || []).map(item => ({ ...item, current: false }));
@@ -366,6 +381,7 @@
               sort: snapshot.sort,
               enabled: snapshot.enabled,
               prompt: snapshot.prompt,
+              tables,
               ...(routing ? { routes, fallbackSkillId: snapshot.fallbackSkillId } : {}),
               latestVersion: { version, note, status: "未发布", grayUsers: [] }
             })
@@ -373,23 +389,6 @@
         } catch (error) { /* 网关未连接时保留原型状态 */ }
         notify(`「${skill.name}」已保存为 ${version}（未发布，可到「版本管理」灰度 / 发版）`);
         this.loadSkill();
-      },
-      async saveTables() {
-        const skill = this.skill;
-        if (!skill) return;
-        if ((this.tableDraft || []).some(name => this.isInvalidTable(name))) return ep.ElMessage.warning("请先移除已失效的表");
-        skill.tables = [...(this.tableDraft || [])];
-        try {
-          const response = await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(skill.id)}/config`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ tables: skill.tables })
-          });
-          if (!response.ok) throw new Error(String(response.status));
-          notify("引用的表已更新，分析默认范围即时生效");
-        } catch (error) {
-          ep.ElMessage.warning("引用的表已在本页更新，但没有写到服务端");
-        }
       },
       versionStatusName(item) { return item?.status || "已发布"; },
       versionStatusType(item) {
@@ -421,8 +420,9 @@
         if (item.snapshot) {
           Object.assign(skill, { icon: item.snapshot.icon, title: item.snapshot.title, desc: item.snapshot.desc, displayDesc: item.snapshot.displayDesc, sort: item.snapshot.sort, enabled: item.snapshot.enabled, prompt: item.snapshot.prompt });
           if (item.snapshot.routes) skill.routes = item.snapshot.routes;
+          if (Array.isArray(item.snapshot.tables)) skill.tables = [...item.snapshot.tables];
           if (item.snapshot.fallbackSkillId !== undefined) skill.fallbackSkillId = item.snapshot.fallbackSkillId;
-          try { fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(skill.id)}/config`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ icon: item.snapshot.icon, title: item.snapshot.title, desc: item.snapshot.desc, displayDesc: item.snapshot.displayDesc, sort: item.snapshot.sort, enabled: item.snapshot.enabled, prompt: item.snapshot.prompt, ...(item.snapshot.routes ? { routes: item.snapshot.routes, fallbackSkillId: item.snapshot.fallbackSkillId } : {}) }) }); } catch (error) { /* 网关未连接时保留原型状态 */ }
+          try { fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(skill.id)}/config`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ icon: item.snapshot.icon, title: item.snapshot.title, desc: item.snapshot.desc, displayDesc: item.snapshot.displayDesc, sort: item.snapshot.sort, enabled: item.snapshot.enabled, prompt: item.snapshot.prompt, ...(Array.isArray(item.snapshot.tables) ? { tables: item.snapshot.tables } : {}), ...(item.snapshot.routes ? { routes: item.snapshot.routes, fallbackSkillId: item.snapshot.fallbackSkillId } : {}) }) }); } catch (error) { /* 网关未连接时保留原型状态 */ }
         }
         skill.versions.forEach(version => { version.current = version === item; });
         skill.version = item.version;
