@@ -77,7 +77,11 @@
 }
 .portal-vue-nav-scroll { height: calc(100vh - 72px); }
 .portal-vue-menu { border-right: 0 !important; background: transparent !important; padding: 12px; }
-.portal-vue-menu.el-menu--collapse { width: 100%; padding: 12px 10px; }
+.portal-vue-menu.el-menu--collapse { width: 100%; box-sizing: border-box; padding: 12px 10px; }
+.portal-vue-menu.el-menu--collapse .el-menu-item,
+.portal-vue-menu.el-menu--collapse .el-sub-menu,
+.portal-vue-menu.el-menu--collapse .el-sub-menu__title { box-sizing: border-box; width: 100%; margin-left: 0; margin-right: 0; }
+.portal-vue-nav-scroll .el-scrollbar__view { width: 100%; box-sizing: border-box; }
 .portal-vue-menu.el-menu--collapse .el-menu-item,
 .portal-vue-menu.el-menu--collapse .el-sub-menu__title { justify-content: center; padding-left: 0 !important; padding-right: 0 !important; }
 .portal-vue-menu.el-menu--collapse .portal-nav-icon { margin: 0 auto !important; display: block; }
