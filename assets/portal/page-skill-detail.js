@@ -364,7 +364,6 @@
         if (!version) return ep.ElMessage.warning("请输入版本号");
         const editing = this.mode === "edit" ? this.selected : "";
         if (this.versions.some(item => item.version === version && item.version !== editing)) return ep.ElMessage.warning("版本号已存在");
-        if (!this.isRouter && !String(form.prompt || "").trim()) return ep.ElMessage.warning("请输入提示词");
         if ((form.tables || []).some(name => this.isInvalidTable(name))) return ep.ElMessage.warning("请先移除已失效的表");
         const snapshot = {
           prompt: form.prompt,

@@ -1761,7 +1761,8 @@ describe("浏览器端到端", () => {
       await backToSkillList(page);
       await openSkillDetail(page);
       await page.getByRole("tab", { name: "提示词" }).click();
-      const tags = (await page.locator("#skillDetailView .el-select__tags, #skillDetailView .el-tag, #skillDetailView .el-select").allTextContents()).join(" ");
+      await page.locator("#skillDetailView .sk-pv-item", { hasText: "未发布" }).first().click();
+      const tags = await page.locator("#skillDetailView .sk-pv-main").textContent();
       assert.match(tags, new RegExp(add.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `再进入详情应仍看到 ${add}，实际：${tags}`);
       const saved = await skillFromGateway(admin);
       assert.ok((saved.versions || []).some(item => (item.snapshot?.tables || []).includes(add) && item.status === "未发布"), "引用的表应随未发布版本写到服务端");
