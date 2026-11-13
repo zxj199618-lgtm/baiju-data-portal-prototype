@@ -142,13 +142,13 @@
                   <p class="portal-vue-ai-group-label">会话记录 <span>含飞书机器人</span></p>
                   <template v-if="ongoingSessions.length">
                     <article v-for="session in ongoingSessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
-                      <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time>{{ shortTime(session.time) }}</time></div>
-                      <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span>{{ session.scenario }}</span><span class="portal-vue-ai-session-status running">{{ session.status }}</span></div>
+                      <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time :title="session.time">{{ relativeTime(session.time) }}</time></div>
+                      <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span>{{ session.scenario }}</span><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span><span class="portal-vue-ai-session-status running">{{ session.status }}</span></div>
                     </article>
                   </template>
                   <article v-for="session in historySessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
-                    <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time>{{ shortTime(session.time) }}</time></div>
-                    <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span>{{ session.scenario }}</span></div>
+                    <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time :title="session.time">{{ relativeTime(session.time) }}</time></div>
+                    <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span>{{ session.scenario }}</span><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span></div>
                   </article>
                   <p v-if="!sessions.length" class="portal-vue-muted">暂无会话</p>
                 </div>
@@ -766,6 +766,20 @@
         this.mentionKeyword="";
       },
       tablesForBusinessLine(line){return this.tableGroups.find(group=>group.name===line)?.tables||[];},
+      /** 会话时间：几分钟前 / 几小时前 / 几天前，更早显示 11月10日（跨年带年份） */
+      relativeTime(value){
+        const m=String(value||"").match(/(?:(\d{4})[-/])?(\d{1,2})[-/](\d{1,2})[ T]+(\d{1,2}):(\d{2})/);
+        if(!m)return String(value||"");
+        const now=new Date();
+        const year=m[1]?Number(m[1]):now.getFullYear();
+        const date=new Date(year,Number(m[2])-1,Number(m[3]),Number(m[4]),Number(m[5]));
+        const diff=now-date;
+        if(diff<60000)return "刚刚";
+        if(diff<3600000)return `${Math.floor(diff/60000)}分钟前`;
+        if(diff<86400000)return `${Math.floor(diff/3600000)}小时前`;
+        if(diff<7*86400000)return `${Math.floor(diff/86400000)}天前`;
+        return `${year!==now.getFullYear()?year+"年":""}${date.getMonth()+1}月${date.getDate()}日`;
+      },
       shortTime(value){
         const m=String(value||"").match(/(\d{1,2})[-/](\d{1,2})\s+(\d{1,2}):(\d{2})/);
         return m?`${m[1].padStart(2,"0")}-${m[2].padStart(2,"0")} ${m[3].padStart(2,"0")}:${m[4]}`:String(value||"").slice(5,16);

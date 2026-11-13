@@ -1136,3 +1136,5 @@
 .portal-vue-bizline-editor-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
 .portal-vue-bizline-relation-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 16px; }
 @media (max-width: 900px) { .portal-vue-bizline { grid-template-columns: minmax(0, 1fr); } .portal-vue-bizline-side { border-right: none; border-bottom: 1px solid #e9edf4; } }
+
+.portal-vue-ai-session-line { padding: 0 6px; height: 18px; line-height: 18px; border-radius: 4px; background: #f1f4f9; color: #5a6b85; font-size: 11px; white-space: nowrap; }
