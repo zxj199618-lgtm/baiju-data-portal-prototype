@@ -1138,3 +1138,9 @@
 @media (max-width: 900px) { .portal-vue-bizline { grid-template-columns: minmax(0, 1fr); } .portal-vue-bizline-side { border-right: none; border-bottom: 1px solid #e9edf4; } }
 
 .portal-vue-ai-session-line { padding: 0 6px; height: 18px; line-height: 18px; border-radius: 4px; background: #f1f4f9; color: #5a6b85; font-size: 11px; white-space: nowrap; }
+
+.portal-vue-subtabs { display: flex; align-items: center; gap: 6px; margin-bottom: -2px; }
+.portal-vue-subtabs button { height: 28px; padding: 0 14px; border: 1px solid #e4e9f2; border-radius: 14px; background: #fff; color: #5a5f6c; font-size: 13px; cursor: pointer; }
+.portal-vue-subtabs button:hover { color: #0066ff; border-color: #b8d0ff; }
+.portal-vue-subtabs button.active { background: #0066ff; border-color: #0066ff; color: #fff; }
+.portal-vue-subtabs .portal-vue-muted { margin-left: 8px; font-size: 12px; }
