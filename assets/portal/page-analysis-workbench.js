@@ -12,6 +12,7 @@
     enabledDictItems,
     ep,
     isImageIconValue,
+    resolveSkillIcon,
     knowledgeData,
     mount,
     notify,
@@ -183,7 +184,7 @@
                 </div>
                 <div class="portal-vue-ai-scenarios">
                   <button v-for="scene in scenarios" :key="scene.key" type="button" class="portal-vue-ai-scenario" :class="{ active: scenario === scene.key, 'is-auto': scene.kind === 'router' }" :title="scene.desc" :aria-pressed="scenario === scene.key" @click="setScenario(scene.key)">
-                    <span class="portal-vue-ai-scene-icon"><img v-if="isImageIcon(scene.icon)" :src="scene.icon" alt="" /><span v-else>{{ scene.icon }}</span></span>
+                    <span class="portal-vue-ai-scene-icon"><img v-if="isImageIcon(scene.icon)" :src="resolveIcon(scene.icon)" alt="" /><span v-else>{{ scene.icon }}</span></span>
                     <span class="portal-vue-ai-scene-text"><strong>{{ scene.name }}</strong><small>{{ scene.desc }}</small></span>
                     <span v-if="scene.kind === 'router'" class="portal-vue-ai-scene-badge">自动</span>
                     <span class="portal-vue-ai-scene-check" aria-hidden="true">✓</span>
@@ -615,6 +616,7 @@
         if(session&&!session.messages.length&&!session.suggested)session.scenario=this.scenarioName;
       },
       isImageIcon(icon){return isImageIconValue(icon);},
+      resolveIcon(icon){return resolveSkillIcon(icon);},
       async removeReport(report){
         if(!await confirmAction("删除报告",`确认从分析资产中删除「${report.title}」？`))return;
         this.reports=this.reports.filter(item=>item.id!==report.id);

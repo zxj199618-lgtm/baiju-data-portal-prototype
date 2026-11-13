@@ -1739,10 +1739,10 @@
       function navIconPath(icon, active = false) {
         const icons = {
           push: { default: "assets/nav-push-default.svg", active: "assets/nav-push-active.svg" },
-          dashboard: { default: "assets/nav-dashboard-default.png", active: "assets/nav-dashboard-active.png" },
-          gateway: { default: "assets/nav-service-default.png", active: "assets/nav-service-active.png" },
-          asset: { default: "assets/nav-asset-default.png", active: "assets/nav-asset-active.png" },
-          permission: { default: "assets/nav-permission-default.png", active: "assets/nav-permission-active.png" },
+          dashboard: { default: "assets/nav-dashboard-default.svg", active: "assets/nav-dashboard-active.svg" },
+          gateway: { default: "assets/nav-service-default.svg", active: "assets/nav-service-active.svg" },
+          asset: { default: "assets/nav-asset-default.svg", active: "assets/nav-asset-active.svg" },
+          permission: { default: "assets/nav-permission-default.svg", active: "assets/nav-permission-active.svg" },
           system: { default: "assets/nav-system-default.svg", active: "assets/nav-system-active.svg" },
           alert: { default: "assets/nav-alert-default.svg", active: "assets/nav-alert-active.svg" },
           analysis: { default: "assets/nav-analysis-default.svg", active: "assets/nav-analysis-active.svg" },

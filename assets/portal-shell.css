@@ -148,15 +148,6 @@
       box-sizing: border-box;
     }
 
-    .nav-icon.gateway,
-    .nav-icon.asset {
-      padding: 2px;
-    }
-
-    .nav-icon.push {
-      padding: 3px;
-      opacity: .82;
-    }
 
     .nav-head.active .nav-icon {
       filter: none;

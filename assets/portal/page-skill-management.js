@@ -10,6 +10,7 @@
     bridge,
     ep,
     isImageIconValue,
+    resolveSkillIcon,
     loginUser,
     mount,
     notify,
@@ -27,14 +28,14 @@
           </div>
           <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无 Skill">
             <el-table-column label="Skill" min-width="280"><template #default="scope"><div><span class="portal-vue-name" style="cursor:pointer" @click="openDetail(scope.row)">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.desc }}</div></div></template></el-table-column>
-            <el-table-column label="工作台展示" min-width="280"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:8px"><span class="portal-vue-skill-cell-icon"><img v-if="isImageIcon(scope.row.icon)" :src="scope.row.icon" alt="" /><span v-else>{{ scope.row.icon }}</span></span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">已下线</span></template></el-table-column>
+            <el-table-column label="工作台展示" min-width="280"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:8px"><span class="portal-vue-skill-cell-icon"><img v-if="isImageIcon(scope.row.icon)" :src="resolveIcon(scope.row.icon)" alt="" /><span v-else>{{ scope.row.icon }}</span></span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">已下线</span></template></el-table-column>
             <el-table-column prop="version" label="当前版本" width="120"></el-table-column>
             <el-table-column label="状态" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:6px"><el-switch :disabled="!canEdit('Skill 配置')" v-model="scope.row.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch><el-tag v-if="scope.row.enabled!==false && skillStatus(scope.row)!=='已发布'" size="small" :type="skillStatus(scope.row)==='未发布' ? 'info' : 'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></div></template></el-table-column>
             <el-table-column label="灰度用户" min-width="170"><template #default="scope"><div v-if="scope.row.grayUsers.length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.grayUsers.slice(0,3)" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="scope.row.grayUsers.length>3" class="portal-vue-muted">+{{ scope.row.grayUsers.length-3 }}</span></div><span v-else class="portal-vue-muted">全量发布</span></template></el-table-column>
             <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
             <el-table-column label="操作" width="88" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button></div></template></el-table-column>
           </el-table>
-          <div class="portal-vue-muted" style="margin-top:12px">配置请进入详情页；新版本先存为未发布，在详情的「版本管理」里灰度或发版。</div>
+          <div class="portal-vue-muted" style="margin-top:12px">配置请进入详情页；新版本在详情的「提示词」里保存为未发布，灰度或发布后才上线。</div>
         </section>
         <el-dialog v-model="createVisible" title="新增 Skill" width="480px" destroy-on-close :close-on-click-modal="true">
           <el-form class="portal-vue-dialog-form" label-position="top">
@@ -101,6 +102,7 @@
         notify(`「${row.name}」已${enabled ? "上线，灵犀智析恢复展示" : "下线，灵犀智析立即隐藏"}`);
       },
       isImageIcon(icon) { return isImageIconValue(icon); },
+      resolveIcon(icon) { return resolveSkillIcon(icon); },
       skillStatus(row) {
         const current = (row.versions || []).find(item => item.current);
         if (!current) return row.grayUsers?.length ? "灰度中" : "已发布";

@@ -81,9 +81,6 @@
 .portal-vue-menu.el-menu--collapse .el-menu-item,
 .portal-vue-menu.el-menu--collapse .el-sub-menu__title { justify-content: center; padding-left: 0 !important; padding-right: 0 !important; }
 .portal-vue-menu.el-menu--collapse .portal-nav-icon { margin: 0 auto !important; display: block; }
-.portal-vue-menu.el-menu--collapse .portal-nav-icon.gateway,
-.portal-vue-menu.el-menu--collapse .portal-nav-icon.asset,
-.portal-vue-menu.el-menu--collapse .portal-nav-icon.push { padding: 0; }
 .portal-vue-menu .el-menu-item,
 .portal-vue-menu .el-sub-menu__title { height: 42px; line-height: 42px; margin: 2px 0; padding-right: 12px !important; padding-left: 14px !important; border-radius: 8px; font-weight: 650; display: flex; align-items: center; }
 /* 分组标题右侧需给展开/折叠箭头留位：箭头为绝对定位（right: 20px），否则角标会盖住它 */
@@ -92,10 +89,7 @@
 .portal-vue-menu .el-sub-menu.is-active > .el-sub-menu__title { color: #0066FF; background: #edf5ff; }
 .portal-vue-menu .el-sub-menu .el-menu-item { min-width: 0; padding-left: 42px !important; background: transparent; }
 .portal-vue-menu .el-sub-menu .el-menu-item.is-active { background: #e7f1ff; }
-.portal-nav-icon { width: 16px; height: 16px; margin-right: 8px; object-fit: contain; flex: 0 0 16px; }
-.portal-nav-icon.gateway,
-.portal-nav-icon.asset { padding: 1px; }
-.portal-nav-icon.push { padding: 2px; opacity: .86; }
+.portal-nav-icon { width: 18px; height: 18px; margin-right: 8px; object-fit: contain; flex: 0 0 18px; padding: 0 !important; opacity: 1 !important; }
 .portal-vue-menu.el-menu--collapse .portal-nav-icon { margin-right: 0; }
 .portal-nav-badges { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto; }
 .portal-nav-new { height: 18px; padding: 0 5px; border: 0; font-size: 10px; font-weight: 750; line-height: 18px; --el-tag-border-color: transparent; }
@@ -463,8 +457,8 @@
 .portal-vue-ai-scenario:hover { border-color: #9cc5ff; }
 .portal-vue-ai-scenario.active { border-color: #0066FF; background: #e7f1ff; }
 /* Skill 图标格：内置 SVG 与用户上传图 / emoji 混排时也要等宽对齐 */
-.portal-vue-ai-scene-icon, .portal-vue-skill-cell-icon { flex: none; width: 18px; height: 18px; display: grid; place-items: center; font-size: 15px; line-height: 1; }
-.portal-vue-ai-scene-icon img, .portal-vue-skill-cell-icon img { width: 17px; height: 17px; object-fit: contain; }
+.portal-vue-ai-scene-icon, .portal-vue-skill-cell-icon { flex: none; width: 22px; height: 22px; display: grid; place-items: center; font-size: 15px; line-height: 1; }
+.portal-vue-ai-scene-icon img, .portal-vue-skill-cell-icon img { width: 22px; height: 22px; object-fit: contain; border-radius: 6px; }
 .portal-vue-ai-scenario strong { display: block; font-size: 12px; line-height: 16px; color: #1f2733; white-space: nowrap; }
 .portal-vue-ai-scenario small { display: block; font-size: 11px; line-height: 15px; color: #8a94a6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-ai-scenario.active strong { color: #0066FF; }
@@ -986,7 +980,7 @@
 .portal-vue-ai-scenario.active strong { color: #fff; }
 .portal-vue-ai-scenario strong { font-size: 13px; font-weight: 600; color: #3a4558; }
 .portal-vue-ai-scenario small { display: none; }
-.portal-vue-ai-scenario.active .portal-vue-ai-scene-icon { filter: brightness(0) invert(1); }
+.portal-vue-ai-scenario.active .portal-vue-ai-scene-icon:not(:has(img)) { filter: brightness(0) invert(1); }
 
 /* 对话区：浅灰底衬托白色气泡 */
 .portal-vue-ai-chat { padding: 24px 28px; gap: 18px; background: #f8f9fc; }

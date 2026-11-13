@@ -1682,7 +1682,7 @@ describe("浏览器端到端", () => {
     await page.waitForFunction(() => window.portalVueBridge.getPage() === "Skill 详情");
     await page.waitForSelector("#skillDetailView:not(.hidden)");
     await page.getByRole("tab", { name: "提示词" }).click();
-    await page.locator("#skillDetailView .el-select").getByText("权益-账号维度消耗统计表").first().waitFor({ timeout: 15000 });
+    await page.locator("#skillDetailView").getByText("权益-账号维度消耗统计表").first().waitFor({ timeout: 15000 });
   }));
 
   test("权限设置：表权限页列出 Skill 引用的表，可直接勾选授权", async t => withPage(t, async page => {
@@ -1698,7 +1698,7 @@ describe("浏览器端到端", () => {
     assert.equal(await row.locator("input[type=checkbox]").count(), 1, "已在表清单中的表应可勾选");
   }));
 
-  test("Skill 详情：在基本信息改展示文案并保存后，版本管理出现未发布版本", async t => withPage(t, async page => {
+  test("Skill 详情：在基本信息改展示文案并保存后直接生效（不生成版本）", async t => withPage(t, async page => {
     const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
     const before = skipReason ? null : await skillFromGateway(admin);
     const marker = `E2E-Skill展示-${Date.now()}`;
@@ -1709,11 +1709,7 @@ describe("浏览器端到端", () => {
       await page.getByRole("tab", { name: "基本信息" }).click();
       await page.locator("#skillDetailView .el-form-item", { hasText: "工作台展示描述" }).locator("input").fill(marker);
       await page.getByRole("button", { name: "保存", exact: true }).click();
-      await page.waitForFunction(() => [...document.querySelectorAll(".el-message")].some(el => /已保存为/.test(el.textContent) && /未发布/.test(el.textContent)));
-      await page.getByRole("tab", { name: "版本管理" }).click();
-      const current = page.locator("#skillDetailView .portal-vue-skill-version.current").first();
-      await current.waitFor();
-      assert.match(await current.textContent(), /未发布/);
+      await page.waitForFunction(() => [...document.querySelectorAll(".el-message")].some(el => /基本信息已保存/.test(el.textContent)));
       const saved = await skillFromGateway(admin);
       assert.equal(saved.displayDesc, marker, "展示文案应写到服务端");
     } finally {
@@ -1732,6 +1728,7 @@ describe("浏览器端到端", () => {
       await appVisible(page);
       await openSkillDetail(page);
       await page.getByRole("tab", { name: "提示词" }).click();
+      await page.getByRole("button", { name: /修改/ }).click();
       const add = await page.evaluate(() => {
         const skill = window.portalVueModuleApi.state.skills.find(item => item.id === "warehouse-analyst");
         const known = (window.portalVueModuleApi.state.assets || []).map(item => item.cnName).filter(Boolean);
@@ -1767,10 +1764,11 @@ describe("浏览器端到端", () => {
       const tags = (await page.locator("#skillDetailView .el-select__tags, #skillDetailView .el-tag, #skillDetailView .el-select").allTextContents()).join(" ");
       assert.match(tags, new RegExp(add.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `再进入详情应仍看到 ${add}，实际：${tags}`);
       const saved = await skillFromGateway(admin);
-      assert.ok((saved.tables || []).includes(add), "引用的表应写到服务端");
+      assert.ok((saved.versions || []).some(item => (item.snapshot?.tables || []).includes(add) && item.status === "未发布"), "引用的表应随未发布版本写到服务端");
+      assert.ok(!(saved.tables || []).includes(add), "未发布前线上引用的表不变");
     } finally {
       if (!skipReason && before) {
-        await harness.call("PUT", `/v1/skills/${SKILL_ID}/config`, { token: admin, body: { tables: originalTables } });
+        await harness.call("PUT", `/v1/skills/${SKILL_ID}/config`, { token: admin, body: { tables: originalTables, versions: before.versions || [] } });
       }
     }
   }));
@@ -1785,9 +1783,9 @@ describe("浏览器端到端", () => {
       await page.evaluate(hash => { location.hash = hash; }, "#/ai/skills/equity-union-analyst");
       await page.waitForFunction(() => window.portalVueBridge.getPage() === "Skill 详情");
       await page.waitForSelector("#skillDetailView:not(.hidden)");
-      await page.getByRole("tab", { name: "版本管理" }).click();
+      await page.getByRole("tab", { name: "提示词" }).click();
       await page.getByRole("button", { name: "新增版本" }).click();
-      const prompt = page.locator("#skillDetailView .portal-vue-skill-prompt-input textarea");
+      const prompt = page.locator("#skillDetailView .sk-pv-textarea textarea");
       await prompt.waitFor();
       await prompt.fill("先看 E2E-自动识别 相关情况，再结合 广告计划日报表 的口径回答");
       await page.locator("#skillDetailView .el-select").getByText("广告计划日报表").first().waitFor({ timeout: 5000 });
@@ -1796,10 +1794,10 @@ describe("浏览器端到端", () => {
       await page.getByRole("button", { name: "保存", exact: true }).click();
       await page.waitForFunction(() => [...document.querySelectorAll(".el-message")].some(el => el.textContent.includes("已保存为")));
       const saved = await skillFromGateway(admin, "equity-union-analyst");
-      assert.ok((saved.tables || []).includes("广告计划日报表"), "提示词里写到的表应随版本保存到服务端");
+      assert.ok((saved.versions || []).some(item => item.version === version && (item.snapshot?.tables || []).includes("广告计划日报表")), "提示词里写到的表应随版本保存到服务端");
     } finally {
       if (!skipReason && before) {
-        await harness.call("PUT", "/v1/skills/equity-union-analyst/config", { token: admin, body: { tables: originalTables } });
+        await harness.call("PUT", "/v1/skills/equity-union-analyst/config", { token: admin, body: { tables: originalTables, versions: before.versions || [] } });
       }
     }
   }));
@@ -1825,10 +1823,8 @@ describe("浏览器端到端", () => {
       await appVisible(page);
       await openSkillDetail(page);
       assert.equal(await page.getByRole("button", { name: "保存", exact: true }).count(), 0, "只读账号不应看到保存");
-      await page.getByRole("tab", { name: "版本管理" }).click();
-      assert.equal(await page.getByRole("button", { name: "灰度" }).count(), 0);
-      assert.equal(await page.getByRole("button", { name: "调整灰度" }).count(), 0);
-      assert.equal(await page.getByRole("button", { name: "发版" }).count(), 0);
+      await page.getByRole("tab", { name: "提示词" }).click();
+      for (const name of ["灰度", "调整灰度", "发布", "新增版本", "修改"]) assert.equal(await page.getByRole("button", { name, exact: true }).count(), 0, `只读账号不应看到「${name}」`);
     } finally {
       if (!skipReason && baseGroups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups: baseGroups } });
     }

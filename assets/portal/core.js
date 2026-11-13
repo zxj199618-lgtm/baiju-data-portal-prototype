@@ -34,8 +34,14 @@
   });
 
   /* Skill 图标既可以是上传的图片（data URL / 远程地址），也可以是随原型分发的内置 SVG 资源 */
-  function isImageIconValue(icon) {
+  /* 旧版 emoji 图标统一换成设计好的 SVG 图标 */
+  const LEGACY_SKILL_ICONS = { "📊": "query", "🔗": "lineage", "📚": "asset", "🎯": "attribution", "✦": "general", "💳": "equity", "📝": "report", "🏭": "warehouse" };
+  function resolveSkillIcon(icon) {
     const value = String(icon || "");
+    return LEGACY_SKILL_ICONS[value] ? `assets/skill-icons/${LEGACY_SKILL_ICONS[value]}.svg` : value;
+  }
+  function isImageIconValue(icon) {
+    const value = resolveSkillIcon(icon);
     return /^(data:image|https?:|blob:|\/?assets\/)/i.test(value) || /\.(svg|png|jpe?g|gif|webp)$/i.test(value);
   }
 
@@ -627,6 +633,7 @@
     groupOfUser,
     humanCount,
     isImageIconValue,
+    resolveSkillIcon,
     isOverviewItem,
     isUserScopeItem,
     knowledgeData,

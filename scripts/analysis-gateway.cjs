@@ -2941,6 +2941,20 @@ async function handleRequest(req, res) {
     });
     if (Array.isArray(body.grayUsers)) entry.grayUsers = body.grayUsers.slice(0, 50);
     if (Array.isArray(body.routes)) entry.routes = sanitizeRoutes(body.routes);
+    /* 提示词版本（含未发布 / 灰度中 / 已发布状态与灰度用户）随 Skill 持久化，线上生效的是 prompt / tables 字段 */
+    if (Array.isArray(body.versions)) {
+      entry.versions = body.versions.slice(0, 100).map(item => ({
+        version: String(item?.version || "").slice(0, 30),
+        time: String(item?.time || "").slice(0, 40),
+        operator: String(item?.operator || "").slice(0, 40),
+        note: String(item?.note || "").slice(0, 300),
+        current: item?.current === true,
+        status: ["未发布", "灰度中", "已发布"].includes(item?.status) ? item.status : "已发布",
+        grayUsers: Array.isArray(item?.grayUsers) ? item.grayUsers.slice(0, 50).map(user => String(user).slice(0, 40)) : [],
+        snapshot: item?.snapshot && typeof item.snapshot === "object" ? JSON.parse(JSON.stringify(item.snapshot).slice(0, 200000)) : undefined
+      })).filter(item => item.version);
+      if (body.currentVersion) entry.version = String(body.currentVersion).slice(0, 30);
+    }
     if (body.tables !== undefined) {
       const outcome = sanitizeSkillTables(body.tables, allTableNames);
       if (!outcome.ok) return sendJson(res, 400, { error: outcome.error, unknown: outcome.unknown });
