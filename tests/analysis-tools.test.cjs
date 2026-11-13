@@ -610,4 +610,28 @@ describe("字段权限（经网关）", () => {
     assert.equal((await call("PUT", `/v1/permissions/${encodeURIComponent("谭嘉颖")}`, { token: admin, body: { tables: [] } })).status, 200);
     await saveGroups({});
   });
+  test("按 Skill 授予：勾选 Skill 后该 Skill 引用的表进入有效权限，取消后收回", async () => {
+    await saveGroups({});
+    const admin = await tokenFor("曾祥竞");
+    const skills = (await call("GET", "/v1/skills", { token: admin })).data;
+    const skill = skills.find(item => item.id === "equity-union-analyst");
+    assert.ok(skill && skill.tables.length, "规范包 Skill 应有引用的表");
+    const everyone = (await call("GET", "/v1/permissions", { token: admin })).data.users;
+    const holder = everyone.find(user => user.name !== "曾祥竞" && skill.tables.some(name => !user.effectiveTables.includes(name)));
+    assert.ok(holder, "应有一个没有这张表的账号");
+    const before = holder.effectiveTables;
+    const url = `/v1/permissions/${encodeURIComponent(holder.name)}`;
+    const target = skill.tables.find(name => !before.includes(name));
+    assert.ok(target, "应有一张用户原本没有的 Skill 引用表：" + JSON.stringify({ skill: skill.tables, before }));
+    const put = await call("PUT", url, { token: admin, body: { tables: [target], skillGrants: ["equity-union-analyst"] } });
+    assert.equal(put.status, 200, JSON.stringify(put.data));
+    assert.ok(put.data.effectiveTables.includes(target), "Skill 引用的表应进入有效权限");
+    const entry = (await call("GET", "/v1/permissions", { token: admin })).data.users.find(user => user.name === holder.name);
+    assert.deepEqual(entry.override.skillGrants, ["equity-union-analyst"]);
+    assert.ok(!entry.override.tables.includes(target), "Skill 授予的表不再重复存成个人表");
+    assert.equal((await call("PUT", url, { token: admin, body: { skillGrants: ["不存在的Skill"] } })).status, 400);
+    const revoked = await call("PUT", url, { token: admin, body: { tables: [], skillGrants: [] } });
+    assert.equal(revoked.status, 200);
+    assert.ok(!revoked.data.effectiveTables.includes(target), "取消 Skill 后收回这张表");
+  });
 });

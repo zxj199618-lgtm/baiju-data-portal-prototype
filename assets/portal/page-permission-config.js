@@ -66,6 +66,7 @@
     const known = gatewayTableNames() || [];
     user.tableGrantsAll = personal.includes("全部数据表");
     user.tableGrants = user.tableGrantsAll ? [...known] : personal.filter(name => name !== "全部数据表" && known.includes(name));
+    user.skillGrants = Array.isArray(entry.override?.skillGrants) ? [...entry.override.skillGrants] : [];
     user.fieldHidden = cloneFieldMap(entry.hiddenFields);
     // 服务端返回的是有效的追加字段（绑定当前组、限于组当前隐藏的字段）
     user.fieldGrants = cloneFieldMap(entry.grantedFields);
@@ -111,7 +112,7 @@
               <el-tabs v-model="activeTab"><el-tab-pane label="菜单权限" name="menus"></el-tab-pane><el-tab-pane label="看板权限" name="boards"></el-tab-pane><el-tab-pane label="表权限" name="tables"></el-tab-pane><el-tab-pane label="管理范围" name="scope"></el-tab-pane></el-tabs>
               <div v-show="activeTab==='menus'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><strong>菜单权限（查看 / 编辑）</strong><p class="portal-vue-muted" style="margin:0">「查看」决定菜单是否可见，「编辑」决定该菜单内能否新增/修改/删除；勾选编辑会自动带上查看。带权限组名称的项由该权限组授予，个人配置中不可取消。</p></div><div v-for="section in state.nav" :key="section.group" class="portal-vue-permission-block"><strong v-if="permItems(section).length>1">{{ section.group }}</strong><div v-for="item in permItems(section)" :key="item.name" class="portal-vue-menu-row"><span class="portal-vue-menu-name" :class="{'portal-vue-menu-name-parent': permItems(section).length===1}">{{ item.name }}</span><span class="portal-vue-menu-checks"><el-checkbox class="portal-vue-view-check" :model-value="selectedMenus.includes(item.name)" :disabled="isMenuLocked(item)" @change="value=>togglePersonalView(item.name,value)"><span>查看</span><el-tag v-if="isMenuLocked(item)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><el-checkbox class="portal-vue-edit-check" :model-value="selectedMenuEdits.includes(item.name)" :disabled="isMenuEditLocked(item)" @change="value=>togglePersonalEdit(item.name,value)"><span>编辑</span><el-tag v-if="isMenuEditLocked(item)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></span></div></div></div>
               <div v-show="activeTab==='boards'" class="portal-vue-permission-grid"><div v-for="group in boardGroups" :key="group.category" class="portal-vue-permission-block"><strong>{{ group.category }}</strong><el-checkbox v-for="board in group.boards" :key="board.name" v-model="selectedBoards" :value="board.name" :disabled="isBoardLocked(board)" style="display:flex;margin:8px 0"><span>{{ board.name }}</span><el-tag v-if="isBoardDirect(board)" size="small" type="warning" effect="plain" class="portal-vue-lock-tag" :title="'来自「看板管理 - 可查看用户」直接授权，取消勾选并保存即收回'">直接授权</el-tag><el-tag v-else-if="isBoardLocked(board)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox></div></div>
-              <div v-show="activeTab==='tables'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><el-checkbox :model-value="allTablesSelected" :indeterminate="tablesIndeterminate" :disabled="groupAllTables" @change="toggleAllTables"><span>全部数据表</span><el-tag v-if="groupAllTables" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><p class="portal-vue-muted" style="margin:6px 0 0">{{ inherited ? '带权限组名称标签的数据表由权限组授予，不可取消；其余数据表可以按需追加。未勾选任何数据表时，该用户无法在灵犀智析发起分析。' : '未加入权限组，可自由配置个人数据表权限；未勾选任何数据表时，该用户无法在灵犀智析发起分析。' }}</p></div><div v-if="skillTableRefs.length" class="portal-vue-permission-block" style="grid-column:1/-1" data-test="skill-table-refs"><strong>Skill 引用的表</strong><p class="portal-vue-muted" style="margin:6px 0 0">这些表被 Skill 引用，分析时会用到。勾选即授予该用户这张表（与下方数据表权限相同）；带权限组名称的由权限组授予，不可取消。</p><div v-for="ref in skillTableRefs" :key="ref.name" class="portal-vue-table-perm"><div class="portal-vue-table-perm-row"><el-checkbox v-if="ref.known" v-model="selectedTables" :value="ref.name" :disabled="groupTableNames.has(ref.name)" style="display:flex;margin:8px 0"><span>{{ ref.name }}</span><el-tag v-if="groupTableNames.has(ref.name)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><span v-else class="portal-vue-muted" style="margin:8px 0"><span>{{ ref.name }}</span> <el-tag size="small" type="danger" effect="plain">未在表清单中，无法授权</el-tag></span><el-tag v-for="label in ref.skills" :key="label" size="small" effect="plain" style="margin-left:6px">{{ label }}</el-tag></div></div></div><div v-for="group in tableGroups" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><div v-for="table in group.tables" :key="table.cnName" class="portal-vue-table-perm"><div class="portal-vue-table-perm-row"><el-checkbox v-model="selectedTables" :value="table.cnName" :disabled="isTableLocked(table)" style="display:flex;margin:8px 0"><span>{{ table.cnName }}</span><el-tag v-if="isTableLocked(table)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><span v-if="fieldTagVisible(table)" class="portal-vue-field-tag" :class="{partial:hiddenCount(table)>0}" data-test="field-tag" aria-haspopup="dialog" role="button" tabindex="0" @click="toggleFieldPanel(table)" @keydown.enter.prevent="toggleFieldPanel(table)" @keydown.space.prevent="toggleFieldPanel(table)">{{ fieldLabel(table) }}</span></div></div></div></div>
+              <div v-show="activeTab==='tables'" class="portal-vue-permission-grid"><div class="portal-vue-permission-block" style="grid-column:1/-1"><el-radio-group v-model="tableMode" data-test="table-mode"><el-radio-button value="table">按表配置</el-radio-button><el-radio-button value="skill">按 Skill 配置</el-radio-button></el-radio-group><p class="portal-vue-muted" style="margin:8px 0 0">{{ tableMode==='skill' ? '勾选 Skill 即授予该用户这个 Skill 引用的全部表（Skill 的引用清单变化后自动跟随）；取消勾选才会收回。' : '这里能看到所有来源的表权限：由权限组或 Skill 授予的表只读，Skill 授予的需要到「按 Skill 配置」里取消该 Skill 才能收回。' }}</p></div><div v-if="tableMode==='skill'" class="portal-vue-permission-block" style="grid-column:1/-1" data-test="skill-grant-list"><strong>按 Skill 授予</strong><p v-if="!skillRefs.length" class="portal-vue-muted" style="margin:8px 0 0">暂无引用了数据表的 Skill</p><div v-for="ref in skillRefs" :key="ref.id" class="portal-vue-table-perm"><div class="portal-vue-table-perm-row" style="align-items:flex-start"><el-checkbox :model-value="selectedSkills.includes(ref.id)" style="display:flex;margin:8px 0" @change="value=>toggleSkillGrant(ref.id,value)"><span>{{ ref.skill }}</span></el-checkbox><span style="display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 8px 12px"><el-tag v-for="name in ref.tables" :key="name" size="small" effect="plain" :type="groupTableNames.has(name)?'info':''">{{ name }}<template v-if="groupTableNames.has(name)">（权限组已授予）</template></el-tag></span></div></div></div><div v-show="tableMode==='table'" class="portal-vue-permission-block" style="grid-column:1/-1"><el-checkbox :model-value="allTablesSelected" :indeterminate="tablesIndeterminate" :disabled="groupAllTables" @change="toggleAllTables"><span>全部数据表</span><el-tag v-if="groupAllTables" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag></el-checkbox><p class="portal-vue-muted" style="margin:6px 0 0">{{ inherited ? '带权限组名称标签的数据表由权限组授予，不可取消；其余数据表可以按需追加。未勾选任何数据表时，该用户无法在灵犀智析发起分析。' : '未加入权限组，可自由配置个人数据表权限；未勾选任何数据表时，该用户无法在灵犀智析发起分析。' }}</p></div><div v-if="skillTableRefs.length&&tableMode==='table'" class="portal-vue-permission-block" style="grid-column:1/-1" data-test="skill-table-refs"><strong>Skill 引用的表</strong><p class="portal-vue-muted" style="margin:6px 0 0">这些表被 Skill 引用，分析时会用到。勾选即授予该用户这张表（与下方数据表权限相同）；带权限组名称的由权限组授予，不可取消。</p><div v-for="ref in skillTableRefs" :key="ref.name" class="portal-vue-table-perm"><div class="portal-vue-table-perm-row"><el-checkbox v-if="ref.known" v-model="selectedTables" :value="ref.name" :disabled="groupTableNames.has(ref.name)||isSkillGranted(ref.name)" style="display:flex;margin:8px 0"><span>{{ ref.name }}</span><el-tag v-if="groupTableNames.has(ref.name)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag><el-tag v-else-if="isSkillGranted(ref.name)" size="small" type="warning" effect="plain" class="portal-vue-lock-tag" title="在「按 Skill 配置」里取消该 Skill 才能收回">{{ skillGrantLabel(ref.name) }}</el-tag></el-checkbox><span v-else class="portal-vue-muted" style="margin:8px 0"><span>{{ ref.name }}</span> <el-tag size="small" type="danger" effect="plain">未在表清单中，无法授权</el-tag></span><el-tag v-for="label in ref.skills" :key="label" size="small" effect="plain" style="margin-left:6px">{{ label }}</el-tag></div></div></div><div v-for="group in tableGroups" v-show="tableMode==='table'" :key="group.source" class="portal-vue-permission-block"><strong>{{ group.source }}</strong><div v-for="table in group.tables" :key="table.cnName" class="portal-vue-table-perm"><div class="portal-vue-table-perm-row"><el-checkbox v-model="selectedTables" :value="table.cnName" :disabled="isTableLocked(table)||isSkillGranted(table.cnName)" style="display:flex;margin:8px 0"><span>{{ table.cnName }}</span><el-tag v-if="isTableLocked(table)" size="small" type="info" effect="plain" class="portal-vue-lock-tag" :title="'来自权限组：' + user.group">{{ user.group }}</el-tag><el-tag v-else-if="isSkillGranted(table.cnName)" size="small" type="warning" effect="plain" class="portal-vue-lock-tag" title="在「按 Skill 配置」里取消该 Skill 才能收回">{{ skillGrantLabel(table.cnName) }}</el-tag></el-checkbox><span v-if="fieldTagVisible(table)" class="portal-vue-field-tag" :class="{partial:hiddenCount(table)>0}" data-test="field-tag" aria-haspopup="dialog" role="button" tabindex="0" @click="toggleFieldPanel(table)" @keydown.enter.prevent="toggleFieldPanel(table)" @keydown.space.prevent="toggleFieldPanel(table)">{{ fieldLabel(table) }}</span></div></div></div></div>
               <div v-show="activeTab==='scope'" class="portal-vue-permission-grid">
                 <div class="portal-vue-permission-block" style="grid-column:1/-1">
                   <div class="portal-vue-scope-head"><el-checkbox v-model="scopeAll">全部用户（不受部门限制）</el-checkbox><span class="portal-vue-muted">候选范围来自系统用户的部门与成员：选中部门=该部门及下级部门所有人自动纳入，也可以直接勾选具体成员</span></div>
@@ -131,7 +132,7 @@
       </el-config-provider>
     `,
     components:{FieldPermissionDialog},
-    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],selectedTables:[],selectedScope:[],scopeAll:false,personalHidden:{},personalGranted:{},fieldDialog:{visible:false,table:""},loadedSnapshot:"",hydrating:false,hydrateSeq:0,skillRefs:[]}),
+    data:()=>({state,activeTab:"menus",selectedMenus:[],selectedMenuEdits:[],selectedBoards:[],selectedTables:[],selectedScope:[],scopeAll:false,personalHidden:{},personalGranted:{},fieldDialog:{visible:false,table:""},loadedSnapshot:"",hydrating:false,hydrateSeq:0,skillRefs:[],tableMode:"table",selectedSkills:[]}),
     computed:{
       user(){refreshTick.value;return state.users[bridge.getActiveUserIndex()]||state.users[0];},
       group(){refreshTick.value;return state.groups.find(group=>group.name===this.user?.group);},
@@ -164,6 +165,8 @@
       allTablesSelected(){return this.selectedTables.length>0&&this.selectedTables.length>=this.allTableNames.length;},
       tablesIndeterminate(){return this.selectedTables.length>0&&this.selectedTables.length<this.allTableNames.length;},
       // 按表汇总：每张被 Skill 引用的表，列出引用它的 Skill
+      // 按 Skill 授予的表：表名 → 授予它的 Skill 名称（已勾选的 Skill 引用的表）
+      skillGrantMap(){const map=new Map();this.skillRefs.filter(ref=>this.selectedSkills.includes(ref.id)).forEach(ref=>ref.tables.forEach(name=>{if(!this.allTableNames.includes(name))return;if(!map.has(name))map.set(name,[]);map.get(name).push(ref.skill);}));return map;},
       skillTableRefs(){refreshTick.value;const map=new Map();this.skillRefs.forEach(ref=>ref.tables.forEach(name=>{if(!map.has(name))map.set(name,[]);map.get(name).push(ref.skill);}));return [...map].map(([name,skills])=>({name,skills,known:this.allTableNames.includes(name)}));}
     },
     watch:{
@@ -180,8 +183,20 @@
           const { response, error } = await fetchGateway("/v1/skills");
           if(error||!response.ok)return;
           const list=await response.json();
-          this.skillRefs=(Array.isArray(list)?list:[]).filter(entry=>Array.isArray(entry.tables)&&entry.tables.length).map(entry=>({skill:entry.title||entry.name||entry.id,tables:entry.tables}));
+          this.skillRefs=(Array.isArray(list)?list:[]).filter(entry=>Array.isArray(entry.tables)&&entry.tables.length).map(entry=>({id:entry.id,skill:entry.title||entry.name||entry.id,tables:entry.tables}));
+          this.syncSkillTables();
         }catch(error){/* 网关未连接时不显示 */}
+      },
+      isSkillGranted(name){return this.skillGrantMap.has(name)&&!this.groupTableNames.has(name);},
+      skillGrantLabel(name){return "Skill：" + (this.skillGrantMap.get(name)||[]).join("、");},
+      // 已勾选 Skill 引用的表一定处于勾选状态（只读）；Skill 取消勾选后，只靠它授予的表一并收回
+      syncSkillTables(){const missing=[...this.skillGrantMap.keys()].filter(name=>!this.selectedTables.includes(name));if(missing.length){const same=this.tableSnapshot()===this.loadedSnapshot;this.selectedTables=[...this.selectedTables,...missing];if(same)this.loadedSnapshot=this.tableSnapshot();}},
+      toggleSkillGrant(id,checked){
+        const before=new Set(this.skillGrantMap.keys());
+        this.selectedSkills=checked?[...new Set([...this.selectedSkills,id])]:this.selectedSkills.filter(item=>item!==id);
+        const after=new Set(this.skillGrantMap.keys());
+        const keep=this.selectedTables.filter(name=>!before.has(name)||this.groupTableNames.has(name)||after.has(name));
+        this.selectedTables=[...new Set([...keep,...after])];
       },
       isMenuLocked(item){return this.inherited&&this.groupMenuNames.has(item.name);},
       isMenuEditLocked(item){return this.inherited&&this.groupMenuEditNames.has(item.name);},
@@ -231,10 +246,11 @@
           if((changed||entry)&&this.tableSnapshot()===this.loadedSnapshot)this.applyTableState();
         })().finally(()=>{if(seq===this.hydrateSeq)this.hydrating=false;});
       },
-      tableSnapshot(){return JSON.stringify([this.selectedTables,this.personalHidden,this.personalGranted]);},
+      tableSnapshot(){return JSON.stringify([this.selectedTables,this.personalHidden,this.personalGranted,this.selectedSkills]);},
       applyTableState(){
         const personalTables=(Array.isArray(this.user?.tableGrants)?this.user.tableGrants:[]).filter(name=>name!=="全部数据表");
-        this.selectedTables=[...new Set([...this.groupTableNames,...personalTables])];
+        this.selectedSkills=Array.isArray(this.user?.skillGrants)?[...this.user.skillGrants]:[];
+        this.selectedTables=[...new Set([...this.groupTableNames,...personalTables,...this.skillGrantMap.keys()])];
         // 个人字段设置回显：只保留仍勾选的表；组授予的表上只有组隐藏的字段才可追加
         const cloneMap=map=>Object.fromEntries(Object.entries(map||{}).map(([table,list])=>[table,Array.isArray(list)?[...list]:[]]).filter(([table,list])=>list.length&&this.selectedTables.includes(table)));
         this.personalHidden=cloneMap(this.user?.fieldHidden);
@@ -256,7 +272,7 @@
       back(){bridge.setPage("用户管理");},
       toggleAllTables(value){
         if(this.groupAllTables)return;
-        this.selectedTables=value?[...new Set([...this.groupTableNames,...this.allTableNames])]:[...this.groupTableNames];
+        this.selectedTables=value?[...new Set([...this.groupTableNames,...this.allTableNames])]:[...new Set([...this.groupTableNames,...this.skillGrantMap.keys()])];
       },
       async save(){
         if(!this.user||this.hydrating)return;
@@ -273,14 +289,16 @@
         const personalBoards=this.selectedBoards.filter(name=>!groupBoards.has(name)&&!directBoards.has(name));
         // 网关不认识的表（只在门户里有）不提交，否则整次保存会被拒绝
         const known=gatewayTableNames();
-        const personalTables=this.selectedTables.filter(name=>!groupTables.has(name)&&(!known||known.includes(name)));
+        const skillTableSet=new Set(this.skillGrantMap.keys());
+        const personalTables=this.selectedTables.filter(name=>!groupTables.has(name)&&!skillTableSet.has(name)&&(!known||known.includes(name)));
         // 原来存的是「全部数据表」且网关认识的非组表仍全部勾选：原样写回标记（之后新增的表也自动授予）；取消过任何一张则改存明确清单
-        const keepAllToken=Boolean(this.user.tableGrantsAll)&&Boolean(known)&&known.filter(name=>!groupTables.has(name)).every(name=>this.selectedTables.includes(name));
+        const keepAllToken=Boolean(this.user.tableGrantsAll)&&Boolean(known)&&known.filter(name=>!groupTables.has(name)&&!skillTableSet.has(name)).every(name=>this.selectedTables.includes(name));
         this.user.menuGrants=personalMenus;
         this.user.menuEditGrants=personalMenuEdits;
         this.user.boardGrants=personalBoards;
         this.user.tableGrants=personalTables;
         this.user.tableGrantsAll=keepAllToken;
+        this.user.skillGrants=[...this.selectedSkills];
         this.user.manageScope=[...this.selectedScope.filter(Boolean)];
         this.user.manageScopeAll=Boolean(this.scopeAll);
         // 字段设置只保留仍在保存范围内的表：组授予的表只存追加字段（限于组隐藏的字段），个人追加的表只存取消勾选的字段
@@ -296,7 +314,7 @@
         // 个人覆盖只存个人追加的表（逐表列出，不用「全部数据表」）；组授予的表由网关实时按权限组计算
         const payload=keepAllToken?["全部数据表"]:personalTables;
         let persisted=false;
-        try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables:payload,hiddenFields,grantedFields})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}
+        try{const response=await fetch(`${analysisGatewayBase}/v1/permissions/${encodeURIComponent(this.user.name)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tables:payload,skillGrants:this.selectedSkills,hiddenFields,grantedFields})});persisted=response.ok;}catch(error){/* 网关未启动时仅保存在页面状态 */}
         // 同步成功：按服务端结果重新回显（服务端会规范化）；没同步：记为只存在页面状态，之后打开不被服务端覆盖
         // 同时作废还在路上的回显（seq），只认保存后的这次
         if(persisted){const user=this.user;localOnlyUsers.delete(user.name);const seq=++this.hydrateSeq;this.hydrating=false;fetchPermissionEntry(user).then(({entry})=>{if(entry&&gatewayTableNames()&&seq===this.hydrateSeq)seedUser(user,entry);});}else localOnlyUsers.add(this.user.name);

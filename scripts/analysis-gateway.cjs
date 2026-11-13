@@ -2178,11 +2178,26 @@ function personalTablesOf(override) {
   return list.includes("全部数据表") ? [...allTableNames] : list.filter(name => allTableNames.includes(name));
 }
 
+/** 按 Skill 授予：个人覆盖里的 skillGrants 对应 Skill 当前引用的表（实时跟随 Skill 的引用清单） */
+function skillGrantTablesOf(override) {
+  const ids = Array.isArray(override?.skillGrants) ? override.skillGrants : [];
+  if (!ids.length) return [];
+  const registry = loadSkillRegistry();
+  const names = new Set();
+  for (const id of ids) {
+    const entry = registry.find(item => item.id === id);
+    if (!entry) continue;
+    resolveSkillTables(entry, skillPacks.get(id)).forEach(name => { if (allTableNames.includes(name)) names.add(name); });
+  }
+  return [...names];
+}
+
 function userTables(userName) {
   if (!accountStore.has(userName)) return [];
   const groupTables = orgStore.tablesOf(userName);
-  const personal = personalTablesOf(loadPermissionOverrides()[userName]);
-  const union = new Set([...groupTables, ...personal]);
+  const override = loadPermissionOverrides()[userName];
+  const personal = personalTablesOf(override);
+  const union = new Set([...groupTables, ...personal, ...skillGrantTablesOf(override)]);
   return allTableNames.filter(name => union.has(name));
 }
 
@@ -3323,12 +3338,22 @@ async function handleRequest(req, res) {
     /* 个人覆盖只存个人追加的表：去掉所属组当前已授予的表（组授予全部表时个人表为空）；组的表实时跟随权限组 */
     const groupTables = orgStore.tablesOf(userName);
     const groupAll = groupTables.length > 0 && allTableNames.every(name => groupTables.includes(name));
+    /* 按 Skill 授予：不带 skillGrants 时沿用已保存的；Skill 引用的表由 Skill 授予，不再重复存成个人表 */
+    let skillGrants;
+    if (body.skillGrants !== undefined) {
+      if (!Array.isArray(body.skillGrants)) return sendJson(res, 400, { error: "skillGrants 必须是数组" });
+      const registry = loadSkillRegistry();
+      const unknownSkills = body.skillGrants.filter(id => !registry.some(item => item.id === id));
+      if (unknownSkills.length) return sendJson(res, 400, { error: `未知 Skill：${unknownSkills.join("、")}` });
+      skillGrants = [...new Set(body.skillGrants.map(String))].slice(0, 50);
+    } else skillGrants = Array.isArray(overrides[userName]?.skillGrants) ? overrides[userName].skillGrants : [];
+    const skillTables = skillGrantTablesOf({ skillGrants });
     const personalTables = groupAll ? [] : tableList.includes("全部数据表")
       ? ["全部数据表"]
-      : [...new Set(tableList)].filter(name => !groupTables.includes(name));
-    const personalKeys = personalTablesOf({ tables: personalTables }).filter(name => !groupTables.includes(name));
+      : [...new Set(tableList)].filter(name => !groupTables.includes(name) && !skillTables.includes(name));
+    const personalKeys = [...new Set([...personalTablesOf({ tables: personalTables }), ...skillTables])].filter(name => !groupTables.includes(name));
     // 不带任何字段映射的「tables: []」= 恢复为只用权限组（删除个人覆盖）
-    const reset = !tableList.length && body.hiddenFields === undefined && body.grantedFields === undefined;
+    const reset = !tableList.length && body.hiddenFields === undefined && body.grantedFields === undefined && body.skillGrants === undefined;
     /* 字段映射：不带时沿用已保存的值（只保留仍适用的表），避免只改表的保存把个人字段设置清空 */
     const fieldsFor = (key, label, keys) => {
       if (body[key] !== undefined) return overrideFieldMap(body[key], keys, label);
@@ -3345,8 +3370,8 @@ async function handleRequest(req, res) {
     if (!grantedOutcome.ok) return sendJson(res, 400, { error: grantedOutcome.error });
     // 只存组当前隐藏的字段：组不隐藏的字段没有追加的意义，存下来会在组之后再隐藏它时被放开
     grantedOutcome.value = effectiveGrantsOf(userName, { grantedGroup: orgStore.groupOf(userName), grantedFields: grantedOutcome.value });
-    if (!personalTables.length && !Object.keys(hiddenOutcome.value).length && !Object.keys(grantedOutcome.value).length) delete overrides[userName];
-    else overrides[userName] = { tables: personalTables, hiddenFields: hiddenOutcome.value, grantedFields: grantedOutcome.value, grantedGroup: orgStore.groupOf(userName), updatedAt: new Date().toISOString() };
+    if (!personalTables.length && !skillGrants.length && !Object.keys(hiddenOutcome.value).length && !Object.keys(grantedOutcome.value).length) delete overrides[userName];
+    else overrides[userName] = { tables: personalTables, skillGrants, hiddenFields: hiddenOutcome.value, grantedFields: grantedOutcome.value, grantedGroup: orgStore.groupOf(userName), updatedAt: new Date().toISOString() };
     savePermissionOverrides(overrides);
     appendAuditEntry({
       type: "permission-change", user: req.session.name, target: userName, tables: personalTables.length,
