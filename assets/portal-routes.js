@@ -51,6 +51,7 @@
     { page: "Skill 配置", path: "/ai/skills" },
     { page: "Skill 详情", path: "/ai/skills/:skill", list: "Skill 配置", menu: "Skill 配置" },
     { page: "AI 知识库", path: "/ai/knowledge" },
+    { page: "知识库详情", path: "/ai/knowledge/:kb", list: "AI 知识库", menu: "AI 知识库" },
     { page: "模型配置", path: "/ai/models" },
     { page: "运营中心", path: "/ai/ops" },
     { page: "看板访问记录", path: "/system/access-logs" },

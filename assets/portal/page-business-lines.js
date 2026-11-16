@@ -28,15 +28,15 @@
         markdown: "# 广告计划日报表\n\n## 表说明\n按「日期 + 广告计划」粒度的投放日报，一个计划一天一行。\n\n## 指标口径\n- **消耗**：`cost`，单位元\n- **转化数**：`convert_cnt`，已按媒体回传去重\n\n## 注意事项\n- 当天数据 T+1 凌晨 2:30 后才完整。" }
     ],
     relations: [],
-    /* Skill 绑定的业务线（按 Skill id；可多选，至少一个；未登记的视为「未绑定」） */
+    /* Skill 绑定的业务线（按 Skill id；单选，值是业务线名；「全部」表示通用 Skill；未登记的视为「未绑定」） */
     skillLines: {
-      "warehouse-analyst": ["存量", "权益", "保险", "号卡"],
-      "lineage-analyst": ["存量", "权益", "保险", "号卡"],
-      "asset-qa": ["存量", "权益", "保险", "号卡"],
-      "attribution-analyst": ["存量", "权益"],
-      "equity-union-analyst": ["权益"],
-      "report-writer": ["存量", "权益", "保险", "号卡"],
-      "general-analyst": ["存量", "权益", "保险", "号卡"]
+      "warehouse-analyst": "全部",
+      "lineage-analyst": "全部",
+      "asset-qa": "全部",
+      "attribution-analyst": "全部",
+      "equity-union-analyst": "权益",
+      "report-writer": "全部",
+      "general-analyst": "全部"
     }
   });
 
@@ -48,7 +48,9 @@
   const tablesOfLine = name => state.assets.filter(asset => asset.bizLine === name);
   /** 业务线下的知识库：业务线知识库 + 属于该业务线的表知识库 */
   /** 绑定了该业务线的 Skill（原型里 numa-warehouse 是内部兜底 Skill，不在列表里展示，也不计数） */
-  const skillsOfLine = name => (state.skills || []).filter(skill => skill.id !== "numa-warehouse" && (bizStore.skillLines[skill.id] || []).includes(name));
+  const SKILL_ALL = "全部";
+  /** 绑定到该业务线的 Skill，含「全部」（通用）Skill */
+  const skillsOfLine = name => (state.skills || []).filter(skill => skill.id !== "numa-warehouse" && [name, SKILL_ALL].includes(bizStore.skillLines[skill.id]));
   const kbsOfLine = name => bizStore.kbs.filter(kb => kb.type === "业务线" ? kb.target === name : (state.assets.find(asset => asset.cnName === kb.target)?.bizLine || "") === name);
 
   const BusinessLinesApp = {
@@ -68,7 +70,7 @@
             <el-table-column prop="desc" label="说明" min-width="300" show-overflow-tooltip></el-table-column>
             <el-table-column label="绑定数据表" width="120" align="center"><template #default="scope">{{ tablesOf(scope.row).length }} 张</template></el-table-column>
             <el-table-column label="AI 知识库" width="120" align="center"><template #default="scope"><el-button link type="primary" :disabled="!kbsOf(scope.row).length" @click="goKnowledge(scope.row)">{{ kbsOf(scope.row).length }} 份</el-button></template></el-table-column>
-            <el-table-column label="Skill" width="100" align="center"><template #default="scope"><el-button link type="primary" :disabled="!skillsOf(scope.row).length" @click="goSkills(scope.row)">{{ skillsOf(scope.row).length }} 个</el-button></template></el-table-column>
+            <el-table-column label="Skill（含通用）" width="130" align="center"><template #default="scope"><el-button link type="primary" :disabled="!skillsOf(scope.row).length" @click="goSkills(scope.row)">{{ skillsOf(scope.row).length }} 个</el-button></template></el-table-column>
             <el-table-column label="状态" width="90" align="center"><template #default="scope"><el-switch :disabled="!canEdit('业务线')" :model-value="scope.row.enabled" @change="value => toggle(scope.row, value)"></el-switch></template></el-table-column>
             <el-table-column label="最近修改" width="190"><template #default="scope"><div>{{ scope.row.updatedAt }}</div><small class="portal-vue-muted">{{ scope.row.updatedBy }}</small></template></el-table-column>
             <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button v-if="canEdit('业务线')" link type="primary" @click="openForm(scope.row)">编辑</el-button><span v-else class="portal-vue-muted">—</span></template></el-table-column>
@@ -131,7 +133,7 @@
             state.assets.forEach(asset => { if (asset.bizLine === old) asset.bizLine = name; });
             bizStore.kbs.forEach(kb => { if (kb.type === "业务线" && kb.target === old) kb.target = name; });
             bizStore.relations.forEach(rel => { if (rel.line === old) rel.line = name; });
-            Object.keys(bizStore.skillLines).forEach(id => { bizStore.skillLines[id] = bizStore.skillLines[id].map(item => item === old ? name : item); });
+            Object.keys(bizStore.skillLines).forEach(id => { if (bizStore.skillLines[id] === old) bizStore.skillLines[id] = name; });
           }
           Object.assign(line, { name }, meta);
           notify(`业务线「${name}」已保存`);
@@ -148,6 +150,6 @@
   };
 
   window.PortalVue.bizStore = bizStore;
-  window.PortalVue.bizHelpers = { activeLines, tablesOfLine, kbsOfLine, skillsOfLine, nowText, currentUserName };
+  window.PortalVue.bizHelpers = { SKILL_ALL, activeLines, tablesOfLine, kbsOfLine, skillsOfLine, nowText, currentUserName };
   mount("#businessLineView", BusinessLinesApp, "business-lines");
 })();

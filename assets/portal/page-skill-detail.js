@@ -18,7 +18,8 @@
     refreshTick,
     state
   } = window.PortalVue;
-  const { bizStore } = window.PortalVue;
+  const { bizStore, bizHelpers } = window.PortalVue;
+  const KEEP_VERSIONS = 3;
 
   function injectStyle(id, css) {
     if (document.getElementById(id)) return;
@@ -56,10 +57,11 @@
                     <input ref="iconInput" type="file" accept="image/*" style="display:none" @change="onIconUpload"></input>
                   </el-form-item>
                   <el-form-item label="所属业务线" required>
-                    <el-select v-model="draft.bizLines" multiple :disabled="!editable" placeholder="选择该 Skill 服务的业务线（可多选）" style="width:100%">
-                      <el-option v-for="line in lineChoices" :key="line.name" :label="line.name + (line.enabled ? '' : '（已停用）')" :value="line.name" :disabled="!line.enabled && !draft.bizLines.includes(line.name)"></el-option>
+                    <el-select v-model="draft.bizLine" :disabled="!editable" placeholder="选择该 Skill 所属的业务线" style="width:100%">
+                      <el-option label="全部（通用 Skill）" :value="ALL"></el-option>
+                      <el-option v-for="line in lineChoices" :key="line.name" :label="line.name + (line.enabled ? '' : '（已停用）')" :value="line.name" :disabled="!line.enabled && draft.bizLine !== line.name"></el-option>
                     </el-select>
-                    <div class="portal-vue-muted" style="margin-top:6px;font-size:12px">灵犀智析按用户选的业务线挑选 Skill；通用型 Skill 可多选。业务线在「系统管理 → 业务线」维护。</div>
+                    <div class="portal-vue-muted" style="margin-top:6px;font-size:12px">只属于某个业务线就选该业务线；所有业务线通用的 Skill 选「全部」。业务线在「系统管理 → 业务线」维护。</div>
                   </el-form-item>
                   <el-form-item label="描述"><el-input v-model="draft.desc" type="textarea" :rows="2" resize="none" :disabled="!editable" placeholder="列表里展示的一句话说明"></el-input></el-form-item>
                   <el-form-item label="工作台展示描述"><el-input v-model="draft.displayDesc" :disabled="!editable" placeholder="如：趋势、分布与异常"></el-input></el-form-item>
@@ -71,6 +73,7 @@
                 <div class="sk-pv">
                   <aside class="sk-pv-list">
                     <el-button v-if="editable" type="primary" class="sk-pv-new" @click="startNew">＋ 新增版本</el-button>
+                    <div v-if="versions.length" class="portal-vue-muted" style="font-size:12px;line-height:1.6">共 {{ versions.length }} 个版本；最近 {{ KEEP_VERSIONS }} 个和线上版本受保护，不能删除，方便回滚</div>
                     <div v-for="item in versions" :key="item.version" class="sk-pv-item" :class="{ active: selected === item.version && mode !== 'new' }" @click="selectVersion(item)">
                       <div class="sk-pv-item-head"><strong>{{ item.version }}</strong><el-tag size="small" effect="light" :type="statusType(item)">{{ statusLabel(item) }}</el-tag></div>
                       <p>{{ item.note || "—" }}</p>
@@ -87,6 +90,7 @@
                           <el-button size="small" @click="startEdit(viewItem)">{{ viewItem.current || viewItem.status === '已发布' ? '基于此版本修改' : '修改' }}</el-button>
                           <el-button v-if="canGray(viewItem)" size="small" @click="openGrayDraft(viewItem)">{{ viewItem.status === '灰度中' ? '调整灰度' : '灰度' }}</el-button>
                           <el-button v-if="!viewItem.current" size="small" type="primary" @click="publishVersion(viewItem)">{{ viewItem.status === '已发布' ? '回滚到此版本' : '发布' }}</el-button>
+                          <el-tooltip :disabled="canDelete(viewItem)" :content="viewItem.current ? '线上版本不能删除' : '最近 ' + KEEP_VERSIONS + ' 个版本不能删除，方便回滚'" placement="top"><span><el-button size="small" type="danger" plain :disabled="!canDelete(viewItem)" @click="deleteVersion(viewItem)">删除此版本</el-button></span></el-tooltip>
                         </div>
                       </div>
                       <p v-if="viewItem.note" class="portal-vue-muted" style="margin:0 0 8px;font-size:12px">版本说明：{{ viewItem.note }}</p>
@@ -165,6 +169,7 @@
       headerTitle() { return this.skill?.name || "Skill 详情"; },
       editable() { return this.canEdit('Skill 配置'); },
       isRouter() { return this.skill?.kind === "router"; },
+      KEEP_VERSIONS() { return KEEP_VERSIONS; },
       versions() { refreshTick.value; return this.skill?.versions || []; },
       viewItem() { return this.versions.find(item => item.version === this.selected) || null; },
       viewSnap() {
@@ -192,6 +197,7 @@
         (this.form.tables || []).forEach(name => { if (name && !names.includes(name)) names.push(name); });
         return names;
       },
+      ALL() { return bizHelpers.SKILL_ALL; },
       lineChoices() { refreshTick.value; return bizStore.lines; },
       activeUsers() { refreshTick.value; return (state.users || []).filter(user => user.status !== "已停用"); },
       basicDirty() {
@@ -201,10 +207,10 @@
       dirty() { return this.basicDirty || this.mode === "edit" || this.mode === "new"; }
     },
     methods: {
-      blankDraft() { return { name: "", icon: "✦", title: "", desc: "", displayDesc: "", sort: 50, enabled: true, bizLines: [] }; },
+      blankDraft() { return { name: "", icon: "✦", title: "", desc: "", displayDesc: "", sort: 50, enabled: true, bizLine: "" }; },
       blankForm() { return { version: "", note: "", prompt: "", tables: [], routes: [], fallbackSkillId: "" }; },
       basicSnapshot(source) {
-        return { name: String(source.name || "").trim(), icon: source.icon || "✦", title: String(source.title || "").trim(), desc: String(source.desc || "").trim(), displayDesc: String(source.displayDesc || "").trim(), sort: Number(source.sort) || 50, enabled: source.enabled !== false, bizLines: [...(source.bizLines ?? bizStore.skillLines[source.id] ?? [])] };
+        return { name: String(source.name || "").trim(), icon: source.icon || "✦", title: String(source.title || "").trim(), desc: String(source.desc || "").trim(), displayDesc: String(source.displayDesc || "").trim(), sort: Number(source.sort) || 50, enabled: source.enabled !== false, bizLine: source.bizLine ?? bizStore.skillLines[source.id] ?? "" };
       },
       isImageIcon(icon) { return isImageIconValue(icon); },
       resolveIcon(icon) { return resolveSkillIcon(icon); },
@@ -359,9 +365,9 @@
         if (!snap.name) return ep.ElMessage.warning("请输入 Skill 名称");
         if (!snap.title) return ep.ElMessage.warning("请输入工作台展示标题");
         if ((state.skills || []).some(item => item.id !== skill.id && item.name === snap.name)) return ep.ElMessage.warning("Skill 名称已存在");
-        if (!snap.bizLines.length) return ep.ElMessage.warning("请选择所属业务线");
-        const { bizLines, ...rest } = snap;
-        bizStore.skillLines[skill.id] = bizLines;
+        if (!snap.bizLine) return ep.ElMessage.warning("请选择所属业务线");
+        const { bizLine, ...rest } = snap;
+        bizStore.skillLines[skill.id] = bizLine;
         Object.assign(skill, rest);
         await this.persist({ icon: snap.icon, title: snap.title, desc: snap.desc, displayDesc: snap.displayDesc, sort: snap.sort, enabled: snap.enabled });
         notify(`「${skill.name}」基本信息已保存`);
@@ -410,6 +416,17 @@
         this.grayDialogVisible = false;
         await this.persist();
         notify(`「${this.skill?.name}」${this.grayVersion.version} 已灰度给 ${this.grayDraft.length} 位用户测试`);
+      },
+      /* 版本列表按时间倒序（新版本在前）：最近 KEEP_VERSIONS 个和线上版本不能删，留给回滚用 */
+      canDelete(item) { return !!item && !item.current && this.versions.indexOf(item) >= KEEP_VERSIONS; },
+      async deleteVersion(item) {
+        const skill = this.skill;
+        if (!skill || !this.canDelete(item)) return;
+        try { await ep.ElMessageBox.confirm(`确认删除「${skill.name}」的历史版本 ${item.version}？删除后不能再回滚到它。`, "删除历史版本", { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消", autofocus: false }); } catch (error) { return; }
+        skill.versions.splice(skill.versions.indexOf(item), 1);
+        if (this.selected === item.version) this.selected = (skill.versions.find(entry => entry.current) || skill.versions[0])?.version || "";
+        await this.persist();
+        notify(`历史版本 ${item.version} 已删除`);
       },
       async publishVersion(item) {
         const skill = this.skill;

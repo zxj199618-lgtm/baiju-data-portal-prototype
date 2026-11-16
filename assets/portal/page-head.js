@@ -28,7 +28,7 @@
       page() { return currentPage.value; },
       meta() { refreshTick.value; return bridge.pageMeta[this.page] || bridge.pageMeta["数据看板"]; },
       // 灵犀智析是整屏工作台，自身已有导航与标签栏标识，不再展示页面标题区。
-      visible() { return !["灵犀智析", "新增API", "新建人群包", "Quick BI 展示", "配置权限", "查看权限", "无权限", "维表数据维护", "表详情"].includes(this.page); },
+      visible() { return !["灵犀智析", "新增API", "新建人群包", "Quick BI 展示", "配置权限", "查看权限", "无权限", "维表数据维护", "表详情", "知识库详情"].includes(this.page); },
       title() { return this.meta?.[0] || this.page; },
       subtitle() { return this.meta?.[1] || ""; },
       /* 工具箱内的具体工具页：标题上方给出返回所属工具箱的入口 */

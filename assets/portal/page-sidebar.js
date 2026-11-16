@@ -62,6 +62,7 @@
         if (this.page === "配置权限") return "用户管理";
         if (this.page === "表详情") return "表管理";
         if (this.page === "Skill 详情") return "Skill 配置";
+        if (this.page === "知识库详情") return "AI 知识库";
         /* leaf 箱的工具页不在侧栏里出现，改为点亮所属箱的一级入口 */
         const owner = this.sections.find(section => section.leaf && section.items.some(item => item.name === this.page));
         if (owner) return owner.items[0].name;
