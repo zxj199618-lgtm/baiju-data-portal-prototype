@@ -10,8 +10,8 @@
         { group: "大数据工具箱", icon: "toolbox", leaf: true, items: [{ name: "大数据工具箱", overview: true }, { name: "补数据" }, { name: "消耗对比" }, { name: "环境域名" }] },
         { group: "业务工具箱", icon: "toolboxBiz", leaf: true, items: [{ name: "业务工具箱", overview: true }, { name: "生成人群包" }, { name: "短剧投放账户上报" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },
-        { group: "AI 中心", icon: "ai", items: [{ name: "Skill 配置", badge: "5.0" }, { name: "模型配置", badge: "5.0" }, { name: "运营中心" }] },
-        { group: "系统管理", icon: "system", items: [{ name: "看板访问记录" }, { name: "菜单管理" }] }
+        { group: "AI 中心", icon: "ai", items: [{ name: "Skill 配置", badge: "5.0" }, { name: "AI 知识库", badge: "5.0" }, { name: "模型配置", badge: "5.0" }, { name: "运营中心" }] },
+        { group: "系统管理", icon: "system", items: [{ name: "业务线", badge: "5.0" }, { name: "看板访问记录" }, { name: "菜单管理" }] }
       ];
       const boardCategories = [
               "全部",
@@ -1207,7 +1207,7 @@
       window.simpleUsers = simpleUsers;
 
       const permissionGroups = [
-        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "AI 中心", "系统管理", "大数据工具箱", "业务工具箱", "看板访问记录", "菜单管理", "Skill 配置", "模型配置", "运营中心", "补数据", "消耗对比", "环境域名", "生成人群包", "短剧投放账户上报", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], menuEdits: ["灵犀智析", "AI 中心", "系统管理", "大数据工具箱", "业务工具箱", "看板访问记录", "菜单管理", "Skill 配置", "模型配置", "运营中心", "补数据", "消耗对比", "环境域名", "生成人群包", "短剧投放账户上报", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
+        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "AI 中心", "系统管理", "大数据工具箱", "业务工具箱", "看板访问记录", "菜单管理", "业务线", "AI 知识库", "Skill 配置", "模型配置", "运营中心", "补数据", "消耗对比", "环境域名", "生成人群包", "短剧投放账户上报", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], menuEdits: ["灵犀智析", "AI 中心", "系统管理", "大数据工具箱", "业务工具箱", "看板访问记录", "菜单管理", "Skill 配置", "模型配置", "运营中心", "补数据", "消耗对比", "环境域名", "生成人群包", "短剧投放账户上报", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
         { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["CPA事业部", "大盘数据"], tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"], status: "启用" },
         { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["CPA事业部", "新媒体"], tables: ["广告计划日报表", "广告账户日报"], status: "启用" },
         { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["大盘数据", "产品运营部"], tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"], status: "启用" },
@@ -1536,6 +1536,8 @@
         "数据告警": ["数据告警", "选择监控表与字段配置告警规则、通知模版与飞书推送通道，支持实时或定时触发与重复通知控制。", "新建告警"],
         "Skill 配置": ["Skill 配置", "管理可用于灵犀智析和飞书机器人的分析 skill：展示、提示词、版本与用户灰度。", "上传 Skill"],
         "Skill 详情": ["Skill 详情", "", ""],
+        "业务线": ["业务线", "维护全站统一的业务线（如存量、权益、保险）：数据表、AI 知识库都绑定到业务线。", "新增业务线"],
+        "AI 知识库": ["AI 知识库", "统一管理业务线知识库与数据表知识库，灵犀智析回答问题时按业务线读取。", "新建知识库"],
         "菜单管理": ["菜单管理", "维护门户侧边导航结构：层级、图标、排序、组件路径与权限标识。", "添加"],
         "看板访问记录": ["看板访问记录", "记录用户「查看看板」明细，支持按用户、终端与时间范围筛选。", ""],
         "运营中心": ["运营中心", "用量与配额、审计日志、回答反馈、账号管理和默认模型（仅门户管理员）。", ""],
@@ -1728,8 +1730,8 @@
         if (page === "标签管理") return "asset";
         if (page === "人群包推送渠道") return "push";
         if (page === "用户管理" || page === "权限组") return "permission";
-        if (page === "Skill 配置" || page === "Skill 详情" || page === "模型配置" || page === "运营中心") return "ai";
-        if (page === "菜单管理") return "system";
+        if (page === "Skill 配置" || page === "Skill 详情" || page === "AI 知识库" || page === "模型配置" || page === "运营中心") return "ai";
+        if (page === "菜单管理" || page === "业务线") return "system";
         if (page === "大数据工具箱" || page === "补数据" || page === "消耗对比" || page === "环境域名") return "toolbox";
         if (page === "业务工具箱" || page === "生成人群包" || page === "短剧投放账户上报") return "toolboxBiz";
         if (page === "表详情") return "asset";
@@ -3262,6 +3264,8 @@
         document.getElementById("skillManagementView")?.classList.toggle("hidden", page !== "Skill 配置");
         document.getElementById("skillDetailView")?.classList.toggle("hidden", page !== "Skill 详情");
         document.getElementById("menuManagementView")?.classList.toggle("hidden", page !== "菜单管理");
+        document.getElementById("businessLineView")?.classList.toggle("hidden", page !== "业务线");
+        document.getElementById("aiKnowledgeView")?.classList.toggle("hidden", page !== "AI 知识库");
         document.getElementById("modelConfigView")?.classList.toggle("hidden", page !== "模型配置");
         document.getElementById("opsCenterView")?.classList.toggle("hidden", page !== "运营中心");
         document.getElementById("operationLogView")?.classList.toggle("hidden", page !== "看板访问记录");
@@ -3323,6 +3327,8 @@
         document.getElementById("alertManagementView")?.classList.add("hidden");
         document.getElementById("skillManagementView")?.classList.add("hidden");
         document.getElementById("menuManagementView")?.classList.add("hidden");
+        document.getElementById("businessLineView")?.classList.add("hidden");
+        document.getElementById("aiKnowledgeView")?.classList.add("hidden");
         document.getElementById("modelConfigView")?.classList.add("hidden");
         document.getElementById("opsCenterView")?.classList.add("hidden");
         document.getElementById("operationLogView")?.classList.add("hidden");

@@ -50,9 +50,11 @@
     { page: "权限组", path: "/permission/groups/:group", optional: true },
     { page: "Skill 配置", path: "/ai/skills" },
     { page: "Skill 详情", path: "/ai/skills/:skill", list: "Skill 配置", menu: "Skill 配置" },
+    { page: "AI 知识库", path: "/ai/knowledge" },
     { page: "模型配置", path: "/ai/models" },
     { page: "运营中心", path: "/ai/ops" },
     { page: "看板访问记录", path: "/system/access-logs" },
+    { page: "业务线", path: "/system/business-lines" },
     { page: "菜单管理", path: "/system/menus" }
   ].map(route => ({ ...route, segments: route.path.split("/").filter(Boolean), params: route.path.split("/").filter(part => part[0] === ":").map(part => part.slice(1)) }));
 

@@ -39,6 +39,7 @@
       id: "M950", name: "AI 中心", icon: "ai", sort: 950, path: "/ai", cache: true, permission: "ai_center",
       children: [
         { id: "M1020", name: "Skill 配置", icon: "--", sort: 10, path: "/ai/skill-management/index", cache: true, permission: "ai_skill_management", children: [] },
+        { id: "M1025", name: "AI 知识库", icon: "--", sort: 15, path: "/ai/knowledge/index", cache: true, permission: "ai_knowledge", children: [] },
         { id: "M1030", name: "模型配置", icon: "--", sort: 20, path: "/ai/model-config/index", cache: true, permission: "ai_model_config", children: [] },
         { id: "M1040", name: "运营中心", icon: "--", sort: 30, path: "/ai/ops-center/index", cache: true, permission: "ai_ops_center", children: [] }
       ]
@@ -61,6 +62,7 @@
     {
       id: "M1000", name: "系统管理", icon: "system", sort: 10000, path: "/system", cache: true, permission: "system_management",
       children: [
+        { id: "M1005", name: "业务线", icon: "--", sort: 5, path: "/system/business-line/index", cache: true, permission: "system_business_line", children: [] },
         { id: "M1010", name: "菜单管理", icon: "--", sort: 10, path: "/system/menu-management/index", cache: true, permission: "system_menu_management", children: [] }
       ]
     }

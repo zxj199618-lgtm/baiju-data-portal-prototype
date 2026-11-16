@@ -291,7 +291,8 @@ assert(aiGroup.includes('name: "Skill 配置", badge: "5.0"') && aiGroup.include
 assert(portalBridge.includes('group: "AI 中心", icon: "ai"'), "AI 中心应有独立侧栏图标");
 assert(systemGroup.includes('name: "看板访问记录"') && systemGroup.includes('name: "菜单管理"') && !systemGroup.includes('name: "任务运维"') && !systemGroup.includes('name: "环境域名"'), "系统管理只应保留看板访问记录 / 菜单管理；任务运维与环境域名必须已迁入大数据工具箱（此断言防止回退）");
 assert(!systemGroup.includes("Skill 配置") && !systemGroup.includes("模型配置"), "系统管理不应再包含 Skill 配置与模型配置（此断言防止回退）");
-assert(portalBridge.includes('if (page === "Skill 配置" || page === "Skill 详情" || page === "模型配置" || page === "运营中心") return "ai";'), "AI 中心页面的顶部页签应使用 ai 图标");
+assert(portalBridge.includes('if (page === "Skill 配置" || page === "Skill 详情" || page === "AI 知识库" || page === "模型配置" || page === "运营中心") return "ai";'), "AI 中心页面的顶部页签应使用 ai 图标");
+assert(aiGroup.includes('name: "AI 知识库"') && systemGroup.includes('name: "业务线"'), "AI 中心应有 AI 知识库，系统管理应有业务线");
 /* Skill 图标：内置四个 Skill 用随原型分发的 SVG，不再用 emoji；上传图 / emoji 仍按原逻辑渲染 */
 assert(portalVue.includes('icon: "assets/skill-query.svg"') && portalVue.includes('icon: "assets/skill-asset.svg"') && portalVue.includes('icon: "assets/skill-lineage.svg"') && portalVue.includes('icon: "assets/skill-attribution.svg"'), "四个内置 Skill 要用设计好的 SVG 图标");
 assert(portalVue.includes('icon: "assets/skill-single-table.svg"'), "网关未连接时的兜底场景「单表分析」也要用同一套 SVG 图标");
@@ -316,7 +317,7 @@ assert(!portalBridge.includes('"工具总览"'), "总览页名应改为与箱同
 assert(portalBridge.includes('"大数据工具箱": ["大数据工具箱"') && portalBridge.includes('"业务工具箱": ["业务工具箱"'), "两个箱的总览页各自要有标题与说明");
 assert(!portalBridge.includes('{ name: "任务运维" }'), "侧栏不应再出现「任务运维」合并菜单（此断言防止回退）");
 assert(portalBridge.includes('"补数据": ["补数据"') && portalBridge.includes('"消耗对比": ["消耗对比"'), "补数据 / 消耗对比 各自要有页面标题与说明");
-assert(portalBridge.includes('if (page === "菜单管理") return "system";') && portalBridge.includes('page === "补数据" || page === "消耗对比" || page === "环境域名") return "toolbox"'), "工具箱页面走 toolbox 图标，菜单管理仍走 system 图标");
+assert(portalBridge.includes('if (page === "菜单管理" || page === "业务线") return "system";') && portalBridge.includes('page === "补数据" || page === "消耗对比" || page === "环境域名") return "toolbox"'), "工具箱页面走 toolbox 图标，菜单管理仍走 system 图标");
 assert(portalBridge.includes('toolbox: { default: "assets/nav-toolbox-default.svg", active: "assets/nav-toolbox-active.svg" }'), "toolbox 图标应指向独立的默认/选中态资源");
 assert(portalBridge.includes('"补数据": "assets/tool-backfill.svg"') && portalBridge.includes('"消耗对比": "assets/tool-compare.svg"') && portalBridge.includes('"环境域名": "assets/tool-env.svg"') && portalBridge.includes("function toolIconPath(page)"), "每个工具要有一张区分图标，供工具总览卡片与顶部页签使用");
 assert(html.includes('id="toolboxOverviewView"') && html.includes('id="toolBackfillView"') && html.includes('id="toolCompareView"'), "工具箱三个页面容器应存在");

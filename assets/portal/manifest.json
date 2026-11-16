@@ -33,6 +33,7 @@
   "page-drama-report.js",
   "knowledge-md.js",
   "page-table-detail.js",
+  "page-ai-knowledge.js",
   "page-ops-env.js",
   "page-alert-management.js",
   "page-ops-center.js",

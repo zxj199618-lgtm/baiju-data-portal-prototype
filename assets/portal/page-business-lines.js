@@ -1,367 +1,136 @@
 /**
- * 组件：BusinessLinePanel（表管理页内的「业务线」视图）
- * 依赖 core.js（window.PortalVue）。window.PortalKnowledgeMd 由 knowledge-md.js 提供，加载顺序在本文件之后，所以只在用到时才读取。
- * 数据都在 knowledgeData 里，所有保存走 knowledgeSync.saveBusinessLines()；没有编辑权限时整页只读。
+ * 页面：业务线（系统管理 → 业务线）
+ * 业务线是全局基础数据：表、AI 知识库（后续还有 Skill）都绑定到某个业务线。
+ * 原型阶段数据放在前端 window.PortalVue.bizStore（刷新即还原），确认交互后再接后端。
+ * 本文件同时提供 bizStore，page-asset-management / page-table-detail / page-ai-knowledge 共用。
  */
 (() => {
   "use strict";
   if (!window.PortalVue) return;
-  const { ep, knowledgeData, knowledgeSync, loadGatewayFields, loginUser, notify, permissionFieldsOf, refreshTick, state } = window.PortalVue;
+  const { ep, mount, notify, reactive, refreshTick, state } = window.PortalVue;
 
-  const PUBLIC = "公共";
-  const MAX_KNOWLEDGE = 20000;
-  const MAX_LINES = 50;
-  const MAX_RELATIONS = 200;
-  const RELATION_TYPES = ["1:1", "1:N", "N:1"];
-  const md = () => window.PortalKnowledgeMd;
+  /* ===== 共享数据（原型内存态）=====
+     lines：业务线；kbs：知识库（type=业务线 时 target 是业务线名，type=表 时 target 是表中文名；表知识库所属业务线跟随表的业务线）；
+     relations：业务线内的表关联（归在业务线知识库下维护） */
+  const bizStore = reactive({
+    lines: [
+      { id: "BL01", name: "存量", desc: "存量用户运营：用户画像、生命周期、触达与召回。", enabled: true, updatedBy: "曾祥竞", updatedAt: "2026-11-10 10:20" },
+      { id: "BL02", name: "权益", desc: "权益业务：银联权益、领券核销、广告投放与转化。", enabled: true, updatedBy: "曾祥竞", updatedAt: "2026-11-10 10:20" },
+      { id: "BL03", name: "保险", desc: "保险业务：投保转化、保费与理赔相关数据。", enabled: true, updatedBy: "曾祥竞", updatedAt: "2026-11-12 16:05" },
+      { id: "BL04", name: "号卡", desc: "号卡业务：RTA 请求、号卡订单与渠道投放。", enabled: true, updatedBy: "曾祥竞", updatedAt: "2026-11-12 16:05" }
+    ],
+    kbs: [
+      { id: "KB01", type: "业务线", target: "权益", updatedBy: "曾祥竞", updatedAt: "2026-11-13 09:30",
+        markdown: "# 权益业务线知识库\n\n## 业务概述\n权益业务通过广告投放引导用户领取银联权益，核心看「消耗、领取、核销」三段转化。\n\n## 常用术语\n- **领取率**：领取人数 / 曝光人数\n- **核销率**：核销人数 / 领取人数\n- **CPA**：消耗 / 核销人数\n\n## 回答规则\n- 未指定日期时，默认看最近 7 天。\n- 金额统一用元，保留两位小数。" },
+      { id: "KB02", type: "业务线", target: "存量", updatedBy: "曾祥竞", updatedAt: "2026-11-13 09:45",
+        markdown: "# 存量业务线知识库\n\n## 业务概述\n存量业务面向已注册用户，目标是提升活跃与复购，通过标签圈选人群后触达。\n\n## 常用术语\n- **活跃用户**：近 30 天有登录行为的用户\n- **沉默用户**：近 90 天无登录行为的用户\n\n## 回答规则\n- 用户量类问题默认按「去重用户数」统计。" },
+      { id: "KB03", type: "表", target: "广告计划日报表", updatedBy: "曾祥竞", updatedAt: "2026-11-13 10:10",
+        markdown: "# 广告计划日报表\n\n## 表说明\n按「日期 + 广告计划」粒度的投放日报，一个计划一天一行。\n\n## 指标口径\n- **消耗**：`cost`，单位元\n- **转化数**：`convert_cnt`，已按媒体回传去重\n\n## 注意事项\n- 当天数据 T+1 凌晨 2:30 后才完整。" }
+    ],
+    relations: []
+  });
 
-  const BusinessLinePanel = {
-    props: { visibleTables: { type: Array, default: null } },
+  const activeLines = () => bizStore.lines.filter(line => line.enabled).map(line => line.name);
+  const nowText = () => window.PortalKnowledgeMd?.knowledgeNow?.() || "";
+  const currentUserName = () => window.PortalVue.loginUser?.()?.name || "";
+
+  /** 业务线下绑定的表（表管理里的「业务线」字段） */
+  const tablesOfLine = name => state.assets.filter(asset => asset.bizLine === name);
+  /** 业务线下的知识库：业务线知识库 + 属于该业务线的表知识库 */
+  const kbsOfLine = name => bizStore.kbs.filter(kb => kb.type === "业务线" ? kb.target === name : (state.assets.find(asset => asset.cnName === kb.target)?.bizLine || "") === name);
+
+  const BusinessLinesApp = {
     template: `
-      <section class="portal-vue-panel portal-vue-bizline">
-        <aside class="portal-vue-bizline-side">
-          <div class="portal-vue-bizline-side-head"><strong>业务线</strong><el-button v-if="editable" size="small" type="primary" plain :disabled="busy" @click="openNameDialog('add')">新增业务线</el-button></div>
-          <ul class="portal-vue-bizline-list">
-            <li v-for="line in lines" :key="line.id || line.name" class="portal-vue-bizline-item"
-                :class="{ active: line.name === selectedName, 'has-actions': editable && line.name !== PUBLIC, dragging: dragName === line.name, 'drop-before': overName === line.name && overPos === 'before', 'drop-after': overName === line.name && overPos === 'after' }"
-                @click="select(line)" @dragover="onDragOver($event, line)" @drop="onDrop($event, line)">
-              <span v-if="editable" class="portal-vue-bizline-handle" :class="{ disabled: line.name === PUBLIC || busy }"
-                    :draggable="line.name !== PUBLIC && !busy" :tabindex="line.name === PUBLIC ? -1 : 0"
-                    role="button" title="拖动排序（也可聚焦后按 ↑ ↓）" aria-label="拖动排序"
-                    @click.stop @dragstart="onDragStart($event, line)" @dragend="clearDrag"
-                    @keydown.up.prevent="nudge(line, -1)" @keydown.down.prevent="nudge(line, 1)">
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><g fill="currentColor"><circle cx="5.5" cy="3.5" r="1.3"/><circle cx="10.5" cy="3.5" r="1.3"/><circle cx="5.5" cy="8" r="1.3"/><circle cx="10.5" cy="8" r="1.3"/><circle cx="5.5" cy="12.5" r="1.3"/><circle cx="10.5" cy="12.5" r="1.3"/></g></svg>
-              </span>
-              <span class="portal-vue-bizline-name">{{ line.name }}</span>
-              <span v-if="editable && line.name !== PUBLIC" class="portal-vue-bizline-row-actions">
-                <el-button size="small" link type="primary" :disabled="busy" @click.stop="select(line); openNameDialog('rename')">改名</el-button>
-                <el-button size="small" link type="danger" :disabled="busy" @click.stop="select(line); removeLine()">删除</el-button>
-              </span>
-              <el-tag size="small" effect="plain" round class="portal-vue-bizline-count">{{ tablesOf(line).length }} 张表</el-tag>
-            </li>
-          </ul>
-          <div v-if="editable" class="portal-vue-bizline-side-note">拖动左侧手柄调整顺序；「公共」为内置业务线，置顶，不能改名或删除。</div>
-        </aside>
-        <div class="portal-vue-bizline-main">
-          <el-empty v-if="!selected" description="暂无业务线"></el-empty>
-          <template v-else>
-            <h3 class="portal-vue-bizline-title">{{ selected.name }}<span v-if="!editable" class="portal-vue-muted portal-vue-bizline-readonly">只读</span></h3>
-            <el-tabs v-model="sub" class="portal-vue-bizline-tabs">
-              <el-tab-pane label="知识库" name="knowledge">
-                <div class="portal-vue-knowledge-bar">
-                  <span class="portal-vue-muted">{{ selected.knowledge && !editing ? "最近编辑：" + selected.knowledge.updatedBy + " · " + selected.knowledge.updatedAt : "" }}</span>
-                  <el-button v-if="!editing && editable && selected.knowledge" type="primary" round class="portal-vue-knowledge-edit" :disabled="busy" @click="startEdit">编辑知识库</el-button>
-                </div>
-                <div v-if="editing" class="portal-vue-md-editor portal-vue-bizline-editor">
-                  <div class="portal-vue-md-toolbar" @mousedown.prevent>
-                    <el-button size="small" text @click="mdWrap('**', '**', '加粗文字')"><strong>B</strong>&nbsp;加粗</el-button>
-                    <el-button size="small" text @click="mdLinePrefix('## ')">标题</el-button>
-                    <el-button size="small" text @click="mdLinePrefix('- ')">无序列表</el-button>
-                    <el-button size="small" text @click="mdLinePrefix('1. ')">有序列表</el-button>
-                    <el-button size="small" text @click="mdLinePrefix('> ')">引用</el-button>
-                    <span class="portal-vue-md-tip">左边编辑，右边预览；上限 ${MAX_KNOWLEDGE} 字</span>
-                  </div>
-                  <div class="portal-vue-md-split">
-                    <textarea ref="mdArea" v-model="text" class="portal-vue-md-textarea" spellcheck="false" placeholder="在这里填写业务线知识库，支持 Markdown"></textarea>
-                    <div class="portal-vue-knowledge-doc" v-html="renderedDraft"></div>
-                  </div>
-                  <div class="portal-vue-bizline-editor-actions"><el-button round @click="cancelEdit">取消</el-button><el-button type="primary" round :loading="busy" :disabled="busy" @click="saveKnowledge">保存知识库</el-button></div>
-                </div>
-                <template v-else>
-                  <div v-if="selected.knowledge" class="portal-vue-knowledge-doc" v-html="renderedKnowledge"></div>
-                  <el-empty v-else description="该业务线还没有知识库。写下业务口径与术语，灵犀智析回答该业务线的问题时会参考。"><el-button v-if="editable" type="primary" round :disabled="busy" @click="startEdit">新建知识库</el-button></el-empty>
-                </template>
-              </el-tab-pane>
-              <el-tab-pane label="表关联" name="relations">
-                <div class="portal-vue-bizline-bar"><span class="portal-vue-muted">说明两张表怎样关联（关系读作 左:右），灵犀智析取数时会据此做关联。共 {{ relations.length }} / ${MAX_RELATIONS} 条</span><el-button v-if="editable" type="primary" :disabled="busy" @click="openRelation()">添加关联</el-button></div>
-                <el-alert v-if="invalidCount" type="warning" show-icon :closable="false" class="portal-vue-bizline-invalid-alert" :title="'有 ' + invalidCount + ' 条关联已失效，灵犀智析取数时不会使用：请修正两端的表与字段，或把表移回该业务线 / 公共'"></el-alert>
-                <el-table :data="relations" class="portal-vue-table" border empty-text="暂无表关联">
-                  <el-table-column label="状态" width="80" align="center"><template #default="scope"><el-tooltip v-if="scope.row.invalid" :content="scope.row.invalid" placement="top"><el-tag type="danger" size="small" effect="plain" class="portal-vue-bizline-invalid" :title="scope.row.invalid">失效</el-tag></el-tooltip><span v-else class="portal-vue-muted">正常</span></template></el-table-column>
-                  <el-table-column label="左表" prop="left.table" min-width="150" show-overflow-tooltip></el-table-column>
-                  <el-table-column label="左字段" min-width="120"><template #default="scope"><code class="portal-vue-code">{{ scope.row.left.field }}</code></template></el-table-column>
-                  <el-table-column label="关系" prop="type" width="80" align="center"></el-table-column>
-                  <el-table-column label="右表" prop="right.table" min-width="150" show-overflow-tooltip></el-table-column>
-                  <el-table-column label="右字段" min-width="120"><template #default="scope"><code class="portal-vue-code">{{ scope.row.right.field }}</code></template></el-table-column>
-                  <el-table-column label="备注" prop="note" min-width="160" show-overflow-tooltip></el-table-column>
-                  <el-table-column v-if="editable" label="操作" width="120"><template #default="scope"><el-button link type="primary" :disabled="busy" @click="openRelation(scope.row)">编辑</el-button><el-button link type="danger" :disabled="busy" @click="removeRelation(scope.row)">删除</el-button></template></el-table-column>
-                </el-table>
-              </el-tab-pane>
-              <el-tab-pane label="包含的表" name="tables">
-                <div class="portal-vue-bizline-bar">
-                  <span class="portal-vue-muted">共 {{ selectedTables.length }} 张表</span>
-                  <el-select v-if="editable" :model-value="''" class="portal-vue-bizline-move-in" :disabled="busy" filterable placeholder="移入数据表" @change="moveIn">
-                    <el-option v-for="item in moveInOptions" :key="item.table" :label="item.table + '（' + (item.line || '未分组') + '）'" :value="item.table"></el-option>
-                  </el-select>
-                </div>
-                <el-table :data="selectedTables" class="portal-vue-table" border empty-text="该业务线下还没有数据表">
-                  <el-table-column label="表中文名" prop="table" min-width="200" show-overflow-tooltip></el-table-column>
-                  <el-table-column label="表名" min-width="220" show-overflow-tooltip><template #default="scope"><code class="portal-vue-code">{{ scope.row.raw }}</code></template></el-table-column>
-                  <el-table-column label="表负责人" prop="owner" width="140"></el-table-column>
-                  <el-table-column v-if="editable" label="操作" width="90"><template #default="scope"><el-button link type="danger" :disabled="busy" @click="moveOut(scope.row.table)">移出</el-button></template></el-table-column>
-                </el-table>
-              </el-tab-pane>
-            </el-tabs>
-          </template>
-        </div>
-
-        <el-dialog v-model="nameVisible" :title="nameMode === 'add' ? '新增业务线' : '业务线改名'" width="420px" append-to-body>
-          <el-form label-position="top" @submit.prevent><el-form-item label="业务线名称" required><el-input v-model="nameDraft" maxlength="30" placeholder="例如：AI 短剧" @keyup.enter="submitName"></el-input></el-form-item></el-form>
-          <template #footer><el-button @click="nameVisible=false">取消</el-button><el-button type="primary" :disabled="busy" @click="submitName">确定</el-button></template>
-        </el-dialog>
-
-        <el-dialog v-model="relationVisible" :title="relationForm.id ? '编辑表关联' : '添加表关联'" width="640px" append-to-body>
-          <el-form label-position="top" class="portal-vue-dialog-form">
-            <div class="portal-vue-bizline-relation-grid">
-              <el-form-item label="左表" required><el-select v-model="relationForm.leftTable" filterable placeholder="选择左表" @change="relationForm.leftField=''"><el-option v-for="name in relationTableChoices" :key="name" :label="name" :value="name"></el-option></el-select></el-form-item>
-              <el-form-item label="左字段" required><el-select v-model="relationForm.leftField" filterable placeholder="选择左字段" class="portal-vue-bizline-left-field"><el-option v-for="name in fieldChoices(relationForm.leftTable)" :key="name" :label="name" :value="name"></el-option></el-select></el-form-item>
-              <el-form-item label="关系（左:右）" required><el-select v-model="relationForm.type"><el-option v-for="item in RELATION_TYPES" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
-              <span></span>
-              <el-form-item label="右表" required><el-select v-model="relationForm.rightTable" filterable placeholder="选择右表" @change="relationForm.rightField=''"><el-option v-for="name in relationTableChoices" :key="name" :label="name" :value="name"></el-option></el-select></el-form-item>
-              <el-form-item label="右字段" required><el-select v-model="relationForm.rightField" filterable placeholder="选择右字段" class="portal-vue-bizline-right-field"><el-option v-for="name in fieldChoices(relationForm.rightTable)" :key="name" :label="name" :value="name"></el-option></el-select></el-form-item>
+      <el-config-provider :locale="locale">
+        <section class="portal-vue-panel">
+          <div class="portal-vue-toolbar">
+            <div class="portal-vue-toolbar-left">
+              <el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索业务线名称、说明"></el-input>
+              <el-select v-model="statusFilter" class="portal-vue-filter" placeholder="全部状态"><el-option label="全部状态" value=""></el-option><el-option label="启用" value="启用"></el-option><el-option label="停用" value="停用"></el-option></el-select>
             </div>
-            <el-form-item label="备注"><el-input v-model="relationForm.note" maxlength="200" placeholder="例如：一个用户可以有多笔订单"></el-input></el-form-item>
+            <el-button v-if="canEdit('业务线')" type="primary" @click="openForm(null)">新增业务线</el-button>
+          </div>
+          <div class="portal-vue-scope-hint"><span>业务线用于归类<strong>数据表、AI 知识库</strong>（后续还有 Skill）</span><span class="portal-vue-muted">业务线不能删除，不再使用时请停用；停用后不能再被新的表和知识库选择，已绑定的保持不变</span></div>
+          <el-table :data="rows" class="portal-vue-table" border empty-text="暂无业务线">
+            <el-table-column label="业务线" width="160"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
+            <el-table-column prop="desc" label="说明" min-width="300" show-overflow-tooltip></el-table-column>
+            <el-table-column label="绑定数据表" width="120" align="center"><template #default="scope">{{ tablesOf(scope.row).length }} 张</template></el-table-column>
+            <el-table-column label="AI 知识库" width="120" align="center"><template #default="scope"><el-button link type="primary" :disabled="!kbsOf(scope.row).length" @click="goKnowledge(scope.row)">{{ kbsOf(scope.row).length }} 份</el-button></template></el-table-column>
+            <el-table-column label="状态" width="90" align="center"><template #default="scope"><el-switch :disabled="!canEdit('业务线')" :model-value="scope.row.enabled" @change="value => toggle(scope.row, value)"></el-switch></template></el-table-column>
+            <el-table-column label="最近修改" width="190"><template #default="scope"><div>{{ scope.row.updatedAt }}</div><small class="portal-vue-muted">{{ scope.row.updatedBy }}</small></template></el-table-column>
+            <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button v-if="canEdit('业务线')" link type="primary" @click="openForm(scope.row)">编辑</el-button><span v-else class="portal-vue-muted">—</span></template></el-table-column>
+          </el-table>
+          <div class="portal-vue-pagination"><span>共 {{ rows.length }} 个业务线</span></div>
+        </section>
+
+        <el-dialog v-model="formVisible" :title="form.id ? '编辑业务线' : '新增业务线'" width="480px" append-to-body>
+          <el-form label-position="top" class="portal-vue-dialog-form" @submit.prevent>
+            <el-form-item label="业务线名称" required><el-input v-model="form.name" maxlength="20" show-word-limit placeholder="例如：存量、权益、保险"></el-input></el-form-item>
+            <el-alert v-if="renameHint" type="warning" show-icon :closable="false" :title="renameHint" style="margin:-4px 0 14px"></el-alert>
+            <el-form-item label="说明"><el-input v-model="form.desc" type="textarea" :rows="3" maxlength="100" show-word-limit placeholder="一句话说明这条业务线负责什么"></el-input></el-form-item>
+            <el-form-item label="状态"><el-switch v-model="form.enabled" inline-prompt active-text="启用" inactive-text="停用"></el-switch></el-form-item>
           </el-form>
-          <template #footer><el-button @click="relationVisible=false">取消</el-button><el-button type="primary" :disabled="busy" @click="saveRelation">保存</el-button></template>
+          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
         </el-dialog>
-      </section>
+      </el-config-provider>
     `,
-    data: () => ({ PUBLIC, RELATION_TYPES, selectedName: PUBLIC, sub: "knowledge", editing: false, text: "", busy: false, dragName: "", overName: "", overPos: "", nameVisible: false, nameMode: "add", nameDraft: "", relationVisible: false, relationForm: {} }),
+    data: () => ({ keyword: "", statusFilter: "", formVisible: false, form: {}, editing: null }),
     computed: {
-      editable() { refreshTick.value; return !!knowledgeData.canEdit && this.canEdit("表管理"); },
-      lines() { refreshTick.value; return knowledgeData.businessLines; },
-      selected() { return this.lines.find(line => line.name === this.selectedName) || this.lines[0] || null; },
-      relations() { return this.selected?.relations || []; },
-      tableChoices() {
+      rows() {
         refreshTick.value;
-        const assets = new Set(state.assets.map(item => item.cnName));
-        const visible = this.visibleTables ? new Set(this.visibleTables) : null;
-        return knowledgeData.knownTables.filter(name => assets.has(name) && (!visible || visible.has(name)));
+        const keyword = this.keyword.trim().toLowerCase();
+        return bizStore.lines.filter(line => (!this.statusFilter || (line.enabled ? "启用" : "停用") === this.statusFilter) && (!keyword || `${line.name} ${line.desc}`.toLowerCase().includes(keyword)));
       },
-      /** 关联两端只能选该业务线或「公共」里的表：其他表在取数时用不上 */
-      relationTableChoices() {
-        refreshTick.value;
-        const name = this.selected?.name;
-        return this.tableChoices.filter(table => { const owner = knowledgeData.tableLines[table]; return owner && (owner === name || owner === PUBLIC); });
-      },
-      invalidCount() { return this.relations.filter(rel => rel.invalid).length; },
-      selectedTables() {
-        refreshTick.value;
-        return this.tablesOf(this.selected).map(table => { const asset = state.assets.find(item => item.cnName === table); return { table, raw: asset?.table || "", owner: asset?.owner || "" }; });
-      },
-      moveInOptions() { refreshTick.value; return this.tableChoices.filter(name => knowledgeData.tableLines[name] !== this.selected?.name).map(table => ({ table, line: knowledgeData.tableLines[table] || "" })); },
-      renderedDraft() { return md().renderKnowledgeMarkdown(md().normalizeToMarkdown(this.text)); },
-      renderedKnowledge() { return this.selected?.knowledge ? md().renderKnowledgeMarkdown(this.selected.knowledge.markdown) : ""; }
+      renameHint() {
+        if (!this.editing || this.form.name?.trim() === this.editing.name) return "";
+        const tables = tablesOfLine(this.editing.name).length;
+        const kbs = kbsOfLine(this.editing.name).length;
+        return tables || kbs ? `改名后，已绑定的 ${tables} 张数据表、${kbs} 份知识库会自动同步为新名称。` : "";
+      }
     },
-    mounted() { if (this.editable) loadGatewayFields(); },
-    watch: { selectedName() { this.editing = false; this.text = ""; } },
+    mounted() { this.primaryHandler = event => { if (event.detail?.page === "业务线") this.openForm(null); }; window.addEventListener("portal:primary-action", this.primaryHandler); },
+    beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); },
     methods: {
-      tablesOf(line) { refreshTick.value; return line ? Object.entries(knowledgeData.tableLines).filter(([, name]) => name === line.name).map(([table]) => table) : []; },
-      select(line) { this.selectedName = line.name; },
-      /**
-       * 先快照、再修改、再保存；保存失败（无论是服务端拒绝还是网络异常）就把业务线与归属恢复到修改前，
-       * 避免界面上看着像改了、之后别的保存又把没保存成功的修改一起提交。
-       * 整个过程 busy：重复点击不会再发一次同 rev 的请求。返回是否保存成功。
-       */
-      async commit(mutate) {
-        if (this.busy) return false;
-        this.busy = true;
-        const lines = JSON.parse(JSON.stringify(knowledgeData.businessLines));
-        const tableLines = JSON.parse(JSON.stringify(knowledgeData.tableLines));
-        const selectedName = this.selectedName;
-        let ok = false;
-        try {
-          mutate();
-          ok = await knowledgeSync.saveBusinessLines();
-          if (ok) await knowledgeSync.load();
-        } finally {
-          if (!ok) {
-            knowledgeData.businessLines = lines;
-            knowledgeData.tableLines = tableLines;
-            this.selectedName = selectedName;
-            refreshTick.value += 1;
-            await knowledgeSync.load(); // 能连上就以服务端为准；连不上时保持恢复后的状态
-          }
-          this.busy = false;
-        }
-        return ok;
+      tablesOf: line => tablesOfLine(line.name),
+      kbsOf: line => kbsOfLine(line.name),
+      goKnowledge(line) { window.PortalVue.bizStore.focusLine = line.name; window.portalVueBridge.setPage("AI 知识库"); },
+      openForm(line) {
+        this.editing = line;
+        this.form = line ? { id: line.id, name: line.name, desc: line.desc, enabled: line.enabled } : { id: "", name: "", desc: "", enabled: true };
+        this.formVisible = true;
       },
-      /* ---- 业务线列表 ---- */
-      openNameDialog(mode) {
-        if (mode === "add" && this.lines.length >= MAX_LINES) return ep.ElMessage.warning(`业务线最多 ${MAX_LINES} 个（含「${PUBLIC}」）`);
-        this.nameMode = mode;
-        this.nameDraft = mode === "rename" ? this.selected.name : "";
-        this.nameVisible = true;
-      },
-      async submitName() {
-        if (this.busy) return;
-        const name = this.nameDraft.trim();
+      save() {
+        const name = this.form.name.trim();
         if (!name) return ep.ElMessage.warning("请填写业务线名称");
-        if (this.lines.some(line => line.name === name && (this.nameMode === "add" || line !== this.selected))) return ep.ElMessage.warning(`业务线「${name}」已存在`);
-        if (name === PUBLIC) return ep.ElMessage.warning(`「${PUBLIC}」是内置业务线，名称不能使用`);
-        const mode = this.nameMode;
-        const old = this.selected?.name;
-        if (mode === "rename" && old === name) { this.nameVisible = false; return; }
-        const ok = await this.commit(() => {
-          if (mode === "add") {
-            knowledgeData.businessLines.push({ name, order: knowledgeData.businessLines.length, knowledge: null, relations: [] });
-          } else {
-            // 表的归属按业务线名记录，改名时一起改，否则服务端会认为这些表指向不存在的业务线
-            Object.keys(knowledgeData.tableLines).forEach(table => { if (knowledgeData.tableLines[table] === old) knowledgeData.tableLines[table] = name; });
-            this.selected.name = name;
+        if (bizStore.lines.some(line => line.name === name && line.id !== this.form.id)) return ep.ElMessage.warning(`业务线「${name}」已存在`);
+        const meta = { desc: this.form.desc.trim(), enabled: !!this.form.enabled, updatedBy: currentUserName(), updatedAt: nowText() };
+        if (!this.form.id) {
+          bizStore.lines.push({ id: "BL" + String(bizStore.lines.length + 1).padStart(2, "0"), name, ...meta });
+          notify(`业务线「${name}」已新增`);
+        } else {
+          const line = bizStore.lines.find(item => item.id === this.form.id);
+          const old = line.name;
+          if (old !== name) {
+            // 表、知识库、表关联都是按业务线名绑定的，改名时一起改
+            state.assets.forEach(asset => { if (asset.bizLine === old) asset.bizLine = name; });
+            bizStore.kbs.forEach(kb => { if (kb.type === "业务线" && kb.target === old) kb.target = name; });
+            bizStore.relations.forEach(rel => { if (rel.line === old) rel.line = name; });
           }
-          this.selectedName = name;
-        });
-        if (!ok) return; // 保存失败：对话框保持打开，输入还在
-        this.nameVisible = false;
-        notify(mode === "add" ? `业务线「${name}」已新增` : `业务线已改名为「${name}」`);
+          Object.assign(line, { name }, meta);
+          notify(`业务线「${name}」已保存`);
+        }
+        refreshTick.value += 1;
+        this.formVisible = false;
       },
-      /* ---- 拖动排序：只能拖动手柄；「公共」固定第一，不能被拖动，也不能被排到它前面 ---- */
-      clearDrag() { this.dragName = ""; this.overName = ""; this.overPos = ""; },
-      onDragStart(event, line) {
-        if (this.busy || line.name === PUBLIC) { event.preventDefault(); return; }
-        this.dragName = line.name;
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", line.name);
-        const row = event.currentTarget.closest("li");
-        if (row && event.dataTransfer.setDragImage) event.dataTransfer.setDragImage(row, 16, 16);
-      },
-      onDragOver(event, line) {
-        if (!this.dragName || this.busy) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        const rect = event.currentTarget.getBoundingClientRect();
-        // 「公共」前面不能放东西：落在它上面一律算"放在它后面"
-        this.overPos = line.name === PUBLIC || event.clientY >= rect.top + rect.height / 2 ? "after" : "before";
-        this.overName = line.name;
-      },
-      onDrop(event, line) {
-        if (!this.dragName) return;
-        event.preventDefault();
-        const from = this.dragName;
-        const pos = line.name === PUBLIC ? "after" : this.overPos || "after";
-        this.clearDrag();
-        this.reorder(from, line.name, pos);
-      },
-      /** 键盘：聚焦手柄后按 ↑ ↓ 调整一格 */
-      nudge(line, step) {
-        const list = this.lines;
-        const neighbor = list[list.indexOf(line) + step];
-        if (!neighbor || line.name === PUBLIC) return;
-        this.reorder(line.name, neighbor.name, step < 0 ? "before" : "after");
-      },
-      async reorder(fromName, toName, pos) {
-        if (this.busy || fromName === toName || fromName === PUBLIC) return;
-        const before = this.lines.map(line => line.name);
-        const without = before.filter(name => name !== fromName);
-        const targetIndex = without.indexOf(toName);
-        if (targetIndex < 0) return;
-        const insertAt = Math.max(1, pos === "before" ? targetIndex : targetIndex + 1); // 下标 0 永远是「公共」
-        const next = [...without.slice(0, insertAt), fromName, ...without.slice(insertAt)];
-        if (next.every((name, index) => name === before[index])) return;
-        await this.commit(() => {
-          const byName = new Map(knowledgeData.businessLines.map(line => [line.name, line]));
-          knowledgeData.businessLines = next.map((name, order) => { const line = byName.get(name); line.order = order; return line; });
-        });
-      },
-      async removeLine() {
-        const line = this.selected;
-        if (this.busy || !line || line.name === PUBLIC) return;
-        const tables = this.tablesOf(line);
-        if (tables.length) return ep.ElMessage.warning(`业务线「${line.name}」下还有数据表，请先迁出：${tables.join("、")}`);
-        if (!(await window.PortalVue.confirmAction("删除业务线", `确认删除业务线「${line.name}」？它的知识库和表关联会一并删除。`, "删除"))) return;
-        const ok = await this.commit(() => {
-          knowledgeData.businessLines.splice(knowledgeData.businessLines.indexOf(line), 1);
-          this.selectedName = PUBLIC;
-        });
-        if (ok) notify(`业务线「${line.name}」已删除`);
-      },
-      /* ---- 知识库 ---- */
-      startEdit() { this.text = this.selected.knowledge?.markdown || md().businessLineTemplate(this.selected.name); this.editing = true; },
-      cancelEdit() { this.editing = false; this.text = ""; },
-      async saveKnowledge() {
-        if (this.busy) return;
-        const raw = this.text.trim();
-        if (!raw) return ep.ElMessage.warning("知识库内容不能为空");
-        const markdown = md().normalizeToMarkdown(raw);
-        if (markdown.length > MAX_KNOWLEDGE) return ep.ElMessage.warning(`知识库不能超过 ${MAX_KNOWLEDGE} 字（当前 ${markdown.length} 字）`);
-        const line = this.selected;
-        const ok = await this.commit(() => { line.knowledge = { markdown, updatedBy: loginUser()?.name || "", updatedAt: md().knowledgeNow() }; });
-        if (!ok) return; // 编辑器保持打开，内容还在
-        this.editing = false;
-        notify(`「${line.name}」知识库已保存${markdown !== raw ? "，已自动转换为 Markdown 格式" : ""}`);
-      },
-      mdWrap(prefix, suffix, placeholder) {
-        const el = this.$refs.mdArea; if (!el) return;
-        const { selectionStart: start, selectionEnd: end } = el;
-        const selected = this.text.slice(start, end) || placeholder;
-        this.text = this.text.slice(0, start) + prefix + selected + suffix + this.text.slice(end);
-        this.$nextTick(() => { el.focus(); el.setSelectionRange(start + prefix.length, start + prefix.length + selected.length); });
-      },
-      mdLinePrefix(prefix) {
-        const el = this.$refs.mdArea; if (!el) return;
-        const text = this.text;
-        const lineStart = text.lastIndexOf("\n", el.selectionStart - 1) + 1;
-        let lineEnd = text.indexOf("\n", el.selectionEnd); if (lineEnd < 0) lineEnd = text.length;
-        const block = text.slice(lineStart, lineEnd).split("\n").map(line => prefix + line.replace(/^(#{1,6}\s|[-*]\s|\d+\.\s|>\s)/, "")).join("\n");
-        this.text = text.slice(0, lineStart) + block + text.slice(lineEnd);
-        this.$nextTick(() => { el.focus(); el.setSelectionRange(lineStart, lineStart + block.length); });
-      },
-      /* ---- 表关联 ---- */
-      fieldChoices(table) {
-        refreshTick.value;
-        if (!table) return [];
-        // 优先用 /v1/knowledge 给编辑者的网关字段（非管理员拿不到 /v1/table-fields）；没有时沿用字段权限面板的来源
-        const gateway = knowledgeData.tableFields?.[table];
-        if (Array.isArray(gateway)) return gateway.filter(Boolean);
-        return permissionFieldsOf(table).map(field => field.name).filter(Boolean);
-      },
-      openRelation(row) {
-        if (!row && this.relations.length >= MAX_RELATIONS) return ep.ElMessage.warning(`每个业务线的关联最多 ${MAX_RELATIONS} 条`);
-        this.relationForm = row
-          ? { id: row.id || "", leftTable: row.left.table, leftField: row.left.field, type: row.type, rightTable: row.right.table, rightField: row.right.field, note: row.note || "" }
-          : { id: "", leftTable: "", leftField: "", type: "1:N", rightTable: "", rightField: "", note: "" };
-        this.relationVisible = true;
-      },
-      async saveRelation() {
-        if (this.busy) return;
-        const form = this.relationForm;
-        if (![form.leftTable, form.leftField, form.rightTable, form.rightField].every(Boolean)) return ep.ElMessage.warning("请选择两端的表和字段");
-        if (!RELATION_TYPES.includes(form.type)) return ep.ElMessage.warning("请选择关系类型");
-        if (form.leftTable === form.rightTable && form.leftField === form.rightField) return ep.ElMessage.warning("两端不能是同一张表的同一个字段");
-        const item = { left: { table: form.leftTable, field: form.leftField }, right: { table: form.rightTable, field: form.rightField }, type: form.type, note: form.note.trim() };
-        const line = this.selected;
-        if (form.id && !line.relations.some(rel => rel.id === form.id)) return;
-        const ok = await this.commit(() => {
-          if (form.id) line.relations.splice(line.relations.findIndex(rel => rel.id === form.id), 1, { ...item, id: form.id });
-          else line.relations.push(item);
-        });
-        if (!ok) return; // 对话框保持打开，选择还在
-        this.relationVisible = false;
-        notify("表关联已保存");
-      },
-      async removeRelation(row) {
-        if (this.busy) return;
-        if (!(await window.PortalVue.confirmAction("删除表关联", `确认删除 ${row.left.table}.${row.left.field} ${row.type} ${row.right.table}.${row.right.field}？`, "删除"))) return;
-        const line = this.selected;
-        const ok = await this.commit(() => { const index = line.relations.indexOf(row); if (index >= 0) line.relations.splice(index, 1); });
-        if (ok) notify("表关联已删除");
-      },
-      /* ---- 包含的表 ---- */
-      async moveIn(table) {
-        if (this.busy || !table || !this.selected) return;
-        const name = this.selected.name;
-        if (await this.commit(() => { knowledgeData.tableLines[table] = name; })) notify(`「${table}」已移入业务线「${name}」`);
-      },
-      async moveOut(table) {
-        if (this.busy || !this.selected) return;
-        const used = (this.selected.relations || []).filter(rel => rel.left?.table === table || rel.right?.table === table).length;
-        if (used && !(await window.PortalVue.confirmAction("移出数据表", `该表在 ${used} 条关联里被引用，移出后这些关联将失效。确认把「${table}」移出「${this.selected.name}」？`, "移出"))) return;
-        if (this.busy) return;
-        // 服务端把 tableLines 当作覆盖：没写的表保持原归属，所以未分组要明确写成 ""
-        if (await this.commit(() => { knowledgeData.tableLines[table] = ""; })) notify(`「${table}」已移出，当前未分组`);
+      async toggle(line, value) {
+        if (!value && !(await window.PortalVue.confirmAction("停用业务线", `确认停用「${line.name}」？停用后新建表和知识库时不能再选它，已绑定的内容保持不变。`, "停用"))) return;
+        line.enabled = value; line.updatedBy = currentUserName(); line.updatedAt = nowText();
+        notify(`业务线「${line.name}」已${value ? "启用" : "停用"}`);
       }
     }
   };
 
-  window.PortalVue.BusinessLinePanel = BusinessLinePanel;
+  window.PortalVue.bizStore = bizStore;
+  window.PortalVue.bizHelpers = { activeLines, tablesOfLine, kbsOfLine, nowText, currentUserName };
+  mount("#businessLineView", BusinessLinesApp, "business-lines");
 })();

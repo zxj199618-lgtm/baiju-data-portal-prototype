@@ -12,8 +12,6 @@
     enabledDictItems,
     ep,
     groupOfUser,
-    knowledgeData,
-    knowledgeSync,
     loginUser,
     mount,
     notify,
@@ -21,7 +19,7 @@
     refreshTick,
     state
   } = window.PortalVue;
-  const { BusinessLinePanel } = window.PortalVue;
+  const { bizStore, bizHelpers } = window.PortalVue;
 
 
   function effectiveTableNames(user) {
@@ -37,12 +35,9 @@
   }
 
   const AssetManagementApp = {
-    components: { BusinessLinePanel },
     template: `
       <el-config-provider :locale="locale">
-        <div class="portal-vue-bizline-switch"><el-radio-group v-model="view" class="portal-vue-bizline-view-switch"><el-radio-button value="table" label="数据表">数据表</el-radio-button><el-radio-button value="line" label="业务线">业务线</el-radio-button></el-radio-group></div>
-        <business-line-panel v-if="view === 'line'" :visible-tables="scopeAssets.map(item => item.cnName)"></business-line-panel>
-        <section v-show="view === 'table'" class="portal-vue-panel">
+        <section class="portal-vue-panel">
           <el-tabs v-model="status" class="portal-vue-status-tabs" @tab-change="resetPage"><el-tab-pane label="启用中" name="启用"></el-tab-pane><el-tab-pane label="已停用" name="停用"></el-tab-pane></el-tabs>
           <div class="portal-vue-toolbar">
             <div class="portal-vue-toolbar-left">
@@ -82,7 +77,7 @@
             <el-form-item label="表名" required><el-input v-model="createForm.table" placeholder="小写字母与下划线"></el-input></el-form-item>
             <el-form-item label="对外表名" required><el-input v-model="createForm.externalName" placeholder="例如：open_user_profile_tag"></el-input></el-form-item>
             <el-form-item label="表中文名" required><el-input v-model="createForm.cnName" placeholder="请输入表中文名"></el-input></el-form-item>
-            <el-form-item label="业务线" required><el-select v-model="createForm.bizLine" placeholder="选择表所属业务线"><el-option v-for="item in bizLines" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
+            <el-form-item label="业务线" required><el-select v-model="createForm.bizLine" placeholder="选择表所属业务线"><el-option v-for="item in enabledBizLines" :key="item" :label="item" :value="item"></el-option></el-select><div class="portal-vue-muted" style="margin-top:6px">业务线在「系统管理 → 业务线」维护</div></el-form-item>
             <el-form-item label="表描述"><el-input v-model="createForm.desc" type="textarea" :rows="3"></el-input></el-form-item>
             <el-form-item label="表类型">
               <div class="portal-vue-type-checks">
@@ -121,7 +116,7 @@
         </el-drawer>
       </el-config-provider>
     `,
-    data: () => ({ view: "table", status: "启用", keyword: "", source: "", database: "", owner: "", bizLine: "", page: 1, pageSize: 10, createVisible: false, createForm: {}, detailVisible: false, detail: null, detailDraft: {} }),
+    data: () => ({ status: "启用", keyword: "", source: "", database: "", owner: "", bizLine: "", page: 1, pageSize: 10, createVisible: false, createForm: {}, detailVisible: false, detail: null, detailDraft: {} }),
     computed: {
       scopeTableNames() { refreshTick.value; return effectiveTableNames(loginUser()); },
       scopeLabel() { refreshTick.value; return tableScopeLabel(loginUser(), state.assets.length); },
@@ -129,7 +124,8 @@
       sources() { return [...new Set(this.scopeAssets.map(item => item.source))]; },
       databases() { return [...new Set(this.scopeAssets.filter(item => !this.source || item.source === this.source).map(item => item.database))]; },
       owners() { return [...new Set(this.scopeAssets.map(item => item.owner).filter(Boolean))].sort((left, right) => left.localeCompare(right, "zh-CN")); },
-      bizLines() { refreshTick.value; return knowledgeData.businessLines.map(line => line.name); },
+      bizLines() { refreshTick.value; return bizStore.lines.map(line => line.name); },
+      enabledBizLines() { refreshTick.value; return bizHelpers.activeLines(); },
       filteredRows() { refreshTick.value; const keyword = this.keyword.trim().toLowerCase(); return state.assets.filter(item => this.scopeTableNames.has(item.cnName) && (item.serviceStatus || "启用") === this.status && (!this.source || item.source === this.source) && (!this.database || item.database === this.database) && (!this.owner || item.owner === this.owner) && (!this.bizLine || item.bizLine === this.bizLine) && (!keyword || `${item.table} ${item.externalName} ${item.cnName}`.toLowerCase().includes(keyword))); },
       pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
       rangeText() { if (!this.filteredRows.length) return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; },
@@ -160,8 +156,6 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
           if (!state.tables.some(table => table.name === form.table)) state.tables.push({ name:form.table, cn:form.cnName, exportFields:[], fields:[] });
           notes.push("已加入标签管理");
         }
-        // 只有网关认识的表才把业务线写进服务端；其余表的业务线只留在页面里
-        if (knowledgeData.knownTables.includes(form.cnName)) { knowledgeData.tableLines[form.cnName] = form.bizLine; await knowledgeSync.saveBusinessLines(); }
         this.createVisible = false; notify(`数据表「${form.externalName}」已新增${notes.length ? "，" + notes.join("，") : ""}`);
       },
       openDetail(asset) { bridge.setTableDetailAsset(asset); bridge.setPage("表详情"); },

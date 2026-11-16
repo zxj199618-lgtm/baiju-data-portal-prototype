@@ -10,8 +10,6 @@
     confirmAction,
     enabledDictItems,
     ep,
-    knowledgeData,
-    knowledgeSync,
     loginUser,
     mount,
     notify,
@@ -29,10 +27,8 @@ function injectStyle(id, css) {
     document.head.appendChild(el);
   }
 
-  /* ===== 表知识库：每张表一份 Markdown 文本，灵犀智析回答本表问题时整篇读取。
-     内容保存在服务端（knowledgeSync.loadTable / saveTable），页面不留示例。
-     第一版只提供一个 Markdown 输入框，角色、指标口径、特殊规则都写在正文里。 ===== */
-  const { renderKnowledgeMarkdown, normalizeToMarkdown, knowledgeTemplate, knowledgeNow } = window.PortalKnowledgeMd;
+  /* 表知识库已迁到「AI 中心 → AI 知识库」，这里不再维护；业务线在「系统管理 → 业务线」维护 */
+  const { bizStore, bizHelpers } = window.PortalVue;
 
   const TableDetailApp = {
     template: `
@@ -97,37 +93,6 @@ function injectStyle(id, css) {
                   <el-table-column label="操作" width="110" align="center"><template #default="scope"><template v-if="fieldDirty(scope.row)"><el-button v-if="canEdit('表管理')" link @click="revertField(scope.row)">取消</el-button><el-button v-if="canEdit('表管理')" link type="primary" @click="confirmField(scope.row)">保存</el-button></template></template></el-table-column>
                 </el-table>
               </el-tab-pane>
-              <el-tab-pane label="知识库" name="knowledge">
-                <div class="portal-vue-knowledge-bar">
-                  <span class="portal-vue-muted">{{ knowledge && !knowledgeEditing ? "最近编辑：" + knowledge.updatedBy + " · " + knowledge.updatedAt : "" }}</span>
-                  <el-button v-if="!knowledgeEditing && knowledgeLoaded && canEdit('表管理')" type="primary" round class="portal-vue-knowledge-edit" @click="startKnowledgeEdit">编辑知识库</el-button>
-                  
-                </div>
-                <div v-if="knowledgeEditing" class="portal-vue-md-editor">
-            <div class="portal-vue-md-toolbar" @mousedown.prevent>
-              <el-button size="small" text @click="mdWrap('**', '**', '加粗文字')"><strong>B</strong>&nbsp;加粗</el-button>
-              <el-button size="small" text @click="mdLinePrefix('## ')">标题</el-button>
-              <el-button size="small" text @click="mdLinePrefix('- ')">无序列表</el-button>
-              <el-button size="small" text @click="mdLinePrefix('1. ')">有序列表</el-button>
-              <el-button size="small" text @click="mdLinePrefix('> ')">引用</el-button>
-              <el-button size="small" text @click="mdInlineCode">行内代码</el-button>
-              <el-button size="small" text @click="mdCodeBlock">代码块</el-button>
-              <el-button size="small" text @click="mdWrap('\\n---\\n', '', '')">分隔线</el-button>
-              <span class="portal-vue-md-tip">左边编辑，右边预览；保存时自动转换为 Markdown 格式</span>
-            </div>
-            <div class="portal-vue-md-split">
-              <textarea ref="mdArea" v-model="knowledgeText" class="portal-vue-md-textarea" spellcheck="false" placeholder="在这里填写本表的知识库，支持 Markdown：# 标题、**加粗**、- 列表"></textarea>
-              <div class="portal-vue-knowledge-doc" v-html="renderedDraft"></div>
-            </div>
-            <div class="portal-vue-knowledge-floating"><el-button round @click="cancelKnowledgeEdit">取消</el-button><el-button type="primary" round @click="saveKnowledge">保存知识库</el-button></div>
-          </div>
-          <template v-else>
-                  <div v-if="knowledgeLoading" v-loading="true" class="portal-vue-knowledge-loading" style="min-height:120px"></div>
-                  <el-empty v-else-if="knowledgeError" class="portal-vue-knowledge-error" :description="'知识库读取失败：' + knowledgeError"><el-button type="primary" round @click="fetchKnowledge">重试</el-button></el-empty>
-                  <div v-else-if="knowledge" class="portal-vue-knowledge-doc" v-html="renderedKnowledge"></div>
-                  <el-empty v-else description="该表还没有知识库。灵犀智析只能依据字段注释回答，指标口径可能不准确。"><el-button v-if="knowledgeLoaded && canEdit('表管理')" type="primary" round @click="startKnowledgeEdit">新建知识库</el-button></el-empty>
-                </template>
-              </el-tab-pane>
               <el-tab-pane label="血缘查询" name="lineage">
                 <div class="portal-vue-lineage-bar">
                   <el-checkbox v-model="isPro" @change="runQuery">增强模式 (is_pro)</el-checkbox>
@@ -187,13 +152,6 @@ function injectStyle(id, css) {
     `,
     data: () => ({
       tab: "basic",
-      knowledgeEditing: false,
-      knowledgeSaving: false,
-      knowledge: null,
-      knowledgeLoading: false,
-      knowledgeLoaded: false,
-      knowledgeError: "",
-      knowledgeText: "",
       editingBasic: false,
       busy: false,
       detail: null,
@@ -240,10 +198,8 @@ function injectStyle(id, css) {
       }
     }),
     computed: {
-      renderedDraft() { return renderKnowledgeMarkdown(normalizeToMarkdown(this.knowledgeText)); },
-      renderedKnowledge() { return this.knowledge ? renderKnowledgeMarkdown(this.knowledge.markdown) : ""; },
       headerTitle() { return this.detail ? (this.detail.cnName || this.detail.table) + " · 表详情" : "表详情"; },
-      bizLines() { refreshTick.value; return knowledgeData.businessLines.map(line => line.name); },
+      bizLines() { refreshTick.value; const keep = this.detail?.bizLine; return bizStore.lines.filter(line => line.enabled || line.name === keep).map(line => line.name); },
       activeUsers() { return state.users.filter(user => user.status !== "已停用"); },
       enabledDicts() { refreshTick.value; return state.dictionaries.filter(item => item.status === "启用"); },
       dictItems() { return dict => enabledDictItems(dict); },
@@ -254,54 +210,6 @@ function injectStyle(id, css) {
       total() { return this.result ? this.result.qb.length + this.result.api.length + this.result.dx.length : 0; }
     },
     methods: {
-      startKnowledgeEdit() { if (!this.knowledgeLoaded) return; this.knowledgeText = this.knowledge?.markdown || knowledgeTemplate(this.detail.cnName || this.detail.table); this.knowledgeEditing = true; },
-      cancelKnowledgeEdit() { this.knowledgeEditing = false; this.knowledgeText = ""; },
-      /** 知识库按表的中文名存取（服务端以表名为键）；进入页面或切到知识库页签时读取 */
-      async fetchKnowledge() {
-        if (!this.detail) return;
-        const name = this.detail.cnName || this.detail.table;
-        this.knowledgeLoading = true;
-        this.knowledgeError = "";
-        const result = await knowledgeSync.loadTable(name);
-        if (!this.detail || (this.detail.cnName || this.detail.table) !== name) return;
-        this.knowledgeLoading = false;
-        this.knowledgeLoaded = result.ok;
-        this.knowledgeError = result.ok ? "" : (result.error || "未知错误");
-        this.knowledge = result.ok ? result.knowledge : null;
-      },
-      async saveKnowledge() {
-        if (this.knowledgeSaving || !this.knowledgeLoaded) return;
-        const raw = this.knowledgeText.trim();
-        if (!raw) return ep.ElMessage.warning("知识库内容不能为空");
-        const markdown = normalizeToMarkdown(raw);
-        const name = this.detail.cnName || this.detail.table;
-        this.knowledgeSaving = true;
-        const result = await knowledgeSync.saveTable(name, markdown);
-        this.knowledgeSaving = false;
-        if (!result.ok) return ep.ElMessage.warning(`知识库没有保存：${result.error}`);
-        this.knowledge = result.knowledge || { markdown, updatedBy: loginUser()?.name || "", updatedAt: knowledgeNow() };
-        this.knowledgeEditing = false;
-        notify(`「${name}」知识库已保存${markdown !== raw ? "，已自动转换为 Markdown 格式" : ""}`);
-      },
-      mdWrap(prefix, suffix, placeholder) {
-        const el = this.$refs.mdArea; if (!el) return;
-        const { selectionStart: start, selectionEnd: end } = el;
-        const text = this.knowledgeText;
-        const selected = text.slice(start, end) || placeholder;
-        this.knowledgeText = text.slice(0, start) + prefix + selected + suffix + text.slice(end);
-        this.$nextTick(() => { el.focus(); el.setSelectionRange(start + prefix.length, start + prefix.length + selected.length); });
-      },
-      mdInlineCode() { this.mdWrap(String.fromCharCode(96), String.fromCharCode(96), "代码"); },
-      mdCodeBlock() { const fence = String.fromCharCode(96).repeat(3); this.mdWrap("\n" + fence + "\n", "\n" + fence + "\n", "代码内容"); },
-      mdLinePrefix(prefix) {
-        const el = this.$refs.mdArea; if (!el) return;
-        const text = this.knowledgeText;
-        const lineStart = text.lastIndexOf("\n", el.selectionStart - 1) + 1;
-        let lineEnd = text.indexOf("\n", el.selectionEnd); if (lineEnd < 0) lineEnd = text.length;
-        const block = text.slice(lineStart, lineEnd).split("\n").map(line => prefix + line.replace(/^(#{1,6}\s|[-*]\s|\d+\.\s|>\s)/, "")).join("\n");
-        this.knowledgeText = text.slice(0, lineStart) + block + text.slice(lineEnd);
-        this.$nextTick(() => { el.focus(); el.setSelectionRange(lineStart, lineStart + block.length); });
-      },
       back() { bridge.setPage("表管理"); },
       loadDetail() {
         const asset = bridge.getTableDetailAsset();
@@ -319,17 +227,13 @@ function injectStyle(id, css) {
         this.tab = "basic";
         this.cat = "qb";
         this.editingBasic = false;
-        this.knowledgeEditing = false;
-        this.knowledge = null;
-        this.knowledgeLoaded = false;
-        this.fetchKnowledge();
       },
       rebuildDraft() {
         const tag = state.tables.find(table => table.name === this.detail.table);
         this.detailDraft = { owner: this.detail.owner || "", desc: this.detail.desc || "", bizLine: this.detail.bizLine || "", tagTable: !!tag, dimension: !!this.detail.dimension, exportFields: [...(tag?.exportFields || [])], fields: this.detail.fields.map(field => ({ ...field, dictId: field.dictId || "" })) };
       },
       relationCount(table) {
-        return knowledgeData.businessLines.reduce((sum, line) => sum + (line.relations || []).filter(rel => rel.left?.table === table || rel.right?.table === table).length, 0);
+        return bizStore.relations.filter(rel => rel.left?.table === table || rel.right?.table === table).length;
       },
       async saveBasic() {
         if (this.busy) return;
@@ -353,25 +257,6 @@ function injectStyle(id, css) {
           else if (this.detailDraft.tagTable && tagIndex >= 0) state.tables[tagIndex].exportFields = [...this.detailDraft.exportFields];
           else if (!this.detailDraft.tagTable && tagIndex >= 0) state.tables.splice(tagIndex, 1);
         };
-        if (nextLine !== prevLine && knowledgeData.knownTables.includes(name)) {
-          this.busy = true;
-          const tableLines = JSON.parse(JSON.stringify(knowledgeData.tableLines));
-          const assetLine = this.detail.bizLine;
-          let ok = false;
-          try {
-            knowledgeData.tableLines[name] = nextLine;
-            this.detail.bizLine = nextLine;
-            ok = await knowledgeSync.saveBusinessLines();
-            if (ok) await knowledgeSync.load();
-          } finally {
-            this.busy = false;
-            if (!ok) {
-              knowledgeData.tableLines = tableLines;
-              this.detail.bizLine = assetLine;
-            }
-          }
-          if (!ok) return;
-        }
         applyLocal();
         this.editingBasic = false;
         notify("基本配置已保存");
@@ -393,7 +278,6 @@ function injectStyle(id, css) {
       cancelBasic() { this.rebuildDraft(); this.editingBasic = false; },
       cancelEdit() { if (this.tab === "basic") this.cancelBasic(); },
       onTabChange(name) {
-        if (name === "knowledge" && !this.knowledgeEditing) this.fetchKnowledge();
         if (name === "lineage" && !this.result && !this.lineageLoading) this.runQuery();
         if (this.editingBasic && name !== this.tab) ep.ElMessage.warning("当前有未保存的编辑，请先保存或取消");
       },

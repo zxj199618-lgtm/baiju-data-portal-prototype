@@ -778,7 +778,8 @@ describe("浏览器端到端", () => {
       await page.reload();
       await appVisible(page);
       await page.evaluate(i => { window.portalVueBridge.setActiveUserIndex(i); window.portalVueBridge.setPage("配置权限"); }, index);
-      await page.getByRole("tab", { name: /表权限/ }).click();
+      try { await page.getByRole("tab", { name: /表权限/ }).click({ timeout: 15000 }); }
+      catch (error) { console.log("DIAG", JSON.stringify(await page.evaluate(() => ({ hash: location.hash, page: window.portalVueBridge.getPage(), hidden: document.getElementById("permissionConfigView")?.className, idx: window.portalVueBridge.getActiveUserIndex(), user: localStorage.getItem("portalLoginUser") })))); throw error; }
     };
     const savedRequest = async () => {
       const [request] = await Promise.all([
@@ -957,39 +958,6 @@ describe("浏览器端到端", () => {
     }, cnName);
     await page.getByRole("tab", { name: "知识库" }).click();
   };
-  test("表详情：编辑并保存知识库后刷新页面仍在（证明落到了服务端）", async t => withPage(t, async page => {
-    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
-    const marker = `E2E-KB-${Date.now()}`;
-    try {
-      await login(page, "曾祥竞");
-      await appVisible(page);
-      await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
-      await openTableDetail(page, "广告计划日报表");
-      await page.getByRole("button", { name: "编辑知识库" }).click();
-      await page.locator(".portal-vue-md-textarea").fill(`# 广告计划日报表\n\n${marker}`);
-      await page.getByRole("button", { name: "保存知识库" }).click();
-      await page.locator(".portal-vue-knowledge-doc", { hasText: marker }).waitFor();
-      await page.reload();
-      await appVisible(page);
-      await openTableDetail(page, "广告计划日报表");
-      await page.locator(".portal-vue-knowledge-doc", { hasText: marker }).waitFor();
-      const server = await harness.call("GET", `/v1/knowledge/tables/${encodeURIComponent("广告计划日报表")}`, { token: admin });
-      assert.match(server.data.knowledge.markdown, new RegExp(marker));
-    } finally {
-      if (!skipReason) await harness.call("PUT", `/v1/knowledge/tables/${encodeURIComponent("广告计划日报表")}`, { token: admin, body: { markdown: "# 广告计划日报表\n恢复" } });
-    }
-  }));
-  test("表管理的业务线筛选下拉包含 公共 与 种子业务线", async t => withPage(t, async page => {
-    await login(page, "曾祥竞");
-    await appVisible(page);
-    await page.waitForFunction(() => window.PortalVue.knowledgeData.ready);
-    await page.evaluate(() => window.portalVueBridge.setPage("表管理"));
-    await page.locator(".el-select", { hasText: "全部业务线" }).first().click();
-    await page.locator(".el-select-dropdown__item:visible").first().waitFor();
-    const options = await page.locator(".el-select-dropdown__item:visible").allTextContents();
-    const labels = options.map(text => text.trim());
-    for (const name of ["公共", "权益", "存量", "号卡", "保险"]) assert.ok(labels.includes(name), `${name} 不在 ${JSON.stringify(labels)}`);
-  }));
   test("没有「表管理」编辑权限的账号看不到「编辑知识库」按钮", async t => withPage(t, async page => {
     const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
     const before = skipReason ? null : (await harness.call("GET", "/v1/org", { token: admin })).data;
