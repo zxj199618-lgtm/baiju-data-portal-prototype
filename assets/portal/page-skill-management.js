@@ -17,18 +17,20 @@
     refreshTick,
     state
   } = window.PortalVue;
+  const { bizStore, bizHelpers } = window.PortalVue;
 
   const SkillManagementApp = {
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
-            <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索 Skill 名称"></el-input></div>
+            <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索 Skill 名称"></el-input><el-select v-model="lineFilter" class="portal-vue-filter" clearable placeholder="全部业务线"><el-option label="全部业务线" value=""></el-option><el-option v-for="line in allLines" :key="line" :label="line" :value="line"></el-option><el-option label="未绑定业务线" value="__none"></el-option></el-select></div>
             <el-button v-if="canEdit('Skill 配置')" type="primary" @click="openCreate">＋ 新增 Skill</el-button>
           </div>
           <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无 Skill">
             <el-table-column label="Skill" min-width="280"><template #default="scope"><div><span class="portal-vue-name" style="cursor:pointer" @click="openDetail(scope.row)">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.desc }}</div></div></template></el-table-column>
             <el-table-column label="工作台展示" min-width="280"><template #default="scope"><div v-if="scope.row.enabled!==false" style="display:flex;align-items:center;gap:8px"><span class="portal-vue-skill-cell-icon"><img v-if="isImageIcon(scope.row.icon)" :src="resolveIcon(scope.row.icon)" alt="" /><span v-else>{{ scope.row.icon }}</span></span><div><span style="font-size:13px">{{ scope.row.title }}</span><div class="portal-vue-muted" style="font-size:12px">{{ scope.row.displayDesc }}</div></div><el-tag size="small" effect="plain" style="margin-left:4px">排序 {{ scope.row.sort }}</el-tag></div><span v-else class="portal-vue-muted">已下线</span></template></el-table-column>
+            <el-table-column label="业务线" width="170"><template #default="scope"><div v-if="linesOf(scope.row).length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="line in linesOf(scope.row).slice(0,2)" :key="line" size="small" effect="plain">{{ line }}</el-tag><el-tooltip v-if="linesOf(scope.row).length > 2" :content="linesOf(scope.row).join('、')" placement="top"><el-tag size="small" effect="plain" type="info">+{{ linesOf(scope.row).length - 2 }}</el-tag></el-tooltip></div><el-tooltip v-else content="还没有绑定业务线，请进入详情「基本信息」设置" placement="top"><el-tag size="small" type="warning" effect="plain">未绑定</el-tag></el-tooltip></template></el-table-column>
             <el-table-column prop="version" label="当前版本" width="120"></el-table-column>
             <el-table-column label="状态" width="150"><template #default="scope"><div style="display:flex;align-items:center;gap:6px"><el-switch :disabled="!canEdit('Skill 配置')" v-model="scope.row.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a" @change="toggleEnabled(scope.row)"></el-switch><el-tag v-if="scope.row.enabled!==false && skillStatus(scope.row)!=='已发布'" size="small" :type="skillStatus(scope.row)==='未发布' ? 'info' : 'warning'" effect="light">{{ skillStatus(scope.row) }}</el-tag></div></template></el-table-column>
             <el-table-column label="灰度用户" min-width="170"><template #default="scope"><div v-if="scope.row.grayUsers.length" style="display:flex;flex-wrap:wrap;gap:4px"><el-tag v-for="user in scope.row.grayUsers.slice(0,3)" :key="user" size="small" effect="plain">{{ user }}</el-tag><span v-if="scope.row.grayUsers.length>3" class="portal-vue-muted">+{{ scope.row.grayUsers.length-3 }}</span></div><span v-else class="portal-vue-muted">全量发布</span></template></el-table-column>
@@ -40,6 +42,7 @@
         <el-dialog v-model="createVisible" title="新增 Skill" width="480px" destroy-on-close :close-on-click-modal="true">
           <el-form class="portal-vue-dialog-form" label-position="top">
             <el-form-item label="Skill 名称" required><el-input v-model="createForm.name" placeholder="如：人群包效果分析 Skill"></el-input></el-form-item>
+            <el-form-item label="所属业务线" required><el-select v-model="createForm.bizLines" multiple collapse-tags collapse-tags-tooltip placeholder="选择该 Skill 服务的业务线（可多选）"><el-option v-for="line in enabledLines" :key="line" :label="line" :value="line"></el-option></el-select><div class="portal-vue-muted" style="margin-top:6px">通用型 Skill 可以多选；业务线在「系统管理 → 业务线」维护</div></el-form-item>
           </el-form>
           <template #footer>
             <div style="display:flex;justify-content:flex-end;gap:10px"><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('Skill 配置')" type="primary" @click="saveCreate">新增 Skill</el-button></div>
@@ -47,21 +50,25 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data: () => ({ keyword: "", createVisible: false, createForm: { name: "" } }),
+    data: () => ({ keyword: "", lineFilter: "", createVisible: false, createForm: { name: "", bizLines: [] } }),
     computed: {
       skills() { refreshTick.value; return (state.skills || []).filter(item => item.id !== "numa-warehouse"); },
-      filteredRows() { const keyword = this.keyword.trim().toLowerCase(); return this.skills.filter(item => !keyword || `${item.name} ${item.title || ""} ${item.desc || ""}`.toLowerCase().includes(keyword)); },
+      allLines() { refreshTick.value; return bizStore.lines.map(line => line.name); },
+      enabledLines() { refreshTick.value; return bizHelpers.activeLines(); },
+      filteredRows() { const keyword = this.keyword.trim().toLowerCase(); return this.skills.filter(item => (!this.lineFilter || (this.lineFilter === "__none" ? !this.linesOf(item).length : this.linesOf(item).includes(this.lineFilter))) && (!keyword || `${item.name} ${item.title || ""} ${item.desc || ""}`.toLowerCase().includes(keyword))); },
       currentUser() { refreshTick.value; return loginUser() || state.users[0]; }
     },
     methods: {
+      linesOf(row) { refreshTick.value; return bizStore.skillLines[row.id] || []; },
       openDetail(row) { bridge.setSkillDetailId(row.id); bridge.setPage("Skill 详情"); },
       openCreate() {
-        this.createForm = { name: "" };
+        this.createForm = { name: "", bizLines: [] };
         this.createVisible = true;
       },
       async saveCreate() {
         const name = String(this.createForm.name || "").trim();
         if (!name) return ep.ElMessage.warning("请输入 Skill 名称");
+        if (!(this.createForm.bizLines || []).length) return ep.ElMessage.warning("请选择所属业务线");
         if ((state.skills || []).some(item => item.name === name)) return ep.ElMessage.warning("Skill 名称已存在");
         const title = name;
         const version = "v1.0";
@@ -78,6 +85,7 @@
           stats: { calls: 0, successRate: "—", avgLatency: "—", tokens: "—" }
         };
         state.skills.unshift(skill);
+        bizStore.skillLines[id] = [...this.createForm.bizLines];
         try {
           await fetch(`${analysisGatewayBase}/v1/skills/${encodeURIComponent(id)}/config`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ icon: skill.icon, title: skill.title, displayDesc: skill.displayDesc, sort: skill.sort, enabled: skill.enabled, scenarioKey: skill.scenarioKey, tables: [] }) });
         } catch (error) { /* 网关未启动时仅保存在原型状态 */ }
@@ -110,7 +118,13 @@
       }
     },
     mounted() {
-      this.pageHandler = event => { if (event.detail?.page === "Skill 配置") this.loadGatewaySkills(); };
+      this.pageHandler = event => {
+        if (event.detail?.page !== "Skill 配置") return;
+        this.loadGatewaySkills();
+        // 从「业务线」页点 Skill 数跳过来时，按该业务线筛选
+        this.lineFilter = bizStore.focusSkillLine || "";
+        bizStore.focusSkillLine = "";
+      };
       window.addEventListener("portal:page-change", this.pageHandler);
       if (bridge.getPage() === "Skill 配置") this.loadGatewaySkills();
     },

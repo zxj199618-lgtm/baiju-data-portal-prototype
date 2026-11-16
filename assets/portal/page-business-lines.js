@@ -27,7 +27,17 @@
       { id: "KB03", type: "表", target: "广告计划日报表", updatedBy: "曾祥竞", updatedAt: "2026-11-13 10:10",
         markdown: "# 广告计划日报表\n\n## 表说明\n按「日期 + 广告计划」粒度的投放日报，一个计划一天一行。\n\n## 指标口径\n- **消耗**：`cost`，单位元\n- **转化数**：`convert_cnt`，已按媒体回传去重\n\n## 注意事项\n- 当天数据 T+1 凌晨 2:30 后才完整。" }
     ],
-    relations: []
+    relations: [],
+    /* Skill 绑定的业务线（按 Skill id；可多选，至少一个；未登记的视为「未绑定」） */
+    skillLines: {
+      "warehouse-analyst": ["存量", "权益", "保险", "号卡"],
+      "lineage-analyst": ["存量", "权益", "保险", "号卡"],
+      "asset-qa": ["存量", "权益", "保险", "号卡"],
+      "attribution-analyst": ["存量", "权益"],
+      "equity-union-analyst": ["权益"],
+      "report-writer": ["存量", "权益", "保险", "号卡"],
+      "general-analyst": ["存量", "权益", "保险", "号卡"]
+    }
   });
 
   const activeLines = () => bizStore.lines.filter(line => line.enabled).map(line => line.name);
@@ -37,6 +47,8 @@
   /** 业务线下绑定的表（表管理里的「业务线」字段） */
   const tablesOfLine = name => state.assets.filter(asset => asset.bizLine === name);
   /** 业务线下的知识库：业务线知识库 + 属于该业务线的表知识库 */
+  /** 绑定了该业务线的 Skill（原型里 numa-warehouse 是内部兜底 Skill，不在列表里展示，也不计数） */
+  const skillsOfLine = name => (state.skills || []).filter(skill => skill.id !== "numa-warehouse" && (bizStore.skillLines[skill.id] || []).includes(name));
   const kbsOfLine = name => bizStore.kbs.filter(kb => kb.type === "业务线" ? kb.target === name : (state.assets.find(asset => asset.cnName === kb.target)?.bizLine || "") === name);
 
   const BusinessLinesApp = {
@@ -50,12 +62,13 @@
             </div>
             <el-button v-if="canEdit('业务线')" type="primary" @click="openForm(null)">新增业务线</el-button>
           </div>
-          <div class="portal-vue-scope-hint"><span>业务线用于归类<strong>数据表、AI 知识库</strong>（后续还有 Skill）</span><span class="portal-vue-muted">业务线不能删除，不再使用时请停用；停用后不能再被新的表和知识库选择，已绑定的保持不变</span></div>
+          <div class="portal-vue-scope-hint"><span>业务线用于归类<strong>数据表、AI 知识库、Skill</strong></span><span class="portal-vue-muted">业务线不能删除，不再使用时请停用；停用后不能再被新的表和知识库选择，已绑定的保持不变</span></div>
           <el-table :data="rows" class="portal-vue-table" border empty-text="暂无业务线">
             <el-table-column label="业务线" width="160"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
             <el-table-column prop="desc" label="说明" min-width="300" show-overflow-tooltip></el-table-column>
             <el-table-column label="绑定数据表" width="120" align="center"><template #default="scope">{{ tablesOf(scope.row).length }} 张</template></el-table-column>
             <el-table-column label="AI 知识库" width="120" align="center"><template #default="scope"><el-button link type="primary" :disabled="!kbsOf(scope.row).length" @click="goKnowledge(scope.row)">{{ kbsOf(scope.row).length }} 份</el-button></template></el-table-column>
+            <el-table-column label="Skill" width="100" align="center"><template #default="scope"><el-button link type="primary" :disabled="!skillsOf(scope.row).length" @click="goSkills(scope.row)">{{ skillsOf(scope.row).length }} 个</el-button></template></el-table-column>
             <el-table-column label="状态" width="90" align="center"><template #default="scope"><el-switch :disabled="!canEdit('业务线')" :model-value="scope.row.enabled" @change="value => toggle(scope.row, value)"></el-switch></template></el-table-column>
             <el-table-column label="最近修改" width="190"><template #default="scope"><div>{{ scope.row.updatedAt }}</div><small class="portal-vue-muted">{{ scope.row.updatedBy }}</small></template></el-table-column>
             <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button v-if="canEdit('业务线')" link type="primary" @click="openForm(scope.row)">编辑</el-button><span v-else class="portal-vue-muted">—</span></template></el-table-column>
@@ -85,7 +98,8 @@
         if (!this.editing || this.form.name?.trim() === this.editing.name) return "";
         const tables = tablesOfLine(this.editing.name).length;
         const kbs = kbsOfLine(this.editing.name).length;
-        return tables || kbs ? `改名后，已绑定的 ${tables} 张数据表、${kbs} 份知识库会自动同步为新名称。` : "";
+        const skills = skillsOfLine(this.editing.name).length;
+        return tables || kbs || skills ? `改名后，已绑定的 ${tables} 张数据表、${kbs} 份知识库、${skills} 个 Skill 会自动同步为新名称。` : "";
       }
     },
     mounted() { this.primaryHandler = event => { if (event.detail?.page === "业务线") this.openForm(null); }; window.addEventListener("portal:primary-action", this.primaryHandler); },
@@ -93,6 +107,8 @@
     methods: {
       tablesOf: line => tablesOfLine(line.name),
       kbsOf: line => kbsOfLine(line.name),
+      skillsOf: line => skillsOfLine(line.name),
+      goSkills(line) { window.PortalVue.bizStore.focusSkillLine = line.name; window.portalVueBridge.setPage("Skill 配置"); },
       goKnowledge(line) { window.PortalVue.bizStore.focusLine = line.name; window.portalVueBridge.setPage("AI 知识库"); },
       openForm(line) {
         this.editing = line;
@@ -115,6 +131,7 @@
             state.assets.forEach(asset => { if (asset.bizLine === old) asset.bizLine = name; });
             bizStore.kbs.forEach(kb => { if (kb.type === "业务线" && kb.target === old) kb.target = name; });
             bizStore.relations.forEach(rel => { if (rel.line === old) rel.line = name; });
+            Object.keys(bizStore.skillLines).forEach(id => { bizStore.skillLines[id] = bizStore.skillLines[id].map(item => item === old ? name : item); });
           }
           Object.assign(line, { name }, meta);
           notify(`业务线「${name}」已保存`);
@@ -131,6 +148,6 @@
   };
 
   window.PortalVue.bizStore = bizStore;
-  window.PortalVue.bizHelpers = { activeLines, tablesOfLine, kbsOfLine, nowText, currentUserName };
+  window.PortalVue.bizHelpers = { activeLines, tablesOfLine, kbsOfLine, skillsOfLine, nowText, currentUserName };
   mount("#businessLineView", BusinessLinesApp, "business-lines");
 })();
