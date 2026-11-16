@@ -129,6 +129,14 @@ else
   ok "测试通过"
 fi
 
+if [ "${DEPLOY_E2E:-0}" = "1" ]; then
+  log "运行浏览器端到端测试（e2e，约 4 分钟）"
+  npm run test:e2e --silent
+  ok "e2e 通过"
+else
+  warn "未跑浏览器端到端 e2e（大版本请用 DEPLOY_E2E=1 npm run deploy）"
+fi
+
 log "重建单文件版"
 npm run build:standalone --silent >/dev/null
 ok "单文件版已生成"
