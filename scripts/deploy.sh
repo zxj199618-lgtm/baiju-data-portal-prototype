@@ -121,6 +121,8 @@ ok "JS 语法正常"
 
 if [ "$DEPLOY_SKIP_TESTS" = "1" ]; then
   warn "按 DEPLOY_SKIP_TESTS=1 跳过测试"
+elif [ "$(cat "$ROOT/.test-stamp" 2>/dev/null || true)" = "$(git rev-parse 'HEAD^{tree}')" ]; then
+  ok "这份代码刚通过全套测试（.test-stamp 与 HEAD 一致），跳过重复测试；要强制重测请先删除 .test-stamp"
 else
   log "运行 smoke test"
   npm test --silent
