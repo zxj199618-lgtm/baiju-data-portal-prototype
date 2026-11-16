@@ -10,8 +10,6 @@
     bridge,
     ep,
     gatewayTableNames,
-    isImageIconValue,
-    resolveSkillIcon,
     loginUser,
     mount,
     notify,
@@ -48,14 +46,6 @@
               <el-tab-pane label="基本信息" name="basic">
                 <el-form class="portal-vue-dialog-form" label-position="top" style="max-width:760px">
                   <el-form-item label="Skill 名称" required><el-input v-model="draft.name" :disabled="!editable" placeholder="如：人群包效果分析 Skill"></el-input></el-form-item>
-                  <el-form-item label="工作台展示标题" required><el-input v-model="draft.title" :disabled="!editable" placeholder="如：数据查询与指标解答"></el-input></el-form-item>
-                  <el-form-item label="图标">
-                    <div class="portal-vue-skill-icon-upload" :class="{ 'is-disabled': !editable }" @click="editable && openIconPicker()">
-                      <span class="portal-vue-skill-icon-preview"><img v-if="isImageIcon(draft.icon)" :src="resolveIcon(draft.icon)" alt="图标" /><span v-else>{{ draft.icon || "✦" }}</span></span>
-                      <span class="portal-vue-skill-icon-tips"><strong>{{ editable ? "点击上传图标" : "当前图标" }}</strong><small>支持 png / jpg / gif / svg，不超过 300KB</small></span>
-                    </div>
-                    <input ref="iconInput" type="file" accept="image/*" style="display:none" @change="onIconUpload"></input>
-                  </el-form-item>
                   <el-form-item label="所属业务线" required>
                     <el-select v-model="draft.bizLine" :disabled="!editable" placeholder="选择该 Skill 所属的业务线" style="width:100%">
                       <el-option label="全部（通用 Skill）" :value="ALL"></el-option>
@@ -63,9 +53,7 @@
                     </el-select>
                     <div class="portal-vue-muted" style="margin-top:6px;font-size:12px">只属于某个业务线就选该业务线；所有业务线通用的 Skill 选「全部」。业务线在「系统管理 → 业务线」维护。</div>
                   </el-form-item>
-                  <el-form-item label="描述"><el-input v-model="draft.desc" type="textarea" :rows="2" resize="none" :disabled="!editable" placeholder="列表里展示的一句话说明"></el-input></el-form-item>
-                  <el-form-item label="工作台展示描述"><el-input v-model="draft.displayDesc" :disabled="!editable" placeholder="如：趋势、分布与异常"></el-input></el-form-item>
-                  <el-form-item label="排序（越小越靠前）"><el-input-number v-model="draft.sort" :min="1" :max="999" :disabled="!editable"></el-input-number></el-form-item>
+                  <el-form-item label="描述"><el-input v-model="draft.desc" type="textarea" :rows="2" resize="none" :disabled="!editable" placeholder="一句话说明这个 Skill 解决什么问题；系统按问题动态加载 Skill 时会参考"></el-input></el-form-item>
                   <el-form-item label="上线状态"><el-switch :disabled="!editable" v-model="draft.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">提示词需在「提示词」页签发布版本后才会更新</span></el-form-item>
                 </el-form>
               </el-tab-pane>
@@ -207,24 +195,10 @@
       dirty() { return this.basicDirty || this.mode === "edit" || this.mode === "new"; }
     },
     methods: {
-      blankDraft() { return { name: "", icon: "✦", title: "", desc: "", displayDesc: "", sort: 50, enabled: true, bizLine: "" }; },
+      blankDraft() { return { name: "", desc: "", enabled: true, bizLine: "" }; },
       blankForm() { return { version: "", note: "", prompt: "", tables: [], routes: [], fallbackSkillId: "" }; },
       basicSnapshot(source) {
-        return { name: String(source.name || "").trim(), icon: source.icon || "✦", title: String(source.title || "").trim(), desc: String(source.desc || "").trim(), displayDesc: String(source.displayDesc || "").trim(), sort: Number(source.sort) || 50, enabled: source.enabled !== false, bizLine: source.bizLine ?? bizStore.skillLines[source.id] ?? "" };
-      },
-      isImageIcon(icon) { return isImageIconValue(icon); },
-      resolveIcon(icon) { return resolveSkillIcon(icon); },
-      openIconPicker() { this.$refs.iconInput?.click(); },
-      onIconUpload(event) { this.applyIcon(event, this.draft); },
-      applyIcon(event, target) {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (!file) return;
-        if (!/^image\/(png|jpe?g|gif|svg\+xml|webp)$/i.test(file.type)) return ep.ElMessage.warning("请选择图片文件");
-        if (file.size > 300 * 1024) return ep.ElMessage.warning("图片不能超过 300KB");
-        const reader = new FileReader();
-        reader.onload = () => { target.icon = String(reader.result || "").slice(0, 200000); ep.ElMessage.success("图标已上传，保存后生效"); };
-        reader.readAsDataURL(file);
+        return { name: String(source.name || "").trim(), desc: String(source.desc || "").trim(), enabled: source.enabled !== false, bizLine: source.bizLine ?? bizStore.skillLines[source.id] ?? "" };
       },
       /* 版本号自动往下加：取现有最大的 vX.Y，次版本号 +1 */
       nextVersion() {
@@ -363,13 +337,12 @@
         if (!skill) return;
         const snap = this.basicSnapshot(this.draft);
         if (!snap.name) return ep.ElMessage.warning("请输入 Skill 名称");
-        if (!snap.title) return ep.ElMessage.warning("请输入工作台展示标题");
         if ((state.skills || []).some(item => item.id !== skill.id && item.name === snap.name)) return ep.ElMessage.warning("Skill 名称已存在");
         if (!snap.bizLine) return ep.ElMessage.warning("请选择所属业务线");
         const { bizLine, ...rest } = snap;
         bizStore.skillLines[skill.id] = bizLine;
         Object.assign(skill, rest);
-        await this.persist({ icon: snap.icon, title: snap.title, desc: snap.desc, displayDesc: snap.displayDesc, sort: snap.sort, enabled: snap.enabled });
+        await this.persist({ desc: snap.desc, enabled: snap.enabled });
         notify(`「${skill.name}」基本信息已保存`);
         this.loadSkill();
       },

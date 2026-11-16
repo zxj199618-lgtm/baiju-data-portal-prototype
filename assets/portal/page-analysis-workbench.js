@@ -177,24 +177,10 @@
                   <el-empty v-if="!reports.length" description="暂无分析报告，发起一次分析后自动归档到这里"></el-empty>
                 </div>
               </div>
-              <div v-else class="portal-vue-ai-skillbar">
-                <div class="portal-vue-ai-skillbar-head">
-                  <span class="portal-vue-ai-skillbar-label">分析技能</span>
-                  <span class="portal-vue-ai-skillbar-hint">{{ scenarioHint }}</span>
-                </div>
-                <div class="portal-vue-ai-scenarios">
-                  <button v-for="scene in scenarios" :key="scene.key" type="button" class="portal-vue-ai-scenario" :class="{ active: scenario === scene.key, 'is-auto': scene.kind === 'router' }" :title="scene.desc" :aria-pressed="scenario === scene.key" @click="setScenario(scene.key)">
-                    <span class="portal-vue-ai-scene-icon"><img v-if="isImageIcon(scene.icon)" :src="resolveIcon(scene.icon)" alt="" /><span v-else>{{ scene.icon }}</span></span>
-                    <span class="portal-vue-ai-scene-text"><strong>{{ scene.name }}</strong><small>{{ scene.desc }}</small></span>
-                    <span v-if="scene.kind === 'router'" class="portal-vue-ai-scene-badge">自动</span>
-                    <span class="portal-vue-ai-scene-check" aria-hidden="true">✓</span>
-                  </button>
-                </div>
-              </div>
               <div v-if="!assetView" class="portal-vue-ai-chat" ref="chatBox">
                 <div v-if="!activeSession.messages.length" class="portal-vue-ai-welcome">
-                  <h3>{{ scenarioName }}</h3>
-                  <p class="portal-vue-muted">输入问题开始分析，可在输入框用 @ 引用你有权限的数据表；也可以直接在飞书机器人提问，记录同步到这里。</p>
+                  <h3>灵犀智析</h3>
+                  <p class="portal-vue-muted">直接输入问题开始分析，系统会按问题自动加载合适的分析技能；可在输入框用 @ 引用你有权限的数据表；也可以直接在飞书机器人提问，记录同步到这里。</p>
                   <div class="portal-vue-ai-suggests">
                     <el-button v-for="text in starterSuggests" :key="text" size="small" round data-test="ai-starter" @click="input = text">{{ text }}</el-button>
                   </div>
@@ -607,7 +593,7 @@
         this.activeId=id;
         const session=this.sessions.find(item=>item.id===id);
         this.restoreSessionLine(session);
-        if(session)this.scenario=this.skillScenarios.find(scene=>scene.name===session.scenario)?.key||this.skillScenarios[0]?.key||"single";
+        if(session)this.scenario="general"; // 不再手动选 Skill：一律走自动路由，按问题动态加载
         this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));
       },
       setScenario(key){

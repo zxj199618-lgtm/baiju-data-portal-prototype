@@ -297,7 +297,7 @@ assert(aiGroup.includes('name: "AI 知识库"') && systemGroup.includes('name: "
 assert(portalVue.includes('icon: "assets/skill-query.svg"') && portalVue.includes('icon: "assets/skill-asset.svg"') && portalVue.includes('icon: "assets/skill-lineage.svg"') && portalVue.includes('icon: "assets/skill-attribution.svg"'), "四个内置 Skill 要用设计好的 SVG 图标");
 assert(portalVue.includes('icon: "assets/skill-single-table.svg"'), "网关未连接时的兜底场景「单表分析」也要用同一套 SVG 图标");
 assert(portalVue.includes("function isImageIconValue(icon)") && !portalVue.includes('/^(data:image|https?:|blob:)/i.test(String'), "图标判定要共用一个 helper 并认本地 assets/ 路径（此断言防止两处实现漂移）");
-assert(portalVue.includes("portal-vue-skill-cell-icon") && portalCss.includes(".portal-vue-skill-cell-icon img"), "Skill 列表的图标要进固定图标格，SVG 与 emoji 混排才对齐");
+assert(!portalVue.includes("portal-vue-skill-cell-icon"), "Skill 配置已去掉工作台展示（图标 / 展示标题 / 排序），列表不再有图标格");
 assert(["skill-query", "skill-asset", "skill-lineage", "skill-attribution", "skill-single-table"].every(name => standaloneBuild.includes(`"assets/${name}.svg"`)), "单文件构建白名单要带上 Skill 图标，否则分享出去缺图");
 assert(portalBridge.includes('ai: { default: "assets/nav-ai-default.svg", active: "assets/nav-ai-active.svg" }'), "ai 图标应指向独立的默认/选中态资源");
 const adminGroup = (portalBridge.match(/\{ name: "门户管理员"[\s\S]*?status: "启用" \}/) || [""])[0];
@@ -421,7 +421,7 @@ assert(!skillListSource.includes("<el-drawer") && !skillListSource.includes("新
 assert(portalVue.includes("SkillManagementApp") && portalVue.includes("openDetail(") && portalVue.includes('bridge.setSkillDetailId') && portalVue.includes('bridge.setPage("Skill 详情")'), "Skill 列表应通过 openDetail 进入详情页");
 assert(portalVue.includes("grayUsers") && portalVue.includes("灰度用户") && portalVue.includes("toggleEnabled") && portalVue.includes("skillStatus"), "Skill 灰度应按系统内用户配置（不再按流量），并支持上下线开关");
 assert("testVisible" in portalVue.match(/SkillManagementApp[\s\S]{0,200}/g) === false || !portalVue.includes("沙箱试跑"), "Skill 配置不应再包含沙箱试跑");
-assert(portalVue.includes("skillScenarios") && portalVue.includes("工作台展示") && portalVue.includes("openDetail("), "工作台场景卡片应由 Skill 配置驱动（icon/标题/描述/排序），列表点名称或详情进入详情页");
+assert(portalVue.includes("openDetail(") && !portalVue.includes("工作台展示"), "Skill 配置不再有工作台展示配置，列表点名称或详情进入详情页；灵犀智析不再手动选 Skill，按问题自动动态加载");
 // 旧入口断言只针对 Skill 组件：模型配置新增的「能力」抽屉也用了 openCapability 这个名字，
 // 全文件字符串匹配会误伤，因此收敛到 SkillManagementApp 组件块内。
 const skillComponentBlock = (portalVue.match(/const SkillManagementApp = \{[\s\S]*?\n  \};\n/) || [""])[0];
@@ -607,7 +607,7 @@ assert(skillComponentBlock.includes('@click="openDetail(scope.row)"') && skillCo
 assert(!skillComponentBlock.includes("openNewVersion") && !skillComponentBlock.includes("openVersionManage") && !skillComponentBlock.includes(">新增版本") && !skillComponentBlock.includes(">版本管理"), "Skill 列表不应再有新增版本或版本管理入口");
 assert(!skillComponentBlock.includes("editVisible") && !skillComponentBlock.includes("publishVisible") && !skillComponentBlock.includes("viewVisible") && !skillComponentBlock.includes("grayDialogVisible"), "Skill 列表页不应再保留配置、版本或灰度抽屉");
 assert(gatewaySource.includes('["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt"'), "网关 Skill 配置持久化应覆盖描述与提示词");
-assert(portalVue.includes("isImageIcon") && portalVue.includes("portal-vue-skill-cell-icon"), "Skill 列表应继续展示图标");
+assert(portalVue.includes("所属业务线") && portalVue.includes("历史版本") && portalVue.includes("删除此版本"), "Skill 应绑定业务线（单选，含全部）、列表展示历史版本数、旧版本可删（最近 3 个受保护）");
 
 const deployScript = read("scripts/deploy.sh");
 assert(deployScript.includes("set -euo pipefail"), "发版脚本应启用 pipefail，避免管道吞掉失败退出码");
