@@ -20,6 +20,7 @@ describe("Skill 组合", () => {
 
   test("「任哥为什么变了」：自动进权益包，先看总体再归因，口径解析的范围用于限定归因", async () => {
     reset();
+    harness.relay.report = body => (String(body.messages[0]?.content || "").includes("规划助手") ? '{"skill":"equity-union-analyst","output":"answer","confidence":0.9,"reason":"问的是权益投放"}' : "测试回答");
     const scope = [{ field: "department", values: ["投放一部-权益一组", "投放一部-权益二组"] }];
     harness.relay.toolScript = [call("query_metric", { metric: "cost", table: TABLE, filters: scope }), call("attribute_change", { metric: "cost", table: TABLE, filters: scope, dimensions: ["account_id"] })];
     const result = await harness.analyzeStream("林金维", { skillId: "general-analyst", scenario: "general", question: "任哥近 7 天消耗为什么变化了" });

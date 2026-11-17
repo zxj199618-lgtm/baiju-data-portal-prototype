@@ -70,8 +70,9 @@
                 </div>
               </template>
             </section>
-            <div class="sk-section-title">提示词与版本管理</div>
-            <div>
+            <div v-if="isRouter" class="sk-router-note"><strong>通用分析 Skill 不需要配置规则</strong><p>它会根据用户的问题，结合各个 Skill 的「描述」自动判断该交给哪一个，没有把握时才用一次便宜的模型判断。想让某个问题被转交过去，请把对应 Skill 的描述写清楚。</p></div>
+            <div v-if="!isRouter" class="sk-section-title">提示词与版本管理</div>
+            <div v-if="!isRouter">
                 <div class="sk-pv">
                   <aside class="sk-pv-list">
                     <el-button v-if="editable" type="primary" class="sk-pv-new" @click="startNew">＋ 新增版本</el-button>
@@ -97,29 +98,12 @@
                       </div>
                       <p v-if="viewItem.note" class="portal-vue-muted" style="margin:0 0 8px;font-size:12px">版本说明：{{ viewItem.note }}</p>
                       <div v-if="viewItem.grayUsers?.length" class="sk-pv-gray"><span class="portal-vue-muted">灰度用户：</span><el-tag v-for="user in viewItem.grayUsers" :key="user" size="small" effect="plain">{{ user }}</el-tag></div>
-                      <template v-if="isRouter">
-                        <div class="portal-vue-alert-field"><label>自动路由规则</label><div v-if="(viewSnap.routes || []).length"><p v-for="(route,index) in viewSnap.routes" :key="index" style="margin:0 0 6px">{{ routeSkillName(route.skillId) }}：{{ (route.keywords || []).join("、") || "（无关键词）" }}</p></div><span v-else class="portal-vue-muted">（无规则）</span></div>
-                        <div class="portal-vue-alert-field"><label>兜底技能</label><span>{{ routeSkillName(viewSnap.fallbackSkillId) || "—" }}</span></div>
-                      </template>
-                      <div v-else class="portal-vue-alert-field"><label>提示词</label><pre class="sk-pv-pre">{{ viewSnap.prompt || "（该版本未保存提示词）" }}</pre></div>
+                      <div class="portal-vue-alert-field"><label>提示词</label><pre class="sk-pv-pre">{{ viewSnap.prompt || "（该版本未保存提示词）" }}</pre></div>
                       <div class="portal-vue-alert-field"><label>引用的表</label><span>{{ (viewSnap.tables || []).join("、") || "—" }}</span></div>
                     </template>
                     <template v-else-if="mode === 'edit' || mode === 'new'">
                       <div class="sk-pv-bar"><div class="sk-pv-title"><strong>{{ mode === 'new' ? '新增版本' : '修改 ' + selected }}</strong><span class="portal-vue-muted">保存后为「未发布」，发布后才上线，也可先灰度</span></div></div>
-                      <el-form v-if="isRouter" label-position="top" class="portal-vue-dialog-form">
-                        <el-form-item label="自动路由规则">
-                          <div class="portal-vue-route-editor">
-                            <div v-for="(route,index) in form.routes" :key="index" class="portal-vue-route-row">
-                              <el-select v-model="route.skillId" placeholder="选择技能" style="width:200px"><el-option v-for="item in routeOptions" :key="item.id" :label="item.name" :value="item.id"></el-option></el-select>
-                              <el-input v-model="route.keywords" placeholder="命中关键词，用顿号分隔，如 血缘、上游、下游"></el-input>
-                              <el-button link type="danger" @click="form.routes.splice(index,1)">删除</el-button>
-                            </div>
-                            <el-button @click="form.routes.push({skillId:'',keywords:''})">＋ 新增规则</el-button>
-                          </div>
-                        </el-form-item>
-                        <el-form-item label="兜底技能（未命中关键词时使用）"><el-select v-model="form.fallbackSkillId" placeholder="选择兜底技能" style="width:260px"><el-option v-for="item in routeOptions" :key="item.id" :label="item.name" :value="item.id"></el-option></el-select></el-form-item>
-                      </el-form>
-                      <el-form v-else label-position="top" class="portal-vue-dialog-form">
+                      <el-form label-position="top" class="portal-vue-dialog-form">
                         <el-form-item label="提示词"><el-input v-model="form.prompt" type="textarea" resize="none" class="sk-pv-textarea" placeholder="该 Skill 的分析指令" @input="autoAddTablesFrom"></el-input></el-form-item>
                       </el-form>
                       <el-form label-position="top" class="portal-vue-dialog-form">
@@ -442,6 +426,9 @@
         ".sk-basic-desc p { margin:0; font-size:14px; line-height:1.7; color:#3f4857; }",
         ".sk-basic-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,2fr) 140px; gap:16px; }",
         ".sk-basic-foot { display:flex; align-items:center; justify-content:space-between; gap:16px; }",
+        ".sk-router-note { margin-top:16px; padding:16px 20px; border:1px dashed #c9d6ee; border-radius:12px; background:#f7faff; }",
+        ".sk-router-note strong { font-size:14px; color:#1f2430; }",
+        ".sk-router-note p { margin:6px 0 0; font-size:13px; line-height:1.7; color:#566174; }",
         ".sk-section-title { margin:20px 0 12px; font-size:15px; font-weight:600; color:#1f2430; }",
         ".sk-pv { display:grid; grid-template-columns:260px minmax(0,1fr); gap:20px; align-items:start; }",
         ".sk-pv-list { display:grid; gap:8px; max-height:calc(100vh - 220px); overflow:auto; }",

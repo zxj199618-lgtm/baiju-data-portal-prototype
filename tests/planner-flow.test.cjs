@@ -74,10 +74,8 @@ describe("规划层", () => {
     }
   });
 
-  test("关键词命中、沿用上一轮、手动选技能：都不额外调用模型", async () => {
+  test("沿用上一轮、手动选技能：都不额外调用模型", async () => {
     reset('{"skill":"asset-qa","confidence":0.99,"reason":"不该被调用"}');
-    const keyword = await auto("任哥近 7 天消耗多少");
-    assert.equal(keyword.done.meta.plan.source, "keyword");
     const sticky = await auto("那昨天呢", { conversation: [{ question: "任哥近 7 天消耗多少", answer: "10 万", skillId: PACK, terms: ["任哥"] }] });
     assert.equal(sticky.done.meta.plan.source, "sticky");
     const manual = await harness.analyzeStream("林金维", { skillId: "asset-qa", scenario: "asset", toolMode: false, question: NO_KEYWORD });

@@ -104,12 +104,15 @@ describe("权益规范包", () => {
     assert.match(userOf(toolStep), /任哥近 7 天消耗 10 万/);
   });
 
-  test("自动路由：权益关键词优先于通用技能的多个命中（「任哥近 7 天消耗多少」不会落到数据查询）", async () => {
+  test("自动路由：由模型按 Skill 描述判断，不再按关键词（「任哥近 7 天消耗多少」判给权益包，不含权益词的问题不会被拉进来）", async () => {
     resetRelay();
+    const plannerReply = skill => body => (String(body.messages[0]?.content || "").includes("规划助手") ? JSON.stringify({ skill, output: "answer", confidence: 0.9, reason: "按问题内容判断" }) : "测试回答");
+    harness.relay.report = plannerReply(PACK);
     const result = await harness.analyzeStream("林金维", { skillId: "general-analyst", scenario: "general", question: "任哥近 7 天消耗多少", toolMode: false });
     const started = result.events.find(event => event.started);
     assert.equal(started.routedSkill.id, PACK);
-    assert.match(started.routeReason, /任哥/);
+    assert.match(started.routeReason, /^智能判断/);
+    harness.relay.report = plannerReply("asset-qa");
     const other = await harness.analyzeStream("林金维", { skillId: "general-analyst", scenario: "general", question: "有哪些表可以查消耗", toolMode: false });
     assert.notEqual(other.events.find(event => event.started).routedSkill?.id, PACK, "不含权益词的问题不应被拉进权益包");
   });

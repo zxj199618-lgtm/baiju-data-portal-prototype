@@ -1338,16 +1338,7 @@ function pickAutoSkill(router, user, question, stickySkillId = "") {
   const registry = loadSkillRegistry();
   const usable = id => registry.find(item => item.id === id && item.kind !== "router" && item.enabled !== false && (!item.grayUsers?.length || item.grayUsers.includes(user))) || null;
   const text = String(question || "").toLowerCase();
-  let best = null;
-  for (const route of router.routes || []) {
-    const entry = usable(route.skillId);
-    if (!entry) continue;
-    const hits = (route.keywords || []).filter(keyword => keyword && text.includes(String(keyword).toLowerCase()));
-    // 业务专属技能（priority 更高）的关键词命中优先于通用技能的多个命中；同优先级再比命中数
-    const priority = Number(route.priority) || 0;
-    if (hits.length && (!best || priority > best.priority || (priority === best.priority && hits.length > best.hits.length))) best = { entry, hits, priority };
-  }
-  if (best) return { skill: best.entry, reason: `命中关键词「${best.hits.join("、")}」` };
+  /* 不再按关键词规则路由：没有把握时一律交给模型按各 Skill 的描述判断（见规划层），这里只负责「沿用上一轮」与兜底 */
   // 追问（「那昨天呢」）里通常没有关键词：沿用上一轮的技能，而不是掉回兜底
   const sticky = stickySkillId ? usable(stickySkillId) : null;
   if (sticky) return { skill: sticky, reason: "沿用上一轮的技能" };
