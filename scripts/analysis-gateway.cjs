@@ -775,6 +775,17 @@ const usageTracker = createUsageTracker({ dataDir: DATA_DIR });
 const feedbackStore = createFeedbackStore({ dataDir: DATA_DIR });
 const tokensOf = usage => Number(usage?.total_tokens) || ((Number(usage?.prompt_tokens) || 0) + (Number(usage?.completion_tokens) || 0));
 
+/** 一次问答用到的 Skill：通用分析（转交时）→ 实际执行的 Skill → 报告生成（出报告时） */
+function skillsUsedOf(skillName, extra = {}) {
+  const registry = loadSkillRegistry();
+  const nameOf = id => registry.find(item => item.id === id)?.name || "";
+  const list = [];
+  if (extra.plan && extra.plan !== "manual") list.push(nameOf(ROUTER_SKILL_ID));
+  list.push(skillName);
+  if (extra.output === "report") list.push(nameOf("report-writer"));
+  return [...new Set(list.filter(Boolean))];
+}
+
 /** 一次分析结束：累计 token 用量，并写一条审计（谁、问了什么、用了什么、花了多少、结果如何） */
 function finishAnalysis({ sessionAudit = {}, user, scope = user, requestId, question, model, skillName, scenarioLabel, toolMode, toolCalls, tablesUsed, usage, extraTokens = 0, latencyMs, numericCheck, status, error = "", extra = {} }) {
   const tokens = tokensOf(usage) + extraTokens;
@@ -782,7 +793,7 @@ function finishAnalysis({ sessionAudit = {}, user, scope = user, requestId, ques
   appendAuditEntry({
     type: "analysis", user, scope: scope !== user ? scope : undefined, requestId, status, error: error ? String(error).slice(0, 200) : undefined,
     question: String(question).slice(0, 300), model, skill: skillName, scenario: scenarioLabel,
-    toolMode, toolCallCount: toolCalls.length, tablesUsed, tokens, latencyMs, ...sessionAudit, ...extra,
+    skills: skillsUsedOf(skillName, extra), toolMode, toolCallCount: toolCalls.length, tablesUsed, tokens, latencyMs, ...sessionAudit, ...extra,
     ungroundedNumbers: numericCheck ? numericCheck.ungrounded.length : null
   });
   return tokens;
@@ -1232,7 +1243,11 @@ process.stdin.on("end", () => {
 });`;
 
 function loadSkillRegistry() {
-  try { return JSON.parse(fs.readFileSync(REGISTRY_FILE, "utf8")); } catch { return []; }
+  try {
+    const list = JSON.parse(fs.readFileSync(REGISTRY_FILE, "utf8"));
+    /* 通用分析不再按关键词路由：已保存的旧描述里「未命中关键词时使用兜底技能」读出时改成新说法 */
+    return list.map(item => (typeof item?.desc === "string" && item.desc.includes("未命中关键词时使用兜底技能") ? { ...item, desc: item.desc.replace("未命中关键词时使用兜底技能", "没有把握时由模型按各 Skill 的描述判断") } : item));
+  } catch { return []; }
 }
 
 function saveSkillRegistry(registry) {
@@ -1302,7 +1317,7 @@ function ensurePackRoutes(registry) {
 const ROUTER_SKILL_ID = "general-analyst";
 const ROUTER_SKILL_DEFAULTS = {
   id: ROUTER_SKILL_ID, name: "通用分析 Skill", source: "router", version: "v1.0-portal", kind: "router", scenarioKey: "general", icon: "✦",
-  title: "通用分析", displayDesc: "自动选择最合适的分析技能", desc: "根据问题内容与你可用的分析技能，自动转交给最合适的一个；未命中关键词时使用兜底技能。",
+  title: "通用分析", displayDesc: "自动选择最合适的分析技能", desc: "根据问题内容与你可用的分析技能，自动转交给最合适的一个；没有把握时由模型按各 Skill 的描述判断。",
   sort: 5, enabled: true, grayUsers: [], builtin: true, fallbackSkillId: "warehouse-analyst",
   routes: [
     { skillId: "lineage-analyst", keywords: ["血缘", "上游", "下游", "依赖", "影响面", "变更影响"] },

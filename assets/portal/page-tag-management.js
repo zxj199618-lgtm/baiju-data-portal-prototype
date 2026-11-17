@@ -47,7 +47,7 @@
           <el-form v-if="editForm" class="tag-enum-drawer-form" label-position="top">
             <el-form-item label="字段名"><el-input :model-value="editForm.name" disabled></el-input></el-form-item>
             <el-form-item label="标签名称" required><el-input v-model="editForm.cn"></el-input></el-form-item>
-            <el-form-item label="所属业务线" required><el-select v-model="editForm.bizLine" placeholder="选择业务线" style="width:100%"><el-option label="全部（通用）" :value="'全部'"></el-option><el-option v-for="line in lineNames" :key="line" :label="line" :value="line"></el-option></el-select></el-form-item>
+            <el-form-item label="所属业务线" required><el-select v-model="editForm.bizLine" placeholder="选择业务线" style="width:100%"><el-option label="通用" :value="'全部'"></el-option><el-option v-for="line in lineNames" :key="line" :label="line" :value="line"></el-option></el-select></el-form-item>
             <el-form-item label="业务定义"><el-input v-model="editForm.def" type="textarea" :rows="2"></el-input></el-form-item>
             <el-form-item label="计算口径"><el-input v-model="editForm.calc" type="textarea" :rows="2"></el-input></el-form-item>
             <section class="tag-enum-section">

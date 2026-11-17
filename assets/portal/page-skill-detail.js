@@ -46,7 +46,7 @@
               <div class="sk-basic-head"><strong>基本信息</strong><el-button v-if="editable && !editingBasic" size="small" plain @click="editingBasic = true">编辑</el-button></div>
               <div v-if="!editingBasic" class="sk-basic-view">
                 <div><span>Skill 名称</span><strong>{{ skill.name }}</strong></div>
-                <div><span>所属业务线</span><el-tag size="small" effect="plain" :type="draft.bizLine === ALL ? 'info' : ''">{{ draft.bizLine === ALL ? '全部（通用 Skill）' : (draft.bizLine || '未绑定') }}</el-tag></div>
+                <div><span>所属业务线</span><el-tag size="small" effect="plain" :type="draft.bizLine === ALL ? 'info' : ''">{{ draft.bizLine === ALL ? '通用' : (draft.bizLine || '未绑定') }}</el-tag></div>
                 <div><span>上线状态</span><el-tag size="small" effect="light" :type="skill.enabled === false ? 'info' : 'success'">{{ skill.enabled === false ? '下线' : '上线' }}</el-tag></div>
                 <div class="sk-basic-desc"><span>描述</span><p>{{ skill.desc || '—' }}</p></div>
               </div>
@@ -56,7 +56,7 @@
                     <el-form-item label="Skill 名称" required><el-input v-model="draft.name" placeholder="如：人群包效果分析 Skill"></el-input></el-form-item>
                     <el-form-item label="所属业务线" required>
                       <el-select v-model="draft.bizLine" placeholder="选择所属业务线" style="width:100%">
-                        <el-option label="全部（通用 Skill）" :value="ALL"></el-option>
+                        <el-option label="通用" :value="ALL"></el-option>
                         <el-option v-for="line in lineChoices" :key="line.name" :label="line.name + (line.enabled ? '' : '（已停用）')" :value="line.name" :disabled="!line.enabled && draft.bizLine !== line.name"></el-option>
                       </el-select>
                     </el-form-item>

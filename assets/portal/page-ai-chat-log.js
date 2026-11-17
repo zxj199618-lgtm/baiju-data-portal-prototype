@@ -19,7 +19,7 @@
   const durationText = ms => (ms === undefined || ms === null ? "—" : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
   const reportHref = url => (!url ? "" : /^https?:\/\//.test(url) ? url : `${location.origin}${location.pathname}${String(url).replace(/^\//, "")}`);
 
-  (() => { if (document.getElementById("aclog-style")) return; const el = document.createElement("style"); el.id = "aclog-style"; el.textContent = ".aclog-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"; document.head.appendChild(el); })();
+  (() => { if (document.getElementById("aclog-style")) return; const el = document.createElement("style"); el.id = "aclog-style"; el.textContent = ".aclog-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.aclog-skills{display:flex;flex-direction:column;gap:2px}.aclog-skills span{line-height:1.5}.aclog-skills span+span::before{content:\"+ \";color:#98a2b3}"; document.head.appendChild(el); })();
 
   window.PortalVue.AiChatLogPanel = {
     template: `
@@ -32,12 +32,12 @@
           </div>
           <div><span class="portal-vue-muted" style="margin-right:12px">命中 {{ result.matched }} 条，显示最近 {{ rows.length }} 条</span><el-button type="primary" @click="load">查询</el-button></div>
         </div>
-        <el-table :data="rows" class="portal-vue-table" border v-loading="loading" empty-text="暂无对话记录" data-test="audit-table">
+        <el-table :data="rows" class="portal-vue-table" border :empty-text="loading ? '加载中…' : '暂无对话记录'" data-test="audit-table">
           <el-table-column label="时间" width="170"><template #default="scope">{{ formatTime(scope.row.at) }}</template></el-table-column>
           <el-table-column label="账号" width="140"><template #default="scope">{{ scope.row.user }}<span v-if="scope.row.scope" class="portal-vue-muted">（访客）</span></template></el-table-column>
           <el-table-column label="问题" min-width="280" show-overflow-tooltip><template #default="scope">{{ scope.row.question || "—" }}</template></el-table-column>
           <el-table-column label="会话窗口" min-width="200"><template #default="scope"><template v-if="scope.row.sessionTitle || scope.row.sessionId"><div class="aclog-ellipsis" :title="scope.row.sessionTitle">{{ scope.row.sessionTitle || '（未命名会话）' }}</div><small class="portal-vue-muted">{{ contextText(scope.row) }}</small></template><span v-else class="portal-vue-muted">—</span></template></el-table-column>
-          <el-table-column label="Skill / 模型" min-width="190"><template #default="scope"><div>{{ scope.row.skill || scope.row.scenario || "—" }}</div><small class="portal-vue-muted">{{ scope.row.model || "—" }}</small></template></el-table-column>
+          <el-table-column label="Skill / 模型" min-width="190"><template #default="scope"><div class="aclog-skills"><span v-for="name in skillsOf(scope.row)" :key="name">{{ name }}</span><span v-if="!skillsOf(scope.row).length" class="portal-vue-muted">—</span></div><small class="portal-vue-muted">{{ scope.row.model || "—" }}</small></template></el-table-column>
           <el-table-column label="响应时长" width="100" align="right"><template #default="scope">{{ durationText(scope.row.latencyMs) }}</template></el-table-column>
           <el-table-column label="token" width="90" align="right"><template #default="scope">{{ (scope.row.tokens ?? 0).toLocaleString('zh-CN') }}</template></el-table-column>
           <el-table-column label="结果" width="90"><template #default="scope"><el-tooltip :disabled="!scope.row.error" :content="scope.row.error" placement="top"><el-tag :type="scope.row.status === 'error' ? 'danger' : 'success'" effect="light">{{ scope.row.status === 'error' ? '失败' : '成功' }}</el-tag></el-tooltip></template></el-table-column>
@@ -62,6 +62,8 @@
         const chars = row.contextChars || 0;
         return `上文 ${row.contextTurns} 轮 · ${chars >= 1000 ? (chars / 1000).toFixed(1) + "k" : chars} 字`;
       },
+      /** 一次问答可能用到多个 Skill（通用分析转交、报告生成）；老记录只有一个 skill 字段 */
+      skillsOf(row) { return Array.isArray(row.skills) && row.skills.length ? row.skills : [row.skill || row.scenario].filter(Boolean); },
       feedbackOf(row) { return row.requestId ? this.feedbackMap[row.requestId] : null; },
       openFeedback(row) { window.PortalVue.feedbackFocus = row.requestId; window.portalVueBridge.setPage("AI 反馈"); },
       async load() {
@@ -69,8 +71,11 @@
         if (this.filter.user) params.set("user", this.filter.user);
         if (this.filter.status) params.set("status", this.filter.status);
         this.loading = true;
-        try { const fb = await request("/v1/feedback?limit=200"); this.feedbackMap = Object.fromEntries((fb.items || []).map(item => [item.requestId, item])); } catch (error) { this.feedbackMap = {}; }
-        try { this.result = await request(`/v1/audit?${params}`); } catch (error) { ep.ElMessage.warning(error.message); } finally { this.loading = false; }
+        /* 两个请求并行，反馈取不到不影响记录显示 */
+        const [fb, audit] = await Promise.allSettled([request("/v1/feedback?limit=200"), request(`/v1/audit?${params}`)]);
+        this.feedbackMap = fb.status === "fulfilled" ? Object.fromEntries((fb.value.items || []).map(item => [item.requestId, item])) : {};
+        if (audit.status === "fulfilled") this.result = audit.value; else ep.ElMessage.warning(audit.reason.message);
+        this.loading = false;
       }
     },
     mounted() {
