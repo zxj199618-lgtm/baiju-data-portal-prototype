@@ -71,6 +71,8 @@
   const menuIcons = ["pie", "asset", "service", "permission", "system", "analysis", "push", "ai", "toolbox", "toolboxBiz"];
 
 
+  (() => { if (document.getElementById("mm-style")) return; const el = document.createElement("style"); el.id = "mm-style"; el.textContent = ".mm-nav-icon{width:18px;height:18px;object-fit:contain;vertical-align:middle}.mm-opt{display:inline-flex;align-items:center;gap:8px}.mm-ico{width:14px;height:14px;margin-right:4px;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}"; document.head.appendChild(el); })();
+
   const MenuManagementApp = {
     template: `
       <el-config-provider :locale="locale">
@@ -80,12 +82,12 @@
           </div>
           <el-table :data="treeRows" row-key="id" :tree-props="{ children: 'children' }" default-expand-all class="portal-vue-table" border empty-text="暂无菜单">
             <el-table-column label="菜单显示名称" min-width="220"><template #default="scope"><span :class="{ 'portal-vue-name': !scope.row.parentId }">{{ scope.row.name }}</span></template></el-table-column>
-            <el-table-column label="图标" width="80" align="center"><template #default="scope"><el-icon v-if="scope.row.icon !== '--'" :size="16"><span>{{ iconGlyph(scope.row.icon) }}</span></el-icon><span v-else class="portal-vue-muted">--</span></template></el-table-column>
+            <el-table-column label="图标" width="80" align="center"><template #default="scope"><img v-if="scope.row.icon !== '--'" class="mm-nav-icon" :src="iconSrc(scope.row.icon)" alt="" /><span v-else class="portal-vue-muted">--</span></template></el-table-column>
             <el-table-column prop="sort" label="排序" width="90" align="center"></el-table-column>
             <el-table-column prop="path" label="组件路径" min-width="240"><template #default="scope"><code class="portal-vue-code">{{ scope.row.path }}</code></template></el-table-column>
             <el-table-column label="缓冲" width="90" align="center"><template #default="scope"><el-switch :disabled="!canEdit('菜单管理')" :model-value="scope.row.cache" @change="value=>toggleCache(scope.row,value)"></el-switch></template></el-table-column>
             <el-table-column prop="permission" label="权限标识" min-width="200"><template #default="scope"><code class="portal-vue-code">{{ scope.row.permission }}</code></template></el-table-column>
-            <el-table-column label="操作" width="240" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('菜单管理')" link type="primary" @click="openForm(null, scope.row)" :disabled="scope.row.children.length>=3">＋ 添加</el-button><el-button v-if="canEdit('菜单管理')" link type="primary" @click="openForm(scope.row, null)">✎ 编辑</el-button><el-button v-if="canEdit('菜单管理')" link type="danger" @click="removeMenu(scope.row)">🗑 删除</el-button></div></template></el-table-column>
+            <el-table-column label="操作" width="240" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('菜单管理')" link type="primary" @click="openForm(null, scope.row)" :disabled="scope.row.children.length>=3"><svg class="mm-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>添加</el-button><el-button v-if="canEdit('菜单管理')" link type="primary" @click="openForm(scope.row, null)"><svg class="mm-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3zM13.5 8.5l3 3"/></svg>编辑</el-button><el-button v-if="canEdit('菜单管理')" link type="danger" @click="removeMenu(scope.row)"><svg class="mm-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>删除</el-button></div></template></el-table-column>
           </el-table>
         </section>
         <el-dialog v-model="formVisible" :title="editingId ? '编辑菜单' : (parentMenu ? '添加子菜单' : '添加菜单')" width="640px">
@@ -93,7 +95,7 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
               <el-form-item label="菜单显示名称" required><el-input v-model="form.name" placeholder="如：数据看板"></el-input></el-form-item>
               <el-form-item label="上级菜单"><el-select v-model="form.parentId" clearable placeholder="不选则为顶级目录"><el-option v-for="item in rootMenus" :key="item.id" :label="item.name" :value="item.id"></el-option></el-select></el-form-item>
-              <el-form-item label="图标"><el-select v-model="form.icon"><el-option label="--（子菜单）" value="--"></el-option><el-option v-for="icon in icons" :key="icon" :label="icon" :value="icon"></el-option></el-select></el-form-item>
+              <el-form-item label="图标"><el-select v-model="form.icon"><el-option label="--（子菜单）" value="--"></el-option><el-option v-for="icon in icons" :key="icon" :label="icon" :value="icon"><span class="mm-opt"><img class="mm-nav-icon" :src="iconSrc(icon)" alt="" />{{ icon }}</span></el-option></el-select></el-form-item>
               <el-form-item label="排序" required><el-input-number v-model="form.sort" :min="1" :max="99999" style="width:100%"></el-input-number></el-form-item>
               <el-form-item label="组件路径" required><el-input v-model="form.path" placeholder="/system/menu-management/index"></el-input></el-form-item>
               <el-form-item label="权限标识" required><el-input v-model="form.permission" placeholder="system_menu_management"></el-input></el-form-item>
@@ -110,6 +112,8 @@
       treeRows(){return this.menus;}
     },
     methods:{
+      /** 图标列用的是左侧菜单里实际的那套 SVG（菜单图标键与导航图标键略有不同，这里对一下） */
+      iconSrc(icon){const key={pie:"dashboard",service:"gateway"}[icon]||icon;return window.portalVueBridge.navIconPath(key,false);},
       iconGlyph(icon){return {pie:"◔",asset:"▤",service:"▣",permission:"🔒",system:"⚙",analysis:"✦",push:"⇩",ai:"◈",toolbox:"🧰",toolboxBiz:"📦"}[icon]||"●";},
       findMenu(id,list=this.menus,parent=null){for(const item of list){if(item.id===id)return{menu:item,parent};const found=this.findMenu(id,item.children,item);if(found)return found;}return null;},
       toggleCache(row,value){const found=this.findMenu(row.id);if(found){found.menu.cache=value;notify(`「${row.name}」缓存已${value?"开启":"关闭"}`);}},

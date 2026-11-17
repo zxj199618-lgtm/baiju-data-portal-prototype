@@ -5,6 +5,7 @@
  */
 (() => {
   "use strict";
+  const paginate = (...args) => window.PortalVue.paginate(...args);
   if (!window.PortalVue) return;
   const { analysisGatewayBase, ep } = window.PortalVue;
 
@@ -27,12 +28,12 @@
         <div class="portal-vue-toolbar">
           <div class="portal-vue-toolbar-left">
             <el-input v-model="filter.keyword" placeholder="搜索问题" clearable style="width:220px" @keyup.enter="load" @clear="load"></el-input>
-            <el-input v-model="filter.user" placeholder="账号" clearable style="width:140px" @keyup.enter="load" @clear="load"></el-input>
+            <el-select v-model="filter.user" filterable clearable placeholder="全部账号" style="width:160px" @change="load"><el-option v-for="name in userNames" :key="name" :label="name" :value="name"></el-option></el-select>
             <el-select v-model="filter.status" style="width:120px" @change="load"><el-option label="全部状态" value=""></el-option><el-option label="成功" value="ok"></el-option><el-option label="失败" value="error"></el-option></el-select>
           </div>
           <div><span class="portal-vue-muted" style="margin-right:12px">命中 {{ result.matched }} 条，显示最近 {{ rows.length }} 条</span><el-button type="primary" @click="load">查询</el-button></div>
         </div>
-        <el-table :data="rows" class="portal-vue-table" border :empty-text="loading ? '加载中…' : '暂无对话记录'" data-test="audit-table">
+        <el-table :data="pagedRows" class="portal-vue-table" border :empty-text="loading ? '加载中…' : '暂无对话记录'" data-test="audit-table">
           <el-table-column label="时间" width="170"><template #default="scope">{{ formatTime(scope.row.at) }}</template></el-table-column>
           <el-table-column label="账号" width="140"><template #default="scope">{{ scope.row.user }}<span v-if="scope.row.scope" class="portal-vue-muted">（访客）</span></template></el-table-column>
           <el-table-column label="问题" min-width="280" show-overflow-tooltip><template #default="scope">{{ scope.row.question || "—" }}</template></el-table-column>
@@ -44,16 +45,20 @@
           <el-table-column label="反馈" width="90" align="center" fixed="right"><template #default="scope"><el-button v-if="feedbackOf(scope.row)" link type="primary" @click="openFeedback(scope.row)">{{ feedbackOf(scope.row).rating === 'up' ? '👍' : '👎' }} 详情</el-button><span v-else class="portal-vue-muted">—</span></template></el-table-column>
           <el-table-column label="报告地址" min-width="200" show-overflow-tooltip><template #default="scope"><a v-if="scope.row.reportUrl" :href="href(scope.row.reportUrl)" target="_blank" rel="noopener">{{ href(scope.row.reportUrl) }}</a><span v-else class="portal-vue-muted">—</span></template></el-table-column>
         </el-table>
+        <div class="portal-vue-pagination"><span>共 {{ rows.length }} 条，当前 {{ rangeOf(rows.length) }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="rows.length" layout="sizes, prev, pager, next"></el-pagination></div>
       </div>
     `,
-    data: () => ({ feedbackMap: {}, loading: false, filter: { keyword: "", user: "", status: "" }, result: { items: [], matched: 0 } }),
+    data: () => ({ page: 1, pageSize: 10, feedbackMap: {}, loading: false, filter: { keyword: "", user: "", status: "" }, result: { items: [], matched: 0 } }),
     computed: {
+      pagedRows() { const result = paginate(this.rows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
+      userNames() { return [...new Set((window.PortalVue.state.users || []).map(user => user.name).filter(Boolean))]; },
       rows() {
         const keyword = this.filter.keyword.trim().toLowerCase();
         return keyword ? this.result.items.filter(item => String(item.question || "").toLowerCase().includes(keyword)) : this.result.items;
       }
     },
     methods: {
+      rangeOf(total) { if (!total) return "0-0"; return `${(this.page - 1) * this.pageSize + 1}-${Math.min(this.page * this.pageSize, total)}`; },
       formatTime, durationText, href: reportHref,
       /** 这一轮带给模型的会话上文：几轮、多少字 */
       contextText(row) {

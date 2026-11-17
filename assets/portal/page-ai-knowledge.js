@@ -6,6 +6,7 @@
  */
 (() => {
   "use strict";
+  const paginate = (...args) => window.PortalVue.paginate(...args);
   if (!window.PortalVue || !window.PortalVue.bizStore) return;
   const { bizStore, bizHelpers } = window.PortalVue;
   const { bridge, ep, confirmAction, mount, notify, refreshTick, state } = window.PortalVue;
@@ -33,7 +34,7 @@
             <el-button v-if="canEdit('AI 知识库')" type="primary" @click="openCreate">新建业务线知识库</el-button>
           </div>
           <div class="portal-vue-scope-hint"><span>灵犀智析回答问题时，会按业务线读取<strong>业务线知识库</strong>，以及其下的<strong>表知识库</strong></span><span class="portal-vue-muted">{{ canEdit('AI 知识库') ? '业务线在「系统管理 → 业务线」维护；表所属业务线在「表管理 → 表详情」设置' : '当前菜单未配置「编辑」权限，仅可查看' }}</span></div>
-          <el-table :data="rows" class="portal-vue-table" border empty-text="暂无知识库">
+          <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无知识库">
             <el-table-column label="业务线知识库" min-width="200" show-overflow-tooltip><template #default="scope"><el-button link type="primary" class="portal-vue-name" @click="open(scope.row, false)">{{ title(scope.row) }}</el-button></template></el-table-column>
             <el-table-column label="业务线" width="100"><template #default="scope"><el-tag size="small" effect="plain">{{ scope.row.target }}</el-tag></template></el-table-column>
             <el-table-column label="内容摘要" min-width="280" show-overflow-tooltip><template #default="scope"><span class="portal-vue-muted">{{ summary(scope.row) }}</span></template></el-table-column>
@@ -41,7 +42,7 @@
             <el-table-column label="最近编辑" width="190"><template #default="scope"><div>{{ scope.row.updatedAt }}</div><small class="portal-vue-muted">{{ scope.row.updatedBy }}</small></template></el-table-column>
             <el-table-column label="操作" width="150" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="open(scope.row, false)">查看</el-button><el-button v-if="canEdit('AI 知识库')" link type="primary" @click="open(scope.row, true)">编辑</el-button><el-button v-if="canEdit('AI 知识库')" link type="danger" @click="remove(scope.row)">删除</el-button></div></template></el-table-column>
           </el-table>
-          <div class="portal-vue-pagination"><span>共 {{ rows.length }} 个业务线知识库</span></div>
+          <div class="portal-vue-pagination"><span>共 {{ rows.length }} 条，当前 {{ rangeOf(rows.length) }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="rows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
 
         <el-dialog v-model="createVisible" title="新建业务线知识库" width="480px" append-to-body>
@@ -55,8 +56,9 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data: () => ({ keyword: "", createVisible: false, createLine: "" }),
+    data: () => ({ page: 1, pageSize: 10, keyword: "", createVisible: false, createLine: "" }),
     computed: {
+      pagedRows() { const result = paginate(this.rows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
       creatableLines() { refreshTick.value; return bizHelpers.activeLines().filter(line => !this.lineHasKb(line)); },
       rows() {
         refreshTick.value;
@@ -65,6 +67,7 @@
       }
     },
     methods: {
+      rangeOf(total) { if (!total) return "0-0"; return `${(this.page - 1) * this.pageSize + 1}-${Math.min(this.page * this.pageSize, total)}`; },
       title: kbTitle,
       summary: summaryOf,
       tableKbs(kb) { refreshTick.value; return tableKbsOf(kb.target); },

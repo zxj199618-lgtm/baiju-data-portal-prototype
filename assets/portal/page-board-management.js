@@ -40,7 +40,7 @@
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无看板">
             <el-table-column label="看板名称" width="200" fixed="left" show-overflow-tooltip><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
             <el-table-column prop="category" label="所属分类" width="120"></el-table-column>
-            <el-table-column prop="quickBiId" label="Quick BI 看板 ID" width="160"><template #default="scope"><code class="portal-vue-code">{{ scope.row.quickBiId }}</code></template></el-table-column>
+            <el-table-column label="看板来源" width="200"><template #default="scope"><el-tooltip v-if="scope.row.type === 'custom'" :content="scope.row.url" placement="top"><el-tag size="small" type="success" effect="light">自定义看板</el-tag></el-tooltip><code v-else class="portal-vue-code">{{ scope.row.quickBiId }}</code></template></el-table-column>
             <el-table-column prop="desc" label="看板说明" min-width="210" show-overflow-tooltip><template #default="scope">{{ scope.row.desc || '—' }}</template></el-table-column>
             <el-table-column label="可查看权限组" width="150" show-overflow-tooltip><template #default="scope">{{ scope.row.groups.join('、') }}</template></el-table-column>
             <el-table-column label="可查看用户" width="190">
@@ -76,7 +76,14 @@
         <el-dialog v-model="formVisible" :title="editingIndex<0?'新增看板':'编辑看板'" width="620px" destroy-on-close>
           <el-form class="portal-vue-dialog-form" label-position="top">
             <el-form-item label="看板名称" required><el-input v-model="form.name" placeholder="请输入看板名称"></el-input></el-form-item>
-            <el-form-item label="Quick BI 看板 ID" required><el-input v-model="form.quickBiId" placeholder="例如：QB_073"></el-input></el-form-item>
+            <el-form-item label="看板类型" required>
+              <el-radio-group v-model="form.type"><el-radio-button value="quickbi">Quick BI 看板</el-radio-button><el-radio-button value="custom">自定义看板</el-radio-button></el-radio-group>
+            </el-form-item>
+            <el-form-item v-if="form.type !== 'custom'" label="Quick BI 看板 ID" required><el-input v-model="form.quickBiId" placeholder="例如：QB_073"></el-input></el-form-item>
+            <el-form-item v-else label="看板地址" required>
+              <el-input v-model="form.url" placeholder="https://ab.lumofyi.com/v/lines/stock?embed=1&k=…&g=total"></el-input>
+              <div class="portal-vue-muted" style="margin-top:6px;line-height:1.6">填观星台 AB 实验项目里看板的嵌入地址即可（需 http(s) 开头，且对方站点允许被观星台嵌入）；保存并授权后，在「数据看板」里直接显示。</div>
+            </el-form-item>
             <el-form-item label="所属分类" required><el-select v-model="form.category"><el-option v-for="item in categories" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
             <el-form-item label="负责人" required><el-select v-model="form.owner" filterable><el-option v-for="item in userNames" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
             <el-form-item label="看板说明"><el-input v-model="form.desc" type="textarea" :rows="3" placeholder="说明看板用途和数据口径"></el-input></el-form-item>
@@ -125,10 +132,15 @@
       },
       avatarText(name) { return String(name || "用").slice(0,1); },
       avatarStyle(name) { const colors = ["#0066FF","#13a8a8","#7c3aed","#d97706","#dc4c64","#35805b"]; const seed = [...String(name || "")].reduce((total,char)=>total+char.charCodeAt(0),0); return { background: colors[seed % colors.length], color: "#fff" }; },
-      openForm(board = null) { this.editingIndex = board ? state.boards.indexOf(board) : -1; this.form = board ? { ...board, groups: [...board.groups], users: [...(board.users || [])] } : { name: "", quickBiId: `QB_${String(state.boards.length + 1).padStart(3,"0")}`, category: this.categories[0] || "", owner: "曾祥竞", desc: "", groups: ["门户管理员"], users: [], status: "已上线", updatedAt: "2026-07-15 10:00" }; this.formVisible = true; },
+      openForm(board = null) { this.editingIndex = board ? state.boards.indexOf(board) : -1; this.form = board ? { ...board, groups: [...board.groups], users: [...(board.users || [])] } : { name: "", type: "quickbi", url: "", quickBiId: `QB_${String(state.boards.length + 1).padStart(3,"0")}`, category: this.categories[0] || "", owner: "曾祥竞", desc: "", groups: ["门户管理员"], users: [], status: "已上线", updatedAt: "2026-07-15 10:00" }; this.formVisible = true; },
       saveBoard() {
-        if (!this.form.name.trim() || !this.form.quickBiId.trim() || !this.form.category || !this.form.owner || !this.form.groups.length) return ep.ElMessage.warning("请补全看板必填信息");
-        const payload = { ...this.form, name: this.form.name.trim(), quickBiId: this.form.quickBiId.trim(), users: [...(this.form.users || [])], updatedAt: "2026-07-15 10:00" };
+        const custom = this.form.type === "custom";
+        const url = String(this.form.url || "").trim();
+        if (!this.form.name.trim() || (!custom && !this.form.quickBiId.trim()) || !this.form.category || !this.form.owner || !this.form.groups.length) return ep.ElMessage.warning("请补全看板必填信息");
+        if (custom && !/^https?:\/\/[^\s]+$/i.test(url)) return ep.ElMessage.warning("请填写 http(s) 开头的看板地址");
+        /* 自定义看板没有 Quick BI ID：生成一个内部编号，收藏、地址里选中看板都靠它 */
+        const quickBiId = custom ? (this.form.quickBiId && String(this.form.quickBiId).startsWith("CB_") ? this.form.quickBiId : `CB_${Date.now().toString(36).toUpperCase()}`) : this.form.quickBiId.trim();
+        const payload = { ...this.form, type: custom ? "custom" : "quickbi", url: custom ? url : "", name: this.form.name.trim(), quickBiId, users: [...(this.form.users || [])], updatedAt: "2026-07-15 10:00" };
         if (this.editingIndex < 0) state.boards.unshift(payload); else Object.assign(state.boards[this.editingIndex], payload);
         this.formVisible = false; notify(`看板「${payload.name}」已保存`);
       },

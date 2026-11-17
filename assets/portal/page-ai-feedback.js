@@ -5,6 +5,7 @@
  */
 (() => {
   "use strict";
+  const paginate = (...args) => window.PortalVue.paginate(...args);
   if (!window.PortalVue) return;
   const { analysisGatewayBase, ep, mount } = window.PortalVue;
 
@@ -27,7 +28,7 @@
             </div>
             <div><span class="portal-vue-muted" style="margin-right:12px">共 {{ feedback.summary.total }} 条：👍 {{ feedback.summary.up }} · 👎 {{ feedback.summary.down }}</span><el-button @click="load">刷新</el-button></div>
           </div>
-          <el-table :data="feedback.items" class="portal-vue-table" border v-loading="loading" empty-text="还没有反馈" data-test="feedback-table">
+          <el-table :data="pagedRows" class="portal-vue-table" border v-loading="loading" empty-text="还没有反馈" data-test="feedback-table">
             <el-table-column label="时间" width="170"><template #default="scope">{{ formatTime(scope.row.at) }}</template></el-table-column>
             <el-table-column label="评价" width="80" align="center"><template #default="scope">{{ scope.row.rating === 'up' ? '👍' : '👎' }}</template></el-table-column>
             <el-table-column prop="user" label="账号" width="120"></el-table-column>
@@ -37,6 +38,7 @@
             <el-table-column prop="comment" label="原因" min-width="200"></el-table-column>
             <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button></template></el-table-column>
           </el-table>
+          <div class="portal-vue-pagination"><span>共 {{ feedback.items.length }} 条，当前 {{ rangeOf(feedback.items.length) }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="feedback.items.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
         <el-drawer v-model="detailVisible" title="反馈详情" direction="rtl" size="560px" :close-on-click-modal="true">
           <div v-if="detail" class="fbd">
@@ -49,8 +51,12 @@
         </el-drawer>
       </el-config-provider>
     `,
-    data: () => ({ detailVisible: false, detail: null, rating: "", loading: false, feedback: { summary: { total: 0, up: 0, down: 0, byModel: {}, bySkill: {} }, items: [] } }),
+    data: () => ({ page: 1, pageSize: 10, detailVisible: false, detail: null, rating: "", loading: false, feedback: { summary: { total: 0, up: 0, down: 0, byModel: {}, bySkill: {} }, items: [] } }),
+    computed: {
+      pagedRows() { const result = paginate(this.feedback.items, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; }
+    },
     methods: {
+      rangeOf(total) { if (!total) return "0-0"; return `${(this.page - 1) * this.pageSize + 1}-${Math.min(this.page * this.pageSize, total)}`; },
       formatTime,
       openDetail(row) { this.detail = row; this.detailVisible = true; },
       async load() {

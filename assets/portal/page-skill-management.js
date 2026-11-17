@@ -4,6 +4,7 @@
  */
 (() => {
   "use strict";
+  const paginate = (...args) => window.PortalVue.paginate(...args);
   if (!window.PortalVue) return;
   const {
     analysisGatewayBase,
@@ -17,6 +18,8 @@
   } = window.PortalVue;
   const { bizStore, bizHelpers } = window.PortalVue;
 
+  (() => { if (document.getElementById("sk-list-style")) return; const el = document.createElement("style"); el.id = "sk-list-style"; el.textContent = ".sk-table .el-table__cell{padding:14px 0}.sk-table .cell{line-height:1.5}.sk-name{padding:2px 0}.sk-desc{margin:6px 0 0;font-size:12px;line-height:1.7;color:#8a94a6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:560px}.sk-table .el-tag{border-radius:6px}"; document.head.appendChild(el); })();
+
   const SkillManagementApp = {
     template: `
       <el-config-provider :locale="locale">
@@ -25,8 +28,8 @@
             <div class="portal-vue-toolbar-left"><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索 Skill 名称"></el-input><el-select v-model="lineFilter" class="portal-vue-filter" clearable placeholder="全部业务线"><el-option label="全部业务线" value=""></el-option><el-option v-for="line in allLines" :key="line" :label="line" :value="line"></el-option><el-option label="未绑定业务线" value="__none"></el-option></el-select></div>
             <el-button v-if="canEdit('Skill 配置')" type="primary" @click="openCreate">＋ 新增 Skill</el-button>
           </div>
-          <el-table :data="filteredRows" class="portal-vue-table" border empty-text="暂无 Skill">
-            <el-table-column label="Skill" min-width="280"><template #default="scope"><div><span class="portal-vue-name" style="cursor:pointer" @click="openDetail(scope.row)">{{ scope.row.name }}</span><div class="portal-vue-muted" style="margin-top:2px">{{ scope.row.desc }}</div></div></template></el-table-column>
+          <el-table :data="pagedRows" class="portal-vue-table sk-table" border empty-text="暂无 Skill">
+            <el-table-column label="Skill" min-width="380"><template #default="scope"><div class="sk-name"><span class="portal-vue-name" style="cursor:pointer" @click="openDetail(scope.row)">{{ scope.row.name }}</span><p v-if="scope.row.desc" class="sk-desc" :title="scope.row.desc">{{ scope.row.desc }}</p></div></template></el-table-column>
             <el-table-column label="业务线" width="170"><template #default="scope"><el-tooltip v-if="lineOf(scope.row) === ALL" content="通用 Skill：所有业务线都可使用" placement="top"><el-tag size="small" effect="light">通用</el-tag></el-tooltip><el-tag v-else-if="lineOf(scope.row)" size="small" effect="plain">{{ lineOf(scope.row) }}</el-tag><el-tooltip v-else content="还没有绑定业务线，请进入详情「基本信息」设置" placement="top"><el-tag size="small" type="warning" effect="plain">未绑定</el-tag></el-tooltip></template></el-table-column>
             <el-table-column prop="version" label="当前版本" width="120"></el-table-column>
             <el-table-column label="历史版本" width="100" align="center"><template #default="scope"><el-tooltip content="含当前版本；最近 3 个版本不能删除，方便回滚" placement="top"><span>{{ versionCount(scope.row) }} 个</span></el-tooltip></template></el-table-column>
@@ -35,6 +38,7 @@
             <el-table-column label="调用次数" width="100" align="right"><template #default="scope">{{ scope.row.stats.calls }}</template></el-table-column>
             <el-table-column label="操作" width="88" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button></div></template></el-table-column>
           </el-table>
+          <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeOf(filteredRows.length) }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
           <div class="portal-vue-muted" style="margin-top:12px">配置请进入详情页；新版本在详情的「提示词」里保存为未发布，灰度或发布后才上线。</div>
         </section>
         <el-dialog v-model="createVisible" title="新增 Skill" width="480px" destroy-on-close :close-on-click-modal="true">
@@ -48,8 +52,9 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data: () => ({ keyword: "", lineFilter: "", createVisible: false, createForm: { name: "", bizLine: "" }, ALL: bizHelpers.SKILL_ALL }),
+    data: () => ({ page: 1, pageSize: 10, keyword: "", lineFilter: "", createVisible: false, createForm: { name: "", bizLine: "" }, ALL: bizHelpers.SKILL_ALL }),
     computed: {
+      pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
       skills() { refreshTick.value; return (state.skills || []).filter(item => item.id !== "numa-warehouse"); },
       allLines() { refreshTick.value; return bizStore.lines.map(line => line.name); },
       enabledLines() { refreshTick.value; return bizHelpers.activeLines(); },
@@ -58,6 +63,7 @@
       currentUser() { refreshTick.value; return loginUser() || state.users[0]; }
     },
     methods: {
+      rangeOf(total) { if (!total) return "0-0"; return `${(this.page - 1) * this.pageSize + 1}-${Math.min(this.page * this.pageSize, total)}`; },
       versionCount(row) { refreshTick.value; return (row.versions || []).length || 1; },
       lineOf(row) { refreshTick.value; return bizStore.skillLines[row.id] || ""; },
       openDetail(row) { bridge.setSkillDetailId(row.id); bridge.setPage("Skill 详情"); },

@@ -4,6 +4,7 @@
  */
 (() => {
   "use strict";
+  const paginate = (...args) => window.PortalVue.paginate(...args);
   if (!window.PortalVue) return;
   const {
     MODEL_REASONING_CHOICES,
@@ -76,7 +77,7 @@
           <el-alert v-if="notice" class="portal-vue-provider-alert" type="warning" :closable="false" show-icon :title="notice"></el-alert>
 
           <div class="portal-vue-block-head"><strong>全部可用模型</strong><span class="portal-vue-muted">共 {{ modelRows.length }} 个模型，来自 {{ enabledProviders.length }} 个启用中的供应商；开关即改即生效，供应商一停用它的模型立即从这里和灵犀智析下拉框一起消失</span></div>
-          <el-table :data="filteredRows" class="portal-vue-table" border :empty-text="emptyText">
+          <el-table :data="pagedRows" class="portal-vue-table" border :empty-text="emptyText">
             <el-table-column label="模型" min-width="260"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code><div class="mc-sub">{{ scope.row.protocolLabel }}</div></template></el-table-column>
             <el-table-column label="供应商" min-width="220">
               <template #default="scope">
@@ -102,6 +103,7 @@
             </el-table-column>
             <el-table-column label="操作" width="110" fixed="right"><template #default="scope"><el-button size="small" plain :disabled="!canEdit('模型配置')" @click="openCapability(scope.row)">能力设置</el-button></template></el-table-column>
           </el-table>
+          <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeOf(filteredRows.length) }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
           <div class="portal-vue-muted" style="margin-top:12px">模型按「供应商优先」路由：同名模型按供应商列表顺序取第一个；供应商（含内置中转站）统一在「供应商配置」里维护，随改随生效。「上下文」与「思考强度」是每个模型的可用能力，点行内「能力设置」按模型调；灵犀智析只让用户选该模型声明支持的思考档位。</div>
         </section>
 
@@ -232,8 +234,9 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data:()=>({rows:[],providers:[],hiddenProviders:[],protocols:MODEL_PROTOCOL_FALLBACK,notice:"",keyword:"",statusFilter:"all",loading:false,providerDrawer:false,viewMode:"list",editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",keysText:"",form:{},splitVisible:false,splitSource:null,splitForm:[],splitting:false,capabilityVisible:false,capabilityModel:null,capabilitySaving:false,capabilityForm:{contextLimit:128000,levels:[],default:""},contextOptions:MODEL_CONTEXT_CHOICES,reasoningChoices:MODEL_REASONING_CHOICES}),
+    data:()=>({page:1,pageSize:10,rows:[],providers:[],hiddenProviders:[],protocols:MODEL_PROTOCOL_FALLBACK,notice:"",keyword:"",statusFilter:"all",loading:false,providerDrawer:false,viewMode:"list",editingId:"",saving:false,testing:false,testResult:"",testOk:null,presetId:"deepseek",presets:MODEL_PROVIDER_PRESETS,modelsText:"",keysText:"",form:{},splitVisible:false,splitSource:null,splitForm:[],splitting:false,capabilityVisible:false,capabilityModel:null,capabilitySaving:false,capabilityForm:{contextLimit:128000,levels:[],default:""},contextOptions:MODEL_CONTEXT_CHOICES,reasoningChoices:MODEL_REASONING_CHOICES}),
     computed:{
+      pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
       /** 停用供应商的模型不进 rows（网关已过滤）：可用清单只统计启用中的供应商 */
       enabledProviders(){return this.providers.filter(item=>item.enabled!==false);},
       hiddenModelCount(){return this.hiddenProviders.reduce((sum,item)=>sum+(item.count||0),0);},
@@ -281,6 +284,7 @@
     mounted(){this.pageHandler=event=>{if(event.detail?.page==="模型配置")this.load();};window.addEventListener("portal:page-change",this.pageHandler);this.load();},
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
+      rangeOf(total) { if (!total) return "0-0"; return `${(this.page - 1) * this.pageSize + 1}-${Math.min(this.page * this.pageSize, total)}`; },
       authLabel(value){return MODEL_AUTH_LABELS[value]||value||"Bearer Token";},
       healthTime(value){return value?String(value).slice(0,16).replace("T"," "):"—";},
       async load(){

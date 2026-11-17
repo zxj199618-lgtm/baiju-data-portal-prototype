@@ -45,6 +45,15 @@
             </div>
           </aside>
           <section v-if="activeBoard" class="portal-vue-board-pane">
+            <template v-if="activeBoard.type === 'custom'">
+              <div class="portal-vue-board-hero">
+                <div><el-tag size="small" effect="plain">{{ activeBoard.category }}</el-tag><el-tag size="small" type="success" effect="light" style="margin-left:6px">自定义看板</el-tag><h2>{{ activeBoard.name }}</h2><p>{{ activeBoard.desc || '自定义看板' }} · 负责人 {{ activeBoard.owner }}</p></div>
+                <el-button @click="openFull">新窗口打开</el-button>
+              </div>
+              <iframe class="portal-vue-custom-frame" :key="activeBoard.quickBiId" :src="activeBoard.url" :title="activeBoard.name" allow="fullscreen" referrerpolicy="no-referrer-when-downgrade"></iframe>
+              <p class="portal-vue-muted" style="margin:8px 0 0;font-size:12px">如果这里一直空白，说明该地址不允许被嵌入，请点右上角「新窗口打开」。</p>
+            </template>
+            <template v-else>
             <div class="portal-vue-board-hero">
               <div><el-tag size="small" effect="plain">{{ activeBoard.category }}</el-tag><h2>{{ activeBoard.name }}</h2><p>Quick BI 嵌入 · 负责人 {{ activeBoard.owner }} · 已按登录身份加载行级权限</p></div>
               <el-button @click="openFull">全屏打开</el-button>
@@ -56,6 +65,7 @@
               <section class="portal-vue-chart"><h3>媒体渠道消耗</h3><div class="portal-vue-bars"><div v-for="bar in bars" :key="bar.name" class="portal-vue-bar" :style="{height:bar.height+'px'}"><span>{{ bar.name }}</span></div></div></section>
               <section class="portal-vue-chart"><h3>近 7 日趋势</h3><svg class="portal-vue-line" viewBox="0 0 420 190" preserveAspectRatio="none"><polyline :points="linePoints" fill="none" stroke="#0066FF" stroke-width="3"></polyline><circle v-for="point in pointList" :key="point.x" :cx="point.x" :cy="point.y" r="4" fill="#0066FF"></circle></svg></section>
             </div>
+            </template>
           </section>
           <el-empty v-else description="暂无匹配看板"></el-empty>
         </div>
@@ -95,7 +105,7 @@
       },
       isFavorite(board) { return state.favorites.has(board.quickBiId); },
       toggleFavorite(board) { state.favorites.has(board.quickBiId) ? state.favorites.delete(board.quickBiId) : state.favorites.add(board.quickBiId); refreshTick.value += 1; },
-      openFull() { const index = state.boards.indexOf(this.activeBoard); if (index >= 0) bridge.openQuickBi(index); }
+      openFull() { if (this.activeBoard?.type === "custom") { window.open(this.activeBoard.url, "_blank", "noopener"); return; } const index = state.boards.indexOf(this.activeBoard); if (index >= 0) bridge.openQuickBi(index); }
     }
   };
   mount("#dataBoardView", DataBoardApp, "data-board");
