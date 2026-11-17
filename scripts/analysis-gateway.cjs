@@ -1385,7 +1385,8 @@ async function planWithModel({ question, domainSkills, conversationTurns, reques
   const first = planner.pickPlannerModel({ requested: requestedModel, preferred: PLANNER_MODEL, callable });
   const candidates = [...new Set([first, requestedModel])];
   const described = planner.describeSkills(domainSkills);
-  const prompt = planner.buildPlannerPrompt({ question, skills: described, conversation: conversationTurns.slice(-2) });
+  const guidance = loadSkillRegistry().find(item => item.id === ROUTER_SKILL_ID)?.prompt || "";
+  const prompt = planner.buildPlannerPrompt({ question, skills: described, conversation: conversationTurns.slice(-2), guidance });
   let tokens = 0;
   const attempts = []; // 每次尝试的模型、耗时与结果，写进 plan.diagnostics，方便运维看判断为什么没被采用
   for (const model of candidates) {

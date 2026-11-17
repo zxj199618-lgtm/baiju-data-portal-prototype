@@ -70,9 +70,9 @@
                 </div>
               </template>
             </section>
-            <div v-if="isRouter" class="sk-router-note"><strong>通用分析 Skill 不需要配置规则</strong><p>它会根据用户的问题，结合各个 Skill 的「描述」自动判断该交给哪一个，没有把握时才用一次便宜的模型判断。想让某个问题被转交过去，请把对应 Skill 的描述写清楚。</p></div>
-            <div v-if="!isRouter" class="sk-section-title">提示词与版本管理</div>
-            <div v-if="!isRouter">
+            <div v-if="isRouter" class="sk-router-note"><strong>通用分析 Skill 的提示词</strong><p>用来补充「该把问题交给哪个 Skill」的判断规则，例如哪类问题优先交给哪个 Skill；留空则只按各 Skill 的描述判断。</p></div>
+            <div class="sk-section-title">提示词与版本管理</div>
+            <div>
                 <div class="sk-pv">
                   <aside class="sk-pv-list">
                     <el-button v-if="editable" type="primary" class="sk-pv-new" @click="startNew">＋ 新增版本</el-button>
@@ -98,15 +98,26 @@
                       </div>
                       <p v-if="viewItem.note" class="portal-vue-muted" style="margin:0 0 8px;font-size:12px">版本说明：{{ viewItem.note }}</p>
                       <div v-if="viewItem.grayUsers?.length" class="sk-pv-gray"><span class="portal-vue-muted">灰度用户：</span><el-tag v-for="user in viewItem.grayUsers" :key="user" size="small" effect="plain">{{ user }}</el-tag></div>
-                      <div class="portal-vue-alert-field"><label>提示词</label><pre class="sk-pv-pre">{{ viewSnap.prompt || "（该版本未保存提示词）" }}</pre></div>
-                      <div class="portal-vue-alert-field"><label>引用的表</label><span>{{ (viewSnap.tables || []).join("、") || "—" }}</span></div>
+                      <div class="portal-vue-alert-field"><label>提示词</label><div v-if="viewSnap.prompt" class="portal-vue-knowledge-doc sk-pv-doc" v-html="renderedViewPrompt"></div><div v-else class="sk-pv-pre">（该版本未保存提示词）</div></div>
+                      <div v-if="!isRouter" class="portal-vue-alert-field"><label>引用的表</label><span>{{ (viewSnap.tables || []).join("、") || "—" }}</span></div>
                     </template>
                     <template v-else-if="mode === 'edit' || mode === 'new'">
                       <div class="sk-pv-bar"><div class="sk-pv-title"><strong>{{ mode === 'new' ? '新增版本' : '修改 ' + selected }}</strong><span class="portal-vue-muted">保存后为「未发布」，发布后才上线，也可先灰度</span></div></div>
-                      <el-form label-position="top" class="portal-vue-dialog-form">
-                        <el-form-item label="提示词"><el-input v-model="form.prompt" type="textarea" resize="none" class="sk-pv-textarea" placeholder="该 Skill 的分析指令" @input="autoAddTablesFrom"></el-input></el-form-item>
-                      </el-form>
-                      <el-form label-position="top" class="portal-vue-dialog-form">
+                      <div class="sk-md-editor">
+                        <div class="portal-vue-md-toolbar" @mousedown.prevent>
+                          <el-button size="small" text @click="mdWrap('**', '**', '加粗文字')"><strong>B</strong>&nbsp;加粗</el-button>
+                          <el-button size="small" text @click="mdLinePrefix('## ')">标题</el-button>
+                          <el-button size="small" text @click="mdLinePrefix('- ')">无序列表</el-button>
+                          <el-button size="small" text @click="mdLinePrefix('1. ')">有序列表</el-button>
+                          <el-button size="small" text @click="mdLinePrefix('> ')">引用</el-button>
+                          <span class="portal-vue-md-tip">左边编辑，右边预览 · {{ (form.prompt || '').length }} 字</span>
+                        </div>
+                        <div class="portal-vue-md-split">
+                          <textarea ref="mdArea" v-model="form.prompt" class="portal-vue-md-textarea" spellcheck="false" :placeholder="isRouter ? '补充判断规则，支持 Markdown，例如：问「任哥、小炭」等权益部门的消耗问题，优先交给权益投放分析 Skill' : '该 Skill 的分析指令，支持 Markdown：# 标题、**加粗**、- 列表'" @input="autoAddTablesFrom(form.prompt)"></textarea>
+                          <div class="portal-vue-knowledge-doc" v-html="renderedFormPrompt"></div>
+                        </div>
+                      </div>
+                      <el-form v-if="!isRouter" label-position="top" class="portal-vue-dialog-form">
                         <el-form-item label="引用的表（提示词里写到的表会自动识别加入，与提示词一起保存为版本）">
                           <el-select v-model="form.tables" multiple filterable clearable placeholder="从已有数据表中选择" style="width:100%">
                             <el-option v-for="name in tableOptions" :key="name" :label="name" :value="name"><span>{{ name }}</span><el-tag v-if="isInvalidTable(name)" size="small" type="danger" style="margin-left:8px">失效</el-tag></el-option>
@@ -149,6 +160,8 @@
       skill() { refreshTick.value; return (state.skills || []).find(item => item.id === this.skillId) || null; },
       headerTitle() { return this.skill?.name || "Skill 详情"; },
       editable() { return this.canEdit('Skill 配置'); },
+      renderedFormPrompt() { const md = window.PortalKnowledgeMd; return md ? md.renderKnowledgeMarkdown(this.form.prompt || "") : ""; },
+      renderedViewPrompt() { const md = window.PortalKnowledgeMd; return md ? md.renderKnowledgeMarkdown(this.viewSnap?.prompt || "") : ""; },
       isRouter() { return this.skill?.kind === "router"; },
       KEEP_VERSIONS() { return KEEP_VERSIONS; },
       versions() { refreshTick.value; return this.skill?.versions || []; },
@@ -303,6 +316,26 @@
       },
       cancelEdit() { this.mode = "view"; this.form = this.blankForm(); },
       /* 提示词里写到的已知数据表名自动加入引用的表（只增不减，删除仍可手动） */
+      /* ---- 提示词 Markdown 编辑（与知识库同款）---- */
+      mdWrap(prefix, suffix, placeholder) {
+        const el = this.$refs.mdArea; if (!el) return;
+        const text = this.form.prompt || "";
+        const { selectionStart: start, selectionEnd: end } = el;
+        const selected = text.slice(start, end) || placeholder;
+        this.form.prompt = text.slice(0, start) + prefix + selected + suffix + text.slice(end);
+        this.autoAddTablesFrom(this.form.prompt);
+        this.$nextTick(() => { el.focus(); el.setSelectionRange(start + prefix.length, start + prefix.length + selected.length); });
+      },
+      mdLinePrefix(prefix) {
+        const el = this.$refs.mdArea; if (!el) return;
+        const text = this.form.prompt || "";
+        const lineStart = text.lastIndexOf("\n", el.selectionStart - 1) + 1;
+        let lineEnd = text.indexOf("\n", el.selectionEnd); if (lineEnd < 0) lineEnd = text.length;
+        const block = text.slice(lineStart, lineEnd).split("\n").map(line => prefix + line.replace(/^(#{1,6}\s|[-*]\s|\d+\.\s|>\s)/, "")).join("\n");
+        this.form.prompt = text.slice(0, lineStart) + block + text.slice(lineEnd);
+        this.autoAddTablesFrom(this.form.prompt);
+        this.$nextTick(() => { el.focus(); el.setSelectionRange(lineStart, lineStart + block.length); });
+      },
       autoAddTablesFrom(text) {
         const found = this.knownTables.filter(name => name && String(text || "").includes(name) && !(this.form.tables || []).includes(name));
         if (found.length) this.form.tables = [...(this.form.tables || []), ...found];
@@ -353,7 +386,7 @@
         const snapshot = {
           prompt: form.prompt,
           tables: [...(form.tables || [])],
-          ...(this.isRouter ? { routes: this.parsedRoutes(form.routes), fallbackSkillId: form.fallbackSkillId } : {})
+          ...(this.isRouter ? { routes: this.skill.routes || [], fallbackSkillId: this.skill.fallbackSkillId } : {})
         };
         const time = new Date().toLocaleString("zh-CN", { hour12: false }).replaceAll("/", "-");
         const operator = this.currentUser?.name || "曾祥竞";
@@ -407,7 +440,6 @@
         item.grayUsers = [];
         skill.prompt = snap.prompt;
         skill.tables = snap.tables;
-        if (this.isRouter) { skill.routes = this.parsedRoutes(snap.routes); skill.fallbackSkillId = snap.fallbackSkillId; }
         skill.version = item.version;
         await this.persist();
         notify(`「${skill.name}」${item.version} 已${rollback ? "回滚上线" : "正式发布"}`);
@@ -446,6 +478,9 @@
         ".sk-pv-gray { display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-bottom:8px; }",
         ".sk-pv-pre { white-space:pre-wrap; word-break:break-word; margin:0; padding:12px 14px; border:1px solid #e9edf4; border-radius:8px; background:#fafcff; min-height:240px; max-height:calc(100vh - 380px); overflow:auto; font:13px/1.7 inherit; }",
         ".sk-pv-textarea textarea { min-height:calc(100vh - 460px); }",
+        ".sk-md-editor .portal-vue-md-split, .sk-md-editor .portal-vue-md-textarea, .sk-md-editor .portal-vue-knowledge-doc { min-height:calc(100vh - 460px); }",
+        ".sk-md-editor { margin-bottom:12px; }",
+        ".sk-pv-doc { min-height:0; max-height:calc(100vh - 380px); overflow:auto; }",
         ".sk-pv-foot { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; padding-top:14px; border-top:1px solid #e9edf4; }",
         ".portal-vue-skill-detail-footer { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:16px 0 8px; border-top:1px solid #e9edf4; margin-top:12px; }",
         ".portal-vue-skill-icon-upload.is-disabled { cursor:default; opacity:0.85; }"

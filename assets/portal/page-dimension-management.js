@@ -32,7 +32,7 @@
             <el-button v-if="canEdit('维表管理')" type="primary" @click="openCreate">新增维表</el-button>
           </div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无维表">
-            <el-table-column prop="assetId" label="表编号" width="92" fixed="left"></el-table-column>
+            <el-table-column label="表编号" width="92" fixed="left"><template #default="scope">{{ idNo(scope.row.assetId) }}</template></el-table-column>
             <el-table-column label="对外表名" min-width="200" show-overflow-tooltip><template #default="scope"><span class="portal-vue-name">{{ scope.row.externalName }}</span></template></el-table-column>
             <el-table-column prop="table" label="表名" min-width="220" show-overflow-tooltip><template #default="scope"><code class="portal-vue-code">{{ scope.row.table }}</code></template></el-table-column>
             <el-table-column prop="cnName" label="表中文名" min-width="150" show-overflow-tooltip></el-table-column>
@@ -75,7 +75,7 @@
         <el-drawer v-model="detailVisible" :title="detail ? (detail.cnName || detail.table) + ' · 维表详情' : '维表详情'" size="760px" destroy-on-close :close-on-click-modal="true">
           <template v-if="detail">
             <div class="portal-vue-detail-grid">
-              <div class="portal-vue-detail-item"><span>表编号</span><strong>{{ detail.assetId }}</strong></div>
+              <div class="portal-vue-detail-item"><span>表编号</span><strong>{{ idNo(detail.assetId) }}</strong></div>
               <div class="portal-vue-detail-item"><span>来源</span><strong>{{ detail.maintainMode === "portal" ? "门户新建" : "表管理标记" }}</strong></div>
               <div class="portal-vue-detail-item"><span>负责人</span><strong>{{ detail.owner }}</strong></div>
               <div class="portal-vue-detail-item"><span>最近维护</span><strong>{{ detail.lastMaintained || "—" }}</strong></div>
@@ -108,6 +108,8 @@
     mounted() { this.primaryHandler = event => { if (event.detail?.page === "维表管理") { this.openCreate.call(this); this.loadGatewayCounts(); } }; window.addEventListener("portal:primary-action", this.primaryHandler); window.addEventListener("portal:data-change", this.loadGatewayCounts = () => this.fetchGatewayCounts()); this.fetchGatewayCounts(); },
     beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); },
     methods: {
+      /** 编号只显示数字序号：T001 / DICT001 → 1（内部编号不变，只是展示更简洁） */
+      idNo(id) { const digits = String(id ?? "").replace(/\D/g, "").replace(/^0+/, ""); return digits || (id ?? "—"); },
       async fetchGatewayCounts() {
         try {
           const response = await fetch(`${analysisGatewayBase}/v1/catalog`);

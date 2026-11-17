@@ -26,7 +26,7 @@ function describeSkills(skills) {
   }));
 }
 
-function buildPlannerPrompt({ question, skills, conversation = [] }) {
+function buildPlannerPrompt({ question, skills, conversation = [], guidance = "" }) {
   const lines = [
     "你是观星台数据平台的规划助手，只做一件事：判断用户这句话应该用哪个业务技能，以及输出形式。",
     "## 可选技能",
@@ -35,6 +35,7 @@ function buildPlannerPrompt({ question, skills, conversation = [] }) {
       skill.useWhen.length ? `  适用：${skill.useWhen.join("；")}` : "",
       skill.notFor.length ? `  不适用：${skill.notFor.join("；")}` : ""
     ].filter(Boolean).join("\n")),
+    String(guidance || "").trim() ? `## 补充判断规则（管理员在「通用分析 Skill」里配置）\n${String(guidance).trim().slice(0, 2000)}` : "",
     "## 输出形式",
     "- answer：默认，简短回答。",
     "- report：只有用户明确要一份报告 / 周报 / 复盘 / 文档时才选。",

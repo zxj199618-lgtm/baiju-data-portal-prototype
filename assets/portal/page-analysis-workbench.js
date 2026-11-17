@@ -279,7 +279,7 @@
                       </div>
                       <div v-if="reasoningSupported" class="mp-section">
                         <div class="mp-title">思考强度</div>
-                        <div class="mp-levels"><button v-for="item in reasoningChoices" :key="item.value" type="button" :class="{ active: item.value === reasoning }" @click="pickLevel(item.value)">{{ item.label }}</button></div>
+                        <el-select :model-value="reasoning" size="default" class="mp-level-select" :teleported="false" placeholder="选择思考强度" @change="pickLevel"><el-option v-for="item in reasoningChoices" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
                       </div>
                     </el-popover>
                     <el-button type="primary" size="small" class="portal-vue-ai-composer-send" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
@@ -429,7 +429,8 @@
       reasoningChoices(){
         const cap=this.modelCaps[this.model];
         const levels=(cap&&cap.reasoning&&cap.reasoning.levels)||[];
-        return MODEL_REASONING_CHOICES.filter(item=>levels.includes(item.value));
+        /* 档位不止 快速/标准/深度 时，没有中文名的档位直接显示原名 */
+        return levels.map(value=>({value,label:((MODEL_REASONING_CHOICES.find(item=>item.value===value))||{}).label||value}));
       },
       shownModels(){const keyword=this.modelKeyword.trim().toLowerCase();return keyword?this.models.filter(item=>String(item).toLowerCase().includes(keyword)):this.models;},
       reasoningLabel(){return (this.reasoningChoices.find(item=>item.value===this.reasoning)||{}).label||"";},

@@ -26,7 +26,7 @@
             <el-button v-if="canEdit('字典管理')" type="primary" @click="openForm(null)">新增字典</el-button>
           </div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无字典">
-            <el-table-column prop="dictId" label="字典编号" width="110" fixed="left"></el-table-column>
+            <el-table-column label="字典编号" width="110" fixed="left"><template #default="scope">{{ idNo(scope.row.dictId) }}</template></el-table-column>
             <el-table-column prop="code" label="字典编码" width="150"><template #default="scope"><code class="portal-vue-code">{{ scope.row.code }}</code></template></el-table-column>
             <el-table-column prop="name" label="字典名称" width="160"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
             <el-table-column prop="desc" label="说明" min-width="240" show-overflow-tooltip></el-table-column>
@@ -75,6 +75,8 @@
     mounted() { this.primaryHandler = event => { if (event.detail?.page === "字典管理") this.openForm(null); }; window.addEventListener("portal:primary-action", this.primaryHandler); },
     beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); },
     methods: {
+      /** 编号只显示数字序号：T001 / DICT001 → 1（内部编号不变，只是展示更简洁） */
+      idNo(id) { const digits = String(id ?? "").replace(/\D/g, "").replace(/^0+/, ""); return digits || (id ?? "—"); },
       refList(dict) {
         refreshTick.value;
         const rows = [];

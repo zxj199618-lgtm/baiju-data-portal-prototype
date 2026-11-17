@@ -51,7 +51,7 @@
           </div>
           <div class="portal-vue-scope-hint"><span>可见范围：<strong>{{ scopeLabel }}</strong></span><span class="portal-vue-muted">{{ canEdit('表管理') ? '可在范围内新增/编辑数据表' : '当前菜单未配置「编辑」权限，仅可查看' }}</span></div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无数据表">
-            <el-table-column prop="assetId" label="表编号" width="92" fixed="left"></el-table-column>
+            <el-table-column label="表编号" width="92" fixed="left"><template #default="scope">{{ idNo(scope.row.assetId) }}</template></el-table-column>
             <el-table-column label="对外表名" width="210" fixed="left" show-overflow-tooltip><template #default="scope"><span class="portal-vue-name">{{ scope.row.externalName }}</span></template></el-table-column>
             <el-table-column prop="table" label="表名" width="300" show-overflow-tooltip><template #default="scope"><code class="portal-vue-code">{{ scope.row.table }}</code></template></el-table-column>
             <el-table-column label="表类型" width="120"><template #default="scope"><div class="portal-vue-type-tags"><el-tag v-if="scope.row.dimension" size="small" type="warning" effect="light">维表</el-tag><el-tag v-if="isTagTable(scope.row)" size="small" effect="plain">标签表</el-tag><span v-if="!scope.row.dimension && !isTagTable(scope.row)" class="portal-vue-muted">数仓表</span></div></template></el-table-column>
@@ -134,7 +134,7 @@
       pagedRows() { const result = paginate(this.filteredRows, this.page, this.pageSize); if (result.safePage !== this.page) this.page = result.safePage; return result.rows; },
       rangeText() { if (!this.filteredRows.length) return "0-0"; return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`; },
       enabledDicts() { refreshTick.value; return state.dictionaries.filter(item => item.status === "启用"); },
-      detailMeta() { if (!this.detail) return []; return [{label:"表编号",value:this.detail.assetId || "—"},{label:"对外表名",value:this.detail.externalName || "—"},{label:"数据源",value:this.detail.source},{label:"业务线",value:this.detail.bizLine || "—"},{label:"库名",value:this.detail.database},{label:"表名",value:this.detail.table,code:true},{label:"最近同步时间",value:this.detail.lastSuccessSync || "—"},{label:"字段数量",value:this.detail.fields.length},{label:"近30日调用次数",value:this.callCount(this.detail).toLocaleString()}]; },
+      detailMeta() { if (!this.detail) return []; return [{label:"表编号",value:this.idNo(this.detail.assetId)},{label:"对外表名",value:this.detail.externalName || "—"},{label:"数据源",value:this.detail.source},{label:"业务线",value:this.detail.bizLine || "—"},{label:"库名",value:this.detail.database},{label:"表名",value:this.detail.table,code:true},{label:"最近同步时间",value:this.detail.lastSuccessSync || "—"},{label:"字段数量",value:this.detail.fields.length},{label:"近30日调用次数",value:this.callCount(this.detail).toLocaleString()}]; },
 activeUsers() { return state.users.filter(user => user.status !== "已停用"); }
     },
     mounted() {
@@ -146,6 +146,8 @@ activeUsers() { return state.users.filter(user => user.status !== "已停用"); 
     },
     beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); window.removeEventListener("portal:page-change", this.pageHandler); },
     methods: {
+      /** 编号只显示数字序号：T001 / DICT001 → 1（内部编号不变，只是展示更简洁） */
+      idNo(id) { const digits = String(id ?? "").replace(/\D/g, "").replace(/^0+/, ""); return digits || (id ?? "—"); },
       resetPage() { this.page = 1; },
       changeSource() { if (this.database && !this.databases.includes(this.database)) this.database = ""; this.resetPage(); },
       apiAssets(api) { return Array.isArray(api.assets) && api.assets.length ? api.assets : [{ database: api.database, table: api.assetTable }]; },

@@ -231,14 +231,13 @@
 
 .portal-vue-directory { height: calc(100vh - 172px); min-height: 620px; margin-top: 22px; display: grid; grid-template-columns: 290px minmax(0, 1fr); border: 1px solid #e4e9f2; border-radius: 8px; overflow: hidden; background: #fff; transition: grid-template-columns .18s ease; }
 /* 折叠后目录栏宽度归零，只留一个悬浮的展开按钮，不再占一整列空白 */
-.portal-vue-directory.collapsed { grid-template-columns: 0 minmax(0, 1fr); position: relative; }
+.portal-vue-directory.collapsed { grid-template-columns: 0 minmax(0, 1fr); position: relative; overflow: visible; }
 .portal-vue-directory-aside { min-width: 0; position: relative; padding: 16px 14px; border-right: 1px solid #e9edf4; overflow: hidden; }
 .portal-vue-directory-aside.collapsed { padding: 0; border-right: 0; background: transparent; overflow: visible; }
 .portal-vue-directory-content { height: 100%; }
 .portal-vue-directory-collapse { position: absolute; z-index: 2; top: 14px; right: 10px; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 1px solid #e2e8f0; border-radius: 50%; background: #fff; color: #7d8898; box-shadow: 0 3px 10px rgba(15,23,42,.06); cursor: pointer; }
 .portal-vue-directory-collapse:hover { color: #0066FF; border-color: #9fc2ff; }
-.portal-vue-directory-aside.collapsed .portal-vue-directory-collapse { top: 16px; left: 12px; right: auto; z-index: 5; }
-.portal-vue-directory.collapsed .portal-vue-board-pane { padding-left: 56px; }
+.portal-vue-directory-aside.collapsed .portal-vue-directory-collapse { top: 16px; left: -14px; right: auto; z-index: 5; }
 .portal-vue-directory-head { min-height: 28px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-right: 36px; font-size: 16px; font-weight: 720; }
 .portal-vue-board-scroll { height: calc(100% - 58px); margin-top: 12px; }
 .portal-vue-board-group { margin-bottom: 10px; }
@@ -1192,3 +1191,6 @@
 .portal-vue-ai-model-pop .mp-levels button { flex: 1; height: 32px; border: 1px solid #dfe5ef; border-radius: 8px; background: #fff; color: #303a4b; font-size: 13px; cursor: pointer; }
 .portal-vue-ai-model-pop .mp-levels button:hover { border-color: #9cc5ff; }
 .portal-vue-ai-model-pop .mp-levels button.active { border-color: #0066ff; background: #f3f8ff; color: #0066ff; font-weight: 600; }
+
+/* 思考强度：档位可能不止三档，用下拉选择 */
+.portal-vue-ai-model-pop .mp-level-select { width: 100%; }

@@ -38,7 +38,7 @@ function injectStyle(id, css) {
           <div v-if="!detail" style="padding:60px 20px"><el-empty description="请先从「表管理」选择一张表进入详情" /></div>
           <template v-else>
             <div class="portal-vue-dim-meta">
-              <div><span>表编号</span><code class="portal-vue-code">{{ detail.assetId }}</code></div>
+              <div><span>表编号</span><code class="portal-vue-code">{{ idNo(detail.assetId) }}</code></div>
               <div><span>对外表名</span><code class="portal-vue-code">{{ detail.externalName }}</code></div>
               <div><span>数据源</span><strong>{{ detail.source }}</strong></div>
               <div><span>业务线</span><strong>{{ detail.bizLine || "—" }}</strong></div>
@@ -210,6 +210,8 @@ function injectStyle(id, css) {
       total() { return this.result ? this.result.qb.length + this.result.api.length + this.result.dx.length : 0; }
     },
     methods: {
+      /** 编号只显示数字序号：T001 / DICT001 → 1（内部编号不变，只是展示更简洁） */
+      idNo(id) { const digits = String(id ?? "").replace(/\D/g, "").replace(/^0+/, ""); return digits || (id ?? "—"); },
       back() { bridge.setPage("表管理"); },
       loadDetail() {
         const asset = bridge.getTableDetailAsset();

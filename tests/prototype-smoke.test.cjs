@@ -404,7 +404,7 @@ assert(portalVue.includes("SkillDetailApp") && portalVue.includes("返回 Skill 
 assert(portalRoutes.includes('page: "Skill 详情"') && portalRoutes.includes('path: "/ai/skills/:skill"'), "Skill 详情应注册 #/ai/skills/:skill 地址");
 assert(portalBridge.includes("getSkillDetailId") && portalBridge.includes("setSkillDetailId") && portalBridge.includes("portalSkillDetailId"), "Skill 详情应通过 bridge 读写当前 Skill id");
 assert(portalVue.includes("sk-basic") && portalVue.includes("提示词与版本管理") && !portalVue.includes('el-tab-pane label="基本信息"') && !portalVue.includes('label="版本管理"') && !portalVue.includes('label="引用的表"'), "Skill 详情应把基本信息放顶部，下面是提示词与版本管理（不再分页签）");
-assert(portalVue.includes("saveVersion") && portalVue.includes("通用分析 Skill 不需要配置规则") && !portalVue.includes("自动路由规则") && !portalVue.includes("兜底技能（未命中关键词时使用）"), "Skill 详情应能保存为未发布版本；通用分析 Skill 不再配置关键词路由规则与兜底技能（改由模型判断）");
+assert(portalVue.includes("saveVersion") && portalVue.includes("通用分析 Skill 的提示词") && portalVue.includes("renderedFormPrompt") && !portalVue.includes("自动路由规则") && !portalVue.includes("兜底技能（未命中关键词时使用）"), "Skill 详情应能保存为未发布版本，提示词用 Markdown 编辑器；通用分析 Skill 不再配置关键词路由规则与兜底技能，只配补充判断提示词");
 const skillDetailSource = read("assets/portal/page-skill-detail.js");
 assert(skillDetailSource.includes("sk-pv-textarea") && !skillDetailSource.includes(':rows="6"'), "提示词输入应吃满工作区，不再使用 6 行文本框");
 assert(skillDetailSource.includes("beforeLeave") && skillDetailSource.includes("有未保存的修改，确定离开？"), "离开详情或切到其他页签前，未保存修改应先确认");
