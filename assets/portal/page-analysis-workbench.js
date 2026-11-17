@@ -1044,6 +1044,11 @@
         this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
         this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
       },
+      /** 回答的纯文本（去掉 HTML 标签），随评价一起交给后端，反馈页才能看到「答了什么」 */
+      answerTextOf(msg){
+        const plain=value=>String(value||"").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/\s+/g," ").trim();
+        return plain((msg.lines||[]).join("\n")+" "+(msg.html||"")).slice(0,3000);
+      },
       async rateMessage(msg,rating){
         if(!msg.requestId)return;
         let comment="";
@@ -1054,7 +1059,7 @@
           }catch(cancelled){return;}
         }
         try{
-          const response=await fetch(`${analysisGatewayBase}/v1/feedback`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId:msg.requestId,rating,comment})});
+          const response=await fetch(`${analysisGatewayBase}/v1/feedback`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId:msg.requestId,rating,comment,answer:this.answerTextOf(msg)})});
           if(!response.ok){const data=await response.json().catch(()=>({}));ep.ElMessage.warning(data.error||"提交失败，请稍后再试");return;}
           msg.feedback=rating;
           this.persistHistory(true);

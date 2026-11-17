@@ -32,6 +32,7 @@ function createFeedbackStore({ dataDir }) {
       scenario: entry.scenario || "",
       toolMode: entry.toolMode || "",
       question: String(entry.question || "").slice(0, 200),
+      answer: String(entry.answer || "").trim().slice(0, 4000),
       at: new Date().toISOString()
     };
     save(data);

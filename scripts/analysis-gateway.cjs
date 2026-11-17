@@ -3015,7 +3015,7 @@ async function handleRequest(req, res) {
     if (!RATINGS.includes(body.rating)) return sendJson(res, 400, { error: "评价只能是 up 或 down" });
     const analysis = readAuditEntries().find(entry => entry.type === "analysis" && entry.requestId === requestId && (entry.scope || entry.user) === req.session.scope);
     if (!analysis) return sendJson(res, 404, { error: "找不到这次分析，或它不属于当前账号" });
-    const saved = feedbackStore.set({ requestId, user: req.session.name, rating: body.rating, comment: body.comment, model: analysis.model, skill: analysis.skill, scenario: analysis.scenario, toolMode: analysis.toolMode, question: analysis.question });
+    const saved = feedbackStore.set({ requestId, user: req.session.name, rating: body.rating, comment: body.comment, model: analysis.model, skill: analysis.skill, scenario: analysis.scenario, toolMode: analysis.toolMode, question: analysis.question, answer: body.answer });
     return sendJson(res, 200, { saved: true, rating: saved.rating });
   }
   if (req.method === "GET" && url.pathname === "/v1/feedback") {

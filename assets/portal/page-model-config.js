@@ -52,6 +52,7 @@
     { value: 400000, label: "400K" },
     { value: 1000000, label: "1M" }
   ];
+  (() => { if (document.getElementById("mc-style")) return; const el = document.createElement("style"); el.id = "mc-style"; el.textContent = ".mc-sub{margin-top:2px;font-size:12px;color:#98a2b3;line-height:1.4}.mc-ctx{font-weight:650;color:#303a4b}.mc-level{margin:2px 6px 2px 0}"; document.head.appendChild(el); })();
   const MODEL_REASONING_LABELS = MODEL_REASONING_CHOICES.reduce((map, item) => Object.assign(map, { [item.value]: item.label }), {});
 
   const ModelConfigApp = {
@@ -76,22 +77,32 @@
 
           <div class="portal-vue-block-head"><strong>全部可用模型</strong><span class="portal-vue-muted">共 {{ modelRows.length }} 个模型，来自 {{ enabledProviders.length }} 个启用中的供应商；开关即改即生效，供应商一停用它的模型立即从这里和灵犀智析下拉框一起消失</span></div>
           <el-table :data="filteredRows" class="portal-vue-table" border :empty-text="emptyText">
-            <el-table-column prop="id" label="模型" min-width="240"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code></template></el-table-column>
-            <el-table-column label="供应商" min-width="210">
+            <el-table-column label="模型" min-width="260"><template #default="scope"><code class="portal-vue-code">{{ scope.row.id }}</code><div class="mc-sub">{{ scope.row.protocolLabel }}</div></template></el-table-column>
+            <el-table-column label="供应商" min-width="220">
               <template #default="scope">
                 <el-tag size="small" :type="scope.row.builtin ? 'info' : 'primary'" effect="plain">{{ scope.row.source }}</el-tag>
                 <el-tooltip v-if="scope.row.sources.length > 1" :content="'同模型还来自：' + scope.row.sources.slice(1).join('、')" placement="top"><el-tag size="small" effect="plain" style="margin-left:4px">+{{ scope.row.sources.length - 1 }}</el-tag></el-tooltip>
                 <el-tag v-if="scope.row.adaptable === false" size="small" type="warning" effect="light" style="margin-left:4px">协议待适配</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="协议" width="150"><template #default="scope">{{ scope.row.protocolLabel }}</template></el-table-column>
-            <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="scope.row.enabled ? 'success' : 'info'" effect="light">{{ scope.row.enabled ? "可用" : "已禁用" }}</el-tag></template></el-table-column>
-            <el-table-column label="上下文" width="120"><template #default="scope"><span>{{ contextLabel(scope.row.contextLimit) }}</span><el-tag v-if="scope.row.capabilityConfigured" size="small" type="success" effect="plain" style="margin-left:6px">已配</el-tag><el-tag v-else size="small" type="info" effect="plain" style="margin-left:6px">推断</el-tag></template></el-table-column>
-            <el-table-column label="思考强度" min-width="180"><template #default="scope"><span v-if="scope.row.reasoning && scope.row.reasoning.levels.length">{{ reasoningText(scope.row.reasoning) }}</span><span v-else class="portal-vue-muted">不支持</span></template></el-table-column>
-            <el-table-column label="禁用时间" width="180"><template #default="scope">{{ scope.row.disabledAt ? scope.row.disabledAt.slice(0, 16).replace("T", " ") : "—" }}</template></el-table-column>
-            <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" :disabled="!canEdit('模型配置')" @click="openCapability(scope.row)">能力</el-button><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch></div></template></el-table-column>
+            <el-table-column label="状态" width="150">
+              <template #default="scope">
+                <el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch>
+                <div v-if="!scope.row.enabled && scope.row.disabledAt" class="mc-sub">已禁用于 {{ scope.row.disabledAt.slice(5, 16).replace("T", " ") }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column label="上下文" width="120"><template #default="scope"><strong class="mc-ctx">{{ contextLabel(scope.row.contextLimit) }}</strong><div class="mc-sub">{{ scope.row.capabilityConfigured ? "已手动配置" : "按模型名推断" }}</div></template></el-table-column>
+            <el-table-column label="思考强度" min-width="210">
+              <template #default="scope">
+                <template v-if="scope.row.reasoning && scope.row.reasoning.levels.length">
+                  <el-tag v-for="level in scope.row.reasoning.levels" :key="level" size="small" :type="level === scope.row.reasoning.default ? 'primary' : 'info'" :effect="level === scope.row.reasoning.default ? 'light' : 'plain'" class="mc-level">{{ levelLabel(level) }}<template v-if="level === scope.row.reasoning.default">（默认）</template></el-tag>
+                </template>
+                <span v-else class="portal-vue-muted">不支持</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="110" fixed="right"><template #default="scope"><el-button size="small" plain :disabled="!canEdit('模型配置')" @click="openCapability(scope.row)">能力设置</el-button></template></el-table-column>
           </el-table>
-          <div class="portal-vue-muted" style="margin-top:12px">模型按「供应商优先」路由：同名模型按供应商列表顺序取第一个；供应商（含内置中转站）统一在「供应商配置」里维护，随改随生效。「上下文」与「思考强度」是每个模型的可用能力，点行内「能力」按模型调；灵犀智析只让用户选该模型声明支持的思考档位。</div>
+          <div class="portal-vue-muted" style="margin-top:12px">模型按「供应商优先」路由：同名模型按供应商列表顺序取第一个；供应商（含内置中转站）统一在「供应商配置」里维护，随改随生效。「上下文」与「思考强度」是每个模型的可用能力，点行内「能力设置」按模型调；灵犀智析只让用户选该模型声明支持的思考档位。</div>
         </section>
 
         <el-dialog v-model="capabilityVisible" :title="'模型能力 · ' + (capabilityModel?.id || '')" width="560px">
@@ -432,6 +443,7 @@
         if(value>=1000000)return (value/1000000).toFixed(value%1000000?1:0)+"M";
         return Math.round(value/1000)+"K";
       },
+      levelLabel(level){return MODEL_REASONING_LABELS[level]||level;},
       reasoningText(reasoning){
         const levels=(reasoning&&reasoning.levels)||[];
         if(!levels.length)return "不支持";

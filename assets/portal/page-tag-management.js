@@ -15,17 +15,24 @@
   } = window.PortalVue;
 
 
+  const { bizStore, bizHelpers } = window.PortalVue;
+  const ALL = "全部";
+  /* 原型默认：权益相关标签归「权益」，其余是各业务线通用的「全部」；在编辑抽屉里可改 */
+  const DEFAULT_LINE = { equity_level: "权益", consume_amt: "权益" };
+  const lineOfField = field => field.bizLine ?? DEFAULT_LINE[field.name] ?? ALL;
+
   const TagManagementApp = {
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
           <div class="portal-vue-toolbar">
-            <div class="portal-vue-toolbar-left"><span style="color:#566174;font-weight:650">标签主体</span><el-select v-model="subject" class="portal-vue-filter-wide" @change="page=1"><el-option v-for="table in tables" :key="table.name" :label="table.cn+'（'+table.name+'）'" :value="table.name"></el-option></el-select><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索标签名、字段名" @input="page=1"></el-input></div>
+            <div class="portal-vue-toolbar-left"><span style="color:#566174;font-weight:650">标签主体</span><el-select v-model="subject" class="portal-vue-filter-wide" @change="page=1"><el-option v-for="table in tables" :key="table.name" :label="table.cn+'（'+table.name+'）'" :value="table.name"></el-option></el-select><el-select v-model="lineFilter" clearable class="portal-vue-filter" placeholder="全部业务线" @change="page=1"><el-option v-for="line in lineNames" :key="line" :label="line" :value="line"></el-option></el-select><el-input v-model="keyword" class="portal-vue-search" clearable placeholder="搜索标签名、字段名" @input="page=1"></el-input></div>
             <el-tag effect="plain">{{ currentTable?.fields.length || 0 }} 个标签字段</el-tag>
           </div>
           <el-table :data="pagedRows" class="portal-vue-table" border empty-text="暂无标签字段">
             <el-table-column prop="name" label="字段名" width="190" fixed="left"><template #default="scope"><code class="portal-vue-code">{{ scope.row.name }}</code></template></el-table-column>
             <el-table-column prop="cn" label="标签名称" width="160"><template #default="scope"><span class="portal-vue-name">{{ scope.row.cn }}</span></template></el-table-column>
+            <el-table-column label="业务线" width="130"><template #default="scope"><el-tag size="small" :type="lineOf(scope.row) === '全部' ? 'info' : ''" effect="plain">{{ lineOf(scope.row) === '全部' ? '通用' : lineOf(scope.row) }}</el-tag></template></el-table-column>
             <el-table-column prop="type" label="标签类型" width="110"></el-table-column>
             <el-table-column label="枚举值" width="210" show-overflow-tooltip><template #default="scope">{{ scope.row.enumv || (scope.row.values || []).join('，') || '—' }}</template></el-table-column>
             <el-table-column prop="def" label="业务定义" min-width="220" show-overflow-tooltip><template #default="scope">{{ scope.row.def || '—' }}</template></el-table-column>
@@ -40,6 +47,7 @@
           <el-form v-if="editForm" class="tag-enum-drawer-form" label-position="top">
             <el-form-item label="字段名"><el-input :model-value="editForm.name" disabled></el-input></el-form-item>
             <el-form-item label="标签名称" required><el-input v-model="editForm.cn"></el-input></el-form-item>
+            <el-form-item label="所属业务线" required><el-select v-model="editForm.bizLine" placeholder="选择业务线" style="width:100%"><el-option label="全部（通用）" :value="'全部'"></el-option><el-option v-for="line in lineNames" :key="line" :label="line" :value="line"></el-option></el-select></el-form-item>
             <el-form-item label="业务定义"><el-input v-model="editForm.def" type="textarea" :rows="2"></el-input></el-form-item>
             <el-form-item label="计算口径"><el-input v-model="editForm.calc" type="textarea" :rows="2"></el-input></el-form-item>
             <section class="tag-enum-section">
@@ -65,17 +73,19 @@
         </el-drawer>
       </el-config-provider>
     `,
-    data: () => ({ subject:state.tables[0]?.name||"",keyword:"",page:1,pageSize:10,editVisible:false,editForm:null,editTarget:null }),
+    data: () => ({ subject:state.tables[0]?.name||"",keyword:"",lineFilter:"",page:1,pageSize:10,editVisible:false,editForm:null,editTarget:null }),
     computed: {
       tables(){refreshTick.value;if(!state.tables.some(table=>table.name===this.subject))this.subject=state.tables[0]?.name||"";return state.tables;},
       currentTable(){return state.tables.find(table=>table.name===this.subject);},
-      filteredRows(){refreshTick.value;const keyword=this.keyword.trim().toLowerCase();return (this.currentTable?.fields||[]).filter(field=>!keyword||`${field.name} ${field.cn}`.toLowerCase().includes(keyword));},
+      lineNames(){refreshTick.value;return bizStore.lines.filter(line=>line.enabled).map(line=>line.name);},
+      filteredRows(){refreshTick.value;const keyword=this.keyword.trim().toLowerCase();return (this.currentTable?.fields||[]).filter(field=>(!this.lineFilter||[this.lineFilter,ALL].includes(lineOfField(field)))&&(!keyword||`${field.name} ${field.cn}`.toLowerCase().includes(keyword)));},
       pagedRows(){const result=paginate(this.filteredRows,this.page,this.pageSize);if(result.safePage!==this.page)this.page=result.safePage;return result.rows;},
       rangeText(){if(!this.filteredRows.length)return "0-0";return `${(this.page-1)*this.pageSize+1}-${Math.min(this.page*this.pageSize,this.filteredRows.length)}`;}
     },
     methods:{
+      lineOf:lineOfField,
       normalizeEnumValues(values){return [...new Set((values||[]).map(value=>String(value).trim()).filter(Boolean))];},
-      openEdit(field){const values=this.normalizeEnumValues(field.values?.length?field.values:String(field.enumv||"").split(/[，,]/));this.editTarget=field;this.editForm={...field,enumMode:"manual",enumValues:values.length?values:[""],enumImportedFileName:""};this.editVisible=true;},
+      openEdit(field){const values=this.normalizeEnumValues(field.values?.length?field.values:String(field.enumv||"").split(/[，,]/));this.editTarget=field;this.editForm={...field,bizLine:lineOfField(field),enumMode:"manual",enumValues:values.length?values:[""],enumImportedFileName:""};this.editVisible=true;},
       addEnumValue(){this.editForm?.enumValues.push("");},
       removeEnumValue(index){if(!this.editForm||this.editForm.enumValues.length===1)return;this.editForm.enumValues.splice(index,1);},
       triggerEnumFileInput(){this.$refs.enumFileInput?.click();},
