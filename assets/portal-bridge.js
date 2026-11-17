@@ -10,8 +10,8 @@
         { group: "大数据工具箱", icon: "toolbox", leaf: true, items: [{ name: "大数据工具箱", overview: true }, { name: "补数据" }, { name: "消耗对比" }, { name: "环境域名" }] },
         { group: "业务工具箱", icon: "toolboxBiz", leaf: true, items: [{ name: "业务工具箱", overview: true }, { name: "生成人群包" }, { name: "短剧投放账户上报" }] },
         { group: "权限管理", icon: "permission", items: [{ name: "用户管理" }, { name: "权限组" }] },
-        { group: "AI 中心", icon: "ai", items: [{ name: "Skill 配置", badge: "5.0" }, { name: "AI 知识库", badge: "5.0" }, { name: "模型配置", badge: "5.0" }, { name: "运营中心" }] },
-        { group: "系统管理", icon: "system", items: [{ name: "业务线", badge: "5.0" }, { name: "看板访问记录" }, { name: "菜单管理" }] }
+        { group: "AI 中心", icon: "ai", items: [{ name: "Skill 配置", badge: "5.0" }, { name: "AI 知识库", badge: "5.0" }, { name: "模型配置", badge: "5.0" }, { name: "AI 反馈" }] },
+        { group: "系统管理", icon: "system", items: [{ name: "业务线", badge: "5.0" }, { name: "访问记录" }, { name: "菜单管理" }] }
       ];
       const boardCategories = [
               "全部",
@@ -1207,7 +1207,7 @@
       window.simpleUsers = simpleUsers;
 
       const permissionGroups = [
-        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "AI 中心", "系统管理", "大数据工具箱", "业务工具箱", "看板访问记录", "菜单管理", "业务线", "AI 知识库", "Skill 配置", "模型配置", "运营中心", "补数据", "消耗对比", "环境域名", "生成人群包", "短剧投放账户上报", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], menuEdits: ["灵犀智析", "AI 中心", "系统管理", "大数据工具箱", "业务工具箱", "看板访问记录", "菜单管理", "Skill 配置", "模型配置", "运营中心", "补数据", "消耗对比", "环境域名", "生成人群包", "短剧投放账户上报", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
+        { name: "门户管理员", desc: "管理全站菜单、用户、权限组和所有看板。", menus: ["灵犀智析", "AI 中心", "系统管理", "大数据工具箱", "业务工具箱", "访问记录", "菜单管理", "业务线", "AI 知识库", "Skill 配置", "模型配置", "AI 反馈", "补数据", "消耗对比", "环境域名", "生成人群包", "短剧投放账户上报", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], menuEdits: ["灵犀智析", "AI 中心", "系统管理", "大数据工具箱", "业务工具箱", "访问记录", "菜单管理", "Skill 配置", "模型配置", "AI 反馈", "补数据", "消耗对比", "环境域名", "生成人群包", "短剧投放账户上报", "数据看板", "数据服务", "人群包管理", "数据开放平台", "数据告警", "数据资产", "看板管理", "表管理", "标签管理", "维表管理", "字典管理", "数据推送", "人群包推送渠道", "权限管理", "用户管理", "权限组"], boards: ["全部看板"], tables: ["全部数据表"], status: "启用" },
         { name: "投放组长", desc: "查看本组数据，管理组内优化师看板访问。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["CPA事业部", "大盘数据"], tables: ["广告计划日报表", "广告账户日报", "广告组转化日报", "媒体消耗汇总", "产品 ROI 日报"], status: "启用" },
         { name: "优化师", desc: "查看本人负责的媒体、账户、计划和产品看板。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["CPA事业部", "新媒体"], tables: ["广告计划日报表", "广告账户日报"], status: "启用" },
         { name: "数据分析师", desc: "查看聚合数据和分析看板，不管理用户。", menus: ["灵犀智析", "数据看板"], menuEdits: [], boards: ["大盘数据", "产品运营部"], tables: ["广告计划日报表", "用户画像标签明细表", "用户订单明细", "用户生命周期日报", "渠道归因明细"], status: "启用" },
@@ -1540,8 +1540,8 @@
         "业务线": ["业务线", "维护全站统一的业务线（如存量、权益、保险）：数据表、AI 知识库都绑定到业务线。", "新增业务线"],
         "AI 知识库": ["AI 知识库", "按业务线管理知识库：业务线知识库下挂表知识库，灵犀智析回答问题时按业务线读取。", "新建业务线知识库"],
         "菜单管理": ["菜单管理", "维护门户侧边导航结构：层级、图标、排序、组件路径与权限标识。", "添加"],
-        "看板访问记录": ["看板访问记录", "记录用户「查看看板」明细，支持按用户、终端与时间范围筛选。", ""],
-        "运营中心": ["运营中心", "用量与配额、审计日志、回答反馈、账号管理和默认模型（仅门户管理员）。", ""],
+        "访问记录": ["访问记录", "AI 对话记录（问题、Skill、响应时长、报告地址）与看板访问记录（用户「查看看板」明细，支持按用户、终端与时间范围筛选）。", ""],
+        "AI 反馈": ["AI 反馈", "用户对灵犀智析回答的好评 / 差评与原因，按模型、Skill 查看分布（仅门户管理员）。", ""],
         "模型配置": ["模型配置", "管理灵犀智析可用的模型：所有来源（含内置中转站）统一在「供应商配置」里接入，这一页直接开关模型。", ""],
         "大数据工具箱": ["大数据工具箱", "按工具箱汇总现有工具：卡片即箱内全部工具，点卡片直接进入；只列出你已授权的工具。", ""],
         "业务工具箱": ["业务工具箱", "按工具箱汇总现有工具：卡片即箱内全部工具，点卡片直接进入；只列出你已授权的工具。", ""],
@@ -1731,7 +1731,7 @@
         if (page === "标签管理") return "asset";
         if (page === "人群包推送渠道") return "push";
         if (page === "用户管理" || page === "权限组") return "permission";
-        if (page === "Skill 配置" || page === "Skill 详情" || page === "AI 知识库" || page === "知识库详情" || page === "模型配置" || page === "运营中心") return "ai";
+        if (page === "Skill 配置" || page === "Skill 详情" || page === "AI 知识库" || page === "知识库详情" || page === "模型配置" || page === "AI 反馈") return "ai";
         if (page === "菜单管理" || page === "业务线") return "system";
         if (page === "大数据工具箱" || page === "补数据" || page === "消耗对比" || page === "环境域名") return "toolbox";
         if (page === "业务工具箱" || page === "生成人群包" || page === "短剧投放账户上报") return "toolboxBiz";
@@ -3275,8 +3275,8 @@
         document.getElementById("aiKnowledgeView")?.classList.toggle("hidden", page !== "AI 知识库");
         document.getElementById("aiKnowledgeDetailView")?.classList.toggle("hidden", page !== "知识库详情");
         document.getElementById("modelConfigView")?.classList.toggle("hidden", page !== "模型配置");
-        document.getElementById("opsCenterView")?.classList.toggle("hidden", page !== "运营中心");
-        document.getElementById("operationLogView")?.classList.toggle("hidden", page !== "看板访问记录");
+        document.getElementById("aiFeedbackView")?.classList.toggle("hidden", page !== "AI 反馈");
+        document.getElementById("operationLogView")?.classList.toggle("hidden", page !== "访问记录");
         document.getElementById("toolboxOverviewView")?.classList.toggle("hidden", page !== "大数据工具箱" && page !== "业务工具箱");
         document.getElementById("toolBackfillView")?.classList.toggle("hidden", page !== "补数据");
         document.getElementById("toolCompareView")?.classList.toggle("hidden", page !== "消耗对比");
@@ -3339,7 +3339,7 @@
         document.getElementById("aiKnowledgeView")?.classList.add("hidden");
         document.getElementById("aiKnowledgeDetailView")?.classList.add("hidden");
         document.getElementById("modelConfigView")?.classList.add("hidden");
-        document.getElementById("opsCenterView")?.classList.add("hidden");
+        document.getElementById("aiFeedbackView")?.classList.add("hidden");
         document.getElementById("operationLogView")?.classList.add("hidden");
         document.getElementById("toolboxOverviewView")?.classList.add("hidden");
         document.getElementById("toolBackfillView")?.classList.add("hidden");

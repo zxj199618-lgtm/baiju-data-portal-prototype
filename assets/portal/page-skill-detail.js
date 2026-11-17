@@ -42,22 +42,27 @@
           <el-page-header class="portal-vue-form-header" title="返回 Skill 管理" :content="headerTitle" @back="back"></el-page-header>
           <div v-if="!skill" style="padding:60px 20px"><el-empty description="请先从「Skill 配置」选择一个 Skill 进入详情" /></div>
           <template v-else>
-            <el-tabs v-model="tab" class="ops-center-tabs op-full-line" style="margin-top:8px" :before-leave="beforeLeave">
-              <el-tab-pane label="基本信息" name="basic">
-                <el-form class="portal-vue-dialog-form" label-position="top" style="max-width:760px">
+            <section class="sk-basic">
+              <el-form class="portal-vue-dialog-form" label-position="top">
+                <div class="sk-basic-grid">
                   <el-form-item label="Skill 名称" required><el-input v-model="draft.name" :disabled="!editable" placeholder="如：人群包效果分析 Skill"></el-input></el-form-item>
                   <el-form-item label="所属业务线" required>
-                    <el-select v-model="draft.bizLine" :disabled="!editable" placeholder="选择该 Skill 所属的业务线" style="width:100%">
+                    <el-select v-model="draft.bizLine" :disabled="!editable" placeholder="选择所属业务线" style="width:100%">
                       <el-option label="全部（通用 Skill）" :value="ALL"></el-option>
                       <el-option v-for="line in lineChoices" :key="line.name" :label="line.name + (line.enabled ? '' : '（已停用）')" :value="line.name" :disabled="!line.enabled && draft.bizLine !== line.name"></el-option>
                     </el-select>
-                    <div class="portal-vue-muted" style="margin-top:6px;font-size:12px">只属于某个业务线就选该业务线；所有业务线通用的 Skill 选「全部」。业务线在「系统管理 → 业务线」维护。</div>
                   </el-form-item>
-                  <el-form-item label="描述"><el-input v-model="draft.desc" type="textarea" :rows="2" resize="none" :disabled="!editable" placeholder="一句话说明这个 Skill 解决什么问题；系统按问题动态加载 Skill 时会参考"></el-input></el-form-item>
-                  <el-form-item label="上线状态"><el-switch :disabled="!editable" v-model="draft.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch><span class="portal-vue-muted" style="margin-left:10px;font-size:12px">提示词需在「提示词」页签发布版本后才会更新</span></el-form-item>
-                </el-form>
-              </el-tab-pane>
-              <el-tab-pane label="提示词" name="prompt">
+                  <el-form-item label="上线状态"><el-switch :disabled="!editable" v-model="draft.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch></el-form-item>
+                </div>
+                <el-form-item label="描述"><el-input v-model="draft.desc" type="textarea" :rows="2" resize="none" :disabled="!editable" placeholder="一句话说明这个 Skill 解决什么问题；系统按问题动态加载 Skill 时会参考"></el-input></el-form-item>
+              </el-form>
+              <div class="sk-basic-foot">
+                <span class="portal-vue-muted" style="font-size:12px">只属于某个业务线就选该业务线，所有业务线通用选「全部」；基本信息保存后直接生效，提示词的修改在下方按版本发布。</span>
+                <div v-if="editable" class="portal-vue-actions" style="flex:none"><el-button :disabled="!basicDirty" @click="loadSkill">取消</el-button><el-button type="primary" :disabled="!basicDirty" @click="saveBasic">保存基本信息</el-button></div>
+              </div>
+            </section>
+            <div class="sk-section-title">提示词与版本管理</div>
+            <div>
                 <div class="sk-pv">
                   <aside class="sk-pv-list">
                     <el-button v-if="editable" type="primary" class="sk-pv-new" @click="startNew">＋ 新增版本</el-button>
@@ -127,11 +132,6 @@
                     <el-empty v-else description="选择左侧版本查看提示词" />
                   </section>
                 </div>
-              </el-tab-pane>
-            </el-tabs>
-            <div v-if="tab==='basic' && editable" class="portal-vue-skill-detail-footer">
-              <span class="portal-vue-muted" style="font-size:12px">基本信息保存后直接生效；提示词的修改在「提示词」里按版本发布。</span>
-              <div class="portal-vue-actions" style="flex:none"><el-button @click="loadSkill">取消</el-button><el-button type="primary" @click="saveBasic">保存</el-button></div>
             </div>
             <el-dialog v-model="grayDialogVisible" :title="'灰度测试 - ' + (grayVersion?.version || '')" width="520px">
               <div class="portal-vue-skill-drawer">
@@ -420,8 +420,12 @@
     },
     mounted() {
       injectStyle("portal-vue-skill-detail-style", [
+        ".sk-basic { margin-top:8px; padding:16px 20px 12px; border:1px solid #e9edf4; border-radius:12px; background:#fff; }",
+        ".sk-basic-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,2fr) 140px; gap:16px; }",
+        ".sk-basic-foot { display:flex; align-items:center; justify-content:space-between; gap:16px; }",
+        ".sk-section-title { margin:20px 0 12px; font-size:15px; font-weight:600; color:#1f2430; }",
         ".sk-pv { display:grid; grid-template-columns:260px minmax(0,1fr); gap:20px; align-items:start; }",
-        ".sk-pv-list { display:grid; gap:8px; max-height:calc(100vh - 260px); overflow:auto; }",
+        ".sk-pv-list { display:grid; gap:8px; max-height:calc(100vh - 220px); overflow:auto; }",
         ".sk-pv-new { width:100%; }",
         ".sk-pv-item { padding:10px 12px; border:1px solid #e9edf4; border-radius:10px; background:#fff; cursor:pointer; }",
         ".sk-pv-item:hover { border-color:#b8d0ff; }",

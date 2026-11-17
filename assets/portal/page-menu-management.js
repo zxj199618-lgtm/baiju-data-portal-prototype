@@ -41,7 +41,7 @@
         { id: "M1020", name: "Skill 配置", icon: "--", sort: 10, path: "/ai/skill-management/index", cache: true, permission: "ai_skill_management", children: [] },
         { id: "M1025", name: "AI 知识库", icon: "--", sort: 15, path: "/ai/knowledge/index", cache: true, permission: "ai_knowledge", children: [] },
         { id: "M1030", name: "模型配置", icon: "--", sort: 20, path: "/ai/model-config/index", cache: true, permission: "ai_model_config", children: [] },
-        { id: "M1040", name: "运营中心", icon: "--", sort: 30, path: "/ai/ops-center/index", cache: true, permission: "ai_ops_center", children: [] }
+        { id: "M1040", name: "AI 反馈", icon: "--", sort: 30, path: "/ai/feedback/index", cache: true, permission: "ai_feedback", children: [] }
       ]
     },
     {

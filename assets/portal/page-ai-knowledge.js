@@ -39,7 +39,6 @@
             <el-table-column label="内容摘要" min-width="280" show-overflow-tooltip><template #default="scope"><span class="portal-vue-muted">{{ summary(scope.row) }}</span></template></el-table-column>
             <el-table-column label="关联数据表" width="100" align="center"><template #default="scope">{{ (scope.row.tables || []).length }} 张</template></el-table-column>
             <el-table-column label="表知识库" width="100" align="center"><template #default="scope">{{ tableKbs(scope.row).length }} 份</template></el-table-column>
-            <el-table-column label="表关联" width="90" align="center"><template #default="scope">{{ relationsOf(scope.row.target).length }} 条</template></el-table-column>
             <el-table-column label="最近编辑" width="190"><template #default="scope"><div>{{ scope.row.updatedAt }}</div><small class="portal-vue-muted">{{ scope.row.updatedBy }}</small></template></el-table-column>
             <el-table-column label="操作" width="150" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" @click="open(scope.row, false)">查看</el-button><el-button v-if="canEdit('AI 知识库')" link type="primary" @click="open(scope.row, true)">编辑</el-button><el-button v-if="canEdit('AI 知识库')" link type="danger" @click="remove(scope.row)">删除</el-button></div></template></el-table-column>
           </el-table>
@@ -50,7 +49,7 @@
           <el-form label-position="top" class="portal-vue-dialog-form" @submit.prevent>
             <el-form-item label="所属业务线" required>
               <el-select v-model="createLine" placeholder="选择业务线" no-data-text="所有业务线都已建好知识库"><el-option v-for="line in creatableLines" :key="line" :label="line" :value="line"></el-option></el-select>
-              <div class="portal-vue-muted" style="margin-top:6px;line-height:1.6">每个业务线只有一份业务线知识库，写业务口径、常用术语、回答规则；表知识库和表关联在它的详情页里维护。</div>
+              <div class="portal-vue-muted" style="margin-top:6px;line-height:1.6">每个业务线只有一份业务线知识库，写业务口径、常用术语、回答规则；表知识库在它的详情页里维护。</div>
             </el-form-item>
           </el-form>
           <template #footer><el-button @click="createVisible=false">取消</el-button><el-button type="primary" @click="submitCreate">创建并编写</el-button></template>
@@ -70,7 +69,6 @@
       title: kbTitle,
       summary: summaryOf,
       tableKbs(kb) { refreshTick.value; return tableKbsOf(kb.target); },
-      relationsOf(line) { refreshTick.value; return bizStore.relations.filter(rel => rel.line === line); },
       lineHasKb(line) { return bizStore.kbs.some(kb => kb.type === "业务线" && kb.target === line); },
       /* ---- 新建 ---- */
       openCreate() { this.createLine = ""; this.createVisible = true; },
@@ -90,7 +88,7 @@
       },
       async remove(kb) {
         const tables = tableKbsOf(kb.target);
-        if (!(await confirmAction("删除业务线知识库", `确认删除「${kbTitle(kb)}」？${tables.length ? `它下面的 ${tables.length} 份表知识库会一并删除，` : ""}业务线下的表关联不会删除。删除后灵犀智析将不再参考。`, "删除"))) return;
+        if (!(await confirmAction("删除业务线知识库", `确认删除「${kbTitle(kb)}」？${tables.length ? `它下面的 ${tables.length} 份表知识库会一并删除，` : ""}删除后灵犀智析将不再参考。`, "删除"))) return;
         bizStore.kbs = bizStore.kbs.filter(item => item !== kb && !tables.includes(item));
         notify("知识库已删除");
       }

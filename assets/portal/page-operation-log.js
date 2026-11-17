@@ -196,6 +196,12 @@
     template: `
       <el-config-provider :locale="locale">
         <section class="portal-vue-panel">
+          <el-tabs v-model="topTab" class="portal-vue-status-tabs">
+            <el-tab-pane label="AI 对话记录" name="ai"></el-tab-pane>
+            <el-tab-pane label="看板访问记录" name="board"></el-tab-pane>
+          </el-tabs>
+          <ai-chat-log-panel v-if="topTab === 'ai'"></ai-chat-log-panel>
+          <template v-else>
           <el-tabs v-if="visibleCategories.length > 1" v-model="category" class="portal-vue-status-tabs" @tab-change="resetPage">
             <el-tab-pane :label="'全部（' + allRows.length + '）'" name="全部"></el-tab-pane>
             <el-tab-pane v-for="item in visibleCategories" :key="item" :label="item + '（' + countOfCategory(item) + '）'" :name="item"></el-tab-pane>
@@ -256,6 +262,7 @@
             </el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
+          </template>
         </section>
 
         <el-drawer v-model="detailVisible" size="560px" class="lanhu-detail-drawer" :close-on-click-modal="true">
@@ -286,8 +293,9 @@
         </el-drawer>
       </el-config-provider>
     `,
+    components: { AiChatLogPanel: window.PortalVue.AiChatLogPanel },
     data: () => ({
-      category: "全部", keyword: "", userFilter: "", platformFilter: "", timeRange: [], timeShortcuts: [],
+      topTab: "ai", category: "全部", keyword: "", userFilter: "", platformFilter: "", timeRange: [], timeShortcuts: [],
       page: 1, pageSize: 10,
       detailVisible: false, detailTitle: "", detailEvent: "", detailAttrs: [], detailBeats: [],
       logUsers: operationLogUsers,

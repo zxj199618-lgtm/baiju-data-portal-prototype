@@ -53,8 +53,8 @@
     { page: "AI 知识库", path: "/ai/knowledge" },
     { page: "知识库详情", path: "/ai/knowledge/:kb", list: "AI 知识库", menu: "AI 知识库" },
     { page: "模型配置", path: "/ai/models" },
-    { page: "运营中心", path: "/ai/ops" },
-    { page: "看板访问记录", path: "/system/access-logs" },
+    { page: "AI 反馈", path: "/ai/feedback" },
+    { page: "访问记录", path: "/system/access-logs" },
     { page: "业务线", path: "/system/business-lines" },
     { page: "菜单管理", path: "/system/menus" }
   ].map(route => ({ ...route, segments: route.path.split("/").filter(Boolean), params: route.path.split("/").filter(part => part[0] === ":").map(part => part.slice(1)) }));

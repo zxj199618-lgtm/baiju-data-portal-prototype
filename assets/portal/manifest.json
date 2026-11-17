@@ -25,6 +25,7 @@
   "page-model-config.js",
   "page-skill-management.js",
   "page-skill-detail.js",
+  "page-ai-chat-log.js",
   "page-operation-log.js",
   "page-toolbox-overview.js",
   "page-tool-backfill.js",
@@ -37,6 +38,6 @@
   "page-ai-knowledge-detail.js",
   "page-ops-env.js",
   "page-alert-management.js",
-  "page-ops-center.js",
+  "page-ai-feedback.js",
   "boot.js"
 ]

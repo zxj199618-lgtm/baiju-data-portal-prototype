@@ -143,12 +143,12 @@
                   <template v-if="ongoingSessions.length">
                     <article v-for="session in ongoingSessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
                       <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time :title="session.time">{{ relativeTime(session.time) }}</time></div>
-                      <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span>{{ session.scenario }}</span><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span><span class="portal-vue-ai-session-status running">{{ session.status }}</span></div>
+                      <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span><span class="portal-vue-ai-session-status running">{{ session.status }}</span></div>
                     </article>
                   </template>
                   <article v-for="session in historySessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
                     <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time :title="session.time">{{ relativeTime(session.time) }}</time></div>
-                    <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span>{{ session.scenario }}</span><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span></div>
+                    <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span></div>
                   </article>
                   <p v-if="!sessions.length" class="portal-vue-muted">暂无会话</p>
                 </div>
