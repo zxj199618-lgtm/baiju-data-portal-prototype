@@ -37,6 +37,7 @@
             <el-table-column label="业务线知识库" min-width="200" show-overflow-tooltip><template #default="scope"><el-button link type="primary" class="portal-vue-name" @click="open(scope.row, false)">{{ title(scope.row) }}</el-button></template></el-table-column>
             <el-table-column label="业务线" width="100"><template #default="scope"><el-tag size="small" effect="plain">{{ scope.row.target }}</el-tag></template></el-table-column>
             <el-table-column label="内容摘要" min-width="280" show-overflow-tooltip><template #default="scope"><span class="portal-vue-muted">{{ summary(scope.row) }}</span></template></el-table-column>
+            <el-table-column label="关联数据表" width="100" align="center"><template #default="scope">{{ (scope.row.tables || []).length }} 张</template></el-table-column>
             <el-table-column label="表知识库" width="100" align="center"><template #default="scope">{{ tableKbs(scope.row).length }} 份</template></el-table-column>
             <el-table-column label="表关联" width="90" align="center"><template #default="scope">{{ relationsOf(scope.row.target).length }} 条</template></el-table-column>
             <el-table-column label="最近编辑" width="190"><template #default="scope"><div>{{ scope.row.updatedAt }}</div><small class="portal-vue-muted">{{ scope.row.updatedBy }}</small></template></el-table-column>

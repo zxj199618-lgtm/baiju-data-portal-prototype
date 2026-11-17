@@ -36,6 +36,8 @@
       .kb-nav-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .kb-nav-empty{padding:6px 10px 10px;font-size:12px;color:#a8abb2;line-height:1.6}
       .kb-main{flex:1;min-width:0}
+      .kb-tables{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px;padding:8px 12px;background:#f5f7fa;border-radius:6px}
+      .kb-tables-label{font-size:13px;color:#606266;margin-right:4px}
     `;
     document.head.appendChild(el);
   })();
@@ -70,6 +72,13 @@
                         <el-button v-if="doc.type === '表'" round type="danger" plain @click="removeDoc">删除</el-button>
                         <el-button type="primary" round class="portal-vue-knowledge-edit" @click="startEdit">编辑知识库</el-button>
                       </span>
+                    </div>
+                    <div class="kb-tables">
+                      <span class="kb-tables-label">关联数据表</span>
+                      <el-tag v-if="doc.type === '表'" size="small" type="info" effect="plain" title="表知识库自带的表，不能取消">{{ doc.target }}（本表）</el-tag>
+                      <el-tag v-for="name in docTables" :key="name" size="small" effect="plain" :closable="canEdit('AI 知识库')" @close="unlinkTable(name)">{{ name }}</el-tag>
+                      <span v-if="!docTables.length && doc.type !== '表'" class="portal-vue-muted">还没有关联数据表</span>
+                      <el-button v-if="canEdit('AI 知识库')" link type="primary" size="small" @click="openLink">+ 关联数据表</el-button>
                     </div>
                     <div v-if="editing" class="portal-vue-md-editor">
                       <div class="portal-vue-md-toolbar" @mousedown.prevent>
@@ -110,6 +119,19 @@
           </template>
         </div>
 
+        <el-dialog v-model="linkVisible" title="关联数据表" width="520px" append-to-body>
+          <el-form label-position="top" class="portal-vue-dialog-form" @submit.prevent>
+            <el-form-item :label="'「' + docTitle + '」关联的数据表'">
+              <el-select v-model="linkSelected" multiple filterable collapse-tags-tooltip placeholder="选择要关联的数据表">
+                <el-option-group label="本业务线的表"><el-option v-for="name in linkChoices.mine" :key="name" :label="name" :value="name"></el-option></el-option-group>
+                <el-option-group v-if="linkChoices.other.length" label="其他业务线 / 未绑定的表"><el-option v-for="name in linkChoices.other" :key="name" :label="name" :value="name"></el-option></el-option-group>
+              </el-select>
+              <div class="portal-vue-muted" style="margin-top:6px;line-height:1.6">灵犀智析读到这份知识库时，会把这些表一并作为参考范围。</div>
+            </el-form-item>
+          </el-form>
+          <template #footer><el-button @click="linkVisible=false">取消</el-button><el-button type="primary" @click="saveLink">保存</el-button></template>
+        </el-dialog>
+
         <el-dialog v-model="addTableVisible" title="新增表知识库" width="480px" append-to-body>
           <el-form label-position="top" class="portal-vue-dialog-form" @submit.prevent>
             <el-form-item label="数据表" required>
@@ -139,7 +161,7 @@
         </el-dialog>
       </el-config-provider>
     `,
-    data: () => ({ MAX_KNOWLEDGE, RELATION_TYPES, kbId: "", tab: "content", editing: false, text: "", relationVisible: false, relationForm: {}, selId: "main", addTableVisible: false, addTableName: "" }),
+    data: () => ({ MAX_KNOWLEDGE, RELATION_TYPES, kbId: "", tab: "content", editing: false, text: "", relationVisible: false, relationForm: {}, selId: "main", linkVisible: false, linkSelected: [], addTableVisible: false, addTableName: "" }),
     computed: {
       current() { refreshTick.value; return bizStore.kbs.find(kb => kb.id === this.kbId) || null; },
       headerTitle() { return this.current ? kbTitle(this.current) + " · 知识库详情" : "知识库详情"; },
@@ -147,6 +169,14 @@
       /** 当前在右侧查看/编辑的知识库：业务线知识库本身，或其下某份表知识库 */
       doc() { return this.selId === "main" ? this.current : (this.tableKbs.find(kb => kb.id === this.selId) || this.current); },
       docTitle() { return this.doc ? (this.doc.type === "业务线" ? kbTitle(this.doc) : "表知识库：" + this.doc.target) : ""; },
+      docTables() { refreshTick.value; return this.doc ? (this.doc.tables || []).filter(name => name !== this.doc.target) : []; },
+      linkChoices() {
+        refreshTick.value;
+        const line = this.current?.target;
+        const names = state.assets.map(asset => ({ name: asset.cnName, line: asset.bizLine }));
+        const skip = this.doc?.type === "表" ? this.doc.target : "";
+        return { mine: names.filter(item => item.line === line && item.name !== skip).map(item => item.name), other: names.filter(item => item.line !== line && item.name !== skip).map(item => item.name) };
+      },
       addableTables() { refreshTick.value; const done = new Set(bizStore.kbs.filter(kb => kb.type === "表").map(kb => kb.target)); return this.current ? bizHelpers.tablesOfLine(this.current.target).map(asset => asset.cnName).filter(name => !done.has(name)) : []; },
       relations() { refreshTick.value; return this.current ? bizStore.relations.filter(rel => rel.line === this.current.target) : []; },
       relationTables() { refreshTick.value; return this.current ? bizHelpers.tablesOfLine(this.current.target).map(asset => asset.cnName) : []; },
@@ -195,6 +225,17 @@
         this.startEdit();
         notify(`已创建「${kb.target}」表知识库，写好内容后点「保存知识库」`);
       },
+      openLink() {
+        if (this.dirty) return ep.ElMessage.warning("知识库有未保存的修改，请先保存或取消");
+        this.linkSelected = [...this.docTables]; this.linkVisible = true;
+      },
+      saveLink() {
+        this.doc.tables = [...this.linkSelected];
+        Object.assign(this.doc, { updatedBy: bizHelpers.currentUserName(), updatedAt: bizHelpers.nowText() });
+        this.linkVisible = false;
+        notify("关联数据表已保存");
+      },
+      unlinkTable(name) { this.doc.tables = (this.doc.tables || []).filter(item => item !== name); },
       async removeDoc() {
         const kb = this.doc;
         if (!kb || kb.type !== "表") return;
