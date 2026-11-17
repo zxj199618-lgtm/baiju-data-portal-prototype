@@ -268,6 +268,19 @@
       overflow: visible;
     }
 
+    /* 折叠后只剩图标：整行居中，去掉展开态的两端对齐和内边距，图标才不会歪 */
+    .sidebar.collapsed .nav-head {
+      justify-content: center;
+      gap: 0;
+      padding: 0;
+    }
+
+    .sidebar.collapsed .nav-icon {
+      width: 20px;
+      height: 20px;
+      margin: 0;
+    }
+
     .sidebar.collapsed .nav-group {
       position: relative;
     }

@@ -511,19 +511,19 @@ assert(gatewaySource.includes("if (!updated.models.length && body.models !== und
 assert(!portalVue.includes("供应商已停用") && !portalVue.includes("providerEnabled"), "停用供应商的模型不显示在清单里，不应再保留「供应商已停用」行内标签（此断言防止回退成只打标签不隐藏）");
 assert(portalVue.includes("enabledProviders(){return this.providers.filter(item=>item.enabled!==false);}") && portalVue.includes("共 {{ modelRows.length }} 个模型，来自 {{ enabledProviders.length }} 个启用中的供应商"), "模型清单抬头只能统计启用中的供应商：停用后要变成「共 0 个模型，来自 0 个启用中的供应商」");
 assert(portalVue.includes(':empty-text="emptyText"') && portalVue.includes("emptyText(){") && portalVue.includes("个模型已隐藏：到右上角「供应商配置」重新启用即恢复") && portalVue.includes("this.hiddenProviders=Array.isArray(data.hiddenProviders)?data.hiddenProviders:[];"), "清单空了要说明白：被停用供应商的模型已隐藏 + 去哪里恢复，空态文案由网关的 hiddenProviders 驱动");
-/* 第十五轮：模型能力（上下文上限 + 思考深度档位）——「能选什么」在配置侧按模型声明，
+/* 第十五轮：模型能力（上下文上限 + 思考强度档位）——「能选什么」在配置侧按模型声明，
  * 「这次用哪档」在灵犀智析输入框选；上下文只读展示，不给 token 滑杆。
- * 用户需求原文：「这些模型 上下文长度，思考深度我希望给用户选择，你看是放在灵犀智析输入框，还是在配置的时候就确定下来」（经确认：两侧一起做）。 */
+ * 用户需求原文：「这些模型 上下文长度，思考强度我希望给用户选择，你看是放在灵犀智析输入框，还是在配置的时候就确定下来」（经确认：两侧一起做）。 */
 assert(gatewaySource.includes('const REASONING_LEVELS = ["low", "medium", "high"]') && gatewaySource.includes("const MODEL_REASONING_RULES") && gatewaySource.includes("function reasoningCapabilityFor(") && gatewaySource.includes("function modelCapabilityFor("), "网关要提供模型能力：思考档位枚举 + 按模型名推断 + 可覆盖的单一入口");
 assert(gatewaySource.includes("contextLimit: capability.contextLimit, reasoning: capability.reasoning, capabilityConfigured: capability.configured") && gatewaySource.includes("return { id, contextLimit: capability.contextLimit, reasoning: capability.reasoning, capabilityConfigured: capability.configured };"), "模型清单与 /v1/models details 都要带上上下文上限与思考档位（灵犀智析按它渲染选项）");
 assert(gatewaySource.includes("if (body.enabled !== undefined)") && gatewaySource.includes("if (body.contextLimit !== undefined || body.reasoning !== undefined)") && gatewaySource.includes("不能因为请求里没有 enabled 就把模型顺手停掉"), "能力覆盖走同一个 PUT：只在显式传 enabled 时才改启停，不能因为保存能力把模型停掉");
 assert((gatewaySource.match(/modelReasoning.levels.includes\(reasoningEffort\)/g) || []).length === 2 && gatewaySource.includes("只在该模型声明支持的档位里透传 reasoning_effort"), "流式与非流式两条调用都要按模型声明的档位过滤 reasoning_effort");
 assert(gatewaySource.includes("capabilityOverrides") && gatewaySource.includes("const capability = modelCapabilityFor(id, capabilityOverrides);"), "按模型覆盖值要一次性读出后逐行使用，不能每行读盘");
-assert(portalVue.includes("contextLabel(limit){") && portalVue.includes("reasoningText(reasoning){") && portalVue.includes('label="上下文" width="120"') && portalVue.includes('label="思考深度" min-width="180"'), "模型总表要按模型展示「上下文」「思考深度」两列（支持档位 + 默认档）");
+assert(portalVue.includes("contextLabel(limit){") && portalVue.includes("reasoningText(reasoning){") && portalVue.includes('label="上下文" width="120"') && portalVue.includes('label="思考强度" min-width="180"'), "模型总表要按模型展示「上下文」「思考强度」两列（支持档位 + 默认档）");
 assert(portalVue.includes('@click="openCapability(scope.row)">能力</el-button>') && portalVue.includes("async saveCapability(){") && portalVue.includes("v1/model-config/${encodeURIComponent(row.id)}") && portalVue.includes("MODEL_CONTEXT_CHOICES") && portalVue.includes("MODEL_REASONING_CHOICES"), "行内「能力」要能按模型改上下文上限与思考档位并写回网关");
 assert(portalVue.includes("this.modelCaps[item.id]={contextLimit:item.contextLimit,reasoning:item.reasoning||{levels:[],default:\"\"}") && portalVue.includes("reasoningSupported(){return this.reasoningChoices.length>0;}"), "灵犀智析要按 /v1/models details 存下模型能力，并据此决定是否显示「深度」");
-assert(portalVue.includes("reasoningChoices(){") && portalVue.includes("changeReasoning(level){") && portalVue.includes("localStorage.setItem(\"portalReasoningPref\",level)") && portalVue.includes("readReasoningPref(){"), "思考深度 chip 的档位只来自当前模型声明，并记住用户上次选择");
-assert(portalVue.includes('class="portal-vue-ai-chip-reasoning-select"') && portalVue.includes("contextWindowLabel(){") && portalVue.includes("窗口 {{ contextWindowLabel }}"), "输入框要有「深度」chip 与只读的窗口提示（不摆 token 滑杆）");
+assert(portalVue.includes("reasoningChoices(){") && portalVue.includes("changeReasoning(level){") && portalVue.includes("localStorage.setItem(\"portalReasoningPref\",level)") && portalVue.includes("readReasoningPref(){"), "思考强度 chip 的档位只来自当前模型声明，并记住用户上次选择");
+assert(portalVue.includes('class="portal-vue-ai-chip-reasoning-select"') && portalVue.includes('placeholder="思考强度"') && !portalVue.includes("contextWindowLabel"), "输入框要有「思考强度」选择，不再展示上下文窗口大小");
 assert(!portalVue.includes('this.reasoning="high";') && !portalVue.includes("applyMaxModelSettings(){\n        this.reasoning=\"high\";"), "思考档位不能再硬编码为 high（此断言防止回退：档位要来自模型能力与用户选择）");
 assert(portalCss.includes(".portal-vue-ai-chip-reasoning-select") && portalCss.includes('content: "思考"'), "「思考」chip 沿用输入框胶囊样式（::before 前缀「思考」）");
 assert(portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商配置入口");

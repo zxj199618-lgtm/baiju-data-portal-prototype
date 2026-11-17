@@ -41,7 +41,7 @@
   ];
   const MODEL_AUTH_LABELS = { bearer: "Bearer Token", "x-api-key": "x-api-key 头", "x-goog-api-key": "x-goog-api-key 头", "api-key-header": "api-key 头", query: "URL 查询参数", "custom-header": "自定义 Header" };
   const MODEL_AUTH_KEY_DEFAULTS = { "x-api-key": "x-api-key", "x-goog-api-key": "x-goog-api-key", "api-key-header": "api-key", query: "key", "custom-header": "X-Api-Key" };
-  /* 模型能力：上下文上限 + 思考深度档位。跟网关的 REASONING_LEVELS / MODEL_REASONING_RULES 对齐，
+  /* 模型能力：上下文上限 + 思考强度档位。跟网关的 REASONING_LEVELS / MODEL_REASONING_RULES 对齐，
      配置页按模型覆盖，没配置的用网关推断值（行里标「推断」）。 */
   const MODEL_CONTEXT_CHOICES = [
     { value: 32000, label: "32K" },
@@ -87,11 +87,11 @@
             <el-table-column label="协议" width="150"><template #default="scope">{{ scope.row.protocolLabel }}</template></el-table-column>
             <el-table-column label="状态" width="110"><template #default="scope"><el-tag :type="scope.row.enabled ? 'success' : 'info'" effect="light">{{ scope.row.enabled ? "可用" : "已禁用" }}</el-tag></template></el-table-column>
             <el-table-column label="上下文" width="120"><template #default="scope"><span>{{ contextLabel(scope.row.contextLimit) }}</span><el-tag v-if="scope.row.capabilityConfigured" size="small" type="success" effect="plain" style="margin-left:6px">已配</el-tag><el-tag v-else size="small" type="info" effect="plain" style="margin-left:6px">推断</el-tag></template></el-table-column>
-            <el-table-column label="思考深度" min-width="180"><template #default="scope"><span v-if="scope.row.reasoning && scope.row.reasoning.levels.length">{{ reasoningText(scope.row.reasoning) }}</span><span v-else class="portal-vue-muted">不支持</span></template></el-table-column>
+            <el-table-column label="思考强度" min-width="180"><template #default="scope"><span v-if="scope.row.reasoning && scope.row.reasoning.levels.length">{{ reasoningText(scope.row.reasoning) }}</span><span v-else class="portal-vue-muted">不支持</span></template></el-table-column>
             <el-table-column label="禁用时间" width="180"><template #default="scope">{{ scope.row.disabledAt ? scope.row.disabledAt.slice(0, 16).replace("T", " ") : "—" }}</template></el-table-column>
             <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button link type="primary" :disabled="!canEdit('模型配置')" @click="openCapability(scope.row)">能力</el-button><el-switch :disabled="!canEdit('模型配置')" :model-value="scope.row.enabled" inline-prompt active-text="启用" inactive-text="禁用" @change="value=>toggleModel(scope.row, value)"></el-switch></div></template></el-table-column>
           </el-table>
-          <div class="portal-vue-muted" style="margin-top:12px">模型按「供应商优先」路由：同名模型按供应商列表顺序取第一个；供应商（含内置中转站）统一在「供应商配置」里维护，随改随生效。「上下文」与「思考深度」是每个模型的可用能力，点行内「能力」按模型调；灵犀智析只让用户选该模型声明支持的思考档位。</div>
+          <div class="portal-vue-muted" style="margin-top:12px">模型按「供应商优先」路由：同名模型按供应商列表顺序取第一个；供应商（含内置中转站）统一在「供应商配置」里维护，随改随生效。「上下文」与「思考强度」是每个模型的可用能力，点行内「能力」按模型调；灵犀智析只让用户选该模型声明支持的思考档位。</div>
         </section>
 
         <el-dialog v-model="capabilityVisible" :title="'模型能力 · ' + (capabilityModel?.id || '')" width="560px">
@@ -102,7 +102,7 @@
               </el-select>
               <span class="portal-vue-muted" style="font-size:12px">灵犀智析按这个上限自动装填证据，不给用户摆 token 滑杆；正常按厂商公开规格填即可</span>
             </el-form-item>
-            <el-form-item label="支持的思考深度">
+            <el-form-item label="支持的思考强度">
               <el-checkbox-group v-model="capabilityForm.levels">
                 <el-checkbox v-for="item in reasoningChoices" :key="item.value" :value="item.value">{{ item.label }}</el-checkbox>
               </el-checkbox-group>
@@ -461,7 +461,7 @@
           row.capabilityConfigured=true;
           this.capabilityVisible=false;
           const names=(data.reasoning?.levels||[]).map(level=>MODEL_REASONING_LABELS[level]||level);
-          notify(`模型「${row.id}」能力已更新：上下文 ${this.contextLabel(data.contextLimit)}${names.length?` · 思考深度 ${names.join("/")}`:" · 不支持思考深度"}`);
+          notify(`模型「${row.id}」能力已更新：上下文 ${this.contextLabel(data.contextLimit)}${names.length?` · 思考强度 ${names.join("/")}`:" · 不支持思考强度"}`);
         }catch(error){ep.ElMessage.error("保存失败，请确认网关已启动");}
         this.capabilitySaving=false;
       },

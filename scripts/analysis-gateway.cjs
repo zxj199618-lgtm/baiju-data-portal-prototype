@@ -1571,7 +1571,10 @@ const REASONING_LABELS = { low: "快速", medium: "标准", high: "深度" };
 const MODEL_REASONING_RULES = [
   { match: /^(gpt-5|o[134])/i, levels: ["low", "medium", "high"], default: "high" },
   { match: /^deepseek-(r1|reasoner)/i, levels: ["low", "medium", "high"], default: "high" },
-  { match: /^(glm-4\.[56]|kimi-k2|qwen3-max)/i, levels: ["low", "medium", "high"], default: "medium" }
+  { match: /^(glm-4\.[56]|kimi-k2|qwen3-max)/i, levels: ["low", "medium", "high"], default: "medium" },
+  { match: /^(zhipu\/)?glm-5/i, levels: ["low", "medium", "high"], default: "medium" },
+  { match: /^kimi-k3/i, levels: ["low", "medium", "high"], default: "medium" },
+  { match: /^qwen3\.8/i, levels: ["low", "medium", "high"], default: "medium" }
 ];
 
 function reasoningCapabilityFor(modelId) {

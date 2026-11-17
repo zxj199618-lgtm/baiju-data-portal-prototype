@@ -136,9 +136,9 @@
                 <span class="portal-vue-ai-asset-btn-text">分析资产</span>
                 <el-tag size="small" round effect="plain">{{ reports.length }} 份报告</el-tag>
               </button>
+              <el-button class="portal-vue-ai-new" type="primary" plain @click="newSession">＋ 新的分析</el-button>
               <el-scrollbar class="portal-vue-ai-session-scroll">
                 <div class="portal-vue-ai-sessions">
-                  <el-button class="portal-vue-ai-new" type="primary" plain @click="newSession">＋ 新的分析</el-button>
                   <p class="portal-vue-ai-group-label">会话记录 <span>含飞书机器人</span></p>
                   <template v-if="ongoingSessions.length">
                     <article v-for="session in ongoingSessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
@@ -258,10 +258,9 @@
                     <el-select v-model="model" size="small" filterable class="portal-vue-ai-chip-model-select" :loading="modelsLoading" :disabled="!models.length" placeholder="请选择" popper-class="portal-vue-ai-select-popper" @change="applyMaxModelSettings">
                       <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
                     </el-select>
-                    <el-select v-if="reasoningSupported" v-model="reasoning" size="small" class="portal-vue-ai-chip-reasoning-select" placeholder="思考深度" popper-class="portal-vue-ai-select-popper" @change="changeReasoning">
+                    <el-select v-if="reasoningSupported" v-model="reasoning" size="small" class="portal-vue-ai-chip-reasoning-select" placeholder="思考强度" popper-class="portal-vue-ai-select-popper" @change="changeReasoning">
                       <el-option v-for="item in reasoningChoices" :key="item.value" :label="item.label" :value="item.value"></el-option>
                     </el-select>
-                    <span v-if="contextWindowLabel" class="portal-vue-ai-composer-limit">窗口 {{ contextWindowLabel }}</span>
                     <el-button type="primary" size="small" class="portal-vue-ai-composer-send" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
                   </div>
                 </div>
@@ -410,8 +409,6 @@
         return MODEL_REASONING_CHOICES.filter(item=>levels.includes(item.value));
       },
       reasoningSupported(){return this.reasoningChoices.length>0;},
-      /** 上下文只读展示：模型窗口多大说清楚，但不给用户摆 token 滑杆 */
-      contextWindowLabel(){const limit=Number(this.currentContextLimit)||0;return limit?this.formatContextLimit(limit):"";},
       ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
       historySessions(){return this.sessions.filter(item=>item.status!=="进行中");},
       archivedReports(){refreshTick.value;return this.reports;},
