@@ -133,8 +133,14 @@
       detailMeta() { if (!this.detail) return []; return [{label:"表编号",value:this.detail.assetId || "—"},{label:"对外表名",value:this.detail.externalName || "—"},{label:"数据源",value:this.detail.source},{label:"业务线",value:this.detail.bizLine || "—"},{label:"库名",value:this.detail.database},{label:"表名",value:this.detail.table,code:true},{label:"最近同步时间",value:this.detail.lastSuccessSync || "—"},{label:"字段数量",value:this.detail.fields.length},{label:"近30日调用次数",value:this.callCount(this.detail).toLocaleString()}]; },
 activeUsers() { return state.users.filter(user => user.status !== "已停用"); }
     },
-    mounted() { this.primaryHandler = event => { if (event.detail?.page === "表管理") this.openCreate(); }; window.addEventListener("portal:primary-action", this.primaryHandler); },
-    beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); },
+    mounted() {
+      this.primaryHandler = event => { if (event.detail?.page === "表管理") this.openCreate(); };
+      /* 从「业务线」页点「N 张」跳过来时，自动按该业务线筛选 */
+      this.pageHandler = event => { if (event.detail?.page === "表管理" && bizStore.focusAssetLine) { this.bizLine = bizStore.focusAssetLine; this.page = 1; bizStore.focusAssetLine = ""; } };
+      window.addEventListener("portal:primary-action", this.primaryHandler);
+      window.addEventListener("portal:page-change", this.pageHandler);
+    },
+    beforeUnmount() { window.removeEventListener("portal:primary-action", this.primaryHandler); window.removeEventListener("portal:page-change", this.pageHandler); },
     methods: {
       resetPage() { this.page = 1; },
       changeSource() { if (this.database && !this.databases.includes(this.database)) this.database = ""; this.resetPage(); },

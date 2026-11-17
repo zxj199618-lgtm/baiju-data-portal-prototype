@@ -776,13 +776,13 @@ const feedbackStore = createFeedbackStore({ dataDir: DATA_DIR });
 const tokensOf = usage => Number(usage?.total_tokens) || ((Number(usage?.prompt_tokens) || 0) + (Number(usage?.completion_tokens) || 0));
 
 /** 一次分析结束：累计 token 用量，并写一条审计（谁、问了什么、用了什么、花了多少、结果如何） */
-function finishAnalysis({ user, scope = user, requestId, question, model, skillName, scenarioLabel, toolMode, toolCalls, tablesUsed, usage, extraTokens = 0, latencyMs, numericCheck, status, error = "", extra = {} }) {
+function finishAnalysis({ sessionAudit = {}, user, scope = user, requestId, question, model, skillName, scenarioLabel, toolMode, toolCalls, tablesUsed, usage, extraTokens = 0, latencyMs, numericCheck, status, error = "", extra = {} }) {
   const tokens = tokensOf(usage) + extraTokens;
   usageTracker.recordTokens(scope, tokens);
   appendAuditEntry({
     type: "analysis", user, scope: scope !== user ? scope : undefined, requestId, status, error: error ? String(error).slice(0, 200) : undefined,
     question: String(question).slice(0, 300), model, skill: skillName, scenario: scenarioLabel,
-    toolMode, toolCallCount: toolCalls.length, tablesUsed, tokens, latencyMs, ...extra,
+    toolMode, toolCallCount: toolCalls.length, tablesUsed, tokens, latencyMs, ...sessionAudit, ...extra,
     ungroundedNumbers: numericCheck ? numericCheck.ungrounded.length : null
   });
   return tokens;
@@ -3513,6 +3513,13 @@ async function handleRequest(req, res) {
     const answerRole = skillPack.roleForGroup(orgStore.groupOf(user));
     const answerProtocol = skillPack.buildAnswerProtocol(answerRole);
     const conversationContext = skillPack.buildConversationContext(conversationTurns, { reset: contextReset });
+    /* 所属会话窗口：哪个会话、第几轮、这一轮带给模型的上文有多长（轮数 / 字数），写进审计，后台「AI 对话记录」据此展示 */
+    const sessionAudit = {
+      sessionId: String(body.sessionId || "").slice(0, 60) || undefined,
+      sessionTitle: String(body.sessionTitle || "").slice(0, 60) || undefined,
+      contextTurns: conversationTurns.length,
+      contextChars: conversationContext.length
+    };
     let specContext = "", reportSpecContext = "", packGuards = [], packMeta = { role: answerRole };
     if (packEntry) {
       const carried = [...conversationTurns].reverse().find(turn => turn.terms?.length)?.terms || [];
@@ -3550,7 +3557,7 @@ async function handleRequest(req, res) {
         numericCheck: null, totalTokens: plannerTokens, ...packMeta,
         suggestions: followups.suggestFollowUps({ evidence: [], question, guards: packGuards, spec: packEntry?.spec || {}, semantic: fieldScope.semantic })
       };
-      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: blockMeta.toolMode, toolCalls: [], tablesUsed: [], usage: null, extraTokens: plannerTokens, latencyMs: blockMeta.latencyMs, numericCheck: null, status: "ok" });
+      finishAnalysis({ sessionAudit, user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: blockMeta.toolMode, toolCalls: [], tablesUsed: [], usage: null, extraTokens: plannerTokens, latencyMs: blockMeta.latencyMs, numericCheck: null, status: "ok" });
       blockMeta.usageToday = { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) };
       if (streaming) {
         openStream();
@@ -3624,7 +3631,7 @@ async function handleRequest(req, res) {
           model, tablesUsed: referenced, deniedTables: denied, latencyMs: Date.now() - started, usage: null, requestId,
           numericCheck: null, usageToday: null, totalTokens: toolTokens, ...packMeta
         };
-        finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: askMeta.toolMode, toolCalls: askCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: askMeta.latencyMs, numericCheck: null, status: "ok" });
+        finishAnalysis({ sessionAudit, user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode: askMeta.toolMode, toolCalls: askCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: askMeta.latencyMs, numericCheck: null, status: "ok" });
         askMeta.usageToday = { ...usageTracker.usageOf(scope), limits: usageTracker.limitsFor(user) };
         if (sseSend) {
           clearInterval(sseHeartbeat);
@@ -3699,13 +3706,13 @@ async function handleRequest(req, res) {
       if (!result.ok) {
         clearInterval(heartbeat);
         const failure = `模型调用失败（${result.lastResult?.status || 502}）：${JSON.stringify(result.lastResult?.data).slice(0, 300)}`;
-        finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: failure });
+        finishAnalysis({ sessionAudit, user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: failure });
         send({ error: failure });
         return res.end();
       }
       clearInterval(heartbeat);
       const streamNumericCheck = checkNumericGrounding(result.content || "", evidence, question);
-      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: streamNumericCheck, status: "ok", extra: reportAudit });
+      finishAnalysis({ sessionAudit, user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: streamNumericCheck, status: "ok", extra: reportAudit });
       saveLedger(result.content);
       send({
         done: true,
@@ -3737,12 +3744,12 @@ async function handleRequest(req, res) {
       }
       if (result.status !== 200) {
         const failure = `模型调用失败（${result.status}）：${JSON.stringify(result.data).slice(0, 300)}`;
-        finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: failure });
+        finishAnalysis({ sessionAudit, user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: failure });
         return sendJson(res, 502, { error: failure });
       }
       const content = result.data?.choices?.[0]?.message?.content || "";
       const plainNumericCheck = checkNumericGrounding(content, evidence, question);
-      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.data.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: plainNumericCheck, status: "ok", extra: reportAudit });
+      finishAnalysis({ sessionAudit, user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced.length ? referenced : evidence.map(item => item.表名).filter(Boolean), usage: result.data.usage, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: plainNumericCheck, status: "ok", extra: reportAudit });
       saveLedger(content);
       return sendJson(res, 200, {
         report: content,
@@ -3759,7 +3766,7 @@ async function handleRequest(req, res) {
         }
       });
     } catch (error) {
-      finishAnalysis({ user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: error.message });
+      finishAnalysis({ sessionAudit, user, scope, requestId, question, model, skillName: skill.name, scenarioLabel: scene.label, toolMode, toolCalls, tablesUsed: referenced, usage: null, extraTokens: toolTokens, latencyMs: Date.now() - started, numericCheck: null, status: "error", error: error.message });
       return sendJson(res, 502, { error: `分析失败：${error.message}` });
     }
   }

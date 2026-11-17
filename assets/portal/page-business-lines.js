@@ -68,7 +68,7 @@
           <el-table :data="rows" class="portal-vue-table" border empty-text="暂无业务线">
             <el-table-column label="业务线" width="160"><template #default="scope"><span class="portal-vue-name">{{ scope.row.name }}</span></template></el-table-column>
             <el-table-column prop="desc" label="说明" min-width="300" show-overflow-tooltip></el-table-column>
-            <el-table-column label="绑定数据表" width="120" align="center"><template #default="scope">{{ tablesOf(scope.row).length }} 张</template></el-table-column>
+            <el-table-column label="绑定数据表" width="120" align="center"><template #default="scope"><el-button link type="primary" :disabled="!tablesOf(scope.row).length" @click="goTables(scope.row)">{{ tablesOf(scope.row).length }} 张</el-button></template></el-table-column>
             <el-table-column label="AI 知识库" width="120" align="center"><template #default="scope"><el-button link type="primary" :disabled="!kbsOf(scope.row).length" @click="goKnowledge(scope.row)">{{ kbsOf(scope.row).length }} 份</el-button></template></el-table-column>
             <el-table-column label="Skill（含通用）" width="130" align="center"><template #default="scope"><el-button link type="primary" :disabled="!skillsOf(scope.row).length" @click="goSkills(scope.row)">{{ skillsOf(scope.row).length }} 个</el-button></template></el-table-column>
             <el-table-column label="状态" width="90" align="center"><template #default="scope"><el-switch :disabled="!canEdit('业务线')" :model-value="scope.row.enabled" @change="value => toggle(scope.row, value)"></el-switch></template></el-table-column>
@@ -111,6 +111,7 @@
       kbsOf: line => kbsOfLine(line.name),
       skillsOf: line => skillsOfLine(line.name),
       goSkills(line) { window.PortalVue.bizStore.focusSkillLine = line.name; window.portalVueBridge.setPage("Skill 配置"); },
+      goTables(line) { bizStore.focusAssetLine = line.name; window.portalVueBridge.setPage("表管理"); },
       goKnowledge(line) {
         const main = bizStore.kbs.find(kb => kb.type === "业务线" && kb.target === line.name);
         if (!main) return window.portalVueBridge.setPage("AI 知识库");

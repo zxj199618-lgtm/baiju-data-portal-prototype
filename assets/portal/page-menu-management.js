@@ -23,7 +23,7 @@
       ]
     },
     {
-      id: "M500", name: "数据服务", icon: "service", sort: 500, path: "/data-service", cache: true, permission: "data_service",
+      id: "M500", name: "数据服务", icon: "service", sort: 200, path: "/data-service", cache: true, permission: "data_service",
       children: [
         { id: "M510", name: "开放 API", icon: "--", sort: 10, path: "/data-service/api-config/index", cache: true, permission: "api_config", children: [] }
       ]
@@ -36,7 +36,7 @@
       ]
     },
     {
-      id: "M950", name: "AI 中心", icon: "ai", sort: 950, path: "/ai", cache: true, permission: "ai_center",
+      id: "M950", name: "AI 中心", icon: "ai", sort: 400, path: "/ai", cache: true, permission: "ai_center",
       children: [
         { id: "M1020", name: "Skill 配置", icon: "--", sort: 10, path: "/ai/skill-management/index", cache: true, permission: "ai_skill_management", children: [] },
         { id: "M1025", name: "AI 知识库", icon: "--", sort: 15, path: "/ai/knowledge/index", cache: true, permission: "ai_knowledge", children: [] },

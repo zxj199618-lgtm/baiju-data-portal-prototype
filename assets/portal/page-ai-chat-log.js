@@ -19,6 +19,8 @@
   const durationText = ms => (ms === undefined || ms === null ? "—" : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
   const reportHref = url => (!url ? "" : /^https?:\/\//.test(url) ? url : `${location.origin}${location.pathname}${String(url).replace(/^\//, "")}`);
 
+  (() => { if (document.getElementById("aclog-style")) return; const el = document.createElement("style"); el.id = "aclog-style"; el.textContent = ".aclog-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"; document.head.appendChild(el); })();
+
   window.PortalVue.AiChatLogPanel = {
     template: `
       <div>
@@ -34,15 +36,17 @@
           <el-table-column label="时间" width="170"><template #default="scope">{{ formatTime(scope.row.at) }}</template></el-table-column>
           <el-table-column label="账号" width="140"><template #default="scope">{{ scope.row.user }}<span v-if="scope.row.scope" class="portal-vue-muted">（访客）</span></template></el-table-column>
           <el-table-column label="问题" min-width="280" show-overflow-tooltip><template #default="scope">{{ scope.row.question || "—" }}</template></el-table-column>
+          <el-table-column label="会话窗口" min-width="200"><template #default="scope"><template v-if="scope.row.sessionTitle || scope.row.sessionId"><div class="aclog-ellipsis" :title="scope.row.sessionTitle">{{ scope.row.sessionTitle || '（未命名会话）' }}</div><small class="portal-vue-muted">{{ contextText(scope.row) }}</small></template><span v-else class="portal-vue-muted">—</span></template></el-table-column>
           <el-table-column label="Skill / 模型" min-width="190"><template #default="scope"><div>{{ scope.row.skill || scope.row.scenario || "—" }}</div><small class="portal-vue-muted">{{ scope.row.model || "—" }}</small></template></el-table-column>
           <el-table-column label="响应时长" width="100" align="right"><template #default="scope">{{ durationText(scope.row.latencyMs) }}</template></el-table-column>
           <el-table-column label="token" width="90" align="right"><template #default="scope">{{ (scope.row.tokens ?? 0).toLocaleString('zh-CN') }}</template></el-table-column>
           <el-table-column label="结果" width="90"><template #default="scope"><el-tooltip :disabled="!scope.row.error" :content="scope.row.error" placement="top"><el-tag :type="scope.row.status === 'error' ? 'danger' : 'success'" effect="light">{{ scope.row.status === 'error' ? '失败' : '成功' }}</el-tag></el-tooltip></template></el-table-column>
+          <el-table-column label="反馈" width="90" align="center" fixed="right"><template #default="scope"><el-button v-if="feedbackOf(scope.row)" link type="primary" @click="openFeedback(scope.row)">{{ feedbackOf(scope.row).rating === 'up' ? '👍' : '👎' }} 详情</el-button><span v-else class="portal-vue-muted">—</span></template></el-table-column>
           <el-table-column label="报告地址" min-width="200" show-overflow-tooltip><template #default="scope"><a v-if="scope.row.reportUrl" :href="href(scope.row.reportUrl)" target="_blank" rel="noopener">{{ href(scope.row.reportUrl) }}</a><span v-else class="portal-vue-muted">—</span></template></el-table-column>
         </el-table>
       </div>
     `,
-    data: () => ({ loading: false, filter: { keyword: "", user: "", status: "" }, result: { items: [], matched: 0 } }),
+    data: () => ({ feedbackMap: {}, loading: false, filter: { keyword: "", user: "", status: "" }, result: { items: [], matched: 0 } }),
     computed: {
       rows() {
         const keyword = this.filter.keyword.trim().toLowerCase();
@@ -51,11 +55,21 @@
     },
     methods: {
       formatTime, durationText, href: reportHref,
+      /** 这一轮带给模型的会话上文：几轮、多少字 */
+      contextText(row) {
+        if (row.contextTurns === undefined) return "上文长度未记录";
+        if (!row.contextTurns) return "首轮，无上文";
+        const chars = row.contextChars || 0;
+        return `上文 ${row.contextTurns} 轮 · ${chars >= 1000 ? (chars / 1000).toFixed(1) + "k" : chars} 字`;
+      },
+      feedbackOf(row) { return row.requestId ? this.feedbackMap[row.requestId] : null; },
+      openFeedback(row) { window.PortalVue.feedbackFocus = row.requestId; window.portalVueBridge.setPage("AI 反馈"); },
       async load() {
         const params = new URLSearchParams({ limit: "100", type: "analysis" });
         if (this.filter.user) params.set("user", this.filter.user);
         if (this.filter.status) params.set("status", this.filter.status);
         this.loading = true;
+        try { const fb = await request("/v1/feedback?limit=200"); this.feedbackMap = Object.fromEntries((fb.items || []).map(item => [item.requestId, item])); } catch (error) { this.feedbackMap = {}; }
         try { this.result = await request(`/v1/audit?${params}`); } catch (error) { ep.ElMessage.warning(error.message); } finally { this.loading = false; }
       }
     },

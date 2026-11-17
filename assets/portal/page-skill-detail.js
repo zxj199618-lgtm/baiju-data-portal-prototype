@@ -43,23 +43,32 @@
           <div v-if="!skill" style="padding:60px 20px"><el-empty description="请先从「Skill 配置」选择一个 Skill 进入详情" /></div>
           <template v-else>
             <section class="sk-basic">
-              <el-form class="portal-vue-dialog-form" label-position="top">
-                <div class="sk-basic-grid">
-                  <el-form-item label="Skill 名称" required><el-input v-model="draft.name" :disabled="!editable" placeholder="如：人群包效果分析 Skill"></el-input></el-form-item>
-                  <el-form-item label="所属业务线" required>
-                    <el-select v-model="draft.bizLine" :disabled="!editable" placeholder="选择所属业务线" style="width:100%">
-                      <el-option label="全部（通用 Skill）" :value="ALL"></el-option>
-                      <el-option v-for="line in lineChoices" :key="line.name" :label="line.name + (line.enabled ? '' : '（已停用）')" :value="line.name" :disabled="!line.enabled && draft.bizLine !== line.name"></el-option>
-                    </el-select>
-                  </el-form-item>
-                  <el-form-item label="上线状态"><el-switch :disabled="!editable" v-model="draft.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch></el-form-item>
-                </div>
-                <el-form-item label="描述"><el-input v-model="draft.desc" type="textarea" :rows="2" resize="none" :disabled="!editable" placeholder="一句话说明这个 Skill 解决什么问题；系统按问题动态加载 Skill 时会参考"></el-input></el-form-item>
-              </el-form>
-              <div class="sk-basic-foot">
-                <span class="portal-vue-muted" style="font-size:12px">只属于某个业务线就选该业务线，所有业务线通用选「全部」；基本信息保存后直接生效，提示词的修改在下方按版本发布。</span>
-                <div v-if="editable" class="portal-vue-actions" style="flex:none"><el-button :disabled="!basicDirty" @click="loadSkill">取消</el-button><el-button type="primary" :disabled="!basicDirty" @click="saveBasic">保存基本信息</el-button></div>
+              <div class="sk-basic-head"><strong>基本信息</strong><el-button v-if="editable && !editingBasic" size="small" plain @click="editingBasic = true">编辑</el-button></div>
+              <div v-if="!editingBasic" class="sk-basic-view">
+                <div><span>Skill 名称</span><strong>{{ skill.name }}</strong></div>
+                <div><span>所属业务线</span><el-tag size="small" effect="plain" :type="draft.bizLine === ALL ? 'info' : ''">{{ draft.bizLine === ALL ? '全部（通用 Skill）' : (draft.bizLine || '未绑定') }}</el-tag></div>
+                <div><span>上线状态</span><el-tag size="small" effect="light" :type="skill.enabled === false ? 'info' : 'success'">{{ skill.enabled === false ? '下线' : '上线' }}</el-tag></div>
+                <div class="sk-basic-desc"><span>描述</span><p>{{ skill.desc || '—' }}</p></div>
               </div>
+              <template v-else>
+                <el-form class="portal-vue-dialog-form" label-position="top">
+                  <div class="sk-basic-grid">
+                    <el-form-item label="Skill 名称" required><el-input v-model="draft.name" placeholder="如：人群包效果分析 Skill"></el-input></el-form-item>
+                    <el-form-item label="所属业务线" required>
+                      <el-select v-model="draft.bizLine" placeholder="选择所属业务线" style="width:100%">
+                        <el-option label="全部（通用 Skill）" :value="ALL"></el-option>
+                        <el-option v-for="line in lineChoices" :key="line.name" :label="line.name + (line.enabled ? '' : '（已停用）')" :value="line.name" :disabled="!line.enabled && draft.bizLine !== line.name"></el-option>
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item label="上线状态"><el-switch v-model="draft.enabled" inline-prompt active-text="上线" inactive-text="下线" active-color="#16a34a"></el-switch></el-form-item>
+                  </div>
+                  <el-form-item label="描述"><el-input v-model="draft.desc" type="textarea" :rows="2" resize="none" placeholder="一句话说明这个 Skill 解决什么问题；系统按问题动态加载 Skill 时会参考"></el-input></el-form-item>
+                </el-form>
+                <div class="sk-basic-foot">
+                  <span class="portal-vue-muted" style="font-size:12px">只属于某个业务线就选该业务线，所有业务线通用选「全部」；基本信息保存后直接生效，提示词的修改在下方按版本发布。</span>
+                  <div class="portal-vue-actions" style="flex:none"><el-button @click="cancelBasic">取消</el-button><el-button type="primary" @click="saveBasic">保存基本信息</el-button></div>
+                </div>
+              </template>
             </section>
             <div class="sk-section-title">提示词与版本管理</div>
             <div>
@@ -67,12 +76,12 @@
                   <aside class="sk-pv-list">
                     <el-button v-if="editable" type="primary" class="sk-pv-new" @click="startNew">＋ 新增版本</el-button>
                     <div v-if="versions.length" class="portal-vue-muted" style="font-size:12px;line-height:1.6">共 {{ versions.length }} 个版本；最近 {{ KEEP_VERSIONS }} 个和线上版本受保护，不能删除，方便回滚</div>
+                    <div v-if="mode === 'new'" class="sk-pv-item active"><div class="sk-pv-item-head"><strong>{{ form.version || "新版本" }}</strong><el-tag size="small" effect="light" type="info">编辑中</el-tag></div><p>新增版本，保存后生成</p></div>
                     <div v-for="item in versions" :key="item.version" class="sk-pv-item" :class="{ active: selected === item.version && mode !== 'new' }" @click="selectVersion(item)">
                       <div class="sk-pv-item-head"><strong>{{ item.version }}</strong><el-tag size="small" effect="light" :type="statusType(item)">{{ statusLabel(item) }}</el-tag></div>
                       <p>{{ item.note || "—" }}</p>
                       <small>{{ item.time }} · {{ item.operator }}</small>
                     </div>
-                    <div v-if="mode === 'new'" class="sk-pv-item active"><div class="sk-pv-item-head"><strong>{{ form.version || "新版本" }}</strong><el-tag size="small" effect="light" type="info">编辑中</el-tag></div><p>新增版本，保存后生成</p></div>
                     <p v-if="!versions.length && mode !== 'new'" class="portal-vue-muted" style="font-size:12px">暂无版本，点击「新增版本」输入提示词</p>
                   </aside>
                   <section class="sk-pv-main">
@@ -150,7 +159,7 @@
       return { locale: ep.zhCn };
     },
     data() {
-      return { skillId: "", tab: "basic", draft: this.blankDraft(), selected: "", mode: "view", form: this.blankForm(), grayDialogVisible: false, grayVersion: null, grayDraft: [] };
+      return { skillId: "", tab: "basic", editingBasic: false, draft: this.blankDraft(), selected: "", mode: "view", form: this.blankForm(), grayDialogVisible: false, grayVersion: null, grayDraft: [] };
     },
     computed: {
       skill() { refreshTick.value; return (state.skills || []).find(item => item.id === this.skillId) || null; },
@@ -264,6 +273,7 @@
         if (!list.some(item => item.version === this.selected)) this.selected = (list.find(item => item.current) || list[0])?.version || "";
       },
       cancelDraft() { this.loadSkill(); },
+      cancelBasic() { this.editingBasic = false; this.loadSkill(); },
       async confirmLeave() {
         if (!this.dirty || !this.editable) return true;
         try {
@@ -344,6 +354,7 @@
         Object.assign(skill, rest);
         await this.persist({ desc: snap.desc, enabled: snap.enabled });
         notify(`「${skill.name}」基本信息已保存`);
+        this.editingBasic = false;
         this.loadSkill();
       },
       async saveVersion() {
@@ -421,6 +432,14 @@
     mounted() {
       injectStyle("portal-vue-skill-detail-style", [
         ".sk-basic { margin-top:8px; padding:16px 20px 12px; border:1px solid #e9edf4; border-radius:12px; background:#fff; }",
+        ".sk-basic-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }",
+        ".sk-basic-head strong { font-size:15px; color:#1f2430; }",
+        ".sk-basic-view { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,2fr) 140px; gap:14px 16px; padding-bottom:6px; }",
+        ".sk-basic-view > div { display:flex; flex-direction:column; gap:6px; align-items:flex-start; min-width:0; }",
+        ".sk-basic-view span { font-size:12px; color:#8a94a6; }",
+        ".sk-basic-view strong { font-size:14px; color:#1f2430; }",
+        ".sk-basic-desc { grid-column:1 / -1; }",
+        ".sk-basic-desc p { margin:0; font-size:14px; line-height:1.7; color:#3f4857; }",
         ".sk-basic-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,2fr) 140px; gap:16px; }",
         ".sk-basic-foot { display:flex; align-items:center; justify-content:space-between; gap:16px; }",
         ".sk-section-title { margin:20px 0 12px; font-size:15px; font-weight:600; color:#1f2430; }",
@@ -444,7 +463,7 @@
         ".portal-vue-skill-detail-footer { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:16px 0 8px; border-top:1px solid #e9edf4; margin-top:12px; }",
         ".portal-vue-skill-icon-upload.is-disabled { cursor:default; opacity:0.85; }"
       ].join(""));
-      this.pageHandler = event => { if (event.detail?.page === "Skill 详情") this.loadSkill(); };
+      this.pageHandler = event => { if (event.detail?.page === "Skill 详情") { this.editingBasic = false; this.loadSkill(); } };
       window.addEventListener("portal:page-change", this.pageHandler);
       if (bridge.getPage() === "Skill 详情") this.loadSkill();
     },
