@@ -44,8 +44,11 @@
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
-        <el-dialog v-model="createVisible" title="新增维表" width="720px">
-          <el-form class="portal-vue-dialog-form" label-position="top">
+        <portal-form-page v-model="createVisible" title="新增维表">
+          <template #actions><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('维表管理')" type="primary" @click="saveCreate">保存并维护数据</el-button></template>
+          <section class="pf-card">
+            <h3>基本信息</h3>
+          <el-form class="portal-vue-dialog-form pf-form" label-position="top">
             <el-form-item label="表名" required><el-input v-model="createForm.table" placeholder="例如：dim_channel"></el-input></el-form-item>
             <el-form-item label="对外表名" required><el-input v-model="createForm.externalName" placeholder="例如：open_dim_channel"></el-input></el-form-item>
             <el-form-item label="表中文名" required><el-input v-model="createForm.cnName" placeholder="例如：渠道维表"></el-input></el-form-item>
@@ -66,8 +69,9 @@
               <el-button v-if="canEdit('维表管理')" class="portal-vue-add-field" @click="createForm.fields.push({name:'',type:'VARCHAR',comment:'',remark:'',dictId:''})">添加字段</el-button>
             </el-form-item>
           </el-form>
-          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('维表管理')" type="primary" @click="saveCreate">保存并维护数据</el-button></template>
-        </el-dialog>
+          
+        </section>
+        </portal-form-page>
         <el-drawer v-model="detailVisible" :title="detail ? (detail.cnName || detail.table) + ' · 维表详情' : '维表详情'" size="760px" destroy-on-close :close-on-click-modal="true">
           <template v-if="detail">
             <div class="portal-vue-detail-grid">

@@ -1013,6 +1013,22 @@
                       "updatedAt": "2026-06-16 18:50"
               }
       ];
+      /* 自定义看板（嵌入地址）：放在列表最后，不改变默认选中的看板 */
+      migratedBoards.push({
+                      "category": "大盘数据",
+                      "name": "AB 实验看板（自定义）",
+                      "desc": "观星台 AB 实验项目里的看板，自定义地址嵌入",
+                      "type": "custom",
+                      "url": "https://ab.lumofyi.com/v/lines/stock?embed=1&k=KA1swEhgrIh3F1Ky0sKmaV1a&g=total",
+                      "quickBiId": "CB_AB001",
+                      "owner": "曾祥竞",
+                      "groups": [
+                              "门户管理员",
+                              "数据分析师"
+                      ],
+                      "status": "已上线",
+                      "updatedAt": "2026-11-17 18:00"
+              });
 
       // 看板可直接授权到具体用户（不经过权限组）：board.users 为该看板的直接可见用户，
       // 与 groups 授权取并集；用于「未分配权限组」「权限组未覆盖该看板」等补充授权场景。

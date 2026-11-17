@@ -45,12 +45,34 @@
     return /^(data:image|https?:|blob:|\/?assets\/)/i.test(value) || /\.(svg|png|jpe?g|gif|webp)$/i.test(value);
   }
 
+  /* 公用「整页表单」：内容多的新增 / 编辑弹窗统一用它（全屏、顶部返回 / 取消 / 保存、卡片分组）。
+     样式在 portal-vue-module.css 的 .pf-* 里，要改外观只改那一处。用法：
+     <portal-form-page v-model="visible" title="新增xx" @closed="…"><template #actions>…按钮…</template>
+       <section class="pf-card"><h3>基本信息</h3><el-form class="portal-vue-dialog-form pf-form" label-position="top">…</el-form></section>
+     </portal-form-page> */
+  const PortalFormPage = {
+    name: "PortalFormPage",
+    props: { modelValue: Boolean, title: { type: String, default: "" } },
+    emits: ["update:modelValue", "closed"],
+    template: `
+      <el-dialog :model-value="modelValue" fullscreen :show-close="false" destroy-on-close append-to-body class="pf-dialog portal-vue-fullscreen-dialog" @update:model-value="value => $emit('update:modelValue', value)" @closed="$emit('closed')">
+        <template #header>
+          <div class="pf-head">
+            <div class="pf-title"><el-button text @click="$emit('update:modelValue', false)">← 返回</el-button><strong>{{ title }}</strong></div>
+            <div class="pf-actions"><slot name="actions"></slot></div>
+          </div>
+        </template>
+        <div class="pf-body"><slot></slot></div>
+      </el-dialog>`
+  };
+
   function mount(selector, component, name) {
     const root = document.querySelector(selector);
     if (!root) return null;
     const app = createApp(component);
     app.mixin({ data: () => ({ locale }), methods: { canEdit: canEditMenu, canView: canViewMenu, backToBox: box => bridge.setPage(box) } });
     app.use(ep);
+    app.component("portal-form-page", PortalFormPage);
     const vm = app.mount(root);
     root.dataset.elementComponent = name;
     mountedApps.push(app);

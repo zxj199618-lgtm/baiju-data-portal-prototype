@@ -70,8 +70,11 @@
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
 
-        <el-dialog v-model="createVisible" title="新增数据表" width="620px">
-          <el-form class="portal-vue-dialog-form" label-position="top">
+        <portal-form-page v-model="createVisible" title="新增数据表">
+          <template #actions><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('表管理')" type="primary" @click="saveCreate">保存</el-button></template>
+          <section class="pf-card">
+            <h3>基本信息</h3>
+          <el-form class="portal-vue-dialog-form pf-form" label-position="top">
             <el-form-item label="数据源" required><el-select v-model="createForm.source"><el-option label="StarRocks-拉端" value="StarRocks-拉端"></el-option><el-option label="StarRocks-存量" value="StarRocks-存量"></el-option></el-select></el-form-item>
             <el-form-item label="库名" required><el-input v-model="createForm.database" placeholder="例如：prod_cloud"></el-input></el-form-item>
             <el-form-item label="表名" required><el-input v-model="createForm.table" placeholder="小写字母与下划线"></el-input></el-form-item>
@@ -86,8 +89,9 @@
               </div>
             </el-form-item>
           </el-form>
-          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('表管理')" type="primary" @click="saveCreate">保存</el-button></template>
-        </el-dialog>
+          
+        </section>
+        </portal-form-page>
 
           <el-drawer v-model="detailVisible" :title="detail ? (detail.cnName || detail.table) + ' · 表详情' : '表详情'" size="860px" destroy-on-close :close-on-click-modal="true">
           <template v-if="detail">

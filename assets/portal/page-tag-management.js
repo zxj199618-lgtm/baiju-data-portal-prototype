@@ -43,7 +43,10 @@
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
-        <el-drawer v-model="editVisible" title="编辑标签信息" direction="rtl" size="680px" class="tag-enum-drawer" :close-on-click-modal="true">
+        <portal-form-page v-model="editVisible" title="编辑标签信息">
+          <template #actions><el-button @click="editVisible=false">取消</el-button><el-button v-if="canEdit('标签管理')" type="primary" @click="saveEdit">保存</el-button></template>
+          <section class="pf-card">
+            <h3>标签信息</h3>
           <el-form v-if="editForm" class="tag-enum-drawer-form" label-position="top">
             <el-form-item label="字段名"><el-input :model-value="editForm.name" disabled></el-input></el-form-item>
             <el-form-item label="标签名称" required><el-input v-model="editForm.cn"></el-input></el-form-item>
@@ -69,8 +72,9 @@
             </section>
             <el-form-item label="更新频率" class="tag-enum-section"><el-select v-model="editForm.freq"><el-option label="实时" value="实时"></el-option><el-option label="小时" value="小时"></el-option><el-option label="离线" value="离线"></el-option></el-select></el-form-item>
           </el-form>
-          <template #footer><el-button @click="editVisible=false">取消</el-button><el-button v-if="canEdit('标签管理')" type="primary" @click="saveEdit">保存</el-button></template>
-        </el-drawer>
+          
+        </section>
+        </portal-form-page>
       </el-config-provider>
     `,
     data: () => ({ subject:state.tables[0]?.name||"",keyword:"",lineFilter:"",page:1,pageSize:10,editVisible:false,editForm:null,editTarget:null }),

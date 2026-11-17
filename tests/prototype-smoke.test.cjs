@@ -268,7 +268,7 @@ assert(portalBridge.includes("canEditPage(activePage)") && portalVue.includes("s
 assert(portalVue.includes("canViewMenu") && portalVue.includes("effectiveViewMenus") && portalVue.includes("canView: canViewMenu"), "侧边栏与页面应按查看权限过滤菜单");
 assert(portalVue.includes("effectiveBoardNames") && portalVue.includes("effectiveTableNames") && portalVue.includes("boardScopeLabel"), "看板/数据表可见范围按权限组 + 个人授权计算并显示 N / 总数");
 assert(portalVue.includes("this.scopeBoardNames.has(board.name)") && portalVue.includes("this.scopeTableNames.has(item.cnName)") && portalVue.includes("scopeAssets"), "看板管理、表管理与数据看板目录只展示授权范围内的内容");
-assert(portalVue.includes('<el-form-item label="可查看用户">') && portalVue.includes("selectableUsers"), "看板编辑弹窗应在「可查看权限组」之后提供「可查看用户」多选，直接授权到具体用户");
+assert(portalVue.includes('<el-form-item label="可查看用户" class="pf-span2">') && portalVue.includes("selectableUsers"), "看板编辑弹窗应在「可查看权限组」之后提供「可查看用户」多选，直接授权到具体用户");
 assert(portalVue.includes("users: [...(board.users || [])]") && portalVue.includes("users: [...(this.form.users || [])]"), "看板表单应读写 board.users：编辑回填已有授权，保存写回");
 assert(portalVue.includes("board.users.includes(user?.name)") && portalBridge.includes("boardDirectUsers") && portalBridge.includes('"QB_001": ["刘盾"]'), "直接授权的看板应对该用户可见（与权限组授权取并集），并带演示数据");
 assert(portalVue.includes("direct: directUsers.includes(user.name)") && portalVue.includes("direct: true") && portalVue.includes("portal-vue-viewer-tag"), "看板列表「可查看用户」应为权限组可见用户与直接授权用户的并集，并标出直接授权");

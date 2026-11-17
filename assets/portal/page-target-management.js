@@ -33,8 +33,11 @@
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
-        <el-dialog v-model="createVisible" title="新增推送目标" width="620px" @closed="resetCreateForm">
-          <el-form ref="targetFormRef" :model="form" :rules="targetRules" class="portal-vue-dialog-form" label-position="top">
+        <portal-form-page v-model="createVisible" title="新增推送目标" @closed="resetCreateForm">
+          <template #actions><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('人群包推送渠道')" type="primary" @click="saveCreate">保存目标</el-button></template>
+          <section class="pf-card">
+            <h3>存储信息</h3>
+          <el-form ref="targetFormRef" :model="form" :rules="targetRules" class="portal-vue-dialog-form pf-form" label-position="top">
             <el-form-item label="目标名称" prop="name"><el-input v-model="form.name" placeholder="例如：巨量DMP-OSS"></el-input></el-form-item>
             <el-form-item label="存储桶名称（bucket_name）" prop="bucket"><el-input v-model="form.bucket"></el-input></el-form-item>
             <el-form-item label="存储地域（Region）" prop="region"><el-input v-model="form.region" placeholder="例如：cn-shenzhen"></el-input></el-form-item>
@@ -42,8 +45,9 @@
             <el-form-item label="访问密钥 ID（access_key_id）" prop="ak"><el-input v-model="form.ak"></el-input></el-form-item>
             <el-form-item label="访问密钥 Secret（access_key_secret）" prop="sk"><el-input v-model="form.sk" type="password" show-password></el-input></el-form-item>
           </el-form>
-          <template #footer><el-button @click="createVisible=false">取消</el-button><el-button v-if="canEdit('人群包推送渠道')" type="primary" @click="saveCreate">保存目标</el-button></template>
-        </el-dialog>
+          
+        </section>
+        </portal-form-page>
       </el-config-provider>
     `,
     data:()=>({

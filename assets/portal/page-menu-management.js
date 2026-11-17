@@ -90,9 +90,12 @@
             <el-table-column label="操作" width="240" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('菜单管理')" link type="primary" @click="openForm(null, scope.row)" :disabled="scope.row.children.length>=3"><svg class="mm-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>添加</el-button><el-button v-if="canEdit('菜单管理')" link type="primary" @click="openForm(scope.row, null)"><svg class="mm-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3zM13.5 8.5l3 3"/></svg>编辑</el-button><el-button v-if="canEdit('菜单管理')" link type="danger" @click="removeMenu(scope.row)"><svg class="mm-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>删除</el-button></div></template></el-table-column>
           </el-table>
         </section>
-        <el-dialog v-model="formVisible" :title="editingId ? '编辑菜单' : (parentMenu ? '添加子菜单' : '添加菜单')" width="640px">
+        <portal-form-page v-model="formVisible" :title="editingId ? '编辑菜单' : (parentMenu ? '添加子菜单' : '添加菜单')">
+          <template #actions><el-button @click="formVisible=false">取消</el-button><el-button v-if="canEdit('菜单管理')" type="primary" @click="save">保存</el-button></template>
+          <section class="pf-card">
+            <h3>基本信息</h3>
           <el-form class="portal-vue-dialog-form" label-position="top">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
+            <div class="pf-grid">
               <el-form-item label="菜单显示名称" required><el-input v-model="form.name" placeholder="如：数据看板"></el-input></el-form-item>
               <el-form-item label="上级菜单"><el-select v-model="form.parentId" clearable placeholder="不选则为顶级目录"><el-option v-for="item in rootMenus" :key="item.id" :label="item.name" :value="item.id"></el-option></el-select></el-form-item>
               <el-form-item label="图标"><el-select v-model="form.icon"><el-option label="--（子菜单）" value="--"></el-option><el-option v-for="icon in icons" :key="icon" :label="icon" :value="icon"><span class="mm-opt"><img class="mm-nav-icon" :src="iconSrc(icon)" alt="" />{{ icon }}</span></el-option></el-select></el-form-item>
@@ -102,8 +105,9 @@
             </div>
             <el-form-item label="缓冲（页面缓存）"><el-switch :disabled="!canEdit('菜单管理')" v-model="form.cache"></el-switch></el-form-item>
           </el-form>
-          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button v-if="canEdit('菜单管理')" type="primary" @click="save">保存</el-button></template>
-        </el-dialog>
+          
+        </section>
+        </portal-form-page>
       </el-config-provider>
     `,
     data:()=>({menus:menuTreeSeed.map(item=>({...item,children:item.children.map(child=>({...child,parentId:item.id}))})),formVisible:false,editingId:"",parentId:"",form:{},icons:menuIcons}),

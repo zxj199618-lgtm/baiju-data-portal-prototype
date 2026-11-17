@@ -73,25 +73,42 @@
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
 
-        <el-dialog v-model="formVisible" :title="editingIndex<0?'新增看板':'编辑看板'" width="620px" destroy-on-close>
-          <el-form class="portal-vue-dialog-form" label-position="top">
-            <el-form-item label="看板名称" required><el-input v-model="form.name" placeholder="请输入看板名称"></el-input></el-form-item>
-            <el-form-item label="看板类型" required>
-              <el-radio-group v-model="form.type"><el-radio-button value="quickbi">Quick BI 看板</el-radio-button><el-radio-button value="custom">自定义看板</el-radio-button></el-radio-group>
-            </el-form-item>
-            <el-form-item v-if="form.type !== 'custom'" label="Quick BI 看板 ID" required><el-input v-model="form.quickBiId" placeholder="例如：QB_073"></el-input></el-form-item>
-            <el-form-item v-else label="看板地址" required>
-              <el-input v-model="form.url" placeholder="https://ab.lumofyi.com/v/lines/stock?embed=1&k=…&g=total"></el-input>
-              <div class="portal-vue-muted" style="margin-top:6px;line-height:1.6">填观星台 AB 实验项目里看板的嵌入地址即可（需 http(s) 开头，且对方站点允许被观星台嵌入）；保存并授权后，在「数据看板」里直接显示。</div>
-            </el-form-item>
-            <el-form-item label="所属分类" required><el-select v-model="form.category"><el-option v-for="item in categories" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
-            <el-form-item label="负责人" required><el-select v-model="form.owner" filterable><el-option v-for="item in userNames" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
-            <el-form-item label="看板说明"><el-input v-model="form.desc" type="textarea" :rows="3" placeholder="说明看板用途和数据口径"></el-input></el-form-item>
-            <el-form-item label="可查看权限组" required><el-select v-model="form.groups" multiple><el-option v-for="item in groupNames" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
-            <el-form-item label="可查看用户"><el-select v-model="form.users" multiple filterable clearable collapse-tags collapse-tags-tooltip :max-collapse-tags="4" placeholder="选择可直接查看该看板的用户（可不选）"><el-option v-for="item in selectableUsers" :key="item.name" :label="item.name" :value="item.name"><span>{{ item.name }}</span><span class="portal-vue-muted" style="float:right;margin-left:18px">{{ item.dept || '未挂部门' }}</span></el-option></el-select><p class="portal-vue-muted" style="margin:6px 0 0">直接授权的用户无需加入权限组即可在「数据看板」看到该看板，与权限组授权取并集；停用用户不参与授权。</p></el-form-item>
-          </el-form>
-          <template #footer><el-button @click="formVisible=false">取消</el-button><el-button v-if="canEdit('看板管理')" type="primary" @click="saveBoard">保存</el-button></template>
-        </el-dialog>
+        <portal-form-page v-model="formVisible" :title="editingIndex<0?'新增看板':'编辑看板'">
+          <template #actions><el-button @click="formVisible=false">取消</el-button><el-button v-if="canEdit('看板管理')" type="primary" @click="saveBoard">保存</el-button></template>
+                      <el-form class="portal-vue-dialog-form" label-position="top" @submit.prevent>
+              <section class="pf-card">
+                <h3>基本信息</h3>
+                <div class="pf-grid">
+                  <el-form-item label="看板名称" required class="pf-span2"><el-input v-model="form.name" placeholder="请输入看板名称"></el-input></el-form-item>
+                  <el-form-item label="看板类型" required class="pf-span2">
+                    <div class="pf-types">
+                      <button type="button" class="pf-type" :class="{ active: form.type !== 'custom' }" @click="form.type = 'quickbi'"><strong>Quick BI 看板</strong><span>填 Quick BI 看板 ID，按登录身份加载行级权限</span></button>
+                      <button type="button" class="pf-type" :class="{ active: form.type === 'custom' }" @click="form.type = 'custom'"><strong>自定义看板</strong><span>填看板地址，直接嵌入，如观星台 AB 实验项目里的看板</span></button>
+                    </div>
+                  </el-form-item>
+                  <el-form-item v-if="form.type !== 'custom'" label="Quick BI 看板 ID" required class="pf-span2"><el-input v-model="form.quickBiId" placeholder="例如：QB_073"></el-input></el-form-item>
+                  <el-form-item v-else label="看板地址" required class="pf-span2">
+                    <el-input v-model="form.url" placeholder="https://ab.lumofyi.com/v/lines/stock?embed=1&k=…&g=total"></el-input>
+                    <div class="portal-vue-muted" style="margin-top:6px;line-height:1.6">填观星台 AB 实验项目里看板的嵌入地址即可（http(s) 开头，且对方站点允许被观星台嵌入）；保存并授权后，在「数据看板」里直接显示。</div>
+                  </el-form-item>
+                  <el-form-item label="所属分类" required><el-select v-model="form.category"><el-option v-for="item in categories" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
+                  <el-form-item label="负责人" required><el-select v-model="form.owner" filterable><el-option v-for="item in userNames" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
+                  <el-form-item label="看板说明" class="pf-span2"><el-input v-model="form.desc" type="textarea" :rows="3" placeholder="说明看板用途和数据口径"></el-input></el-form-item>
+                </div>
+              </section>
+              <section class="pf-card">
+                <h3>查看权限</h3>
+                <div class="pf-grid">
+                  <el-form-item label="可查看权限组" required class="pf-span2"><el-select v-model="form.groups" multiple><el-option v-for="item in groupNames" :key="item" :label="item" :value="item"></el-option></el-select></el-form-item>
+                  <el-form-item label="可查看用户" class="pf-span2"><el-select v-model="form.users" multiple filterable clearable collapse-tags collapse-tags-tooltip :max-collapse-tags="6" placeholder="选择可直接查看该看板的用户（可不选）"><el-option v-for="item in selectableUsers" :key="item.name" :label="item.name" :value="item.name"><span>{{ item.name }}</span><span class="portal-vue-muted" style="float:right;margin-left:18px">{{ item.dept || '未挂部门' }}</span></el-option></el-select><p class="portal-vue-muted" style="margin:6px 0 0">直接授权的用户无需加入权限组即可在「数据看板」看到该看板，与权限组授权取并集；停用用户不参与授权。</p></el-form-item>
+                </div>
+              </section>
+              <section v-if="form.type === 'custom' && /^https?:\/\/\S+$/i.test(String(form.url || '').trim())" class="pf-card">
+                <h3>效果预览</h3>
+                <iframe class="pf-preview" :src="String(form.url).trim()" title="看板预览" referrerpolicy="no-referrer-when-downgrade"></iframe>
+              </section>
+            </el-form>
+        </portal-form-page>
 
         <el-dialog v-model="categoryDialog" title="管理看板分类" width="520px">
           <div style="display:flex;gap:10px;margin-bottom:16px"><el-input v-model="newCategory" placeholder="输入新分类名称" @keyup.enter="addCategory"></el-input><el-button v-if="canEdit('看板管理')" type="primary" @click="addCategory">新增</el-button></div>
