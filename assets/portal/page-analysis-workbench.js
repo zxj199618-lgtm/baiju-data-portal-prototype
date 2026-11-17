@@ -265,12 +265,23 @@
                     <el-select v-model="activeBusinessLine" size="small" clearable class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper">
                       <el-option v-for="line in lineChoices" :key="line" :label="line" :value="line"></el-option>
                     </el-select>
-                    <el-select v-model="model" size="small" filterable class="portal-vue-ai-chip-model-select" :loading="modelsLoading" :disabled="!models.length" placeholder="请选择" popper-class="portal-vue-ai-select-popper" @change="applyMaxModelSettings">
-                      <el-option v-for="item in models" :key="item" :label="item" :value="item"></el-option>
-                    </el-select>
-                    <el-select v-if="reasoningSupported" v-model="reasoning" size="small" class="portal-vue-ai-chip-reasoning-select" placeholder="思考强度" popper-class="portal-vue-ai-select-popper" @change="changeReasoning">
-                      <el-option v-for="item in reasoningChoices" :key="item.value" :label="item.label" :value="item.value"></el-option>
-                    </el-select>
+                    <el-popover v-model:visible="modelPop" trigger="click" placement="top-start" :width="320" :disabled="!models.length" popper-class="portal-vue-ai-model-pop">
+                      <template #reference>
+                        <button type="button" class="portal-vue-ai-model-chip" :class="{ disabled: !models.length }" data-test="model-chip"><b>模型</b><span class="mc-name">{{ model || (modelsLoading ? '加载中…' : '请选择') }}</span><em v-if="reasoningSupported">{{ reasoningLabel }}</em><i class="mc-arrow"></i></button>
+                      </template>
+                      <div class="mp-section">
+                        <div class="mp-title">模型</div>
+                        <el-input v-model="modelKeyword" size="small" clearable placeholder="搜索模型" class="mp-search"></el-input>
+                        <el-scrollbar max-height="220px">
+                          <div v-for="item in shownModels" :key="item" class="mp-item" :class="{ active: item === model }" @click="pickModel(item)">{{ item }}</div>
+                          <div v-if="!shownModels.length" class="mp-empty">没有匹配的模型</div>
+                        </el-scrollbar>
+                      </div>
+                      <div v-if="reasoningSupported" class="mp-section">
+                        <div class="mp-title">思考强度</div>
+                        <div class="mp-levels"><button v-for="item in reasoningChoices" :key="item.value" type="button" :class="{ active: item.value === reasoning }" @click="pickLevel(item.value)">{{ item.label }}</button></div>
+                      </div>
+                    </el-popover>
                     <el-button type="primary" size="small" class="portal-vue-ai-composer-send" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
                   </div>
                 </div>
@@ -331,6 +342,8 @@
       lineChoicesSeen: false,
       models: [],
       modelsLoading: false,
+      modelPop: false,
+      modelKeyword: "",
       model: "",
       sessions: analysisSessionsSeed.map(session => createAnalysisSession(session)),
       gatewayTables: [],
@@ -418,6 +431,8 @@
         const levels=(cap&&cap.reasoning&&cap.reasoning.levels)||[];
         return MODEL_REASONING_CHOICES.filter(item=>levels.includes(item.value));
       },
+      shownModels(){const keyword=this.modelKeyword.trim().toLowerCase();return keyword?this.models.filter(item=>String(item).toLowerCase().includes(keyword)):this.models;},
+      reasoningLabel(){return (this.reasoningChoices.find(item=>item.value===this.reasoning)||{}).label||"";},
       reasoningSupported(){return this.reasoningChoices.length>0;},
       ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
       historySessions(){return this.sessions.filter(item=>item.status!=="进行中");},
@@ -553,6 +568,8 @@
         this.modelsLoading=false;
       },
       /** 模型换了只改「默认」：上下文按该模型上限自动装填，思考档位沿用用户上次选的（不支持就落到该模型默认档） */
+      pickModel(item){this.model=item;this.applyMaxModelSettings();this.modelPop=false;this.modelKeyword="";},
+      pickLevel(level){this.changeReasoning(level);},
       applyMaxModelSettings(){
         const cap=this.modelCaps[this.model]||{};
         const levels=(cap.reasoning&&cap.reasoning.levels)||[];

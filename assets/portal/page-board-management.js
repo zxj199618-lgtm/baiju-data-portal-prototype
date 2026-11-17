@@ -103,7 +103,7 @@
                   <el-form-item label="可查看用户" class="pf-span2"><el-select v-model="form.users" multiple filterable clearable collapse-tags collapse-tags-tooltip :max-collapse-tags="6" placeholder="选择可直接查看该看板的用户（可不选）"><el-option v-for="item in selectableUsers" :key="item.name" :label="item.name" :value="item.name"><span>{{ item.name }}</span><span class="portal-vue-muted" style="float:right;margin-left:18px">{{ item.dept || '未挂部门' }}</span></el-option></el-select><p class="portal-vue-muted" style="margin:6px 0 0">直接授权的用户无需加入权限组即可在「数据看板」看到该看板，与权限组授权取并集；停用用户不参与授权。</p></el-form-item>
                 </div>
               </section>
-              <section v-if="form.type === 'custom' && /^https?:\/\/\S+$/i.test(String(form.url || '').trim())" class="pf-card">
+              <section v-if="customUrlOk" class="pf-card">
                 <h3>效果预览</h3>
                 <iframe class="pf-preview" :src="String(form.url).trim()" title="看板预览" referrerpolicy="no-referrer-when-downgrade"></iframe>
               </section>
@@ -118,6 +118,8 @@
     `,
     data: () => ({ status: "已上线", keyword: "", category: "全部分类", owner: "全部负责人", page: 1, pageSize: 10, formVisible: false, editingIndex: -1, categoryDialog: false, newCategory: "", form: {} }),
     computed: {
+      /* 自定义看板地址是否像个 http(s) 地址（模板里不能直接写正则，会被编译器改坏） */
+      customUrlOk() { return this.form.type === "custom" && /^https?:\/\/\S+$/i.test(String(this.form.url || "").trim()); },
       categories() { refreshTick.value; return state.categories.filter(item => item !== "全部"); },
       scopeBoardNames() { refreshTick.value; return effectiveBoardNames(loginUser()); },
       scopeLabel() { refreshTick.value; return boardScopeLabel(loginUser(), state.boards.length); },

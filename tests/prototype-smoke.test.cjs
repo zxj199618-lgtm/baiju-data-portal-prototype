@@ -523,9 +523,9 @@ assert(portalVue.includes("contextLabel(limit){") && portalVue.includes("reasoni
 assert(portalVue.includes('@click="openCapability(scope.row)">能力设置</el-button>') && portalVue.includes("async saveCapability(){") && portalVue.includes("v1/model-config/${encodeURIComponent(row.id)}") && portalVue.includes("MODEL_CONTEXT_CHOICES") && portalVue.includes("MODEL_REASONING_CHOICES"), "行内「能力」要能按模型改上下文上限与思考档位并写回网关");
 assert(portalVue.includes("this.modelCaps[item.id]={contextLimit:item.contextLimit,reasoning:item.reasoning||{levels:[],default:\"\"}") && portalVue.includes("reasoningSupported(){return this.reasoningChoices.length>0;}"), "灵犀智析要按 /v1/models details 存下模型能力，并据此决定是否显示「深度」");
 assert(portalVue.includes("reasoningChoices(){") && portalVue.includes("changeReasoning(level){") && portalVue.includes("localStorage.setItem(\"portalReasoningPref\",level)") && portalVue.includes("readReasoningPref(){"), "思考强度 chip 的档位只来自当前模型声明，并记住用户上次选择");
-assert(portalVue.includes('class="portal-vue-ai-chip-reasoning-select"') && portalVue.includes('placeholder="思考强度"') && !portalVue.includes("contextWindowLabel"), "输入框要有「思考强度」选择，不再展示上下文窗口大小");
+assert(portalVue.includes('class="portal-vue-ai-model-chip"') && portalVue.includes('<div class="mp-title">思考强度</div>') && !portalVue.includes("contextWindowLabel"), "输入框里模型与思考强度合并在一个下拉里，不再展示上下文窗口大小");
 assert(!portalVue.includes('this.reasoning="high";') && !portalVue.includes("applyMaxModelSettings(){\n        this.reasoning=\"high\";"), "思考档位不能再硬编码为 high（此断言防止回退：档位要来自模型能力与用户选择）");
-assert(portalCss.includes(".portal-vue-ai-chip-reasoning-select") && portalCss.includes('content: "思考"'), "「思考」chip 沿用输入框胶囊样式（::before 前缀「思考」）");
+assert(portalCss.includes(".portal-vue-ai-model-chip") && portalCss.includes(".portal-vue-ai-model-pop .mp-levels"), "合并后的「模型 + 思考强度」下拉有胶囊与面板样式");
 assert(portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商配置入口");
 assert(portalBridge.includes("内置中转站 + 自配供应商") || portalBridge.includes("所有来源（含内置中转站）统一在「供应商配置」里接入"), "模型配置页副标题要说明供应商接入与模型开关");
 assert(portalBridge.includes('bizLine: "权益"') && portalVue.includes("lineChoices") && portalVue.includes("activeBusinessLine") && portalVue.includes("选择业务线") && !portalVue.includes("<el-cascader"), "输入框下方应使用单选业务线下拉，不再是数据表级联");
@@ -590,7 +590,7 @@ assert(portalCss.includes(".portal-vue-alert-form .portal-vue-alert-hint"), "重
 assert(portalCss.includes(".portal-vue-alert-table .el-table__cell { vertical-align: middle; }"), "数据告警列表单元格内容应上下居中，行高随内容自适应");
 assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据告警列表不应再提供「我的 / 全部」切换");
 assert(portalVue.includes("portal-vue-ai-chip-line-select") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "业务线选择应是输入框下方的单选下拉，不应先打开中间弹层");
-assert(portalVue.includes("portal-vue-ai-chip-model-select") && !portalVue.includes("portal-vue-ai-model-panel-popper"), "模型选择按钮应直接展开模型列表，不应先打开中间弹层");
+assert(portalVue.includes("portal-vue-ai-model-chip") && !portalVue.includes("portal-vue-ai-model-panel-popper"), "模型选择按钮应直接展开模型列表，不应先打开中间弹层");
 assert(portalCss.includes(".portal-vue-ai-chip-line-select { width: 200px; }") && portalCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }"), "业务线与模型下拉应统一为紧凑的 200px 宽度");
 assert(portalVue.includes('reasoning: "high"') && portalVue.includes("maxTokens=this.currentContextLimit") && portalVue.includes("reasoningEffort:this.reasoning,maxTokens:this.maxTokens"), "分析请求应固定使用最高推理强度和当前模型最高上下文");
 assert(!portalVue.includes("推理强度") && !portalVue.includes("上下文长度") && !portalVue.includes("重置为默认设置") && !portalVue.includes("portal-vue-ai-model-reset"), "模型菜单只应保留模型选择，不展示额外设置");
