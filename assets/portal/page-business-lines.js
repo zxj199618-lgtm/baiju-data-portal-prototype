@@ -111,7 +111,13 @@
       kbsOf: line => kbsOfLine(line.name),
       skillsOf: line => skillsOfLine(line.name),
       goSkills(line) { window.PortalVue.bizStore.focusSkillLine = line.name; window.portalVueBridge.setPage("Skill 配置"); },
-      goKnowledge(line) { window.PortalVue.bizStore.focusLine = line.name; window.portalVueBridge.setPage("AI 知识库"); },
+      goKnowledge(line) {
+        const main = bizStore.kbs.find(kb => kb.type === "业务线" && kb.target === line.name);
+        if (!main) return window.portalVueBridge.setPage("AI 知识库");
+        bizStore.openEdit = "";
+        window.portalVueBridge.setKnowledgeDetailId(main.id);
+        window.portalVueBridge.setPage("知识库详情");
+      },
       openForm(line) {
         this.editing = line;
         this.form = line ? { id: line.id, name: line.name, desc: line.desc, enabled: line.enabled } : { id: "", name: "", desc: "", enabled: true };
