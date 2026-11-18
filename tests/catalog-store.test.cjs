@@ -68,6 +68,16 @@ describe("数据资产目录（单元）", () => {
     assert.ok(catalog.save("管理", "tags", { rev: 1, items: [] }).ok);
   });
 
+  test("菜单树：编号与权限标识全树唯一，层级与结构校验，需要「菜单管理」编辑权限", () => {
+    const node = (id, permission, children = []) => ({ id, name: id, path: `/${id}`, permission, children });
+    assert.equal(catalog.save("访客甲", "menus", { items: [] }).status, 403);
+    assert.ok(catalog.save("管理", "menus", { items: [node("M1", "p1", [node("M11", "p11")]), node("M2", "p2")] }).ok);
+    assert.match(catalog.save("管理", "menus", { items: [node("M1", "p1", [node("M1", "p2")])] }).error, /编号重复/);
+    assert.match(catalog.save("管理", "menus", { items: [node("M1", "p1", [node("M2", "p1")])] }).error, /权限标识重复/);
+    assert.match(catalog.save("管理", "menus", { items: [node("M1", "p1", [node("M2", "p2", [node("M3", "p3", [node("M4", "p4")])])])] }).error, /层级/);
+    assert.match(catalog.save("管理", "menus", { items: [{ ...node("M1", "p1"), children: "x" }] }).error, /数组/);
+  });
+
   test("推送目标的 sk 只存服务端：读出来是掩码，掩码交回表示不改，传新值才更新", () => {
     catalog.save("管理", "targets", { items: [{ name: "巨量", bucket: "b", sk: "real-secret" }] });
     const read = catalog.view("管理").collections.targets.items[0];

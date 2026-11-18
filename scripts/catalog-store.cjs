@@ -1,5 +1,5 @@
 /**
- * 数据资产目录存储：数据表与维表（assets）、字典（dictionaries）、标签主体表（tags）、推送目标（targets）。
+ * 数据资产目录存储：数据表与维表（assets）、字典（dictionaries）、标签主体表（tags）、推送目标（targets）、菜单（menus）。
  * 每个集合是一份带版本号（rev）的整份快照，保存在 DATA_DIR/catalog.json。
  *
  * 规则集中在这里：
@@ -19,8 +19,34 @@ const COLLECTIONS = {
   assets: { label: "数据表与维表", editMenus: ["表管理", "维表管理"], keyOf: item => item.assetId || `${item.database || ""}.${item.table || ""}`, required: ["table", "cnName"], max: 1000 },
   dictionaries: { label: "字典", editMenus: ["字典管理"], keyOf: item => item.dictId || item.code, required: ["code", "name"], max: 500 },
   tags: { label: "标签主体表", editMenus: ["标签管理"], keyOf: item => item.name, required: ["name", "cn"], max: 200 },
-  targets: { label: "推送目标", editMenus: ["人群包推送渠道"], keyOf: item => item.name, required: ["name"], max: 100, secretFields: ["sk"] }
+  targets: { label: "推送目标", editMenus: ["人群包推送渠道"], keyOf: item => item.name, required: ["name"], max: 100, secretFields: ["sk"] },
+  // 菜单是一棵树（顶级目录带 children）：编号、权限标识在整棵树里都不能重复
+  menus: { label: "菜单", editMenus: ["菜单管理"], keyOf: item => item.id, required: ["id", "name", "path", "permission"], max: 100, validate: validateMenuTree }
 };
+
+/** 菜单树校验：深度 ≤ 3、总数 ≤ 300，编号与权限标识全树唯一，children 必须是数组 */
+function validateMenuTree(items) {
+  const ids = new Set(), permissions = new Set();
+  let count = 0;
+  const walk = (nodes, depth) => {
+    if (depth > 3) return "菜单层级过深";
+    for (const node of nodes) {
+      if (++count > 300) return "菜单数量过多";
+      for (const field of ["id", "name", "path", "permission"]) if (typeof node[field] !== "string" || !node[field].trim()) return `菜单的「${field}」不能为空`;
+      if (ids.has(node.id)) return `菜单编号重复：${node.id}`;
+      if (permissions.has(node.permission)) return `权限标识重复：${node.permission}`;
+      ids.add(node.id); permissions.add(node.permission);
+      if (node.children !== undefined) {
+        if (!Array.isArray(node.children)) return "菜单的 children 必须是数组";
+        for (const child of node.children) if (!child || typeof child !== "object" || Array.isArray(child)) return "菜单里有不合法的条目";
+        const inner = walk(node.children, depth + 1);
+        if (inner) return inner;
+      }
+    }
+    return "";
+  };
+  return walk(items, 1);
+}
 const NAMES = Object.keys(COLLECTIONS);
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
@@ -116,6 +142,8 @@ function createCatalogStore({ dataDir, orgStore }) {
       }
       items.push(item);
     }
+    const treeError = spec.validate ? spec.validate(items) : "";
+    if (treeError) return { ok: false, status: 400, error: treeError };
     const rev = currentRev + 1;
     persist({ ...all, [name]: { items, rev, updatedAt: new Date().toISOString() } });
     return { ok: true, rev };

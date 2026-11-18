@@ -9,7 +9,8 @@
     confirmAction,
     ep,
     mount,
-    notify
+    notify,
+    state
   } = window.PortalVue;
 
 
@@ -110,7 +111,7 @@
         </portal-form-page>
       </el-config-provider>
     `,
-    data:()=>({menus:menuTreeSeed.map(item=>({...item,children:item.children.map(child=>({...child,parentId:item.id}))})),formVisible:false,editingId:"",parentId:"",form:{},icons:menuIcons}),
+    data:()=>({menus:state.menus,formVisible:false,editingId:"",parentId:"",form:{},icons:menuIcons}),
     computed:{
       rootMenus(){return this.menus;},
       treeRows(){return this.menus;}
@@ -147,10 +148,12 @@
         if(row.children.length)return ep.ElMessage.warning("请先删除子菜单");
         if(!await confirmAction("删除菜单",`确认删除菜单「${row.name}」？删除后相关权限组的菜单权限将同步失效。`))return;
         if(row.parentId){const parent=this.findMenu(row.parentId);parent.menu.children=parent.menu.children.filter(item=>item.id!==row.id);}
-        else this.menus=this.menus.filter(item=>item.id!==row.id);
+        else this.menus.splice(0,this.menus.length,...this.menus.filter(item=>item.id!==row.id));
         notify(`菜单「${row.name}」已删除`);
       }
     }
   };
+  /* 菜单数据放在全局 state 里，由 catalogSync 与服务端同步；服务端还没有保存过时，用这里的默认菜单作为初始数据 */
+  if (!state.menus.length) state.menus.push(...menuTreeSeed.map(item=>({...item,children:item.children.map(child=>({...child,parentId:item.id}))})));
   mount("#menuManagementView", MenuManagementApp, "menu-management");
 })();

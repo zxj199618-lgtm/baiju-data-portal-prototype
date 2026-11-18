@@ -30,7 +30,8 @@
     tables: cpBridge.tables,
     targets: cpBridge.targets,
     dictionaries: bridge.dictionaries,
-    reportBatches: bridge.reportBatches
+    reportBatches: bridge.reportBatches,
+    menus: []
   });
 
   /* Skill 图标既可以是上传的图片（data URL / 远程地址），也可以是随原型分发的内置 SVG 资源 */
@@ -223,7 +224,7 @@
      与看板同一套做法：登录后读取并替换本地数组（原地替换，别处持有的引用不失效）；有对应菜单编辑权限的人修改（经 notify）后防抖保存；
      服务端还没有保存过时，有编辑权限的人把页面自带的数据整份交上去作为初始数据。推送目标的 sk 只在服务端，页面里是掩码。 */
   const catalogSync = {
-    collections: { assets: () => state.assets, dictionaries: () => state.dictionaries, tags: () => state.tables, targets: () => state.targets },
+    collections: { assets: () => state.assets, dictionaries: () => state.dictionaries, tags: () => state.tables, targets: () => state.targets, menus: () => state.menus },
     meta: {}, timer: null, ready: false,
     snapshotOf(name) { return JSON.stringify(this.collections[name]()); },
     apply(name, entry) {

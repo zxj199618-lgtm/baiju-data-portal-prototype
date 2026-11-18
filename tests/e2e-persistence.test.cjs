@@ -38,13 +38,16 @@ describe("修改落到后端，刷新后仍在", () => {
       const token = await harness.tokenFor("曾祥竞");
       const initial = await harness.call("GET", "/v1/boards", { token });
       assert.equal(initial.data.saved, true, "有编辑权限的人首次登录应把默认看板存到服务器");
-      assert.ok((await harness.call("GET", "/v1/portal-data", { token })).data.collections.dictionaries.saved);
+      const catalog = (await harness.call("GET", "/v1/portal-data", { token })).data.collections;
+      assert.ok(catalog.dictionaries.saved);
+      assert.ok(catalog.menus.saved && catalog.menus.items.length > 3, "默认菜单应已存到服务器");
 
       // 改字典（经页面的同步通道保存）、改看板名
       await page.evaluate(async () => {
         const api = window.portalVueModuleApi;
         api.state.dictionaries.push({ dictId: "D_E2E", code: "e2e_dict", name: "E2E 字典", desc: "", owner: "曾祥竞", status: "启用", updatedAt: "", items: [] });
         api.state.boards[0].desc = "E2E 备注";
+        api.state.menus[0].children.push({ id: "M_E2E", name: "E2E 菜单", icon: "--", sort: 1, path: "/e2e", cache: true, permission: "e2e_menu", children: [], parentId: api.state.menus[0].id });
         api.catalogSync.schedulePush();
         api.boardSync.schedulePush();
         await new Promise(resolve => setTimeout(resolve, 1500));
@@ -56,8 +59,9 @@ describe("修改落到后端，刷新后仍在", () => {
       await page.reload();
       await page.waitForSelector("#portalApp:not(.hidden)");
       await page.waitForFunction(() => window.portalVueModuleApi?.catalogSync?.ready && window.portalVueModuleApi?.boardSync?.ready);
-      const after = await page.evaluate(() => ({ dict: window.portalVueModuleApi.state.dictionaries.some(item => item.dictId === "D_E2E"), desc: window.portalVueModuleApi.state.boards[0].desc }));
+      const after = await page.evaluate(() => ({ menu: window.portalVueModuleApi.state.menus[0].children.some(item => item.id === "M_E2E"), dict: window.portalVueModuleApi.state.dictionaries.some(item => item.dictId === "D_E2E"), desc: window.portalVueModuleApi.state.boards[0].desc }));
       assert.equal(after.dict, true, "刷新后字典仍在");
+      assert.equal(after.menu, true, "刷新后菜单仍在");
       assert.equal(after.desc, "E2E 备注", "刷新后看板修改仍在");
     } finally { await context.close(); }
   });
