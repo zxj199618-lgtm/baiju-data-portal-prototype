@@ -1049,7 +1049,7 @@ describe("浏览器端到端", () => {
   test("工作台输入框下方是「选择业务线」，不再出现「选择数据表」级联", async t => withPage(t, async page => {
     await openWorkbench(page, "曾祥竞");
     assert.equal(await lineSelect(page).count(), 1, "应有业务线选择框");
-    assert.match(await lineSelect(page).textContent(), /选择业务线/);
+    assert.match(await lineSelect(page).textContent(), /通用/);
     assert.equal(await page.locator(".portal-vue-ai-composer-bar").getByText("选择数据表").count(), 0, "不应再有选择数据表级联");
     assert.equal(await page.locator(".portal-vue-ai-composer-bar .el-cascader").count(), 0);
     const options = await openLineOptions(page);

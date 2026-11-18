@@ -269,7 +269,8 @@
                 <div class="portal-vue-ai-composer">
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
-                    <el-select v-model="activeBusinessLine" size="small" clearable class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper">
+                    <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper" data-test="ai-line-select" @update:model-value="pickLine">
+                      <el-option label="通用" value="通用"></el-option>
                       <el-option v-for="line in lineChoices" :key="line" :label="line" :value="line"></el-option>
                     </el-select>
                     <el-popover v-model:visible="modelPop" trigger="click" placement="top-start" :width="320" :disabled="!models.length" popper-class="portal-vue-ai-model-pop">
@@ -1129,6 +1130,7 @@
         const list=this.activeSession?.messages||[];
         return !this.thinking&&!msg.streaming&&Array.isArray(msg.suggestions)&&msg.suggestions.length>0&&list[list.length-1]===msg;
       },
+      pickLine(value){this.activeBusinessLine=value==="通用"?"":value;},
       askFollowUp(text){
         if(this.thinking)return;
         this.sendMessage({question:text});
