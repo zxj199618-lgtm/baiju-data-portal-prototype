@@ -84,6 +84,7 @@
     bridge.notifyDataChange();
     orgSync.schedulePush();
     boardSync.schedulePush();
+    catalogSync.schedulePush();
     if (message) ep.ElMessage.success(message);
   }
 
@@ -183,7 +184,7 @@
         const view = await response.json();
         if (!view.saved) {
           // 服务端还没有任何看板：能编辑的人上传页面默认看板作为初始数据；其他人先看不到任何看板
-          if (view.canEdit) { this.canEdit = true; this.ready = true; await this.push(true); return; }
+          if (view.canEdit) { this.canEdit = true; await this.push(true); this.ready = true; return; }
           this.apply({ ...view, boards: [], categories: [] });
         } else this.apply(view);
         this.ready = true;
@@ -215,6 +216,60 @@
         const response = await fetch(`${analysisGatewayBase}/v1/boards/favorites`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ favorites: [...state.favorites] }) });
         if (!response.ok) ep.ElMessage.warning("收藏没有保存到服务器");
       } catch (error) { /* 网关未启动时只在本页生效 */ }
+    }
+  };
+
+  /* ===== 数据资产目录与服务端同步：数据表与维表 / 字典 / 标签主体表 / 推送目标 =====
+     与看板同一套做法：登录后读取并替换本地数组（原地替换，别处持有的引用不失效）；有对应菜单编辑权限的人修改（经 notify）后防抖保存；
+     服务端还没有保存过时，有编辑权限的人把页面自带的数据整份交上去作为初始数据。推送目标的 sk 只在服务端，页面里是掩码。 */
+  const catalogSync = {
+    collections: { assets: () => state.assets, dictionaries: () => state.dictionaries, tags: () => state.tables, targets: () => state.targets },
+    meta: {}, timer: null, ready: false,
+    snapshotOf(name) { return JSON.stringify(this.collections[name]()); },
+    apply(name, entry) {
+      const target = this.collections[name]();
+      target.splice(0, target.length, ...(entry.items || []).map(item => JSON.parse(JSON.stringify(item))));
+      this.meta[name] = { rev: Number(entry.rev) || 0, canEdit: !!entry.canEdit, last: this.snapshotOf(name) };
+      // 表所属业务线以业务线知识库为准（页面里的 bizLine 只是展示用，不反向写回）
+      if (name === "assets" && knowledgeData.ready) target.forEach(asset => { asset.bizLine = knowledgeData.tableLines[asset.cnName] || ""; });
+    },
+    async load() {
+      if (!window.portalAuth?.token()) return;
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/portal-data`);
+        if (!response.ok) return;
+        const data = await response.json();
+        for (const name of Object.keys(this.collections)) {
+          const entry = data.collections?.[name];
+          if (!entry) continue;
+          if (entry.saved) this.apply(name, entry);
+          else this.meta[name] = { rev: 0, canEdit: !!entry.canEdit, last: "" }; // 服务端还没有：保留页面自带的数据，有权限的人下面会把它交上去
+        }
+        for (const name of Object.keys(this.collections)) if (this.meta[name]?.canEdit && !data.collections[name].saved) await this.push(name, true);
+        this.ready = true;
+        refreshTick.value += 1;
+        bridge.notifyDataChange();
+      } catch (error) { /* 网关未启动时保持界面自带的内容 */ }
+    },
+    schedulePush() {
+      if (!this.ready) return;
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => Object.keys(this.collections).forEach(name => this.push(name)), 600);
+    },
+    async push(name, force = false) {
+      const meta = this.meta[name];
+      if (!meta?.canEdit) return;
+      const serialized = this.snapshotOf(name);
+      if (!force && serialized === meta.last) return;
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/portal-data/${name}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: JSON.parse(serialized), rev: force ? undefined : meta.rev }) });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok) { this.apply(name, data); return; }
+        ep.ElMessage.warning(`没有保存到服务器：${data.error || "未知错误"}。已恢复为服务器上的内容`);
+        await this.load();
+      } catch (error) {
+        ep.ElMessage.warning("没有保存到服务器：无法连接分析网关");
+      }
     }
   };
 
@@ -758,6 +813,7 @@
     expandMenuNames,
     fetchGateway,
     boardSync,
+    catalogSync,
     track,
     gatewayFieldsError,
     gatewayTableNames,

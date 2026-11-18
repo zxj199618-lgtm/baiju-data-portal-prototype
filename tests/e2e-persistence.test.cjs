@@ -1,0 +1,64 @@
+/**
+ * 页面数据落到后端：看板、字典等修改后，刷新页面仍在（服务器是唯一数据源）。
+ * 需要本机装有 Chrome；没有时整组跳过。运行：node --test tests/e2e-persistence.test.cjs
+ */
+const { test, before, after, describe } = require("node:test");
+const assert = require("node:assert/strict");
+const { startHarness } = require("./helpers/gateway-harness.cjs");
+
+let chromium = null;
+try { ({ chromium } = require("playwright-core")); } catch { /* 未安装 playwright-core */ }
+
+describe("修改落到后端，刷新后仍在", () => {
+  let harness, browser, skipReason = "";
+  before(async () => {
+    if (!chromium) { skipReason = "未安装 playwright-core"; return; }
+    try { browser = await chromium.launch({ channel: "chrome", headless: true }); }
+    catch (error) { skipReason = `无法启动 Chrome：${error.message.split("\n")[0]}`; return; }
+    harness = await startHarness({});
+  });
+  after(async () => { if (browser) await browser.close(); if (harness) await harness.stop(); });
+
+  async function login(page) {
+    await page.goto(harness.baseUrl + "/");
+    await page.fill('#gatewayLoginForm input[name="name"]', "曾祥竞");
+    await page.fill('#gatewayLoginForm input[name="password"]', harness.PASSWORD);
+    await page.click("#gatewayLoginBtn");
+    await page.waitForSelector("#portalApp:not(.hidden)");
+    await page.waitForFunction(() => window.portalVueModuleApi?.boardSync?.ready && window.portalVueModuleApi?.catalogSync?.ready);
+  }
+
+  test("首次登录把页面默认数据存到服务器；改字典和看板后刷新仍在", async t => {
+    if (skipReason) return t.skip(skipReason);
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(30000);
+    try {
+      await login(page);
+      const token = await harness.tokenFor("曾祥竞");
+      const initial = await harness.call("GET", "/v1/boards", { token });
+      assert.equal(initial.data.saved, true, "有编辑权限的人首次登录应把默认看板存到服务器");
+      assert.ok((await harness.call("GET", "/v1/portal-data", { token })).data.collections.dictionaries.saved);
+
+      // 改字典（经页面的同步通道保存）、改看板名
+      await page.evaluate(async () => {
+        const api = window.portalVueModuleApi;
+        api.state.dictionaries.push({ dictId: "D_E2E", code: "e2e_dict", name: "E2E 字典", desc: "", owner: "曾祥竞", status: "启用", updatedAt: "", items: [] });
+        api.state.boards[0].desc = "E2E 备注";
+        api.catalogSync.schedulePush();
+        api.boardSync.schedulePush();
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      });
+      const stored = await harness.call("GET", "/v1/portal-data", { token });
+      assert.ok(stored.data.collections.dictionaries.items.some(item => item.dictId === "D_E2E"), "字典应已保存到服务器");
+      assert.equal((await harness.call("GET", "/v1/boards", { token })).data.boards[0].desc, "E2E 备注");
+
+      await page.reload();
+      await page.waitForSelector("#portalApp:not(.hidden)");
+      await page.waitForFunction(() => window.portalVueModuleApi?.catalogSync?.ready && window.portalVueModuleApi?.boardSync?.ready);
+      const after = await page.evaluate(() => ({ dict: window.portalVueModuleApi.state.dictionaries.some(item => item.dictId === "D_E2E"), desc: window.portalVueModuleApi.state.boards[0].desc }));
+      assert.equal(after.dict, true, "刷新后字典仍在");
+      assert.equal(after.desc, "E2E 备注", "刷新后看板修改仍在");
+    } finally { await context.close(); }
+  });
+});

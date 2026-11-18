@@ -15,6 +15,7 @@
     knowledgeSync,
     orgSync,
     boardSync,
+    catalogSync,
     track,
     refreshTick,
     state,
@@ -31,7 +32,9 @@
     canEditPage,
     denyEdit,
     state,
-    orgSync
+    orgSync,
+    boardSync,
+    catalogSync
   };
   syncPrimaryAction();
   window.dispatchEvent(new CustomEvent("portal:page-change", { detail: { page: bridge.getPage() } }));
@@ -43,5 +46,5 @@
     track.pageView(page);
     if (page !== "数据看板") track.stopBoardVisit();
   });
-  Promise.all([orgSync.load(), boardSync.load()]).finally(() => bridge.recheckRoute?.());
+  Promise.all([orgSync.load(), boardSync.load(), catalogSync.load()]).finally(() => bridge.recheckRoute?.());
 })();

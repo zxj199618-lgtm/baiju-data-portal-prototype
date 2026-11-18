@@ -41,6 +41,7 @@ const { createFeedbackStore, RATINGS } = require("./feedback-store.cjs");
 const { createOrgStore } = require("./org-store.cjs");
 const { createBoardStore } = require("./board-store.cjs");
 const { createEventStore } = require("./event-store.cjs");
+const { createCatalogStore } = require("./catalog-store.cjs");
 const { createKnowledgeStore } = require("./knowledge-store.cjs");
 const { usableRelations } = require("./join-engine.cjs");
 const { createAccountStore } = require("./account-store.cjs");
@@ -1013,6 +1014,8 @@ const orgStore = createOrgStore({
 });
 /* 看板（列表 / 分类 / 收藏）与访问记录（埋点事件）：规则在 board-store / event-store，网关只做鉴权与转发 */
 const boardStore = createBoardStore({ dataDir: DATA_DIR, orgStore });
+/* 数据资产目录（数据表与维表 / 字典 / 标签主体表 / 推送目标）：整份快照 + 版本号，规则在 catalog-store */
+const catalogStore = createCatalogStore({ dataDir: DATA_DIR, orgStore });
 const eventStore = createEventStore({ dataDir: DATA_DIR, userIdOf: name => `u_${String(Math.max(0, accountStore.names().indexOf(name)) + 1).padStart(3, "0")}` });
 /** 能不能看「访问记录」：门户管理员，或所在权限组菜单里有「访问记录」 */
 function canViewAccessLog(name) {
@@ -3091,6 +3094,17 @@ async function handleRequest(req, res) {
     const outcome = boardStore.setFavorites(req.session.name, body.favorites);
     if (!outcome.ok) return sendJson(res, 400, { error: outcome.error });
     return sendJson(res, 200, { favorites: outcome.favorites });
+  }
+
+  /* 数据资产目录：读 = 登录用户；写 = 门户管理员或有对应菜单编辑权限（见 catalog-store） */
+  if (req.method === "GET" && url.pathname === "/v1/portal-data") return sendJson(res, 200, catalogStore.view(req.session.name));
+  const portalDataMatch = url.pathname.match(/^\/v1\/portal-data\/([a-z]+)$/);
+  if (req.method === "PUT" && portalDataMatch) {
+    const body = await readBody(req, Infinity, 6 * 1024 * 1024);
+    const outcome = catalogStore.save(req.session.name, portalDataMatch[1], { items: body.items, rev: body.rev });
+    if (!outcome.ok) return sendJson(res, outcome.status || 400, { error: outcome.error });
+    appendAuditEntry({ type: "catalog-change", user: req.session.name, collection: portalDataMatch[1], items: Array.isArray(body.items) ? body.items.length : undefined });
+    return sendJson(res, 200, { rev: outcome.rev, ...catalogStore.view(req.session.name).collections[portalDataMatch[1]] });
   }
 
   /* 访问记录：任何登录用户可以上报自己的访问（用户 / IP / 终端由服务端填）；查看需要「访问记录」菜单权限 */
