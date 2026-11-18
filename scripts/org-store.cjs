@@ -33,6 +33,19 @@ function fieldMap(raw, tables, groupName, label) {
   return { ok: true, value };
 }
 
+/** 菜单改名迁移：旧「运营中心」拆成「AI 反馈」「访问记录」，旧「看板访问记录」并入「访问记录」。读取已保存的权限组时自动换成新名称，保证原来有权限的人不丢权限 */
+const MENU_RENAMES = { "运营中心": ["AI 反馈", "访问记录"], "看板访问记录": ["访问记录"] };
+function migrateMenuNames(list) {
+  if (!Array.isArray(list)) return list;
+  const out = [];
+  for (const name of list) for (const next of (MENU_RENAMES[name] || [name])) if (!out.includes(next)) out.push(next);
+  return out;
+}
+function migrateGroup(group) {
+  if (!group || typeof group !== "object") return group;
+  return { ...group, menus: migrateMenuNames(group.menus), menuEdits: migrateMenuNames(group.menuEdits) };
+}
+
 function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts: accountsInput, isActive, tableNames }) {
   const file = path.join(dataDir, "org.json");
   // 账号清单可以是数组，也可以是函数（账号可新增 / 停用，每次现取）；isActive 用来判断「至少保留一个管理员」时只数未停用的账号
@@ -44,7 +57,7 @@ function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts: a
   /** 当前生效的组与账号分组：已保存的快照优先，否则用默认值 */
   function effective() {
     const saved = load();
-    const groups = Array.isArray(saved.groups) && saved.groups.length ? saved.groups : defaultGroups.map(group => ({ ...group }));
+    const groups = Array.isArray(saved.groups) && saved.groups.length ? saved.groups.map(migrateGroup) : defaultGroups.map(group => ({ ...group }));
     const userGroups = { ...defaultUserGroups, ...(saved.userGroups || {}) };
     accountList().forEach(name => { if (!userGroups[name]) userGroups[name] = UNASSIGNED; });
     return { groups, userGroups, customized: Array.isArray(saved.groups) && saved.groups.length > 0 };
@@ -156,4 +169,4 @@ function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts: a
   return { effective, groupOf, isAdmin, tablesOf, hiddenFieldsOf, save };
 }
 
-module.exports = { createOrgStore, ADMIN_GROUP, UNASSIGNED, ALL_TABLES };
+module.exports = { createOrgStore, migrateMenuNames, ADMIN_GROUP, UNASSIGNED, ALL_TABLES };

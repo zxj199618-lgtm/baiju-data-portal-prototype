@@ -23,6 +23,14 @@ describe("组织存储（单元）", () => {
 
   const group = (name, extra = {}) => ({ name, tables: [], menus: ["灵犀智析"], ...extra });
 
+  test("旧菜单名自动迁移：运营中心 → AI 反馈 + 访问记录，看板访问记录 → 访问记录，不丢权限也不重复", () => {
+    fs.writeFileSync(path.join(dir, "org.json"), JSON.stringify({ groups: [group("门户管理员", { tables: ["全部数据表"], menus: ["灵犀智析", "运营中心", "看板访问记录"], menuEdits: ["运营中心"] }), group("分析师", { menus: ["看板访问记录", "访问记录"] })], userGroups: { 甲: "门户管理员", 乙: "分析师" } }));
+    const groups = store.effective().groups;
+    assert.deepEqual(groups[0].menus, ["灵犀智析", "AI 反馈", "访问记录"]);
+    assert.deepEqual(groups[0].menuEdits, ["AI 反馈", "访问记录"]);
+    assert.deepEqual(groups[1].menus, ["访问记录"]);
+  });
+
   test("没保存过时使用默认值：管理员看全部表，分析师只看授权的表", () => {
     assert.deepEqual(store.tablesOf("甲"), TABLES);
     assert.deepEqual(store.tablesOf("乙"), ["表甲"]);
