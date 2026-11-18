@@ -168,10 +168,10 @@ assert(!portalVue.includes("data:image/png;base64") && !portalVue.includes("data
 
 assert(portalBridge.includes('name: "维表管理"') && portalBridge.includes('name: "字典管理"'), "数据资产应包含维表管理与字典管理菜单");
 ["2.0", "3.0", "1.0"].forEach(version => assert(!portalBridge.includes('badge: "' + version + '"'), "已上线能力的角标应清除：" + version));
-assert(portalBridge.includes('name: "表管理", badge: "4.0"') && portalBridge.includes('name: "维表管理", badge: "4.0"') && portalBridge.includes('name: "字典管理", badge: "4.0"'), "4.0 角标应保留");
+["3.1", "4.0"].forEach(version => assert(!portalBridge.includes('badge: "' + version + '"'), "角标只展示 5.0：" + version));
 assert(portalBridge.includes('name: "灵犀智析", badge: "5.0"') && portalBridge.includes('name: "Skill 配置", badge: "5.0"'), "5.0 角标应保留");
 assert(portalBridge.indexOf('name: "标签管理"') > portalBridge.indexOf('name: "表管理"') && portalBridge.indexOf('name: "维表管理"') > portalBridge.indexOf('name: "标签管理"'), "标签管理应紧跟表管理，位于维表管理之前");
-assert(portalBridge.includes('name: "数据告警", badge: "3.1"') && portalVue.includes("portal-nav-badge--v31"), "本次新增的数据告警应标记 3.1");
+assert(portalBridge.includes('name: "数据告警" }') && portalBridge.includes('name: "AI 反馈", badge: "5.0"') && portalBridge.includes('name: "字典管理", badge: "5.0"'), "数据告警不再带角标；本版有改动或新增的菜单（AI 反馈、字典管理等）都标 5.0");
 assert(portalVue.includes("navBadges("), "侧栏应支持同一菜单展示多个版本角标");
 assert(portalCss.includes(".portal-vue-menu .el-sub-menu__title { padding-right: 38px !important; }"), "侧栏分组标题需为展开/折叠箭头预留位置，避免版本角标遮挡");
 assert(!portalBridge.includes("isNew: true") && !portalVue.includes(">NEW</el-tag>"), "菜单不应再使用 NEW 角标");
@@ -404,7 +404,7 @@ assert(portalVue.includes("SkillDetailApp") && portalVue.includes("返回 Skill 
 assert(portalRoutes.includes('page: "Skill 详情"') && portalRoutes.includes('path: "/ai/skills/:skill"'), "Skill 详情应注册 #/ai/skills/:skill 地址");
 assert(portalBridge.includes("getSkillDetailId") && portalBridge.includes("setSkillDetailId") && portalBridge.includes("portalSkillDetailId"), "Skill 详情应通过 bridge 读写当前 Skill id");
 assert(portalVue.includes("sk-basic") && portalVue.includes("提示词与版本管理") && !portalVue.includes('el-tab-pane label="基本信息"') && !portalVue.includes('label="版本管理"') && !portalVue.includes('label="引用的表"'), "Skill 详情应把基本信息放顶部，下面是提示词与版本管理（不再分页签）");
-assert(portalVue.includes("saveVersion") && portalVue.includes("通用分析 Skill 的提示词") && portalVue.includes("renderedFormPrompt") && !portalVue.includes("自动路由规则") && !portalVue.includes("兜底技能（未命中关键词时使用）"), "Skill 详情应能保存为未发布版本，提示词用 Markdown 编辑器；通用分析 Skill 不再配置关键词路由规则与兜底技能，只配补充判断提示词");
+assert(portalVue.includes("saveVersion") && portalVue.includes("renderedFormPrompt") && !portalVue.includes("自动路由规则") && !portalVue.includes("兜底技能（未命中关键词时使用）"), "Skill 详情应能保存为未发布版本，提示词用 Markdown 编辑器；通用分析 Skill 不再配置关键词路由规则与兜底技能，只配补充判断提示词");
 const skillDetailSource = read("assets/portal/page-skill-detail.js");
 assert(skillDetailSource.includes("sk-pv-textarea") && !skillDetailSource.includes(':rows="6"'), "提示词输入应吃满工作区，不再使用 6 行文本框");
 assert(skillDetailSource.includes("beforeLeave") && skillDetailSource.includes("有未保存的修改，确定离开？"), "离开详情或切到其他页签前，未保存修改应先确认");

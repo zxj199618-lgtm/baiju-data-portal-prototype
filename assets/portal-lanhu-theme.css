@@ -614,3 +614,13 @@
   --el-button-active-border-color: #CACBCC;
   min-width: 88px;
 }
+
+/* 折叠侧栏的二级菜单浮层：圆角更柔和，条目留白、悬停高亮 */
+.el-popper.lanhu-menu-popper,
+.el-popper.is-light.lanhu-menu-popper { border: 1px solid #eef1f7; border-radius: 14px; box-shadow: 0 10px 32px rgba(31, 45, 80, .14); overflow: hidden; }
+.lanhu-menu-popper .el-menu--popup { min-width: 176px; padding: 8px; border-radius: 14px; background: #fff; }
+.lanhu-menu-popper .el-menu-item { height: 40px; line-height: 40px; margin: 2px 0; padding: 0 12px !important; border-radius: 10px; font-size: 14px; transition: background .15s, color .15s; }
+.lanhu-menu-popper .el-menu-item:hover { background: #f1f5fd; color: #0066FF; }
+.lanhu-menu-popper .el-menu-item.is-active { background: #0066FF !important; color: #fff !important; box-shadow: 0 4px 12px rgba(0, 102, 255, .28); }
+.lanhu-menu-popper .el-menu-item > span:first-child { flex: 1; }
+.lanhu-menu-popper .portal-nav-badges { margin-left: 14px; }

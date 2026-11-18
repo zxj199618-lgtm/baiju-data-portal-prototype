@@ -70,7 +70,6 @@
                 </div>
               </template>
             </section>
-            <div v-if="isRouter" class="sk-router-note"><strong>通用分析 Skill 的提示词</strong><p>用来补充「该把问题交给哪个 Skill」的判断规则，例如哪类问题优先交给哪个 Skill；留空则只按各 Skill 的描述判断。</p></div>
             <div class="sk-section-title">提示词与版本管理</div>
             <div>
                 <div class="sk-pv">
@@ -458,9 +457,6 @@
         ".sk-basic-desc p { margin:0; font-size:14px; line-height:1.7; color:#3f4857; }",
         ".sk-basic-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,2fr) 140px; gap:16px; }",
         ".sk-basic-foot { display:flex; align-items:center; justify-content:space-between; gap:16px; }",
-        ".sk-router-note { margin-top:16px; padding:16px 20px; border:1px dashed #c9d6ee; border-radius:12px; background:#f7faff; }",
-        ".sk-router-note strong { font-size:14px; color:#1f2430; }",
-        ".sk-router-note p { margin:6px 0 0; font-size:13px; line-height:1.7; color:#566174; }",
         ".sk-section-title { margin:20px 0 12px; font-size:15px; font-weight:600; color:#1f2430; }",
         ".sk-pv { display:grid; grid-template-columns:260px minmax(0,1fr); gap:20px; align-items:start; }",
         ".sk-pv-list { display:grid; gap:8px; max-height:calc(100vh - 220px); overflow:auto; }",
