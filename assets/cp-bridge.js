@@ -988,6 +988,8 @@
       tables: cpTables,
       users: () => window.simpleUsers || [],
       nextAudId,
+      /* 人群包列表被服务端数据替换后，把编号计数器推到已有编号之后，避免新建时撞号 */
+      syncAudSeq: () => { cpPackages.forEach(pkg => { const n = Number(String(pkg.id || "").match(/(\d+)$/)?.[1]); if (n) audSeq = Math.max(audSeq, n); }); },
       previewAudId,
       buildRuns,
       formatRunDuration,

@@ -109,6 +109,29 @@ describe("数据资产目录（单元）", () => {
     assert.equal(apis.resetToken("管理", "apis", "不存在").status, 404);
   });
 
+  test("人群包：枚举取值、推送渠道必须存在、SQL 只允许单条 SELECT、需要「人群包管理」编辑权限", () => {
+    const org = createOrgStore({ dataDir: dir, defaultGroups: [group("门户管理员", { tables: ["全部数据表"] }), group("人群运营", { menuEdits: ["人群包管理"] }), group("访客")], defaultUserGroups: { 管理: "门户管理员", 运营甲: "人群运营", 访客甲: "访客" }, accounts: ["管理", "运营甲", "访客甲"], tableNames: [] });
+    const store = createCatalogStore({ dataDir: dir, orgStore: org });
+    const pkg = (extra = {}) => ({ id: "AUD-1", name: "测试包", category: "定向包", mode: "ui", table: "t", fields: ["phone_hash"], encrypt: "MD5", freq: "手动下载", channel: "", status: "启用", ...extra });
+    assert.equal(store.save("访客甲", "packages", { items: [pkg()] }).status, 403);
+    assert.ok(store.save("运营甲", "packages", { items: [pkg()] }).ok);
+    for (const [extra, pattern] of [[{ category: "别的" }, /category/], [{ encrypt: "base64" }, /encrypt/], [{ freq: "每周推送" }, /freq/], [{ dailyTime: "25:00" }, /HH:mm/], [{ hourlyMinute: 61 }, /0 到 59/], [{ fields: [] .concat(Array(11).fill("a")) }, /输出字段/], [{ freq: "每日推送", channel: "" }, /推送渠道/]]) {
+      assert.match(store.save("管理", "packages", { items: [pkg(extra)] }).error, pattern);
+    }
+    // 推送渠道必须是已有的推送目标
+    store.save("管理", "targets", { items: [{ name: "巨量DMP-OSS", bucket: "b" }] });
+    assert.ok(store.save("管理", "packages", { items: [pkg({ freq: "每日推送", channel: "巨量DMP-OSS" })] }).ok);
+    assert.match(store.save("管理", "packages", { items: [pkg({ freq: "每日推送", channel: "不存在的渠道" })] }).error, /推送渠道不存在/);
+    // SQL：只许单条 SELECT
+    const sql = value => store.save("管理", "packages", { items: [pkg({ mode: "sql", sql: value })] });
+    assert.ok(sql("SELECT DISTINCT phone_hash FROM t WHERE dt = :max_pt AND create_time > 1;").ok);
+    assert.ok(sql("select replace(a, 'x', 'y') from t").ok, "字符串函数 replace 不是写入语句");
+    assert.match(sql("").error, /不能为空/);
+    assert.match(sql("DELETE FROM t").error, /只允许 SELECT/);
+    assert.match(sql("SELECT 1; DROP TABLE t").error, /单条语句/);
+    assert.match(sql("SELECT * FROM t WHERE a = 1 AND (SELECT 1 FROM x) UNION SELECT 1 FROM y INTO OUTFILE '/tmp/x'").error, /不允许/);
+  });
+
   test("推送目标的 sk 只存服务端：读出来是掩码，掩码交回表示不改，传新值才更新", () => {
     catalog.save("管理", "targets", { items: [{ name: "巨量", bucket: "b", sk: "real-secret" }] });
     const read = catalog.view("管理").collections.targets.items[0];

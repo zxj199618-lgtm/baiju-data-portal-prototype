@@ -29,6 +29,7 @@
     groups: bridge.groups,
     tables: cpBridge.tables,
     targets: cpBridge.targets,
+    packages: cpBridge.packages,
     dictionaries: bridge.dictionaries,
     reportBatches: bridge.reportBatches,
     menus: []
@@ -224,7 +225,7 @@
      与看板同一套做法：登录后读取并替换本地数组（原地替换，别处持有的引用不失效）；有对应菜单编辑权限的人修改（经 notify）后防抖保存；
      服务端还没有保存过时，有编辑权限的人把页面自带的数据整份交上去作为初始数据。推送目标的 sk 只在服务端，页面里是掩码。 */
   const catalogSync = {
-    collections: { assets: () => state.assets, dictionaries: () => state.dictionaries, tags: () => state.tables, targets: () => state.targets, menus: () => state.menus, apis: () => state.apis },
+    collections: { assets: () => state.assets, dictionaries: () => state.dictionaries, tags: () => state.tables, targets: () => state.targets, menus: () => state.menus, apis: () => state.apis, packages: () => state.packages },
     meta: {}, timer: null, ready: false,
     snapshotOf(name) { return JSON.stringify(this.collections[name]()); },
     apply(name, entry) {
@@ -232,6 +233,7 @@
       target.splice(0, target.length, ...(entry.items || []).map(item => JSON.parse(JSON.stringify(item))));
       this.meta[name] = { rev: Number(entry.rev) || 0, canEdit: !!entry.canEdit, last: this.snapshotOf(name) };
       // 表所属业务线以业务线知识库为准（页面里的 bizLine 只是展示用，不反向写回）
+      if (name === "packages") window.cpVueBridge?.syncAudSeq?.();
       if (name === "assets" && knowledgeData.ready) target.forEach(asset => { asset.bizLine = knowledgeData.tableLines[asset.cnName] || ""; });
     },
     async load() {
@@ -248,6 +250,8 @@
         }
         for (const name of Object.keys(this.collections)) if (this.meta[name]?.canEdit && !data.collections[name].saved) await this.push(name, true);
         this.ready = true;
+        // 有些模块（人群包）自己改数据、不经过 notify：每隔几秒比对一次，有变化就保存
+        if (!this.watcher) this.watcher = setInterval(() => this.schedulePush(), 4000);
         refreshTick.value += 1;
         bridge.notifyDataChange();
       } catch (error) { /* 网关未启动时保持界面自带的内容 */ }
@@ -266,8 +270,9 @@
         const response = await fetch(`${analysisGatewayBase}/v1/portal-data/${name}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: JSON.parse(serialized), rev: force ? undefined : meta.rev }) });
         const data = await response.json().catch(() => ({}));
         if (response.ok) { this.apply(name, data); return data; }
-        ep.ElMessage.warning(`没有保存到服务器：${data.error || "未知错误"}。已恢复为服务器上的内容`);
-        await this.load();
+        // 首次上传初始数据（force）被拒绝时只提示，不再重新加载——重新加载会再次尝试上传，造成死循环
+        ep.ElMessage.warning(`没有保存到服务器：${data.error || "未知错误"}${force ? "" : "。已恢复为服务器上的内容"}`);
+        if (!force) await this.load();
       } catch (error) {
         ep.ElMessage.warning("没有保存到服务器：无法连接分析网关");
       }

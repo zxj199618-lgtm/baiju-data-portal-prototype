@@ -1,5 +1,5 @@
 /**
- * 数据资产目录存储：数据表与维表（assets）、字典（dictionaries）、标签主体表（tags）、推送目标（targets）、菜单（menus）、开放 API（apis）。
+ * 数据资产目录存储：数据表与维表（assets）、字典（dictionaries）、标签主体表（tags）、推送目标（targets）、菜单（menus）、开放 API（apis）、人群包（packages）。
  * 每个集合是一份带版本号（rev）的整份快照，保存在 DATA_DIR/catalog.json。
  *
  * 规则集中在这里：
@@ -24,6 +24,8 @@ const COLLECTIONS = {
   targets: { label: "推送目标", editMenus: ["人群包推送渠道"], keyOf: item => item.name, required: ["name"], max: 100, secretFields: ["sk"] },
   // 开放 API：apiId 是稳定编号（改名不影响）；Token 由服务端签发（见 issueToken）
   apis: { label: "开放 API", editMenus: ["数据开放平台"], keyOf: item => item.apiId, required: ["name"], max: 300, tokenField: "token", idField: "apiId", idPrefix: "API" },
+  // 人群包：按菜单「人群包管理」授权；每条的枚举取值、推送渠道、SQL 都在 checkPackage 里校验
+  packages: { label: "人群包", editMenus: ["人群包管理"], keyOf: item => item.id, required: ["id", "name"], max: 2000, check: checkPackage },
   // 菜单是一棵树（顶级目录带 children）：编号、权限标识在整棵树里都不能重复
   menus: { label: "菜单", editMenus: ["菜单管理"], keyOf: item => item.id, required: ["id", "name", "path", "permission"], max: 100, validate: validateMenuTree }
 };
@@ -75,6 +77,38 @@ function cleanJson(value, depth = 0) {
     return out;
   }
   return undefined;
+}
+
+const PACKAGE_ENUMS = {
+  category: ["定向包", "排除包"], mode: ["ui", "sql"], status: ["启用", "停用"],
+  encrypt: ["不加密", "MD5", "SHA256"], freq: ["每日推送", "每小时推送", "手动下载"]
+};
+// 人群包 SQL 只允许单条 SELECT：后面要拿它去执行，所以这里先把写入 / 结构变更 / 多语句挡在门外
+const SQL_FORBIDDEN = /\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|merge|call|exec|execute|outfile|dumpfile|load_file)\b/i;
+
+/** 单个人群包的校验；ctx.targetNames 是当前推送目标名单（null 表示还没有目标数据，不校验渠道） */
+function checkPackage(item, ctx) {
+  const label = `人群包「${item.name}」`;
+  for (const [key, allowed] of Object.entries(PACKAGE_ENUMS)) {
+    if (item[key] !== undefined && !allowed.includes(item[key])) return `${label}的「${key}」取值不合法：${item[key]}`;
+  }
+  if (item.fields !== undefined && (!Array.isArray(item.fields) || item.fields.length > 10 || item.fields.some(field => typeof field !== "string" || !field || field.length > 40))) return `${label}的输出字段不合法`;
+  if (item.dailyTime !== undefined && item.dailyTime !== "" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(item.dailyTime)) return `${label}的每日推送时间格式应为 HH:mm`;
+  if (item.hourlyMinute !== undefined && !(Number.isInteger(Number(item.hourlyMinute)) && Number(item.hourlyMinute) >= 0 && Number(item.hourlyMinute) <= 59)) return `${label}的每小时推送分钟需要是 0 到 59`;
+  if (item.cover !== undefined && !(Number(item.cover) >= 0)) return `${label}的覆盖人数不合法`;
+  if (item.freq && item.freq !== "手动下载") {
+    if (!item.channel) return `${label}是自动推送，需要选择推送渠道`;
+    if (ctx.targetNames && !ctx.targetNames.has(item.channel)) return `${label}的推送渠道不存在：${item.channel}`;
+  }
+  if (item.mode === "sql") {
+    const sql = String(item.sql || "").trim().replace(/;+\s*$/, "");
+    if (!sql) return `${label}是 SQL 模式，SQL 不能为空`;
+    if (sql.length > 20000) return `${label}的 SQL 过长`;
+    if (!/^\s*select\b/i.test(sql)) return `${label}的 SQL 只允许 SELECT 查询`;
+    if (sql.includes(";")) return `${label}的 SQL 只允许单条语句`;
+    if (SQL_FORBIDDEN.test(sql)) return `${label}的 SQL 里包含不允许的写入 / 结构变更语句`;
+  }
+  return "";
 }
 
 const newId = prefix => `${prefix}_${crypto.randomBytes(5).toString("hex").toUpperCase()}`;
@@ -156,6 +190,10 @@ function createCatalogStore({ dataDir, orgStore }) {
         delete item.tokenHash;
         if (old?.tokenHash) { item.tokenHash = old.tokenHash; item[spec.tokenField] = old[spec.tokenField]; }
         else { issuedNow = issueToken(); item.tokenHash = issuedNow.hash; item[spec.tokenField] = issuedNow.hint; }
+      }
+      if (spec.check) {
+        const problem = spec.check(item, { targetNames: Array.isArray(all.targets?.items) ? new Set(all.targets.items.map(target => target.name)) : null });
+        if (problem) return { ok: false, status: 400, error: problem };
       }
       const key = String(spec.keyOf(item));
       if (keys.has(key)) return { ok: false, status: 400, error: `${spec.label}里有重复项：${key}` };
