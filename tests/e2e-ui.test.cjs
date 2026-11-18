@@ -1218,17 +1218,13 @@ describe("浏览器端到端", () => {
     await page.locator("#skillDetailView").getByText("权益-账号维度消耗统计表").first().waitFor({ timeout: 15000 });
   }));
 
-  test("权限设置：表权限页列出 Skill 引用的表，可直接勾选授权", async t => withPage(t, async page => {
+  test("权限设置：表权限页不再单列「Skill 引用的表」，被权限组 / Skill 授予的表后面有来源提示图标", async t => withPage(t, async page => {
     await login(page, "曾祥竞");
     await appVisible(page);
     await page.evaluate(() => { window.portalVueBridge.setActiveUserIndex(0); window.portalVueBridge.setPage("配置权限"); });
     await page.getByRole("tab", { name: /表权限/ }).click();
-    const block = page.locator('[data-test="skill-table-refs"]');
-    await block.waitFor({ timeout: 15000 });
-    const row = block.locator(".portal-vue-table-perm", { hasText: "权益-账号维度消耗统计表" });
-    await row.waitFor();
-    assert.match(await row.textContent(), /权益投放分析/, "引用它的 Skill 名称应显示在表旁边");
-    assert.equal(await row.locator("input[type=checkbox]").count(), 1, "已在表清单中的表应可勾选");
+    await page.locator(".pc-ref-icon").first().waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('[data-test="skill-table-refs"]').count(), 0, "不再单列 Skill 引用的表");
   }));
 
   test("Skill 详情：在基本信息改展示文案并保存后直接生效（不生成版本）", async t => withPage(t, async page => {

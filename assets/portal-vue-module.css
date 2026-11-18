@@ -1288,3 +1288,10 @@
 .pvb-up { color: #5b7a1f; font-weight: 600; }
 .pvb-down { color: #a4503f; font-weight: 600; }
 @media (max-width: 900px) { .pvb-grid-even { grid-template-columns: 1fr; } }
+
+/* 数据表后面的「被 Skill 引用」提示图标 */
+.pc-ref-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 4px; border-radius: 50%; border: 1px solid #f0a64a; color: #d98a1f; font-size: 11px; font-weight: 700; font-style: italic; font-family: Georgia, serif; line-height: 1; cursor: help; flex: none; align-self: center; }
+.pc-ref-icon:hover { background: #fff4e3; }
+.pc-ref-tip { max-width: 260px; font-size: 12.5px; line-height: 1.7; color: #3a4558; }
+.pc-ref-tip strong { display: block; margin-bottom: 2px; color: #1f2733; }
+.pc-ref-tip small { display: block; margin-top: 4px; color: #8a93a6; font-size: 12px; }
