@@ -46,7 +46,7 @@ function migrateGroup(group) {
   return { ...group, menus: migrateMenuNames(group.menus), menuEdits: migrateMenuNames(group.menuEdits) };
 }
 
-function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts: accountsInput, isActive, tableNames }) {
+function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts: accountsInput, isActive, tableNames, knownBoardGrants }) {
   const file = path.join(dataDir, "org.json");
   // 账号清单可以是数组，也可以是函数（账号可新增 / 停用，每次现取）；isActive 用来判断「至少保留一个管理员」时只数未停用的账号
   const accountList = () => (typeof accountsInput === "function" ? accountsInput() : accountsInput);
@@ -132,9 +132,16 @@ function createOrgStore({ dataDir, defaultGroups, defaultUserGroups, accounts: a
           if (!confirmed.ok) return confirmed;
           confirmedValue = confirmed.value;
         }
+        const menuEdits = list(raw?.menuEdits, 200, 40);
+        // 能编辑的菜单一定能查看：编辑权限自动带上查看权限（管理员组本来就拥有全部菜单，不动它）
+        const menus = list(raw?.menus, 200, 40);
+        if (name !== ADMIN_GROUP) menuEdits.forEach(menu => { if (!menus.includes(menu)) menus.push(menu); });
+        // 看板授权只认真实存在的看板 / 分类 / 「全部看板」，已删除或改名的看板自动清掉，不留下指向空气的授权
+        const allowedBoards = typeof knownBoardGrants === "function" ? knownBoardGrants() : null;
+        const boards = list(raw?.boards, 300, 80).filter(board => !allowedBoards || allowedBoards.has(board));
         groups.push({
           name, desc: text(raw?.desc, 200), status: text(raw?.status, 10) || "启用",
-          menus: list(raw?.menus, 200, 40), menuEdits: list(raw?.menuEdits, 200, 40), boards: list(raw?.boards, 300, 80), tables,
+          menus, menuEdits, boards, tables,
           hiddenFields: hiddenValue, confirmedFields: confirmedValue
         });
       }

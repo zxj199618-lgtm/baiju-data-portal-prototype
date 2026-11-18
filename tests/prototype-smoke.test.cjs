@@ -606,7 +606,8 @@ assert(portalVue.includes("assetCandidates") && portalVue.includes("businessLine
 assert(skillComponentBlock.includes('@click="openDetail(scope.row)"') && skillComponentBlock.includes("portal-vue-name") && skillComponentBlock.includes(">详情</el-button>"), "Skill 名称可点击进入详情，操作列只保留详情");
 assert(!skillComponentBlock.includes("openNewVersion") && !skillComponentBlock.includes("openVersionManage") && !skillComponentBlock.includes(">新增版本") && !skillComponentBlock.includes(">版本管理"), "Skill 列表不应再有新增版本或版本管理入口");
 assert(!skillComponentBlock.includes("editVisible") && !skillComponentBlock.includes("publishVisible") && !skillComponentBlock.includes("viewVisible") && !skillComponentBlock.includes("grayDialogVisible"), "Skill 列表页不应再保留配置、版本或灰度抽屉");
-assert(gatewaySource.includes('["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt"'), "网关 Skill 配置持久化应覆盖描述与提示词");
+const skillConfigSource = require("fs").readFileSync(require("path").join(__dirname, "../scripts/skill-config.cjs"), "utf8");
+assert(gatewaySource.includes("validateSkillConfig(entry, body") && skillConfigSource.includes("displayDesc") && skillConfigSource.includes("prompt"), "网关 Skill 配置持久化应覆盖描述与提示词，并经 skill-config 校验");
 assert(portalVue.includes("所属业务线") && portalVue.includes("历史版本") && portalVue.includes("删除此版本"), "Skill 应绑定业务线（单选，含全部）、列表展示历史版本数、旧版本可删（最近 3 个受保护）");
 
 const deployScript = read("scripts/deploy.sh");

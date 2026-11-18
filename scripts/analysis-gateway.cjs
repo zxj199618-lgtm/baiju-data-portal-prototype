@@ -42,6 +42,7 @@ const { createOrgStore } = require("./org-store.cjs");
 const { createBoardStore } = require("./board-store.cjs");
 const { createEventStore } = require("./event-store.cjs");
 const { createCatalogStore } = require("./catalog-store.cjs");
+const { validateSkillConfig } = require("./skill-config.cjs");
 const { createKnowledgeStore } = require("./knowledge-store.cjs");
 const { usableRelations } = require("./join-engine.cjs");
 const { createAccountStore } = require("./account-store.cjs");
@@ -1010,7 +1011,8 @@ const orgStore = createOrgStore({
   defaultUserGroups: Object.fromEntries(users.map(item => [item.name, item.group])),
   accounts: () => accountStore.names(),
   isActive: name => accountStore.isActive(name),
-  tableNames: allTableNames
+  tableNames: allTableNames,
+  knownBoardGrants: () => boardStore.grantNames() // boardStore 在下面创建，调用时才取
 });
 /* 看板（列表 / 分类 / 收藏）与访问记录（埋点事件）：规则在 board-store / event-store，网关只做鉴权与转发 */
 const boardStore = createBoardStore({ dataDir: DATA_DIR, orgStore });
@@ -2980,25 +2982,11 @@ async function handleRequest(req, res) {
     const entry = registry.find(item => item.id === id);
     if (!entry) return sendJson(res, 404, { error: `Skill 不存在：${id}` });
     const body = await readBody(req);
-    ["icon", "title", "desc", "displayDesc", "sort", "enabled", "prompt", "scenarioKey", "clarification", "assetScope", "responseContract", "fallbackSkillId"].forEach(key => {
-      if (body[key] !== undefined) entry[key] = body[key];
-    });
-    if (Array.isArray(body.grayUsers)) entry.grayUsers = body.grayUsers.slice(0, 50);
+    /* 字段类型 / 长度、提示词版本规则（线上与最近 3 个版本不能删）、兜底 Skill 与灰度用户的合法性：规则在 skill-config.cjs */
+    const checked = validateSkillConfig(entry, body, { skillIds: registry.map(item => item.id), accountNames: accountStore.names() });
+    if (!checked.ok) return sendJson(res, 400, { error: checked.error });
+    Object.entries(checked.patch).forEach(([key, value]) => { if (value === undefined) delete entry[key]; else entry[key] = value; });
     if (Array.isArray(body.routes)) entry.routes = sanitizeRoutes(body.routes);
-    /* 提示词版本（含未发布 / 灰度中 / 已发布状态与灰度用户）随 Skill 持久化，线上生效的是 prompt / tables 字段 */
-    if (Array.isArray(body.versions)) {
-      entry.versions = body.versions.slice(0, 100).map(item => ({
-        version: String(item?.version || "").slice(0, 30),
-        time: String(item?.time || "").slice(0, 40),
-        operator: String(item?.operator || "").slice(0, 40),
-        note: String(item?.note || "").slice(0, 300),
-        current: item?.current === true,
-        status: ["未发布", "灰度中", "已发布"].includes(item?.status) ? item.status : "已发布",
-        grayUsers: Array.isArray(item?.grayUsers) ? item.grayUsers.slice(0, 50).map(user => String(user).slice(0, 40)) : [],
-        snapshot: item?.snapshot && typeof item.snapshot === "object" ? JSON.parse(JSON.stringify(item.snapshot).slice(0, 200000)) : undefined
-      })).filter(item => item.version);
-      if (body.currentVersion) entry.version = String(body.currentVersion).slice(0, 30);
-    }
     if (body.tables !== undefined) {
       const outcome = sanitizeSkillTables(body.tables, allTableNames);
       if (!outcome.ok) return sendJson(res, 400, { error: outcome.error, unknown: outcome.unknown });

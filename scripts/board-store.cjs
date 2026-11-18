@@ -162,7 +162,14 @@ function createBoardStore({ dataDir, orgStore, isAdmin }) {
     return state().boards.find(board => board.quickBiId === quickBiId && canView(name, board, group)) || null;
   }
 
-  return { view, save, setFavorites, boardFor, canEdit };
+  /** 权限组里可以授权的看板名单：看板名 + 分类名 + 「全部看板」；还没初始化（没有任何看板）时返回 null，表示不校验 */
+  function grantNames() {
+    const current = state();
+    if (!current.saved) return null;
+    return new Set([ALL_BOARDS, ...current.boards.map(board => board.name), ...current.categories]);
+  }
+
+  return { view, save, setFavorites, boardFor, canEdit, grantNames };
 }
 
 module.exports = { createBoardStore, ALL_BOARDS, EDIT_MENU };

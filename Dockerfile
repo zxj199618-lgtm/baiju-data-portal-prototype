@@ -13,6 +13,7 @@ COPY scripts/org-store.cjs ./org-store.cjs
 COPY scripts/board-store.cjs ./board-store.cjs
 COPY scripts/event-store.cjs ./event-store.cjs
 COPY scripts/catalog-store.cjs ./catalog-store.cjs
+COPY scripts/skill-config.cjs ./skill-config.cjs
 COPY scripts/account-store.cjs ./account-store.cjs
 COPY scripts/knowledge-store.cjs ./knowledge-store.cjs
 COPY scripts/join-engine.cjs ./join-engine.cjs
