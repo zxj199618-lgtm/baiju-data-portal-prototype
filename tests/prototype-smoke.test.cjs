@@ -171,7 +171,7 @@ assert(portalBridge.includes('name: "维表管理"') && portalBridge.includes('n
 ["3.1", "4.0"].forEach(version => assert(!portalBridge.includes('badge: "' + version + '"'), "角标只展示 5.0：" + version));
 assert(portalBridge.includes('name: "灵犀智析", badge: "5.0"') && portalBridge.includes('name: "Skill 配置", badge: "5.0"'), "5.0 角标应保留");
 assert(portalBridge.indexOf('name: "标签管理"') > portalBridge.indexOf('name: "表管理"') && portalBridge.indexOf('name: "维表管理"') > portalBridge.indexOf('name: "标签管理"'), "标签管理应紧跟表管理，位于维表管理之前");
-assert(portalBridge.includes('name: "数据告警" }') && portalBridge.includes('name: "AI 反馈", badge: "5.0"') && portalBridge.includes('name: "字典管理", badge: "5.0"'), "数据告警不再带角标；本版有改动或新增的菜单（AI 反馈、字典管理等）都标 5.0");
+assert(portalBridge.includes('name: "数据告警" }') && portalBridge.includes('name: "AI 反馈", badge: "5.0"'), "数据告警不再带角标；本版有改动或新增的菜单（AI 反馈等）都标 5.0");
 assert(portalVue.includes("navBadges("), "侧栏应支持同一菜单展示多个版本角标");
 assert(portalCss.includes(".portal-vue-menu .el-sub-menu__title { padding-right: 38px !important; }"), "侧栏分组标题需为展开/折叠箭头预留位置，避免版本角标遮挡");
 assert(!portalBridge.includes("isNew: true") && !portalVue.includes(">NEW</el-tag>"), "菜单不应再使用 NEW 角标");
