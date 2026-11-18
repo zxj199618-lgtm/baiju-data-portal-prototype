@@ -42,7 +42,7 @@
           </div>
           <div class="portal-vue-form-actions"><el-button @click="back">取消</el-button><el-button v-if="canEdit('数据开放平台')" type="primary" :loading="saving" @click="save">{{ editingIndex<0?'生成 Token':'保存修改' }}</el-button></div>
         </div>
-        <el-dialog v-model="tokenVisible" title="Token 生成成功" width="560px" :close-on-click-modal="false"><el-alert title="请妥善保存 Token，调用数据服务时需作为身份凭证。" type="success" :closable="false"></el-alert><div class="portal-vue-detail-grid" style="margin-top:16px"><div class="portal-vue-detail-item"><span>API 名称</span><strong>{{ savedApi?.name }}</strong></div><div class="portal-vue-detail-item"><span>授权范围</span><strong>{{ selected.length }} 张表 / {{ selectedFieldCount }} 个字段</strong></div></div><el-input :model-value="savedApi?.token" readonly><template #append><el-button @click="copySavedToken">复制</el-button></template></el-input><template #footer><el-button type="primary" @click="finish">完成</el-button></template></el-dialog>
+        <el-dialog v-model="tokenVisible" title="Token 生成成功" width="560px" :close-on-click-modal="false"><el-alert title="请立即复制并妥善保存 Token：关闭后无法再查看完整内容，忘记了只能重置。" type="success" :closable="false"></el-alert><div class="portal-vue-detail-grid" style="margin-top:16px"><div class="portal-vue-detail-item"><span>API 名称</span><strong>{{ savedApi?.name }}</strong></div><div class="portal-vue-detail-item"><span>授权范围</span><strong>{{ selected.length }} 张表 / {{ selectedFieldCount }} 个字段</strong></div></div><el-input :model-value="savedApi?.token" readonly><template #append><el-button @click="copySavedToken">复制</el-button></template></el-input><template #footer><el-button type="primary" @click="finish">完成</el-button></template></el-dialog>
       </el-config-provider>
     `,
     data: () => ({ editingIndex:-1, tableKeyword:"", form:{name:"",usage:""}, selected:[], saving:false, tokenVisible:false, savedApi:null }),
@@ -66,10 +66,19 @@
         if(this.selected.some(item=>!item.fieldNames.length))return ep.ElMessage.warning("每张数据表至少授权 1 个字段");
         this.saving=true;
         window.setTimeout(()=>{
-          const first=this.selected[0]; const existing=state.apis[this.editingIndex]; const payload={name:this.form.name.trim(),usage:this.form.usage.trim(),assetTable:first.table,database:first.database,fieldNames:[...first.fieldNames],assets:this.selected.map(item=>({...item,fieldNames:[...item.fieldNames]})),rateLimit:`每分钟 ${first.rateLimit} 次`,tokenStatus:existing?.tokenStatus||"启用",creator:existing?.creator||"曾祥竞",createdAt:existing?.createdAt||"2026-07-15 10:00",lastCall:existing?.lastCall||"尚未调用",callCount:existing?.callCount||0,callCount30d:existing?.callCount30d||0,token:existing?.token||`bjgw_live_${Date.now().toString(36)}****`};
+          const first=this.selected[0]; const existing=state.apis[this.editingIndex]; const payload={name:this.form.name.trim(),usage:this.form.usage.trim(),assetTable:first.table,database:first.database,fieldNames:[...first.fieldNames],assets:this.selected.map(item=>({...item,fieldNames:[...item.fieldNames]})),rateLimit:`每分钟 ${first.rateLimit} 次`,tokenStatus:existing?.tokenStatus||"启用",creator:existing?.creator||"曾祥竞",createdAt:existing?.createdAt||"2026-07-15 10:00",lastCall:existing?.lastCall||"尚未调用",callCount:existing?.callCount||0,callCount30d:existing?.callCount30d||0,token:existing?.token||""};
           if(this.editingIndex<0)state.apis.unshift(payload);else{bridge.recordRouteAlias?.("api",existing.name,payload.name);Object.assign(existing,payload);}
-          this.savedApi=payload;this.saving=false;notify();
-          if(this.editingIndex<0)this.tokenVisible=true;else{ep.ElMessage.success("API 配置已保存");this.back();}
+          this.savedApi=payload;
+          /* Token 由服务端签发：新建时马上保存并拿到完整 Token（只显示这一次）；之后只能重置，不能再看到完整值 */
+          Promise.resolve(this.editingIndex<0?window.PortalVue.catalogSync.pushNow("apis"):(notify(),null)).then(result=>{
+            this.saving=false;
+            if(this.editingIndex<0){
+              const issued=(result?.issued||[]).find(item=>item.name===payload.name);
+              if(!issued){ep.ElMessage.error("API 没有保存成功，请稍后重试");return;}
+              this.savedApi={...payload,token:issued.token};
+              this.tokenVisible=true;
+            }else{ep.ElMessage.success("API 配置已保存");this.back();}
+          });
         },700);
       },
       copySavedToken(){if(this.savedApi)bridge.copyToken(this.savedApi.token);ep.ElMessage.success("Token 已复制");},

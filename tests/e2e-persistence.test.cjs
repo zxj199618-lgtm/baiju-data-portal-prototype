@@ -65,4 +65,27 @@ describe("修改落到后端，刷新后仍在", () => {
       assert.equal(after.desc, "E2E 备注", "刷新后看板修改仍在");
     } finally { await context.close(); }
   });
+
+  test("开放 API：新建后服务端签发 Token（只返回一次），刷新后只剩前缀；重置后旧 Token 失效", async t => {
+    if (skipReason) return t.skip(skipReason);
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(30000);
+    try {
+      await login(page);
+      const issued = await page.evaluate(async () => {
+        const api = window.portalVueModuleApi;
+        api.state.apis.unshift({ name: "E2E 接口", usage: "测试", assetTable: "t", database: "d", fieldNames: ["a"], assets: [], rateLimit: "每分钟 60 次", tokenStatus: "启用", creator: "曾祥竞", createdAt: "", lastCall: "尚未调用", callCount: 0, callCount30d: 0, token: "" });
+        const result = await api.catalogSync.pushNow("apis");
+        return result?.issued?.find(item => item.name === "E2E 接口") || null;
+      });
+      assert.ok(issued?.token?.startsWith("bjgw_live_"), "新建 API 应拿到服务端签发的 Token");
+      const token = await harness.tokenFor("曾祥竞");
+      const listed = (await harness.call("GET", "/v1/portal-data", { token })).data.collections.apis.items.find(item => item.name === "E2E 接口");
+      assert.ok(listed.token.endsWith("****") && !listed.token.includes(issued.token.slice(16)), "读出来只有前缀");
+      assert.equal(listed.tokenHash, undefined);
+      const reset = await page.evaluate(id => window.portalVueModuleApi.catalogSync.resetApiToken(id), listed.apiId);
+      assert.ok(reset.startsWith("bjgw_live_") && reset !== issued.token, "重置应得到新的 Token");
+    } finally { await context.close(); }
+  });
 });

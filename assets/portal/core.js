@@ -224,7 +224,7 @@
      与看板同一套做法：登录后读取并替换本地数组（原地替换，别处持有的引用不失效）；有对应菜单编辑权限的人修改（经 notify）后防抖保存；
      服务端还没有保存过时，有编辑权限的人把页面自带的数据整份交上去作为初始数据。推送目标的 sk 只在服务端，页面里是掩码。 */
   const catalogSync = {
-    collections: { assets: () => state.assets, dictionaries: () => state.dictionaries, tags: () => state.tables, targets: () => state.targets, menus: () => state.menus },
+    collections: { assets: () => state.assets, dictionaries: () => state.dictionaries, tags: () => state.tables, targets: () => state.targets, menus: () => state.menus, apis: () => state.apis },
     meta: {}, timer: null, ready: false,
     snapshotOf(name) { return JSON.stringify(this.collections[name]()); },
     apply(name, entry) {
@@ -265,12 +265,28 @@
       try {
         const response = await fetch(`${analysisGatewayBase}/v1/portal-data/${name}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: JSON.parse(serialized), rev: force ? undefined : meta.rev }) });
         const data = await response.json().catch(() => ({}));
-        if (response.ok) { this.apply(name, data); return; }
+        if (response.ok) { this.apply(name, data); return data; }
         ep.ElMessage.warning(`没有保存到服务器：${data.error || "未知错误"}。已恢复为服务器上的内容`);
         await this.load();
       } catch (error) {
         ep.ElMessage.warning("没有保存到服务器：无法连接分析网关");
       }
+      return null;
+    },
+    /** 马上保存某个集合并等结果（不走防抖）：需要拿到服务端签发的内容时用，例如新建 API 后的 Token。返回服务端响应，失败为 null */
+    async pushNow(name) {
+      clearTimeout(this.timer);
+      return this.push(name, false);
+    },
+    /** 重置开放 API 的 Token：返回新的完整 Token（只此一次），失败为 ""；成功后同步一次最新列表 */
+    async resetApiToken(apiId) {
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/portal-data/apis/reset-token`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiId }) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) { ep.ElMessage.error(data.error || "重置失败"); return ""; }
+        await this.load();
+        return data.token || "";
+      } catch (error) { ep.ElMessage.error("重置失败：无法连接分析网关"); return ""; }
     }
   };
 

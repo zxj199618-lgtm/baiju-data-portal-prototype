@@ -3086,13 +3086,21 @@ async function handleRequest(req, res) {
 
   /* 数据资产目录：读 = 登录用户；写 = 门户管理员或有对应菜单编辑权限（见 catalog-store） */
   if (req.method === "GET" && url.pathname === "/v1/portal-data") return sendJson(res, 200, catalogStore.view(req.session.name));
+  // 开放 API 重置 Token：旧 Token 立即失效，完整新 Token 只在这次响应里返回一次
+  if (req.method === "POST" && url.pathname === "/v1/portal-data/apis/reset-token") {
+    const body = await readBody(req, 2000);
+    const outcome = catalogStore.resetToken(req.session.name, "apis", String(body.apiId || ""));
+    if (!outcome.ok) return sendJson(res, outcome.status || 400, { error: outcome.error });
+    appendAuditEntry({ type: "api-token-reset", user: req.session.name, apiId: String(body.apiId || "").slice(0, 40) });
+    return sendJson(res, 200, { token: outcome.token, rev: outcome.rev });
+  }
   const portalDataMatch = url.pathname.match(/^\/v1\/portal-data\/([a-z]+)$/);
   if (req.method === "PUT" && portalDataMatch) {
     const body = await readBody(req, Infinity, 6 * 1024 * 1024);
     const outcome = catalogStore.save(req.session.name, portalDataMatch[1], { items: body.items, rev: body.rev });
     if (!outcome.ok) return sendJson(res, outcome.status || 400, { error: outcome.error });
     appendAuditEntry({ type: "catalog-change", user: req.session.name, collection: portalDataMatch[1], items: Array.isArray(body.items) ? body.items.length : undefined });
-    return sendJson(res, 200, { rev: outcome.rev, ...catalogStore.view(req.session.name).collections[portalDataMatch[1]] });
+    return sendJson(res, 200, { rev: outcome.rev, issued: outcome.issued || [], ...catalogStore.view(req.session.name).collections[portalDataMatch[1]] });
   }
 
   /* 访问记录：任何登录用户可以上报自己的访问（用户 / IP / 终端由服务端填）；查看需要「访问记录」菜单权限 */

@@ -45,8 +45,8 @@ describe("数据资产目录（单元）", () => {
   });
 
   test("保存后读出一致，rev 递增，各集合互不影响", () => {
-    assert.deepEqual(catalog.save("表员", "assets", { items: [asset("t1"), asset("t2")] }), { ok: true, rev: 1 });
-    assert.deepEqual(catalog.save("字典员甲", "dictionaries", { items: [{ dictId: "D1", code: "c", name: "字典" }] }), { ok: true, rev: 1 });
+    assert.deepEqual(catalog.save("表员", "assets", { items: [asset("t1"), asset("t2")] }), { ok: true, rev: 1, issued: [] });
+    assert.deepEqual(catalog.save("字典员甲", "dictionaries", { items: [{ dictId: "D1", code: "c", name: "字典" }] }), { ok: true, rev: 1, issued: [] });
     const view = catalog.view("访客甲").collections;
     assert.equal(view.assets.items.length, 2);
     assert.equal(view.dictionaries.items[0].name, "字典");
@@ -76,6 +76,37 @@ describe("数据资产目录（单元）", () => {
     assert.match(catalog.save("管理", "menus", { items: [node("M1", "p1", [node("M2", "p1")])] }).error, /权限标识重复/);
     assert.match(catalog.save("管理", "menus", { items: [node("M1", "p1", [node("M2", "p2", [node("M3", "p3", [node("M4", "p4")])])])] }).error, /层级/);
     assert.match(catalog.save("管理", "menus", { items: [{ ...node("M1", "p1"), children: "x" }] }).error, /数组/);
+  });
+
+  test("开放 API：Token 由服务端签发，只返回一次，库里只存哈希；重置后旧 Token 失效；客户端传的 token 被忽略", () => {
+    const org = createOrgStore({ dataDir: dir, defaultGroups: [group("门户管理员", { tables: ["全部数据表"] }), group("接口员", { menuEdits: ["数据开放平台"] }), group("访客")], defaultUserGroups: { 管理: "门户管理员", 接口员甲: "接口员", 访客甲: "访客" }, accounts: ["管理", "接口员甲", "访客甲"], tableNames: [] });
+    const apis = createCatalogStore({ dataDir: dir, orgStore: org });
+    const created = apis.save("接口员甲", "apis", { items: [{ name: "订单查询", tokenStatus: "启用", token: "bjgw_live_forged" }] });
+    assert.ok(created.ok);
+    assert.equal(created.issued.length, 1);
+    const full = created.issued[0].token;
+    assert.match(full, /^bjgw_live_.{20,}/);
+    const read = apis.view("访客甲").collections.apis.items[0];
+    assert.match(read.token, /^bjgw_live_.{3}\*{4}$|^bjgw_live_\S{0,6}\*{4}$/);
+    assert.equal(read.tokenHash, undefined, "哈希不出服务端");
+    assert.ok(read.apiId.startsWith("API_"), "服务端补稳定编号");
+    assert.ok(!fs.readFileSync(path.join(dir, "catalog.json"), "utf8").includes(full), "库里不存完整 Token");
+    assert.deepEqual(apis.findApiByToken(full), { apiId: read.apiId, name: "订单查询" });
+    assert.equal(apis.findApiByToken("bjgw_live_forged"), null);
+    // 改名、再次保存：沿用原 Token，不再签发
+    const renamed = apis.save("接口员甲", "apis", { items: [{ ...read, name: "订单查询v2", token: "篡改" }] });
+    assert.equal(renamed.issued.length, 0);
+    assert.equal(apis.findApiByToken(full).name, "订单查询v2");
+    // 重置：旧 Token 失效，新 Token 有效；没有权限的人不能重置
+    assert.equal(apis.resetToken("访客甲", "apis", read.apiId).status, 403);
+    const reset = apis.resetToken("接口员甲", "apis", read.apiId);
+    assert.ok(reset.ok);
+    assert.equal(apis.findApiByToken(full), null);
+    assert.equal(apis.findApiByToken(reset.token).apiId, read.apiId);
+    // 停用后 Token 不再有效
+    apis.save("接口员甲", "apis", { items: [{ ...apis.view("管理").collections.apis.items[0], tokenStatus: "停用" }] });
+    assert.equal(apis.findApiByToken(reset.token), null);
+    assert.equal(apis.resetToken("管理", "apis", "不存在").status, 404);
   });
 
   test("推送目标的 sk 只存服务端：读出来是掩码，掩码交回表示不改，传新值才更新", () => {

@@ -32,13 +32,14 @@
             <el-table-column label="状态" width="86" align="center"><template #default="scope"><el-switch :disabled="!canEdit('数据开放平台')" :model-value="scope.row.tokenStatus==='启用'" @change="value=>toggleStatus(scope.row,value)"></el-switch></template></el-table-column>
             <el-table-column prop="creator" label="创建人" width="100"></el-table-column>
             <el-table-column prop="lastCall" label="最近调用" width="170"></el-table-column>
-            <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('数据开放平台')" link type="primary" @click="openEditor(state.apis.indexOf(scope.row))">编辑</el-button><el-button link type="primary" @click="copyToken(scope.row)">复制 Token</el-button></div></template></el-table-column>
+            <el-table-column label="操作" width="190" fixed="right"><template #default="scope"><div class="portal-vue-actions"><el-button v-if="canEdit('数据开放平台')" link type="primary" @click="openEditor(state.apis.indexOf(scope.row))">编辑</el-button><el-button v-if="canEdit('数据开放平台')" link type="primary" data-test="api-reset-token" @click="resetToken(scope.row)">重置 Token</el-button></div></template></el-table-column>
           </el-table>
+          <el-dialog v-model="tokenVisible" title="新的 Token" width="520px" :close-on-click-modal="false"><el-alert title="请立即复制并妥善保存：关闭后无法再查看完整内容，忘记了只能再次重置。" type="warning" :closable="false"></el-alert><div class="portal-vue-detail-grid" style="margin-top:16px"><div class="portal-vue-detail-item"><span>API 名称</span><strong>{{ newToken.name }}</strong></div><div class="portal-vue-detail-item" style="grid-column:1/-1"><span>Token</span><strong style="word-break:break-all;user-select:all">{{ newToken.token }}</strong></div></div><template #footer><el-button @click="copyNewToken">复制 Token</el-button><el-button type="primary" @click="tokenVisible=false">我已保存</el-button></template></el-dialog>
           <div class="portal-vue-pagination"><span>共 {{ filteredRows.length }} 条，当前 {{ rangeText }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="filteredRows.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
       </el-config-provider>
     `,
-    data: () => ({ status:"启用", keyword:"", page:1, pageSize:10, state }),
+    data: () => ({ status:"启用", keyword:"", page:1, pageSize:10, state, tokenVisible:false, newToken:{name:"",token:""} }),
     computed: {
       filteredRows() { refreshTick.value; const keyword=this.keyword.trim().toLowerCase(); return state.apis.filter(api=>api.tokenStatus===this.status && (!keyword || `${api.name} ${this.apiAssets(api).map(item=>item.table).join(" ")}`.toLowerCase().includes(keyword))); },
       pagedRows() { const result=paginate(this.filteredRows,this.page,this.pageSize); if(result.safePage!==this.page)this.page=result.safePage; return result.rows; },
@@ -51,7 +52,13 @@
       fieldCount(api) { return this.apiAssets(api).reduce((sum,item)=>sum+(item.fieldNames||[]).length,0); },
       assetTooltip(api) { return this.apiAssets(api).map(item=>{const asset=state.assets.find(row=>row.database===item.database&&row.table===item.table);return `${asset?.externalName||item.table}（${asset?.cnName||"—"}）`;}).join("\n"); },
       openEditor(index) { window.portalApiEditingIndex=index; bridge.setPage("新增API"); },
-      copyToken(api) { bridge.copyToken(api.token); ep.ElMessage.success("Token 已复制"); },
+      /* Token 由服务端签发，库里只存哈希，不能再查看完整值；忘记了就重置（旧 Token 立即失效，新 Token 只显示这一次） */
+      async resetToken(api) {
+        if(!await confirmAction("重置 Token",`重置后「${api.name}」现有的 Token 会立即失效，调用方需要换成新 Token。确认重置？`))return;
+        const token=await window.PortalVue.catalogSync.resetApiToken(api.apiId);
+        if(token){this.newToken={name:api.name,token};this.tokenVisible=true;}
+      },
+      copyNewToken() { bridge.copyToken(this.newToken.token); ep.ElMessage.success("Token 已复制"); },
       async toggleStatus(api,enabled) { if(!await confirmAction(enabled?"启用 API":"停用 API",`确认${enabled?"启用":"停用"}「${api.name}」？${enabled?"":"停用后该 Token 将无法继续调用。"}`))return; api.tokenStatus=enabled?"启用":"停用"; notify(`${api.name} 已${api.tokenStatus}`); }
     }
   };
