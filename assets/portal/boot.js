@@ -16,6 +16,7 @@
     orgSync,
     boardSync,
     catalogSync,
+    reportBatchSync,
     track,
     refreshTick,
     state,
@@ -46,5 +47,5 @@
     track.pageView(page);
     if (page !== "数据看板") track.stopBoardVisit();
   });
-  Promise.all([orgSync.load(), boardSync.load(), catalogSync.load()]).finally(() => bridge.recheckRoute?.());
+  Promise.all([orgSync.load(), boardSync.load(), catalogSync.load(), reportBatchSync.load()]).finally(() => bridge.recheckRoute?.());
 })();

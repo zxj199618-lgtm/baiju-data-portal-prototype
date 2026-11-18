@@ -290,6 +290,35 @@
     }
   };
 
+  /* ===== 短剧投放账户上报批次与服务端同步 =====
+     批次只追加：登录后用服务端的列表替换本地示例批次；提交走 POST（批次号、上报人、时间都由服务端定）。没有「短剧投放账户上报 / 消耗对比」权限时服务端拒绝，保持本地内容不动。 */
+  const reportBatchSync = {
+    canSubmit: false,
+    async load() {
+      if (!window.portalAuth?.token()) return;
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/report-batches`);
+        if (!response.ok) return;
+        const data = await response.json();
+        this.canSubmit = !!data.canSubmit;
+        state.reportBatches.splice(0, state.reportBatches.length, ...(Array.isArray(data.batches) ? data.batches : []));
+        refreshTick.value += 1;
+      } catch (error) { /* 网关未启动时保持界面自带的内容 */ }
+    },
+    /** accounts: [{ accountId, media }]；成功返回服务端生成的批次，失败提示原因并返回 null */
+    async submit(accounts, warnings) {
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/report-batches`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accounts, warnings }) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) { ep.ElMessage.error(`批次没有提交：${data.error || "未知错误"}`); return null; }
+        state.reportBatches.unshift(data.batch);
+        refreshTick.value += 1;
+        bridge.notifyDataChange();
+        return data.batch;
+      } catch (error) { ep.ElMessage.error("批次没有提交：无法连接分析网关"); return null; }
+    }
+  };
+
   /* ===== 访问记录埋点 =====
      页面访问：每次切页上报一条；看板访问：打开某个看板后每 10 秒一次心跳（同一次访问共用 visitId，网关侧按 visitId 归并）。
      用户、IP、终端都由服务端填写；失败静默，不影响使用。 */
@@ -831,6 +860,7 @@
     fetchGateway,
     boardSync,
     catalogSync,
+    reportBatchSync,
     track,
     gatewayFieldsError,
     gatewayTableNames,

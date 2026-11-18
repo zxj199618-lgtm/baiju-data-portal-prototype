@@ -43,6 +43,7 @@ const { createBoardStore } = require("./board-store.cjs");
 const { createEventStore } = require("./event-store.cjs");
 const { createCatalogStore } = require("./catalog-store.cjs");
 const { validateSkillConfig } = require("./skill-config.cjs");
+const { createReportBatchStore } = require("./report-batch-store.cjs");
 const { createKnowledgeStore } = require("./knowledge-store.cjs");
 const { usableRelations } = require("./join-engine.cjs");
 const { createAccountStore } = require("./account-store.cjs");
@@ -1018,6 +1019,8 @@ const orgStore = createOrgStore({
 const boardStore = createBoardStore({ dataDir: DATA_DIR, orgStore });
 /* 数据资产目录（数据表与维表 / 字典 / 标签主体表 / 推送目标）：整份快照 + 版本号，规则在 catalog-store */
 const catalogStore = createCatalogStore({ dataDir: DATA_DIR, orgStore });
+/* 短剧投放账户上报批次：只追加，规则在 report-batch-store */
+const reportBatchStore = createReportBatchStore({ dataDir: DATA_DIR, orgStore });
 const eventStore = createEventStore({ dataDir: DATA_DIR, userIdOf: name => `u_${String(Math.max(0, accountStore.names().indexOf(name)) + 1).padStart(3, "0")}` });
 /** 能不能看「访问记录」：门户管理员，或所在权限组菜单里有「访问记录」 */
 function canViewAccessLog(name) {
@@ -3082,6 +3085,20 @@ async function handleRequest(req, res) {
     const outcome = boardStore.setFavorites(req.session.name, body.favorites);
     if (!outcome.ok) return sendJson(res, 400, { error: outcome.error });
     return sendJson(res, 200, { favorites: outcome.favorites });
+  }
+
+  /* 短剧投放账户上报批次：读 = 管理员或有「短剧投放账户上报 / 消耗对比」菜单；提交 = 管理员或有「短剧投放账户上报」编辑权限 */
+  if (req.method === "GET" && url.pathname === "/v1/report-batches") {
+    const result = reportBatchStore.list(req.session.name, url.searchParams.get("limit"));
+    if (!result) return sendJson(res, 403, { error: "需要「短剧投放账户上报」或「消耗对比」菜单权限" });
+    return sendJson(res, 200, result);
+  }
+  if (req.method === "POST" && url.pathname === "/v1/report-batches") {
+    const body = await readBody(req, 600000);
+    const outcome = reportBatchStore.submit(req.session.name, { accounts: body.accounts, warnings: body.warnings });
+    if (!outcome.ok) return sendJson(res, outcome.status || 400, { error: outcome.error });
+    appendAuditEntry({ type: "report-batch", user: req.session.name, batchId: outcome.batch.id, accounts: outcome.batch.accounts });
+    return sendJson(res, 200, { batch: outcome.batch });
   }
 
   /* 数据资产目录：读 = 登录用户；写 = 门户管理员或有对应菜单编辑权限（见 catalog-store） */

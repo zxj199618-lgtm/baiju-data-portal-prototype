@@ -217,38 +217,27 @@
           errors: errors.map(line => ({ line })),
           warnings: warnings.map(line => ({ line })),
           issues,
-          values
+          values,
+          accounts: values.map(id => ({ accountId: id, media: mediaOf.get(id) === "未知" ? "" : mediaOf.get(id) }))
         };
         this.submitting = false;
         if (!values.length) ep.ElMessage.warning("没有可上报的账户，请检查输入");
         else ep.ElMessage.success(`校验完成：${values.length} 个可上报账户、${errors.length} 个错误、${warnings.length} 个警告`);
         this.report.mediaText = medias.join(" / ");
       },
-      submit() {
+      async submit() {
         if (!canEditMenu("短剧投放账户上报")) return denyEdit();
         if (!this.report || !this.report.values.length) return ep.ElMessage.warning("请先完成校验");
         if (this.report.errors.length) return ep.ElMessage.warning("还有错误行未修正，不能提交");
         this.submitting = true;
-        const stamp = new Date();
-        const pad = value => String(value).padStart(2, "0");
-        const datePart = `${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}`;
-        const id = `DR${datePart}${String(this.batches.length + 1).padStart(3, "0")}`;
-        const batch = {
-          id,
-          submittedAt: `${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())} ${pad(stamp.getHours())}:${pad(stamp.getMinutes())}`,
-          submitter: "曾祥竞",
-          media: this.report.mediaText || "未知",
-          accounts: this.report.values.length,
-          checked: `通过（${this.report.warnings.length} 条警告）`,
-          note: `本期上报 ${this.report.values.length} 个短剧投放账户，消耗数据由系统自动拉取`,
-          accountIds: [...this.report.values]
-        };
-        bridge.addReportBatch(batch);
-        this.submitReceipt = { title: `批次 ${id} 已提交`, body: `共 ${batch.accounts} 个账户（${batch.media}），系统已开始拉取本批账户的消耗数据；大数据侧可在「消耗对比」里带入该批账户核对差异。` };
+        /* 批次号、上报人、时间都由服务端生成；服务端会再校验一遍账户 ID 与媒体 */
+        const batch = await window.PortalVue.reportBatchSync.submit(this.report.accounts, this.report.warnings.length);
         this.submitting = false;
+        if (!batch) return;
+        this.submitReceipt = { title: `批次 ${batch.id} 已提交`, body: `共 ${batch.accounts} 个账户（${batch.media}），系统已开始拉取本批账户的消耗数据；大数据侧可在「消耗对比」里带入该批账户核对差异。` };
         this.report = null;
         this.rawText = "";
-        ep.ElMessage.success(`已提交批次 ${id}，本批账户的消耗数据由系统自动拉取`);
+        ep.ElMessage.success(`已提交批次 ${batch.id}，本批账户的消耗数据由系统自动拉取`);
       },
       gotoCompare() { bridge.setPage("消耗对比"); }
     }

@@ -88,4 +88,25 @@ describe("修改落到后端，刷新后仍在", () => {
       assert.ok(reset.startsWith("bjgw_live_") && reset !== issued.token, "重置应得到新的 Token");
     } finally { await context.close(); }
   });
+
+  test("短剧账户上报批次：提交后批次号由服务端生成，刷新后仍在，消耗对比读到同一份", async t => {
+    if (skipReason) return t.skip(skipReason);
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage();
+    page.setDefaultTimeout(30000);
+    try {
+      await login(page);
+      await page.waitForFunction(() => window.PortalVue?.reportBatchSync);
+      const batch = await page.evaluate(() => window.PortalVue.reportBatchSync.submit([{ accountId: "20894517", media: "巨量" }, { accountId: "20894518", media: "广点通" }], 1));
+      assert.match(batch.id, /^DR\d{8}\d{3}$/);
+      assert.equal(batch.submitter, "曾祥竞");
+      assert.equal(batch.accounts, 2);
+      await page.reload();
+      await page.waitForSelector("#portalApp:not(.hidden)");
+      await page.waitForFunction(id => window.portalVueModuleApi.state.reportBatches.some(item => item.id === id), batch.id);
+      const first = await page.evaluate(() => window.portalVueModuleApi.state.reportBatches[0]);
+      assert.equal(first.id, batch.id, "最近的批次在最前");
+      assert.deepEqual(first.accountIds, ["20894517", "20894518"]);
+    } finally { await context.close(); }
+  });
 });
