@@ -8,12 +8,14 @@
   const {
     boardSeed,
     bridge,
+    boardSync,
     effectiveBoardNames,
     humanCount,
     loginUser,
     mount,
     refreshTick,
-    state
+    state,
+    track
   } = window.PortalVue;
 
 
@@ -112,9 +114,12 @@
       pointList() { return Array.from({ length: 7 }, (_, index) => ({ x: 28 + index * 58, y: 140 - ((this.seed >> index) % 85) })); },
       linePoints() { return this.pointList.map(point => `${point.x},${point.y}`).join(" "); }
     },
-    mounted() { this.pageHandler = event => { if (event.detail?.page === "数据看板") this.syncRoute(); }; window.addEventListener("portal:page-change", this.pageHandler); this.syncRoute(); },
+    mounted() { this.pageHandler = event => { if (event.detail?.page === "数据看板") { this.syncRoute(); this.trackVisit(); } }; window.addEventListener("portal:page-change", this.pageHandler); this.syncRoute(); },
     beforeUnmount() { window.removeEventListener("portal:page-change", this.pageHandler); },
+    watch: { activeBoard() { this.trackVisit(); } },
     methods: {
+      /* 访问记录：停留在数据看板页并选中某个看板，就开始一次看板访问（每 10 秒一次心跳） */
+      trackVisit() { if (bridge.getPage() === "数据看板" && this.activeBoard) track.startBoardVisit(this.activeBoard); },
       sparkPoints(index) { return Array.from({ length: 12 }, (_, i) => 28 - ((this.seed >> ((i + index) % 11)) % 22) - i * 0.4); },
       sparkLine(index) { const p = this.sparkPoints(index); return p.map((y, i) => `${i ? "L" : "M"}${(i * 100 / 11).toFixed(1)},${Math.max(3, y).toFixed(1)}`).join(" "); },
       sparkArea(index) { return `${this.sparkLine(index)} L100,34 L0,34 Z`; },
@@ -138,7 +143,7 @@
         bridge.setRouteBoard?.(this.activeBoard?.quickBiId);
       },
       isFavorite(board) { return state.favorites.has(board.quickBiId); },
-      toggleFavorite(board) { state.favorites.has(board.quickBiId) ? state.favorites.delete(board.quickBiId) : state.favorites.add(board.quickBiId); refreshTick.value += 1; },
+      toggleFavorite(board) { state.favorites.has(board.quickBiId) ? state.favorites.delete(board.quickBiId) : state.favorites.add(board.quickBiId); refreshTick.value += 1; boardSync.pushFavorites(); },
       openFull() { if (this.activeBoard?.type === "custom") { window.open(this.activeBoard.url, "_blank", "noopener"); return; } const index = state.boards.indexOf(this.activeBoard); if (index >= 0) bridge.openQuickBi(index); }
     }
   };

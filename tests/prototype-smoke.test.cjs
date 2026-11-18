@@ -381,7 +381,7 @@ assert(portalCss.includes(".portal-vue-tool-section") && portalCss.includes(".po
 assert(standaloneBuild.includes('"assets/nav-toolbox-biz-default.svg"') && standaloneBuild.includes('"assets/nav-toolbox-biz-active.svg"') && standaloneBuild.includes('"assets/tool-audience.svg"') && standaloneBuild.includes('"assets/tool-drama-account.svg"'), "单文件构建白名单要带上业务工具箱图标");
 assert(standaloneBuild.includes('"assets/nav-toolbox-default.svg"') && standaloneBuild.includes('"assets/nav-toolbox-active.svg"') && standaloneBuild.includes('"assets/tool-backfill.svg"') && standaloneBuild.includes('"assets/tool-compare.svg"') && standaloneBuild.includes('"assets/tool-env.svg"'), "单文件构建白名单要带上工具箱图标，否则分享出去会缺图");
 assert(html.includes('id="operationLogView"') && portalVue.includes('mount("#operationLogView"'), "看板访问记录应挂载独立视图");
-assert(portalVue.includes("OperationLogApp") && portalVue.includes("operationLogEvents") && portalVue.includes("operationLogSeeds"), "看板访问记录应基于埋点事件定义构建");
+assert(portalVue.includes("OperationLogApp") && portalVue.includes("operationLogEvents") && portalVue.includes("/v1/events") && !portalVue.includes("operationLogSeeds"), "看板访问记录应基于埋点事件定义，数据来自网关 /v1/events，不再用样例数据");
 assert(portalVue.includes('"page_view"') && portalVue.includes('"dashboard_view_heartbeat"'), "看板访问记录应覆盖页面访问与看板心跳两类埋点");
 assert(portalVue.includes('category: "页面访问"') && portalVue.includes('category: "查看看板"'), "看板访问记录应按页面访问 / 查看看板分类");
 assert(portalVue.includes('const OPERATION_LOG_VISIBLE_CATEGORIES = ["查看看板"]') && portalVue.includes("!OPERATION_LOG_VISIBLE_CATEGORIES.includes(operationLogEvents[record.event]?.category)"), "看板访问记录当前只对外展示「查看看板」记录：页面访问等埋点隐藏（数据与定义保留，白名单加回即恢复）");

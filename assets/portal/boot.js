@@ -14,6 +14,8 @@
     denyEdit,
     knowledgeSync,
     orgSync,
+    boardSync,
+    track,
     refreshTick,
     state,
     syncPrimaryAction
@@ -34,5 +36,12 @@
   syncPrimaryAction();
   window.dispatchEvent(new CustomEvent("portal:page-change", { detail: { page: bridge.getPage() } }));
   Promise.resolve(knowledgeSync.load());
-  Promise.resolve(orgSync.load()).finally(() => bridge.recheckRoute?.());
+  /* 访问记录：每次切页上报一条页面访问；离开数据看板就结束看板访问 */
+  window.addEventListener("portal:page-change", event => {
+    const page = event.detail?.page;
+    if (!page) return;
+    track.pageView(page);
+    if (page !== "数据看板") track.stopBoardVisit();
+  });
+  Promise.all([orgSync.load(), boardSync.load()]).finally(() => bridge.recheckRoute?.());
 })();

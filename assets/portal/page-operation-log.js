@@ -58,116 +58,12 @@
     }
   };
 
-  const operationLogUsers = [
-    { userId: "u_001", name: "曾祥竞", ip: "183.6.107.59", device: "anon_7f2c9a", platform: "web" },
-    { userId: "u_002", name: "黄佩贤", ip: "113.87.42.18", device: "anon_3b81de", platform: "web" },
-    { userId: "u_003", name: "林金维", ip: "120.231.18.77", device: "anon_9c4a02", platform: "h5" },
-    { userId: "u_004", name: "谭嘉颖", ip: "14.215.176.3", device: "anon_5e77b1", platform: "web" },
-    { userId: "u_005", name: "李雨航", ip: "223.104.63.90", device: "anon_c102f8", platform: "h5" }
-  ];
-  const operationLogUaDesktop = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
-  const operationLogUaMobile = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
-  const operationLogPages = [
-    ["https://gxt.lumofyi.com/#/dashboard", "https://gxt.lumofyi.com/#/analysis"],
-    ["https://gxt.lumofyi.com/#/alerts", "https://gxt.lumofyi.com/#/dashboard"],
-    ["https://gxt.lumofyi.com/#/analysis", ""],
-    ["https://gxt.lumofyi.com/#/service/audience-packages", "https://gxt.lumofyi.com/#/dashboard"],
-    ["https://gxt.lumofyi.com/#/asset/tables", "https://gxt.lumofyi.com/#/asset/tables"],
-    ["https://gxt.lumofyi.com/#/permission/groups", "https://gxt.lumofyi.com/#/permission/users"],
-    ["https://gxt.lumofyi.com/#/alerts", ""],
-    ["https://gxt.lumofyi.com/#/dashboard", "https://gxt.lumofyi.com/#/service/audience-packages"],
-    ["https://gxt.lumofyi.com/#/asset/tags", "https://gxt.lumofyi.com/#/asset/tables"],
-    ["https://gxt.lumofyi.com/#/analysis", "https://gxt.lumofyi.com/#/alerts"],
-    ["https://gxt.lumofyi.com/#/push/channels", "https://gxt.lumofyi.com/#/service/audience-packages"],
-    ["https://gxt.lumofyi.com/#/dashboard", ""],
-    ["https://gxt.lumofyi.com/#/permission/users", "https://gxt.lumofyi.com/#/permission/groups"],
-    ["https://gxt.lumofyi.com/#/asset/dictionaries", "https://gxt.lumofyi.com/#/asset/tables"]
-  ];
-  const operationLogDashboards = [
-    ["quickbi_sales_daily", "经营日报看板"],
-    ["quickbi_equity_core", "权益核心大盘"],
-    ["quickbi_delivery_cost", "投放成本日报"],
-    ["quickbi_retain_funnel", "存量转化漏斗"],
-    ["quickbi_insurance_gmv", "保险业务 GMV"],
-    ["quickbi_shortplay_roi", "短剧投放 ROI"],
-    ["quickbi_highvalue_user", "高价值用户分层"],
-    ["quickbi_channel_quality", "渠道质量周报"]
-  ];
-
   /* 页面访问埋点上报的菜单名称：由页面 URL 里的地址（#/asset/tables）还原；也认旧的 #page= 地址 */
   function operationLogMenuName(url) {
     const text = String(url || "");
     const hash = text.includes("#") ? text.slice(text.indexOf("#")) : "";
     const parsed = window.PortalRoutes ? window.PortalRoutes.parseHash(hash) : null;
     return parsed && !parsed.invalid ? parsed.page : "";
-  }
-
-  function buildOperationLogs() {
-    const base = new Date("2026-09-17T10:40:00");
-    const pad = value => String(value).padStart(2, "0");
-    const fmt = date => date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate())
-      + " " + pad(date.getHours()) + ":" + pad(date.getMinutes()) + ":" + pad(date.getSeconds());
-    const records = [];
-
-    operationLogPages.forEach((page, index) => {
-      const user = operationLogUsers[index % operationLogUsers.length];
-      const time = new Date(base.getTime() - (index * 7 + 2) * 60000);
-      records.push({
-        id: "pv_" + pad(index + 1),
-        event: "page_view",
-        ts: time.getTime(),
-        values: {
-          event_time: fmt(time),
-          user_name: user.name,
-          user_id: user.userId,
-          is_login: true,
-          menu_name: operationLogMenuName(page[0]),
-          page_url: page[0],
-          referrer_url: page[1],
-          distinct_id: user.device,
-          user_agent: user.platform === "h5" ? operationLogUaMobile : operationLogUaDesktop,
-          platform: user.platform,
-          env: "prod",
-          app_name: "观星台",
-          ip: user.ip
-        }
-      });
-    });
-
-    /* 看板心跳每 10 秒一次，同一 visit_id 归并为一次看板访问；停留时长取最大心跳时长 */
-    operationLogDashboards.forEach((board, index) => {
-      const user = operationLogUsers[index % operationLogUsers.length];
-      const start = new Date(base.getTime() - (index * 13 + 5) * 60000);
-      const visitId = "visit_" + (index + 1).toString(16).padStart(3, "0") + "f3a";
-      const beats = 3 + (index % 4);
-      for (let beat = 1; beat <= beats; beat += 1) {
-        const time = new Date(start.getTime() + (beat - 1) * 10000);
-        records.push({
-          id: visitId + "_" + beat,
-          event: "dashboard_view_heartbeat",
-          visitId,
-          ts: time.getTime(),
-          values: {
-            event_time: fmt(time),
-            visit_id: visitId,
-            user_id: user.userId,
-            dashboard_name: board[1],
-            dashboard_id: board[0],
-            duration_seconds: beat * 10,
-            page_type: "quick_bi_dashboard",
-            url: "https://gxt.lumofyi.com/#/dashboard/" + board[0],
-            distinct_id: user.device,
-            user_agent: user.platform === "h5" ? operationLogUaMobile : operationLogUaDesktop,
-            platform: user.platform,
-            env: "prod",
-            app_name: "观星台",
-            ip: user.ip
-          }
-        });
-      }
-    });
-
-    return records.sort((a, b) => b.ts - a.ts);
   }
 
   /* UA 摘要：表格里展示「浏览器 · 系统」，完整 UA 放到 tooltip 与详情抽屉 */
@@ -188,8 +84,6 @@
     return browser + " · " + system;
   }
 
-  const operationLogSeeds = buildOperationLogs();
-  const operationLogUserName = userId => operationLogUsers.find(user => user.userId === userId)?.name || "";
 
   /* 操作日志：埋点事件明细 + 按访问归并的看板记录，支持按分类/用户/时间/关键词筛选 */
   const OperationLogApp = {
@@ -298,13 +192,10 @@
       topTab: "ai", category: "全部", keyword: "", userFilter: "", platformFilter: "", timeRange: [], timeShortcuts: [],
       page: 1, pageSize: 10,
       detailVisible: false, detailTitle: "", detailEvent: "", detailAttrs: [], detailBeats: [],
-      logUsers: operationLogUsers,
-      records: operationLogSeeds
+      records: [], loadingRecords: false, loadError: ""
     }),
     created() {
-      /* 快捷区间以最新一条日志为锚点，避免样例数据与真实当前时间漂移导致筛不出结果 */
-      const anchor = this.records[0]?.ts || Date.now();
-      const back = ms => [new Date(anchor - ms), new Date(anchor)];
+      const back = ms => [new Date(Date.now() - ms), new Date()];
       this.timeShortcuts = [
         { text: "近 1 小时", value: () => back(3600000) },
         { text: "近 6 小时", value: () => back(21600000) },
@@ -312,7 +203,11 @@
         { text: "近 7 天", value: () => back(604800000) }
       ];
     },
+    mounted() { this.loadRecords(); },
+    watch: { topTab(value) { if (value === "board") this.loadRecords(); } },
     computed: {
+      /* 筛选用户下拉：取自已有的访问记录 */
+      logUsers() { const seen = new Map(); this.records.forEach(record => { const name = record.values?.user_name; if (name && !seen.has(name)) seen.set(name, { userId: record.values.user_id || name, name }); }); return [...seen.values()]; },
       categories() { return [...new Set(Object.values(operationLogEvents).map(item => item.category))]; },
       /* 当前对外展示的分类：只有一个时不渲染分类页签与分类列 */
       visibleCategories() { return this.categories.filter(item => OPERATION_LOG_VISIBLE_CATEGORIES.includes(item)); },
@@ -375,13 +270,25 @@
       }
     },
     methods: {
+      /* 访问记录来自网关 /v1/events（服务端落库的埋点事件）；没有「访问记录」菜单权限时网关会拒绝 */
+      async loadRecords() {
+        if (this.loadingRecords) return;
+        this.loadingRecords = true;
+        this.loadError = "";
+        try {
+          const { response, error } = await window.PortalVue.fetchGateway("/v1/events?limit=2000");
+          if (error || !response.ok) { this.loadError = "访问记录加载失败"; return; }
+          const data = await response.json();
+          this.records = Array.isArray(data.rows) ? data.rows : [];
+        } catch (error) { this.loadError = "访问记录加载失败"; } finally { this.loadingRecords = false; }
+      },
       resetPage() { this.page = 1; },
       categoryOf(row) { return operationLogEvents[row.head.event].category; },
       eventNameOf(row) { return operationLogEvents[row.head.event].name; },
       countOfCategory(category) { return this.allRows.filter(row => this.categoryOf(row) === category).length; },
       headValue(row, key) { return row.head.values[key]; },
       rowTime(row) { return this.headValue(row, "event_time"); },
-      rowUserName(row) { return this.headValue(row, "user_name") || operationLogUserName(this.rowUserId(row)) || "—"; },
+      rowUserName(row) { return this.headValue(row, "user_name") || "—"; },
       rowUserId(row) { return this.headValue(row, "user_id"); },
       pageUrlOf(row) { return row.kind === "page" ? this.headValue(row, "page_url") : this.headValue(row, "url"); },
       dashboardNameOf(row) { return row.kind === "dashboard" ? this.headValue(row, "dashboard_name") : ""; },

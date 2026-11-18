@@ -39,6 +39,8 @@ const { createSemanticLayer } = require("./semantic-layer.cjs");
 const { scopeTables, scopeRowsOf, isHidden, hiddenNamesOf, redactLines } = require("./field-scope.cjs");
 const { createFeedbackStore, RATINGS } = require("./feedback-store.cjs");
 const { createOrgStore } = require("./org-store.cjs");
+const { createBoardStore } = require("./board-store.cjs");
+const { createEventStore } = require("./event-store.cjs");
 const { createKnowledgeStore } = require("./knowledge-store.cjs");
 const { usableRelations } = require("./join-engine.cjs");
 const { createAccountStore } = require("./account-store.cjs");
@@ -1009,6 +1011,20 @@ const orgStore = createOrgStore({
   isActive: name => accountStore.isActive(name),
   tableNames: allTableNames
 });
+/* 看板（列表 / 分类 / 收藏）与访问记录（埋点事件）：规则在 board-store / event-store，网关只做鉴权与转发 */
+const boardStore = createBoardStore({ dataDir: DATA_DIR, orgStore });
+const eventStore = createEventStore({ dataDir: DATA_DIR, userIdOf: name => `u_${String(Math.max(0, accountStore.names().indexOf(name)) + 1).padStart(3, "0")}` });
+/** 能不能看「访问记录」：门户管理员，或所在权限组菜单里有「访问记录」 */
+function canViewAccessLog(name) {
+  if (orgStore.isAdmin(name)) return true;
+  const { groups, userGroups } = orgStore.effective();
+  return Boolean(groups.find(group => group.name === userGroups[name])?.menus?.includes("访问记录"));
+}
+function clientIp(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwarded || req.socket?.remoteAddress || "";
+}
+
 /* ================= 业务线知识库 ================= */
 
 /** 种子：首次启动（还没有人保存过）时的默认业务线与表归属；之后以管理员保存的 knowledge.json 为准 */
@@ -3004,6 +3020,12 @@ async function handleRequest(req, res) {
       createdBy: req.session.name,
       createdAt: new Date().toISOString()
     };
+    // 关联到生成这份报告的那次分析：AI 对话记录里的「报告地址」就是这条分享链接。只认自己的分析记录（管理员不限），防止把链接挂到别人的记录上
+    const sourceRequestId = String(body.requestId || "").slice(0, 80);
+    if (sourceRequestId) {
+      const source = readAuditTail().find(entry => entry.requestId === sourceRequestId);
+      if (source && (source.user === req.session.name || req.session.role === "admin")) shares[id].requestId = sourceRequestId;
+    }
     saveShares(shares);
     return sendJson(res, 200, { id, url: `/share.html?id=${id}` });
   }
@@ -3054,6 +3076,42 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, orgView());
   }
 
+
+  /* 看板：读 = 自己有权限看到的；写 = 门户管理员或有「看板管理」编辑权限（规则见 board-store） */
+  if (req.method === "GET" && url.pathname === "/v1/boards") return sendJson(res, 200, boardStore.view(req.session.name));
+  if (req.method === "PUT" && url.pathname === "/v1/boards") {
+    const body = await readBody(req, 1e6);
+    const outcome = boardStore.save(req.session.name, { boards: body.boards, categories: body.categories, rev: body.rev });
+    if (!outcome.ok) return sendJson(res, outcome.conflict ? 409 : (/权限/.test(outcome.error) && !/没有权限查看/.test(outcome.error) ? 403 : 400), { error: outcome.error });
+    appendAuditEntry({ type: "board-change", user: req.session.name, boards: Array.isArray(body.boards) ? body.boards.length : undefined });
+    return sendJson(res, 200, boardStore.view(req.session.name));
+  }
+  if (req.method === "PUT" && url.pathname === "/v1/boards/favorites") {
+    const body = await readBody(req, 20000);
+    const outcome = boardStore.setFavorites(req.session.name, body.favorites);
+    if (!outcome.ok) return sendJson(res, 400, { error: outcome.error });
+    return sendJson(res, 200, { favorites: outcome.favorites });
+  }
+
+  /* 访问记录：任何登录用户可以上报自己的访问（用户 / IP / 终端由服务端填）；查看需要「访问记录」菜单权限 */
+  if (req.method === "POST" && url.pathname === "/v1/events") {
+    const body = await readBody(req, 8000);
+    if (body.event === "dashboard_view_heartbeat") {
+      // 看板心跳：看板名称与分类以服务端为准，且只能上报自己看得到的看板
+      const found = boardStore.boardFor(req.session.name, String(body.dashboardId || ""));
+      if (!found) return sendJson(res, 404, { error: "看板不存在或没有权限" });
+      body.dashboardName = found.name;
+      body.category = found.category;
+    }
+    const outcome = eventStore.record({ user: req.session.name, ip: clientIp(req), userAgent: req.headers["user-agent"] }, body);
+    if (!outcome.ok) return sendJson(res, 400, { error: outcome.error });
+    return sendJson(res, 200, { ok: true });
+  }
+  if (req.method === "GET" && url.pathname === "/v1/events") {
+    if (!canViewAccessLog(req.session.name)) return sendJson(res, 403, { error: "需要「访问记录」菜单权限" });
+    const q = Object.fromEntries(url.searchParams.entries());
+    return sendJson(res, 200, eventStore.query({ event: q.event, user: q.user, platform: q.platform, from: q.from, to: q.to, keyword: q.keyword, limit: q.limit }));
+  }
 
   // 业务线知识库：写权限 = 门户管理员，或所在权限组 menuEdits 含「表管理」（不走 requiresAdmin，在这里判断）
   if (url.pathname === "/v1/knowledge" || url.pathname.startsWith("/v1/knowledge/")) {
@@ -3118,7 +3176,10 @@ async function handleRequest(req, res) {
     const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit")) || 50));
     // 工具调用的审计记录没有 type 字段，统一归为 tool-call，才能被筛选与统计
     const typeOf = entry => entry.type || (entry.tool ? "tool-call" : "other");
-    const all = readAuditTail().map(entry => ({ ...entry, type: typeOf(entry) })).filter(entry => (!type || entry.type === type) && (!user || entry.user === user) && (!status || entry.status === status));
+    // 报告地址：这次分析生成的报告被分享后的链接（同一次分析分享多次取最新一条）
+    const reportLinks = {};
+    Object.entries(loadShares()).sort((a, b) => String(a[1].createdAt).localeCompare(String(b[1].createdAt))).forEach(([shareId, share]) => { if (share.requestId) reportLinks[share.requestId] = `/share.html?id=${shareId}`; });
+    const all = readAuditTail().map(entry => ({ ...entry, type: typeOf(entry), ...(reportLinks[entry.requestId] ? { reportUrl: reportLinks[entry.requestId] } : {}) })).filter(entry => (!type || entry.type === type) && (!user || entry.user === user) && (!status || entry.status === status));
     const counts = {};
     all.forEach(entry => { counts[entry.type] = (counts[entry.type] || 0) + 1; });
     return sendJson(res, 200, { items: all.slice(0, limit), matched: all.length, counts });

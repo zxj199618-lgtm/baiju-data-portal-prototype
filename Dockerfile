@@ -10,6 +10,8 @@ COPY scripts/semantic-layer.cjs ./semantic-layer.cjs
 COPY scripts/field-scope.cjs ./field-scope.cjs
 COPY scripts/feedback-store.cjs ./feedback-store.cjs
 COPY scripts/org-store.cjs ./org-store.cjs
+COPY scripts/board-store.cjs ./board-store.cjs
+COPY scripts/event-store.cjs ./event-store.cjs
 COPY scripts/account-store.cjs ./account-store.cjs
 COPY scripts/knowledge-store.cjs ./knowledge-store.cjs
 COPY scripts/join-engine.cjs ./join-engine.cjs

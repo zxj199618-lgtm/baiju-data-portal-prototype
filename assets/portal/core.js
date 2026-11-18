@@ -83,6 +83,7 @@
     refreshTick.value += 1;
     bridge.notifyDataChange();
     orgSync.schedulePush();
+    boardSync.schedulePush();
     if (message) ep.ElMessage.success(message);
   }
 
@@ -152,6 +153,111 @@
       } catch (error) {
         ep.ElMessage.warning("权限配置没有保存到服务器：无法连接分析网关");
       }
+    }
+  };
+
+  /* ===== 看板（列表 / 分类 / 收藏）与服务端同步 =====
+     服务端是唯一数据源并决定「谁能看到哪些看板」。登录后读取并替换本地列表；有「看板管理」编辑权限的人修改（经 notify）后防抖保存。
+     服务端还没有保存过时（首次上线），有编辑权限的人把页面自带的默认看板整份交上去作为初始数据。 */
+  const boardSync = {
+    ready: false, canEdit: false, rev: 0, timer: null, lastSnapshot: "",
+    snapshot() {
+      return { boards: state.boards.map(board => ({ ...board })), categories: state.categories.filter(item => item !== "全部") };
+    },
+    apply(view) {
+      this.rev = Number(view.rev) || 0;
+      this.canEdit = !!view.canEdit;
+      state.boards.splice(0, state.boards.length, ...(view.boards || []).map(board => ({ ...board })));
+      state.categories.splice(0, state.categories.length, "全部", ...(view.categories || []));
+      state.favorites.clear();
+      (view.favorites || []).forEach(id => state.favorites.add(id));
+      this.lastSnapshot = JSON.stringify(this.snapshot());
+      refreshTick.value += 1;
+      bridge.notifyDataChange();
+    },
+    async load() {
+      if (!window.portalAuth?.token()) return;
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/boards`);
+        if (!response.ok) return;
+        const view = await response.json();
+        if (!view.saved) {
+          // 服务端还没有任何看板：能编辑的人上传页面默认看板作为初始数据；其他人先看不到任何看板
+          if (view.canEdit) { this.canEdit = true; this.ready = true; await this.push(true); return; }
+          this.apply({ ...view, boards: [], categories: [] });
+        } else this.apply(view);
+        this.ready = true;
+      } catch (error) { /* 网关未启动时保持界面自带的内容 */ }
+    },
+    schedulePush() {
+      if (!this.ready || !this.canEdit) return;
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => this.push(), 600);
+    },
+    async push(force = false) {
+      const body = this.snapshot();
+      const serialized = JSON.stringify(body);
+      if (!force && serialized === this.lastSnapshot) return;
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/boards`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, rev: force ? undefined : this.rev }) });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok) { this.apply(data); return; }
+        ep.ElMessage.warning(`看板配置没有保存：${data.error || "未知错误"}。已恢复为服务器上的配置`);
+        await this.load();
+      } catch (error) {
+        ep.ElMessage.warning("看板配置没有保存：无法连接分析网关");
+      }
+    },
+    /** 收藏是每个人自己的，不需要编辑权限 */
+    async pushFavorites() {
+      if (!this.ready) return;
+      try {
+        const response = await fetch(`${analysisGatewayBase}/v1/boards/favorites`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ favorites: [...state.favorites] }) });
+        if (!response.ok) ep.ElMessage.warning("收藏没有保存到服务器");
+      } catch (error) { /* 网关未启动时只在本页生效 */ }
+    }
+  };
+
+  /* ===== 访问记录埋点 =====
+     页面访问：每次切页上报一条；看板访问：打开某个看板后每 10 秒一次心跳（同一次访问共用 visitId，网关侧按 visitId 归并）。
+     用户、IP、终端都由服务端填写；失败静默，不影响使用。 */
+  const track = {
+    visitTimer: null, visit: null, lastUrl: "",
+    distinctId() {
+      try {
+        let id = localStorage.getItem("portalDistinctId");
+        if (!id) { id = `anon_${Math.random().toString(36).slice(2, 10)}`; localStorage.setItem("portalDistinctId", id); }
+        return id;
+      } catch (error) { return ""; }
+    },
+    send(body) {
+      if (!window.portalAuth?.token()) return;
+      fetch(`${analysisGatewayBase}/v1/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, distinctId: this.distinctId() }), keepalive: true }).catch(() => {});
+    },
+    pageView(page) {
+      const url = location.href;
+      this.send({ event: "page_view", menuName: page, pageUrl: url, referrerUrl: this.lastUrl });
+      this.lastUrl = url;
+    },
+    stopBoardVisit() {
+      clearInterval(this.visitTimer);
+      this.visitTimer = null;
+      this.visit = null;
+    },
+    /** 开始一次看板访问；同一个看板重复调用不会重新计一次 */
+    startBoardVisit(board) {
+      if (!board?.quickBiId) return;
+      if (this.visit?.id === board.quickBiId) return;
+      this.stopBoardVisit();
+      const visit = { id: board.quickBiId, visitId: `visit_${Date.now().toString(16)}${Math.random().toString(16).slice(2, 6)}`, seconds: 0 };
+      this.visit = visit;
+      const beat = () => {
+        if (this.visit !== visit || document.hidden) return;
+        this.send({ event: "dashboard_view_heartbeat", visitId: visit.visitId, dashboardId: board.quickBiId, durationSeconds: visit.seconds, pageType: board.type === "custom" ? "custom_dashboard" : "quick_bi_dashboard", pageUrl: location.href });
+        visit.seconds += 10;
+      };
+      beat();
+      this.visitTimer = setInterval(beat, 10000);
     }
   };
 
@@ -651,6 +757,8 @@
     ep,
     expandMenuNames,
     fetchGateway,
+    boardSync,
+    track,
     gatewayFieldsError,
     gatewayTableNames,
     groupOfUser,

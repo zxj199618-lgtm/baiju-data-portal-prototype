@@ -686,7 +686,8 @@
               tablesUsed:report.tables,
               question:(report.messages.find(msg=>msg.role==="user")?.lines||[]).join(" "),
               report:report.markdown||report.messages.filter(msg=>msg.role==="assistant").map(msg=>(msg.lines||[]).join("\n")).filter(Boolean).join("\n\n")||report.summary||"",
-              createdBy:this.currentUser?.name||""
+              createdBy:this.currentUser?.name||"",
+              requestId:[...(report.messages||[])].reverse().find(msg=>msg.requestId)?.requestId||""
             })
           });
           const data=await response.json();
