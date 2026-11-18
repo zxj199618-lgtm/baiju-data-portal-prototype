@@ -40,18 +40,17 @@ describe("按 Skill 配置：展开看表", () => {
       await page.getByRole("tab", { name: "表权限" }).or(page.getByText("表权限", { exact: true })).first().click();
       await page.getByRole("tab", { name: "按 Skill 配置" }).click();
       const list = page.locator('[data-test="skill-grant-list"]');
-      const many = list.locator(".portal-vue-table-perm", { hasText: "引用很多表的 Skill" });
-      const few = list.locator(".portal-vue-table-perm", { hasText: "只引用两张表" });
-      assert.equal(await many.locator(".el-tag").count(), 3, "默认只露出前 3 张");
-      assert.equal(await few.locator('[data-test="skill-expand"]').count(), 0, "表不多的 Skill 没有展开按钮");
+      const many = list.locator(".pc-skill", { hasText: "引用很多表的 Skill" });
+      const few = list.locator(".pc-skill", { hasText: "只引用两张表" });
+      assert.equal(await many.locator(".pc-skill-cell").count(), 0, "默认收起，不显示表格");
+      assert.match(await many.locator(".pc-skill-count").textContent(), /6/, "收起时显示引用表数量");
       await many.locator('[data-test="skill-expand"]').click();
-      assert.equal(await many.locator(".el-tag").count(), 6, "展开后显示全部");
-      // Element Plus 的标签有入场动画，等宽度稳定后再检查可见性
-      await page.waitForFunction(() => [...document.querySelectorAll('[data-test="skill-grant-list"] .el-tag')].every(tag => tag.getBoundingClientRect().width >= 30));
+      assert.equal(await many.locator(".pc-skill-cell").count(), 6, "展开后以表格列出全部");
       for (const name of tables) assert.ok(await many.getByText(name, { exact: true }).isVisible(), `${name} 应可见`);
       assert.match(await many.locator('[data-test="skill-expand"]').textContent(), /收起/);
+      assert.equal(await few.locator(".pc-skill-cell").count(), 0, "其他 Skill 不受影响，仍是收起");
       await many.locator('[data-test="skill-expand"]').click();
-      await page.waitForFunction(() => [...document.querySelectorAll('[data-test="skill-grant-list"] .portal-vue-table-perm')].find(row => row.textContent.includes("引用很多表的 Skill")).querySelectorAll(".el-tag").length === 3);
+      assert.equal(await many.locator(".pc-skill-cell").count(), 0, "再点收起");
     } finally { await context.close(); }
   });
 });

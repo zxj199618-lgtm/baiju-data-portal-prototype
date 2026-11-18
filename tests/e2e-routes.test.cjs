@@ -196,7 +196,7 @@ describe("路由端到端", () => {
     await openAs(page, "曾祥竞", "#/dashboard/QB_002");
     assert.equal(await pageOf(page), "数据看板");
     assert.equal(await hashOf(page), "#/dashboard/QB_002");
-    assert.match(await page.locator("#dataBoardView .portal-vue-board-hero h2").textContent(), /存量全部渠道收入/);
+    assert.match(await page.locator("#dataBoardView .pvb-head h2").textContent(), /存量全部渠道收入/);
     await page.locator(".portal-vue-board-item", { hasText: "号卡订单数据" }).first().click();
     await waitHash(page, "#/dashboard/QB_003");
     await reloadAt(page, "#/dashboard/QB_NOPE");
