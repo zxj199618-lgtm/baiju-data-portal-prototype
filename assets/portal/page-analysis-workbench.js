@@ -199,7 +199,7 @@
                   </ul>
                   <div class="portal-vue-ai-welcome-label">试试这样问</div>
                   <div class="portal-vue-ai-suggests">
-                    <button v-for="text in starterSuggests" :key="text" type="button" class="portal-vue-ai-starter" data-test="ai-starter" @click="input = text">{{ text }}</button>
+                    <button v-for="text in starterSuggests" :key="text" type="button" class="portal-vue-ai-starter" data-test="ai-starter" @click="askFollowUp(text)">{{ text }}</button>
                   </div>
                 </div>
                 <template v-for="(msg, index) in activeSession.messages" :key="index"><div v-if="msg.contextReset" class="portal-vue-ai-context-reset" data-test="ai-context-reset"><span>已切换到「{{ msg.contextReset.to.join("、") }}」，之前针对「{{ msg.contextReset.from.join("、") }}」的对话不再作为上下文</span></div><div v-show="!isEmptyMsg(msg)" class="portal-vue-ai-message" :class="[msg.role, { 'is-ask': !!msg.ask }]">
