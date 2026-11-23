@@ -1,0 +1,7 @@
+/* 灵犀智析对话页样式：最后加载，覆盖并取代 portal-vue-module.css / portal-shell.css 里的旧 .portal-vue-ai-* 规则 */
+.portal-vue-ai-layout {
+  --ai-line: #e4e9f2;
+  --ai-brand: #0066FF;
+  --ai-text: #1f2733;
+  --ai-sub: #6b7587;
+}
