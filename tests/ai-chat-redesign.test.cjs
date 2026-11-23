@@ -61,3 +61,30 @@ test("消息：助手回答无气泡背景，用户气泡无渐变", () => {
   assert.match(block(".portal-vue-ai-message.assistant .portal-vue-ai-bubble"), /background:\s*transparent/);
   assert.doesNotMatch(block(".portal-vue-ai-message.user .portal-vue-ai-bubble"), /gradient/);
 });
+
+test("清理：旧样式里被新样式取代的重复规则和没人用的规则已删除", () => {
+  const moduleCss = read("assets/portal-vue-module.css");
+  const count = pattern => (moduleCss.match(pattern) || []).length;
+  assert.equal(count(/^\.portal-vue-ai-welcome \{/gm), 0, "欢迎页样式统一放在 portal-ai-chat.css");
+  assert.equal(count(/^\.portal-vue-ai-bubble \{/gm), 0, "气泡基础样式统一放在 portal-ai-chat.css");
+  for (const dead of ["portal-vue-ai-scenario", "portal-vue-ai-side-summary", "portal-vue-ai-skillbar", "portal-vue-ai-welcome-tips", "portal-vue-ai-asset-drawer", "portal-vue-ai-report-linkcard", "portal-vue-ai-input-row"]) {
+    assert.ok(!moduleCss.includes(dead), "已没有页面使用，应删除：" + dead);
+  }
+  assert.ok(!read("assets/portal-shell.css").includes("portal-vue-ai-make-report"), "portal-shell.css 里没人用的 make-report 规则应删除");
+  assert.ok(moduleCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }") && moduleCss.includes(".portal-vue-ai-chip-line-select { width: 200px; }"), "smoke 测试断言的下拉宽度规则不能删");
+  assert.ok(moduleCss.includes("portal-vue-ai-bot-icon"), "告警页在用的 bot-icon 规则不能删");
+});
+
+test("视觉规范：新样式自成一套 Ink & Paper 变量，不沿用站点蓝，颜色只通过变量使用", () => {
+  const css = read("assets/portal-ai-chat.css");
+  const rootBlock = css.match(/:root\s*\{([^}]*)\}/);
+  assert.ok(rootBlock, "缺少 :root 变量定义");
+  for (const token of ["--ai-canvas", "--ai-surface", "--ai-sunken", "--ai-line", "--ai-ink", "--ai-accent", "--ai-accent-tint", "--ai-amber", "--ai-shadow-1", "--ai-shadow-2", "--ai-font-display"]) {
+    assert.ok(rootBlock[1].includes(token + ":"), "缺少变量：" + token);
+  }
+  assert.ok(!/#0066ff/i.test(css), "新样式不应使用站点蓝 #0066FF");
+  const outsideRoot = css.replace(/:root\s*\{[^}]*\}/, "");
+  const hexes = (outsideRoot.match(/#[0-9a-fA-F]{3,8}\b/g) || []).filter(hex => !["#fff", "#F6F4EF"].includes(hex));
+  assert.deepEqual(hexes, [], "变量定义之外不应直接写色值（#fff 和象牙白字色除外）：" + hexes.join(" "));
+  assert.ok(read("docs/superpowers/specs/2026-11-23-ai-chat-design-system.md").includes("Ink & Paper"), "缺少视觉规范文档");
+});

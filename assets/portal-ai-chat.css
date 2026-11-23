@@ -1,85 +1,147 @@
-/* 灵犀智析对话页样式：最后加载，覆盖并取代 portal-vue-module.css / portal-shell.css 里的旧 .portal-vue-ai-* 规则 */
+/* 灵犀智析对话页样式（Ink & Paper）：最后加载，取代 portal-vue-module.css / portal-shell.css 里的旧 .portal-vue-ai-* 规则。
+   视觉规范见 docs/superpowers/specs/2026-11-23-ai-chat-design-system.md；颜色只通过下面的 --ai-* 变量使用。 */
+:root {
+  --ai-canvas: #F6F4EF; --ai-surface: #FFFFFF; --ai-surface-2: #FBFAF7; --ai-sunken: #EFECE5;
+  --ai-line: #E6E1D6; --ai-line-strong: #D5CFC2;
+  --ai-ink: #1E1C19; --ai-ink-2: #5C5850; --ai-ink-3: #8E897E;
+  --ai-accent: #1F5A4C; --ai-accent-hover: #174A3E; --ai-accent-tint: #E4EEEA;
+  --ai-amber: #B4761B; --ai-amber-tint: #F7EBD6; --ai-ok: #2F7D5B; --ai-danger: #B4432B;
+  --ai-r-sm: 8px; --ai-r-md: 12px; --ai-r-lg: 18px;
+  --ai-shadow-1: 0 1px 2px rgba(30, 28, 25, .05);
+  --ai-shadow-2: 0 1px 2px rgba(30, 28, 25, .04), 0 10px 28px -10px rgba(30, 28, 25, .14);
+  --ai-font-display: "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+}
+.portal-vue-ai-layout, .ai-theme {
+  --el-color-primary: var(--ai-accent);
+  --el-color-primary-light-3: color-mix(in srgb, var(--ai-accent) 70%, #fff);
+  --el-color-primary-light-5: color-mix(in srgb, var(--ai-accent) 50%, #fff);
+  --el-color-primary-light-7: color-mix(in srgb, var(--ai-accent) 30%, #fff);
+  --el-color-primary-light-8: color-mix(in srgb, var(--ai-accent) 20%, #fff);
+  --el-color-primary-light-9: var(--ai-accent-tint);
+  --el-color-primary-dark-2: var(--ai-accent-hover);
+  --el-text-color-primary: var(--ai-ink);
+  --el-border-color: var(--ai-line);
+  --el-border-radius-base: var(--ai-r-sm);
+}
 .portal-vue-ai-layout {
-  --ai-line: #e4e9f2;
-  --ai-brand: #0066FF;
-  --ai-text: #1f2733;
-  --ai-sub: #6b7587;
   display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 0; align-items: stretch;
   height: calc(100vh - 176px); min-height: 500px; margin-top: 4px;
-  border: 1px solid var(--ai-line); border-radius: 12px; background: #fff; overflow: hidden;
+  border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-canvas); overflow: hidden; color: var(--ai-ink);
 }
 .portal-vue-ai-layout .ai-ico { display: inline-flex; flex: none; width: 16px; height: 16px; font-size: 16px; line-height: 1; }
 .portal-vue-ai-layout .ai-ico svg { display: block; }
 
 /* 会话栏 */
-.portal-vue-ai-side { height: auto; min-height: 0; padding: 12px 8px; gap: 8px; border: 0; border-right: 1px solid var(--ai-line); border-radius: 0; background: #fafbfd; }
-.portal-vue-ai-asset-btn { gap: 6px; margin: 0; padding: 8px 10px; border: 1px solid var(--ai-line); border-radius: 8px; background: #fff; box-shadow: none; }
-.portal-vue-ai-asset-btn:hover { background: #fff; border-color: #9cc5ff; }
-.portal-vue-ai-asset-btn.active { background: #f0f7ff; border-color: var(--ai-brand); box-shadow: none; }
-.portal-vue-ai-asset-btn-icon { color: var(--ai-brand); }
-.portal-vue-ai-asset-btn-text { color: var(--ai-text); font-size: 12.5px; font-weight: 500; }
+.portal-vue-ai-side { height: auto; min-height: 0; padding: 12px 8px; gap: 8px; border: 0; border-right: 1px solid var(--ai-line); border-radius: 0; background: var(--ai-surface-2); }
+.portal-vue-ai-asset-btn { gap: 6px; margin: 0; padding: 8px 10px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-sm); background: var(--ai-surface); box-shadow: var(--ai-shadow-1); transition: border-color .15s ease; }
+.portal-vue-ai-asset-btn:hover { background: var(--ai-surface); border-color: var(--ai-line-strong); }
+.portal-vue-ai-asset-btn.active { background: var(--ai-accent-tint); border-color: var(--ai-accent); box-shadow: none; }
+.portal-vue-ai-asset-btn-icon { color: var(--ai-accent); }
+.portal-vue-ai-asset-btn-text { color: var(--ai-ink); font-size: 12.5px; font-weight: 500; }
 .portal-vue-ai-asset-btn .el-tag { display: none; }
 .portal-vue-ai-new { width: 100%; }
-.portal-vue-ai-session { padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; }
-.portal-vue-ai-session:hover { background: #eef2f8; }
-.portal-vue-ai-session.active { background: #e8f1ff; }
+.portal-vue-ai-new.el-button { border-color: var(--ai-line-strong); background: transparent; color: var(--ai-ink); }
+.portal-vue-ai-new.el-button:hover { border-color: var(--ai-accent); background: var(--ai-accent-tint); color: var(--ai-accent); }
+.portal-vue-ai-group-label { color: var(--ai-ink-3); }
+.portal-vue-ai-session { padding: 7px 10px; border: 0; border-radius: var(--ai-r-sm); background: transparent; box-shadow: none; }
+.portal-vue-ai-session:hover { background: var(--ai-sunken); }
+.portal-vue-ai-session.active { background: var(--ai-accent-tint); box-shadow: none; }
 .portal-vue-ai-session-top { flex-direction: column; align-items: flex-start; gap: 1px; }
-.portal-vue-ai-session-top strong { max-width: 100%; font-size: 12.5px; font-weight: 500; }
-.portal-vue-ai-session-top time { font-size: 11px; }
-.portal-vue-ai-session-meta { margin-top: 3px; gap: 6px; }
-.portal-vue-ai-session-meta .ai-channel { color: #98a2b3; }
-.portal-vue-ai-session-meta .ai-channel.feishu { color: #12a150; }
+.portal-vue-ai-session-top strong { max-width: 100%; color: var(--ai-ink); font-size: 12.5px; font-weight: 500; }
+.portal-vue-ai-session-top time { color: var(--ai-ink-3); font-size: 11px; }
+.portal-vue-ai-session-meta { margin-top: 3px; gap: 6px; color: var(--ai-ink-3); }
+.portal-vue-ai-session-meta .ai-channel { color: var(--ai-ink-3); }
+.portal-vue-ai-session-meta .ai-channel.feishu { color: var(--ai-ok); }
+.portal-vue-ai-session-status.running { color: var(--ai-amber); }
 .portal-vue-ai-session-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 对话区 */
-.portal-vue-ai-main { height: auto; min-height: 0; border: 0; border-radius: 0; box-shadow: none; background: #fff; }
-.portal-vue-ai-chat { padding: 24px 28px; gap: 18px; background: #fff; }
+.portal-vue-ai-main { height: auto; min-height: 0; border: 0; border-radius: 0; box-shadow: none; background: var(--ai-canvas); }
+.portal-vue-ai-chat { padding: 24px 28px; gap: 18px; background: var(--ai-canvas); }
 .portal-vue-ai-message { max-width: 760px; }
-.portal-vue-ai-welcome { max-width: 620px; padding: 32px 0 28px; background: transparent; box-shadow: none; }
+.portal-vue-ai-bubble { min-width: 0; max-width: 78%; font-size: 14px; line-height: 1.75; color: var(--ai-ink); }
+.portal-vue-ai-context-reset { color: var(--ai-ink-3); }
+.portal-vue-ai-context-reset::before, .portal-vue-ai-context-reset::after { background: var(--ai-line); }
+
+/* 欢迎页（第二步会重做成能力卡片） */
+.portal-vue-ai-welcome { max-width: 620px; margin: auto; padding: 32px 0 28px; text-align: center; }
+.portal-vue-ai-welcome-logo { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: var(--ai-ink); color: #F6F4EF; font-family: var(--ai-font-display); font-size: 17px; font-weight: 500; }
+.portal-vue-ai-welcome h3 { margin: 14px 0 4px; font-family: var(--ai-font-display); font-size: 24px; font-weight: 500; color: var(--ai-ink); }
+.portal-vue-ai-welcome-sub { margin: 0; color: var(--ai-ink-2); font-size: 13.5px; }
+.portal-vue-ai-welcome-tips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+.portal-vue-ai-welcome-tips li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 6px; border-radius: 999px; background: var(--ai-sunken); color: var(--ai-ink-2); font-size: 12.5px; }
+.portal-vue-ai-welcome-tips b { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ai-surface); color: var(--ai-accent); font-size: 12px; font-weight: 500; }
+.portal-vue-ai-welcome-label { margin: 22px 0 10px; color: var(--ai-ink-3); font-size: 12px; letter-spacing: 1px; }
+.portal-vue-ai-welcome .portal-vue-ai-suggests { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 0; }
+.portal-vue-ai-starter { padding: 11px 14px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: var(--ai-shadow-1); color: var(--ai-ink); font-size: 13px; line-height: 1.5; text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
+.portal-vue-ai-starter:hover { border-color: var(--ai-line-strong); box-shadow: var(--ai-shadow-2); color: var(--ai-ink); }
+@media (max-width: 720px) { .portal-vue-ai-welcome .portal-vue-ai-suggests { grid-template-columns: 1fr; } }
 
 /* 输入卡片 */
-.portal-vue-ai-input { padding: 0 24px 16px; border-top: 0; background: #fff; }
-.ai-composer-card { max-width: 760px; margin: 0 auto; border: 1px solid #dfe5ef; border-radius: 14px; background: #fff; box-shadow: none; }
-.ai-composer-card:focus-within { border-color: var(--ai-brand); box-shadow: 0 0 0 3px rgba(0, 102, 255, .08); }
-.portal-vue-ai-composer-send.el-button { width: 28px; height: 28px; margin-left: auto; padding: 0; border-radius: 50%; font-size: 16px; }
+.portal-vue-ai-input { padding: 0 24px 16px; border-top: 0; background: var(--ai-canvas); }
+.ai-composer-card { max-width: 760px; margin: 0 auto; border: 1px solid var(--ai-line); border-radius: var(--ai-r-lg); background: var(--ai-surface); box-shadow: var(--ai-shadow-2); transition: border-color .15s ease; }
+.ai-composer-card:focus-within { border-color: var(--ai-line-strong); box-shadow: var(--ai-shadow-2); }
+.ai-composer-card .el-textarea__inner { color: var(--ai-ink); }
+.portal-vue-ai-composer-send.el-button { width: 30px; height: 30px; margin-left: auto; padding: 0; border: 0; border-radius: 50%; background: var(--ai-accent); color: #fff; font-size: 16px; }
+.portal-vue-ai-composer-send.el-button:hover:not(.is-disabled) { background: var(--ai-accent-hover); }
+.portal-vue-ai-composer-send.el-button.is-disabled { background: var(--ai-sunken); color: var(--ai-ink-3); }
 .portal-vue-ai-composer-send.el-button::after { content: none; }
+.portal-vue-ai-chip-line-select .el-select__wrapper, .portal-vue-ai-chip-model-select .el-select__wrapper { background: var(--ai-sunken); box-shadow: none; }
+.portal-vue-ai-chip-line-select .el-select__wrapper::before, .portal-vue-ai-chip-model-select .el-select__wrapper::before { color: var(--ai-accent); }
+.portal-vue-ai-chip-line-select .el-select__wrapper.is-focused, .portal-vue-ai-chip-model-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px var(--ai-line-strong) inset; }
+.portal-vue-ai-model-chip { border-radius: 999px; background: var(--ai-sunken); box-shadow: none; color: var(--ai-ink-2); }
+.portal-vue-ai-model-chip:hover { box-shadow: 0 0 0 1px var(--ai-line-strong) inset; }
+.portal-vue-ai-model-chip b { color: var(--ai-accent); font-weight: 500; }
+.portal-vue-ai-mention { border-color: var(--ai-line); background: var(--ai-surface); border-radius: var(--ai-r-md); }
+.portal-vue-ai-mention-list button { border-color: var(--ai-line); background: var(--ai-sunken); color: var(--ai-ink-2); }
+.portal-vue-ai-mention-list button:hover { border-color: var(--ai-accent); color: var(--ai-accent); }
 
-/* 消息：用户保留浅色气泡，回答去气泡 */
-.portal-vue-ai-message.user .portal-vue-ai-bubble { padding: 9px 14px; border-radius: 16px 16px 4px 16px; background: #eef2f8; color: var(--ai-text); box-shadow: none; }
-.portal-vue-ai-message.user .portal-vue-ai-refs .el-tag { background: #fff; color: var(--ai-sub); }
-.portal-vue-ai-message.assistant .portal-vue-ai-bubble { flex: 1; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 14px; line-height: 1.75; color: var(--ai-text); }
-.portal-vue-ai-avatar { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 8px; background: var(--ai-brand); color: #fff; font-size: 12px; box-shadow: none; }
+/* 消息：用户保留浅沙色气泡，回答去气泡 */
+.portal-vue-ai-message.user .portal-vue-ai-bubble { padding: 9px 14px; border-radius: 16px 16px 4px 16px; background: var(--ai-sunken); color: var(--ai-ink); box-shadow: none; }
+.portal-vue-ai-message.user .portal-vue-ai-refs .el-tag { background: var(--ai-surface); color: var(--ai-ink-2); }
+.portal-vue-ai-message.assistant .portal-vue-ai-bubble { flex: 1; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.portal-vue-ai-avatar { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 8px; background: var(--ai-ink); color: #F6F4EF; font-family: var(--ai-font-display); font-size: 12px; font-weight: 500; box-shadow: none; }
+.portal-vue-ai-refs .el-tag, .portal-vue-ai-confirms .el-tag { border: 0; background: var(--ai-sunken); color: var(--ai-ink-2); }
 
 /* 依据折叠行 */
 .ai-basis { margin: 0 0 8px; }
-.ai-basis-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 0; border: 0; background: none; color: var(--ai-sub); font-size: 12px; text-align: left; cursor: pointer; }
-.ai-basis-ok { color: #12a150; }
+.ai-basis-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 0; border: 0; background: none; color: var(--ai-ink-2); font-size: 12px; text-align: left; cursor: pointer; }
+.ai-basis-ok { color: var(--ai-ok); }
 .ai-basis-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ai-basis-more { display: inline-flex; flex: none; align-items: center; gap: 2px; color: var(--ai-brand); }
+.ai-basis-more { display: inline-flex; flex: none; align-items: center; gap: 2px; color: var(--ai-accent); }
 .ai-basis-more .ai-ico { width: 12px; height: 12px; font-size: 12px; }
-.ai-basis-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--ai-line); border-radius: 10px; background: #fafbfd; }
+.ai-basis-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface-2); }
 .ai-basis-body .portal-vue-ai-plan, .ai-basis-body .portal-vue-ai-scope, .ai-basis-body .portal-vue-ai-meta-card { margin: 0; padding: 0; border: 0; background: transparent; }
+.portal-vue-ai-plan-chip, .portal-vue-ai-scope-chip { background: var(--ai-sunken); color: var(--ai-ink-2); }
+.portal-vue-ai-plan-label, .portal-vue-ai-scope-label { color: var(--ai-ink-3); }
+.portal-vue-ai-plan-change { color: var(--ai-accent); }
+.portal-vue-ai-meta-tags span { border-color: var(--ai-line); background: var(--ai-surface); color: var(--ai-ink-2); }
 
 /* 思考过程：默认收成一行 */
 .portal-vue-ai-think { margin: 0 0 8px; border-radius: 0; background: transparent; }
-.portal-vue-ai-think-head { padding: 0; color: var(--ai-sub); font-size: 12px; }
-.portal-vue-ai-think-head:hover { background: transparent; color: var(--ai-text); }
+.portal-vue-ai-think-head { padding: 0; color: var(--ai-ink-2); font-size: 12px; }
+.portal-vue-ai-think-head:hover { background: transparent; color: var(--ai-ink); }
 .portal-vue-ai-think-head strong { font-weight: 500; }
-.portal-vue-ai-think-body { margin-top: 6px; padding: 4px 0 4px 12px; border-left: 2px solid var(--ai-line); font-size: 12.5px; color: var(--ai-sub); }
+.portal-vue-ai-think-arrow { color: var(--ai-ink-3); }
+.portal-vue-ai-think-body { margin-top: 6px; padding: 4px 0 4px 12px; border-left: 2px solid var(--ai-line); color: var(--ai-ink-2); font-size: 12.5px; }
 
 /* 报告卡：线框 */
-.portal-vue-ai-report-card { padding: 10px 12px; border: 1px solid var(--ai-line); border-radius: 10px; background: #fff; }
-.portal-vue-ai-report-card:hover { border-color: #c9d8f0; background: #fff; }
+.portal-vue-ai-report-card { padding: 10px 12px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: var(--ai-shadow-1); transition: box-shadow .15s ease; }
+.portal-vue-ai-report-card:hover { border-color: var(--ai-line-strong); background: var(--ai-surface); box-shadow: var(--ai-shadow-2); }
 .portal-vue-ai-report-card-head { padding-bottom: 0; border-bottom: 0; }
-.portal-vue-ai-report-card-file { color: var(--ai-brand); }
+.portal-vue-ai-report-card-file { color: var(--ai-accent); }
+.portal-vue-ai-report-open-btn { color: var(--ai-accent); }
 
 /* 反馈与追问 */
 .portal-vue-ai-feedback { display: flex; gap: 4px; margin-top: 10px; }
-.portal-vue-ai-feedback button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #98a2b3; cursor: pointer; }
-.portal-vue-ai-feedback button:hover { background: #eef2f8; color: var(--ai-text); }
-.portal-vue-ai-feedback button.on { background: #e8f1ff; color: var(--ai-brand); }
-.portal-vue-ai-followup { padding: 4px 12px; border: 1px solid var(--ai-line); border-radius: 999px; background: transparent; color: var(--ai-text); font-size: 12px; }
-.portal-vue-ai-followup:hover { border-color: var(--ai-brand); background: transparent; color: var(--ai-brand); }
+.portal-vue-ai-feedback button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ai-ink-3); cursor: pointer; }
+.portal-vue-ai-feedback button:hover { background: var(--ai-sunken); color: var(--ai-ink); }
+.portal-vue-ai-feedback button.on { background: var(--ai-accent-tint); color: var(--ai-accent); }
+.portal-vue-ai-followups-label { color: var(--ai-ink-3); }
+.portal-vue-ai-followup { padding: 4px 12px; border: 1px solid var(--ai-line); border-radius: 999px; background: transparent; color: var(--ai-ink); font-size: 12px; }
+.portal-vue-ai-followup:hover { border-color: var(--ai-accent); background: var(--ai-accent-tint); color: var(--ai-accent); }
 
 /* 澄清提问卡：只统一外观 */
-.portal-vue-ai-ask { border: 1px solid var(--ai-line); border-radius: 12px; background: #fff; box-shadow: none; }
+.portal-vue-ai-ask { border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: var(--ai-shadow-1); }
+.portal-vue-ai-ask-badge { background: var(--ai-amber-tint); color: var(--ai-amber); }
+.portal-vue-ai-ask-option.is-picked { border-color: var(--ai-accent); background: var(--ai-accent-tint); }
