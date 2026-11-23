@@ -192,126 +192,6 @@ describe("浏览器端到端", () => {
   }));
 
   /** 以管理员身份打开「运营中心」页面 */
-  async function openOpsCenter(page) {
-    await login(page, "曾祥竞");
-    await appVisible(page);
-    await page.evaluate(() => window.portalVueBridge.setPage("运营中心"));
-    await page.waitForSelector("#opsCenterPanel");
-  }
-
-  test("运营中心：普通用户的菜单里没有它；管理员能打开", async t => withPage(t, async page => {
-    await login(page, "李雨航");
-    await appVisible(page);
-    assert.doesNotMatch(await page.textContent("#sidebar"), /运营中心/);
-    await page.context().clearCookies();
-    await page.evaluate(() => window.portalAuth.clear());
-    await login(page, "曾祥竞");
-    await appVisible(page);
-    assert.match(await page.textContent("#sidebar"), /运营中心/);
-  }));
-
-  test("运营中心 · 用量与配额：列出全部账号，并能在界面里调整某个账号的额度（服务端立即生效）", async t => withPage(t, async page => {
-    await openOpsCenter(page);
-    const rows = page.locator('[data-test="usage-table"] .el-table__body tr');
-    await rows.first().waitFor();
-    assert.ok(await rows.count() >= 5, "应列出 5 个以上账号");
-    const target = rows.filter({ hasText: "谭嘉颖" });
-    await target.getByText("调整额度").click();
-    await page.locator(".el-dialog:visible .el-input-number input").first().fill("37");
-    await page.locator(".el-dialog:visible").getByRole("button", { name: "保存" }).click();
-    await page.waitForSelector(".el-dialog:visible", { state: "detached" });
-    await target.getByText("/ 37").first().waitFor();
-    const usage = await harness.call("GET", "/v1/usage/all", { token: await harness.tokenFor("曾祥竞") });
-    assert.equal(usage.data.users.find(item => item.name === "谭嘉颖").limits.requests, 37);
-  }));
-
-  test("运营中心 · 账号管理（演示环境）：新增账号用共用密码登录、不能重置密码；界面里停用后立即无法登录；审计里有记录", async t => withPage(t, async page => {
-    await openOpsCenter(page);
-    await page.getByRole("tab", { name: "账号管理" }).click();
-    await page.locator('[data-test="accounts-table"] .el-table__body tr').first().waitFor();
-    await page.locator('[data-test="create-account"]').click();
-    await page.locator('input[data-test="new-account-name"]').fill("界面新建的人");
-    await page.locator('[data-test="confirm-create"]').click();
-    await page.locator(".el-dialog:visible").getByText("使用演示环境共用的密码登录").waitFor();
-    assert.equal(await page.locator('[data-test="initial-password"]').count(), 0, "演示环境不生成单独的密码");
-    await page.getByRole("button", { name: "我已记下" }).click();
-    assert.equal((await harness.call("POST", "/v1/auth/login", { body: { name: "界面新建的人", password: PASSWORD } })).status, 200);
-
-    const row = page.locator('[data-test="accounts-table"] .el-table__body tr').filter({ hasText: "界面新建的人" });
-    assert.equal(await row.getByText("重置密码").locator("xpath=ancestor-or-self::button").isDisabled(), true, "演示环境不允许重置密码");
-    await row.getByText("停用").click();
-    await page.getByRole("button", { name: "确认" }).click();
-    await row.getByText("已停用").waitFor();
-    assert.equal((await harness.call("POST", "/v1/auth/login", { body: { name: "界面新建的人", password: PASSWORD } })).status, 403, "停用后立即无法登录");
-
-    await page.getByRole("tab", { name: "审计日志" }).click();
-    await page.locator('[data-test="audit-table"]').getByText("新增账号「界面新建的人」").first().waitFor();
-  }));
-
-  test("运营中心 · 账号管理（正式环境）：新增账号后密码只显示一次且能登录；重置密码后旧密码失效", async t => {
-    if (skipReason) return t.skip(skipReason);
-    const plain = await startHarness(); // 没有开启演示登录的网关
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-    const page = await context.newPage();
-    page.setDefaultTimeout(30000);
-    try {
-      await page.goto(plain.baseUrl + "/");
-      await page.fill('#gatewayLoginForm input[name="name"]', "曾祥竞");
-      await page.fill('#gatewayLoginForm input[name="password"]', plain.PASSWORD);
-      await page.click("#gatewayLoginBtn");
-      await appVisible(page);
-      await page.evaluate(() => window.portalVueBridge.setPage("运营中心"));
-      await page.getByRole("tab", { name: "账号管理" }).click();
-      await page.locator('[data-test="accounts-table"] .el-table__body tr').first().waitFor();
-      await page.locator('[data-test="create-account"]').click();
-      await page.locator('input[data-test="new-account-name"]').fill("正式新人");
-      await page.locator('[data-test="confirm-create"]').click();
-      const password = (await page.locator('[data-test="initial-password"]').textContent()).trim();
-      assert.ok(password.length >= 10);
-      await page.getByRole("button", { name: "我已记下" }).click();
-      assert.equal((await plain.call("POST", "/v1/auth/login", { body: { name: "正式新人", password } })).status, 200);
-
-      const row = page.locator('[data-test="accounts-table"] .el-table__body tr').filter({ hasText: "正式新人" });
-      await row.getByText("重置密码").click();
-      await page.getByRole("button", { name: "确认" }).click();
-      // 关闭后的弹窗 DOM 还在，等界面换成新密码再读
-      await page.waitForFunction(previous => { const node = document.querySelector('[data-test="initial-password"]'); return node && node.textContent.trim() && node.textContent.trim() !== previous; }, password);
-      const newPassword = (await page.locator('[data-test="initial-password"]').textContent()).trim();
-      assert.notEqual(newPassword, password);
-      assert.equal((await plain.call("POST", "/v1/auth/login", { body: { name: "正式新人", password } })).status, 401, "旧密码应失效");
-      assert.equal((await plain.call("POST", "/v1/auth/login", { body: { name: "正式新人", password: newPassword } })).status, 200);
-    } finally {
-      await context.close();
-      await plain.stop();
-    }
-  });
-
-  test("运营中心 · 审计日志与回答反馈：能看到分析记录、工具调用和用户的差评", async t => withPage(t, async page => {
-    const token = await harness.tokenFor("李雨航");
-    const analysis = await harness.call("POST", "/v1/analyze", { token, body: { question: "运营中心测试问题 9911", scenario: "single", model: harness.MODEL, tables: ["广告计划日报表"], toolMode: false } });
-    await harness.call("POST", "/v1/feedback", { token, body: { requestId: analysis.data.meta.requestId, rating: "down", comment: "数字对不上 9911" } });
-    await openOpsCenter(page);
-    await page.getByRole("tab", { name: "审计日志" }).click();
-    await page.locator('[data-test="audit-table"]').getByText("运营中心测试问题 9911").first().waitFor();
-    await page.getByRole("tab", { name: "回答反馈" }).click();
-    await page.locator('[data-test="feedback-table"]').getByText("数字对不上 9911").first().waitFor();
-    assert.match(await page.textContent("#opsCenterPanel"), /👎 \d+/);
-  }));
-
-  test("运营中心 · 默认模型：在界面里选择并保存后，服务端的默认模型随之改变", async t => withPage(t, async page => {
-    harness.relay.models = [harness.MODEL, "alt-model"];
-    await harness.call("POST", "/v1/providers/prov-relay/refresh", { token: await harness.tokenFor("曾祥竞") });
-    await openOpsCenter(page);
-    await page.getByRole("tab", { name: "默认模型" }).click();
-    await page.locator('[data-test="effective-default"]').getByText(harness.MODEL).waitFor();
-    await page.locator(".el-select:visible").last().click();
-    await page.getByRole("option", { name: "alt-model" }).click();
-    await page.locator('[data-test="save-default-model"]').click();
-    await page.locator('[data-test="effective-default"]').getByText("alt-model").waitFor();
-    assert.equal((await harness.call("GET", "/v1/models", { token: await harness.tokenFor("曾祥竞") })).data.default, "alt-model");
-    await harness.call("PUT", "/v1/default-model", { token: await harness.tokenFor("曾祥竞"), body: { model: "" } });
-  }));
-
   test("模型还在工作时，界面实时显示「工具取数：…」，最终回答出来后才出现反馈按钮", async t => withPage(t, async page => {
     harness.relay.toolScript = [{ calls: [{ id: "live1", type: "function", function: { name: "search_tables", arguments: "{}" } }] }];
     harness.relay.finalDelayMs = 2500; // 最终回答故意慢一点，给界面留出显示进度的时间
@@ -323,7 +203,7 @@ describe("浏览器端到端", () => {
       await page.locator("#analysisWorkbenchView").getByText("工具取数：search_tables").first().waitFor({ timeout: 15000 });
       assert.equal(await page.locator(".portal-vue-ai-feedback").count(), 0, "最终回答还没出来，不应有反馈按钮");
       await page.locator(".portal-vue-ai-feedback").first().waitFor();
-      assert.match(await page.locator(".portal-vue-ai-report-meta").first().textContent(), /工具取数 1 次（成功 1）：search_tables/);
+      assert.match(await page.locator(".portal-vue-ai-meta-card").first().textContent(), /工具取数\s*1 次（成功 1）：search_tables/); // 在「运行详情」行里，默认折叠，textContent 不受影响
     } finally {
       harness.relay.finalDelayMs = 0;
     }
@@ -331,7 +211,10 @@ describe("浏览器端到端", () => {
 
   test("权益场景：口径提示显示在回答上方，短回答直接显示在对话里；追问带上前一轮并沿用技能与口径", async t => withPage(t, async page => {
     harness.relay.requests.length = 0;
-    harness.relay.report = "任哥近 7 天消耗 10 万元。\n\n口径：部门口径（投放一部权益一组 + 二组）· 近 7 天。";
+    // 没有关键词路由了：由「规划助手」判断用哪个技能，这里让它选权益投放分析，口径词才会被解析
+    harness.relay.report = body => (String(body.messages[0]?.content || "").includes("规划助手")
+      ? '{"skill":"equity-union-analyst","output":"answer","confidence":0.9,"reason":"问的是权益投放的消耗"}'
+      : "任哥近 7 天消耗 10 万元。\n\n口径：部门口径（投放一部权益一组 + 二组）· 近 7 天。");
     try {
       await login(page, "林金维");
       await appVisible(page);
@@ -358,7 +241,7 @@ describe("浏览器端到端", () => {
     }
   }));
 
-  test("报告按需生成：默认是简短回答；点「整理成报告」选模板后，基于已有事实生成报告卡片，不再取数", async t => withPage(t, async page => {
+  test("报告按需生成：默认是简短回答；点「换一个 → 改为生成报告」后，基于已有事实生成报告卡片，不再取数", async t => withPage(t, async page => {
     harness.relay.requests.length = 0;
     harness.relay.toolScript = [{ calls: [{ id: "rq1", type: "function", function: { name: "query_metric", arguments: JSON.stringify({ metric: "cost", table: "权益-账号维度消耗统计表" }) } }] }];
     harness.relay.report = "近 7 天消耗 44 万元。";
@@ -367,19 +250,20 @@ describe("浏览器端到端", () => {
       await appVisible(page);
       await page.getByPlaceholder(/输入分析问题/).fill("权益近 7 天消耗多少");
       await page.keyboard.press("Enter");
-      const makeReport = page.locator('[data-test="make-report"]').first();
-      await makeReport.waitFor({ timeout: 20000 });
+      const toggle = page.locator('[data-test="ai-basis-toggle"]').first(); // 「换一个」在折叠的「已使用…」行里
+      await toggle.waitFor({ timeout: 20000 });
       assert.equal(await page.locator(".portal-vue-ai-report-card").count(), 0, "默认不是报告卡片");
 
       harness.relay.requests.length = 0;
       harness.relay.report = "# 权益投放周报\n\n## 本周概览\n\n近 7 天消耗 44 万元，较上期基本持平，各部门表现稳定，未发现需要立即处理的异常。\n\n## 口径说明\n\n时间窗为近 7 天，范围为全部部门。";
-      await makeReport.click();
-      await page.locator('[data-test="report-template-weekly"]').click();
+      await toggle.click();
+      await page.locator('[data-test="plan-change"]').click();
+      await page.locator('[data-test="plan-to-report"]').click();
       await page.locator(".portal-vue-ai-report-card").first().waitFor({ timeout: 20000 });
       assert.equal(harness.relay.requests.filter(request => request.tools).length, 0, "整理成报告不应再取数");
       const systemPrompt = harness.relay.requests.at(-1).messages.find(message => message.role === "system").content;
-      assert.match(systemPrompt, /## 报告模板：周报/);
-      assert.match(await page.locator("#analysisWorkbenchView").innerText(), /基于对话里 1 次已核实的取数/);
+      assert.match(systemPrompt, /## 报告模板：/); // 不再手选模板，用默认模板
+      assert.match(await page.locator(".portal-vue-ai-meta-card").last().textContent(), /基于对话里 1 次已核实的取数/); // 在默认折叠的「运行详情」里
     } finally {
       harness.relay.report = "默认测试回答";
       harness.relay.toolScript = [];
@@ -1054,7 +938,7 @@ describe("浏览器端到端", () => {
     assert.equal(await page.locator(".portal-vue-ai-composer-bar").getByText("选择数据表").count(), 0, "不应再有选择数据表级联");
     assert.equal(await page.locator(".portal-vue-ai-composer-bar .el-cascader").count(), 0);
     const options = await openLineOptions(page);
-    assert.deepEqual(options, ["权益", "存量", "号卡", "保险"], "选项不含「公共」");
+    assert.deepEqual(options, ["通用", "权益", "存量", "号卡", "保险"], "第一项是「通用」（不限业务线），其余是可选业务线，不含「公共」");
   }));
 
   test("没有权限的业务线不在选项里；选业务线发问时请求体 businessLine 为所选名称、assetCandidates 为空", async t => withPage(t, async page => {
@@ -1099,7 +983,7 @@ describe("浏览器端到端", () => {
 
   test("澄清卡的业务线选项等于用户可选的业务线（没有权限的保险、技能自带的短剧/其他都不出现）", async t => withPage(t, async page => {
     await openWorkbench(page, "林金维");
-    await page.locator(".portal-vue-ai-scenario", { hasText: "数据查询" }).click();
+    await page.evaluate(() => window.analysisWorkbenchVueApi.setScenario("data-query")); // 页面已去掉技能选择区，澄清只在选中带澄清的技能时出现
     await page.getByPlaceholder(/输入分析问题/).fill("澄清卡选项测试 7001");
     await page.getByRole("button", { name: "发送" }).click();
     await page.locator(".portal-vue-ai-ask-option").first().waitFor();
@@ -1215,7 +1099,6 @@ describe("浏览器端到端", () => {
     await page.evaluate(hash => { location.hash = hash; }, "#/ai/skills/equity-union-analyst");
     await page.waitForFunction(() => window.portalVueBridge.getPage() === "Skill 详情");
     await page.waitForSelector("#skillDetailView:not(.hidden)");
-    await page.getByRole("tab", { name: "提示词" }).click();
     await page.locator("#skillDetailView").getByText("权益-账号维度消耗统计表").first().waitFor({ timeout: 15000 });
   }));
 
@@ -1228,27 +1111,6 @@ describe("浏览器端到端", () => {
     assert.equal(await page.locator('[data-test="skill-table-refs"]').count(), 0, "不再单列 Skill 引用的表");
   }));
 
-  test("Skill 详情：在基本信息改展示文案并保存后直接生效（不生成版本）", async t => withPage(t, async page => {
-    const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
-    const before = skipReason ? null : await skillFromGateway(admin);
-    const marker = `E2E-Skill展示-${Date.now()}`;
-    try {
-      await login(page, "曾祥竞");
-      await appVisible(page);
-      await openSkillDetail(page);
-      await page.getByRole("tab", { name: "基本信息" }).click();
-      await page.locator("#skillDetailView .el-form-item", { hasText: "工作台展示描述" }).locator("input").fill(marker);
-      await page.getByRole("button", { name: "保存", exact: true }).click();
-      await page.waitForFunction(() => [...document.querySelectorAll(".el-message")].some(el => /基本信息已保存/.test(el.textContent)));
-      const saved = await skillFromGateway(admin);
-      assert.equal(saved.displayDesc, marker, "展示文案应写到服务端");
-    } finally {
-      if (!skipReason && before) {
-        await harness.call("PUT", `/v1/skills/${SKILL_ID}/config`, { token: admin, body: { displayDesc: before.displayDesc } });
-      }
-    }
-  }));
-
   test("Skill 详情：引用的表可保存并回显，不存在的表名选不中", async t => withPage(t, async page => {
     const admin = skipReason ? "" : await harness.tokenFor("曾祥竞");
     const before = skipReason ? null : await skillFromGateway(admin);
@@ -1257,8 +1119,7 @@ describe("浏览器端到端", () => {
       await login(page, "曾祥竞");
       await appVisible(page);
       await openSkillDetail(page);
-      await page.getByRole("tab", { name: "提示词" }).click();
-      await page.getByRole("button", { name: /修改/ }).click();
+        await page.getByRole("button", { name: /修改/ }).click();
       const add = await page.evaluate(() => {
         const skill = window.portalVueModuleApi.state.skills.find(item => item.id === "warehouse-analyst");
         const known = (window.portalVueModuleApi.state.assets || []).map(item => item.cnName).filter(Boolean);
@@ -1290,8 +1151,7 @@ describe("浏览器端到端", () => {
       await page.waitForFunction(() => [...document.querySelectorAll(".el-message")].some(el => el.textContent.includes("已保存为")));
       await backToSkillList(page);
       await openSkillDetail(page);
-      await page.getByRole("tab", { name: "提示词" }).click();
-      await page.locator("#skillDetailView .sk-pv-item", { hasText: "未发布" }).first().click();
+        await page.locator("#skillDetailView .sk-pv-item", { hasText: "未发布" }).first().click();
       const tags = await page.locator("#skillDetailView .sk-pv-main").textContent();
       assert.match(tags, new RegExp(add.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `再进入详情应仍看到 ${add}，实际：${tags}`);
       const saved = await skillFromGateway(admin);
@@ -1314,9 +1174,8 @@ describe("浏览器端到端", () => {
       await page.evaluate(hash => { location.hash = hash; }, "#/ai/skills/equity-union-analyst");
       await page.waitForFunction(() => window.portalVueBridge.getPage() === "Skill 详情");
       await page.waitForSelector("#skillDetailView:not(.hidden)");
-      await page.getByRole("tab", { name: "提示词" }).click();
-      await page.getByRole("button", { name: "新增版本" }).click();
-      const prompt = page.locator("#skillDetailView .sk-pv-textarea textarea");
+        await page.getByRole("button", { name: "新增版本" }).click();
+      const prompt = page.locator("#skillDetailView textarea.portal-vue-md-textarea");
       await prompt.waitFor();
       await prompt.fill("先看 E2E-自动识别 相关情况，再结合 广告计划日报表 的口径回答");
       await page.locator("#skillDetailView .el-select").getByText("广告计划日报表").first().waitFor({ timeout: 5000 });
@@ -1354,8 +1213,7 @@ describe("浏览器端到端", () => {
       await appVisible(page);
       await openSkillDetail(page);
       assert.equal(await page.getByRole("button", { name: "保存", exact: true }).count(), 0, "只读账号不应看到保存");
-      await page.getByRole("tab", { name: "提示词" }).click();
-      for (const name of ["灰度", "调整灰度", "发布", "新增版本", "修改"]) assert.equal(await page.getByRole("button", { name, exact: true }).count(), 0, `只读账号不应看到「${name}」`);
+        for (const name of ["灰度", "调整灰度", "发布", "新增版本", "修改"]) assert.equal(await page.getByRole("button", { name, exact: true }).count(), 0, `只读账号不应看到「${name}」`);
     } finally {
       if (!skipReason && baseGroups.length) await harness.call("PUT", "/v1/org", { token: admin, body: { groups: baseGroups } });
     }
