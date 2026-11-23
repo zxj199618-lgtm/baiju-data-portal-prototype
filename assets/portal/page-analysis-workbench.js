@@ -154,6 +154,8 @@
     "chevron-down": "M6 9l6 6 6-6",
     "chevron-up": "M6 15l6-6 6 6",
     "chevron-right": "M9 6l6 6-6 6",
+    close: "M6 6l12 12M18 6L6 18",
+    alert: "M12 8v5M12 16.5v.01M10.3 4.5L3 18h18L13.7 4.5a2 2 0 0 0-3.4 0z",
     trend: "M4 17l5-5 4 3 7-8M16 7h4v4",
     search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4",
     book: "M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h10",
@@ -331,6 +333,30 @@
               </div>
               </div>
 
+          <el-drawer v-model="capDrawer" direction="rtl" size="360px" :with-header="false" :close-on-click-modal="true" append-to-body class="ai-theme ai-cap-drawer" data-test="ai-capability-drawer">
+            <div class="ai-cap-drawer-head"><h3>我能帮你做什么</h3><button type="button" class="ai-cap-close" aria-label="关闭" @click="capDrawer = false"><span class="ai-ico" v-html="icon('close')"></span></button></div>
+            <p class="ai-cap-drawer-sub">点任意一项，看示例再试一试</p>
+            <section v-for="group in capabilityGroups" :key="group.key" class="ai-cap-group">
+              <h4><i class="ai-cap-dot" :class="'is-' + group.key"></i>{{ group.label }}</h4>
+              <button v-for="item in group.items" :key="item.id" type="button" class="ai-cap-row" data-test="ai-capability-row" @click="openCapability(item)">
+                <span class="ai-cap-thumb"><img :src="item.steps[0].image" alt="" /><span v-if="item.video" class="ai-cap-thumb-play ai-ico" v-html="icon('play')"></span></span>
+                <span class="ai-cap-row-text"><b>{{ item.title }}</b><small>{{ item.summary }}</small><em v-if="item.group === 'cannot'">可以改问：{{ item.example }}</em></span>
+              </button>
+            </section>
+          </el-drawer>
+          <el-dialog :model-value="!!capDetail" width="480px" align-center append-to-body class="ai-theme ai-cap-dialog" data-test="ai-capability-dialog" @update:model-value="value => { if (!value) capDetail = null; }">
+            <template v-if="capDetail">
+              <div class="ai-cap-media">
+                <video v-if="showVideo" :key="capDetail.id" controls preload="metadata" :poster="capDetail.video.poster" :src="capDetail.video.src" @error="onCapVideoError"></video>
+                <div v-else class="ai-cap-steps"><figure v-for="(step, index) in capDetail.steps" :key="index"><img :src="step.image" :alt="step.text" /><figcaption><span class="ai-cap-step-no">{{ index + 1 }}</span>{{ step.text }}</figcaption></figure></div>
+                <div v-if="capDetail.video && !capVideoFailed" class="ai-cap-switch"><button type="button" :class="{ on: capView === 'video' }" @click="capView = 'video'">视频</button><button type="button" :class="{ on: capView === 'steps' }" @click="capView = 'steps'">图文</button></div>
+              </div>
+              <h3 class="ai-cap-title">{{ capDetail.title }}</h3>
+              <p class="ai-cap-sum">{{ capDetail.summary }}</p>
+              <div class="ai-cap-try"><span>{{ capDetail.example }}</span><button type="button" class="ai-cap-try-btn" data-test="ai-capability-try" @click="tryCapability(capDetail)">试一试</button></div>
+              <p class="ai-cap-boundary"><span class="ai-ico" v-html="icon('alert')"></span>边界：{{ capDetail.boundary }}</p>
+            </template>
+          </el-dialog>
           <el-dialog v-model="reportDialog" width="1100px" top="4vh" :close-on-click-modal="true" class="portal-vue-ai-report-dialog">
 <template #header>
               <div style="width:100%">
@@ -428,6 +454,8 @@
         const keys=state.skills?.length?this.skillScenarios.map(item=>item.key):null;
         return groupCapabilities(visibleCapabilities(aiCapabilities.list,keys));
       },
+      /* 详情弹层：有视频、没出错、且选的是「视频」时放视频，否则放图文 */
+      showVideo(){return !!(this.capDetail&&this.capDetail.video&&this.capDetail.video.src)&&!this.capVideoFailed&&this.capView==="video";},
       capabilityCan(){return (this.capabilityGroups.find(group=>group.key==="can")||{items:[]}).items;},
       activeSkill(){return this.skillScenarios.find(item=>item.key===this.scenario);},
       scenarioHint(){return this.activeSkill?.kind==="router"?"自动根据问题内容与你可用的技能选择，也可以手动切换":`当前使用「${this.scenarioName}」，可随时切换，或选「通用分析」让系统自动选择`;},
@@ -526,6 +554,7 @@
     methods:{
       icon: aiIcon,
       openCapabilityDrawer(){this.capDrawer=true;},
+      onCapVideoError(){this.capVideoFailed=true;},
       openCapability(item){this.capDetail=item;this.capView="video";this.capVideoFailed=false;},
       /* 「试一试」：把示例问法填进输入框（有草稿则追加到新的一行），不自动发送 */
       tryCapability(item){

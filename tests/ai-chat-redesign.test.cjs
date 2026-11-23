@@ -103,3 +103,14 @@ test("能力导览：欢迎页是能力卡片 + 「我能做什么」入口，�
   const tryBody = source.slice(source.indexOf("tryCapability(item)"), source.indexOf("tryCapability(item)") + 600);
   assert.ok(!/sendMessage|askFollowUp/.test(tryBody), "试一试只填入输入框，不能自动发送");
 });
+
+test("能力导览：抽屉按三组展示，详情弹层有视频 / 图文切换、试一试和边界，视频出错自动退回图文", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  for (const needle of ['data-test="ai-capability-drawer"', 'data-test="ai-capability-dialog"', 'data-test="ai-capability-try"', 'data-test="ai-capability-row"', "tryCapability(capDetail)", '@error="onCapVideoError"', "capVideoFailed", "capDetail.video", "可以改问", "边界："]) {
+    assert.ok(template.includes(needle), "模板缺少：" + needle);
+  }
+  assert.ok(template.includes('class="ai-theme') || template.includes('ai-theme"'), "抽屉和弹层是挂到 body 上的，要加 ai-theme 类才能取到视觉变量");
+  assert.match(source, /onCapVideoError\(\)\{[^}]*capVideoFailed\s*=\s*true/, "视频出错要置 capVideoFailed");
+  assert.match(source, /capSteps\(\)\{|showVideo\(\)\{/, "要有判断「显示视频还是图文」的计算属性");
+});
