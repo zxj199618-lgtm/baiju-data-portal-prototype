@@ -43,3 +43,43 @@
 .ai-composer-card:focus-within { border-color: var(--ai-brand); box-shadow: 0 0 0 3px rgba(0, 102, 255, .08); }
 .portal-vue-ai-composer-send.el-button { width: 28px; height: 28px; margin-left: auto; padding: 0; border-radius: 50%; font-size: 16px; }
 .portal-vue-ai-composer-send.el-button::after { content: none; }
+
+/* 消息：用户保留浅色气泡，回答去气泡 */
+.portal-vue-ai-message.user .portal-vue-ai-bubble { padding: 9px 14px; border-radius: 16px 16px 4px 16px; background: #eef2f8; color: var(--ai-text); box-shadow: none; }
+.portal-vue-ai-message.user .portal-vue-ai-refs .el-tag { background: #fff; color: var(--ai-sub); }
+.portal-vue-ai-message.assistant .portal-vue-ai-bubble { flex: 1; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 14px; line-height: 1.75; color: var(--ai-text); }
+.portal-vue-ai-avatar { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 8px; background: var(--ai-brand); color: #fff; font-size: 12px; box-shadow: none; }
+
+/* 依据折叠行 */
+.ai-basis { margin: 0 0 8px; }
+.ai-basis-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 0; border: 0; background: none; color: var(--ai-sub); font-size: 12px; text-align: left; cursor: pointer; }
+.ai-basis-ok { color: #12a150; }
+.ai-basis-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-basis-more { display: inline-flex; flex: none; align-items: center; gap: 2px; color: var(--ai-brand); }
+.ai-basis-more .ai-ico { width: 12px; height: 12px; font-size: 12px; }
+.ai-basis-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--ai-line); border-radius: 10px; background: #fafbfd; }
+.ai-basis-body .portal-vue-ai-plan, .ai-basis-body .portal-vue-ai-scope, .ai-basis-body .portal-vue-ai-meta-card { margin: 0; padding: 0; border: 0; background: transparent; }
+
+/* 思考过程：默认收成一行 */
+.portal-vue-ai-think { margin: 0 0 8px; border-radius: 0; background: transparent; }
+.portal-vue-ai-think-head { padding: 0; color: var(--ai-sub); font-size: 12px; }
+.portal-vue-ai-think-head:hover { background: transparent; color: var(--ai-text); }
+.portal-vue-ai-think-head strong { font-weight: 500; }
+.portal-vue-ai-think-body { margin-top: 6px; padding: 4px 0 4px 12px; border-left: 2px solid var(--ai-line); font-size: 12.5px; color: var(--ai-sub); }
+
+/* 报告卡：线框 */
+.portal-vue-ai-report-card { padding: 10px 12px; border: 1px solid var(--ai-line); border-radius: 10px; background: #fff; }
+.portal-vue-ai-report-card:hover { border-color: #c9d8f0; background: #fff; }
+.portal-vue-ai-report-card-head { padding-bottom: 0; border-bottom: 0; }
+.portal-vue-ai-report-card-file { color: var(--ai-brand); }
+
+/* 反馈与追问 */
+.portal-vue-ai-feedback { display: flex; gap: 4px; margin-top: 10px; }
+.portal-vue-ai-feedback button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #98a2b3; cursor: pointer; }
+.portal-vue-ai-feedback button:hover { background: #eef2f8; color: var(--ai-text); }
+.portal-vue-ai-feedback button.on { background: #e8f1ff; color: var(--ai-brand); }
+.portal-vue-ai-followup { padding: 4px 12px; border: 1px solid var(--ai-line); border-radius: 999px; background: transparent; color: var(--ai-text); font-size: 12px; }
+.portal-vue-ai-followup:hover { border-color: var(--ai-brand); background: transparent; color: var(--ai-brand); }
+
+/* 澄清提问卡：只统一外观 */
+.portal-vue-ai-ask { border: 1px solid var(--ai-line); border-radius: 12px; background: #fff; box-shadow: none; }

@@ -338,7 +338,7 @@ describe("浏览器端到端", () => {
       await page.getByPlaceholder(/输入分析问题/).fill("任哥近 7 天消耗多少");
       await page.keyboard.press("Enter");
       const scope = page.locator('[data-test="ai-scope"]').first();
-      await scope.waitFor({ timeout: 20000 });
+      await scope.waitFor({ state: "attached", timeout: 20000 }); // 依据默认折叠，内容在 DOM 里但不可见
       assert.match(await scope.textContent(), /任哥 → 投放一部-权益一组 \+ 投放一部-权益二组/);
       await page.locator(".portal-vue-ai-feedback").first().waitFor();
       assert.equal(await page.locator(".portal-vue-ai-report-card").count(), 0, "短回答不应被折叠成报告卡片");
@@ -347,7 +347,7 @@ describe("浏览器端到端", () => {
       harness.relay.requests.length = 0;
       await page.getByPlaceholder(/输入分析问题/).fill("那昨天呢");
       await page.keyboard.press("Enter");
-      await page.locator('[data-test="ai-scope"]').nth(1).waitFor({ timeout: 20000 });
+      await page.locator('[data-test="ai-scope"]').nth(1).waitFor({ state: "attached", timeout: 20000 });
       assert.match(await page.locator('[data-test="ai-scope"]').nth(1).textContent(), /任哥.*沿用/);
       const followUp = harness.relay.requests.find(request => request.tools);
       const userMessage = followUp.messages.find(message => message.role === "user").content;
@@ -398,11 +398,12 @@ describe("浏览器端到端", () => {
       await page.getByPlaceholder(/输入分析问题/).fill("帮我看下各部门的回本情况怎么样");
       await page.keyboard.press("Enter");
       const plan = page.locator('[data-test="ai-plan"]').first();
-      await plan.waitFor({ timeout: 20000 });
+      await plan.waitFor({ state: "attached", timeout: 20000 });
       assert.match(await plan.textContent(), /权益投放分析 · 回答/);
       assert.match(await plan.textContent(), /问的是各部门回本，属于权益投放/);
       assert.equal(await page.locator(".portal-vue-ai-report-card").count(), 0);
 
+      await page.locator('[data-test="ai-basis-toggle"]').first().click(); // 「换一个」在折叠的依据里，先展开
       await plan.locator('[data-test="plan-change"]').click();
       await page.locator('[data-test="plan-to-report"]').click();
       await page.locator(".portal-vue-ai-report-card").first().waitFor({ timeout: 20000 });

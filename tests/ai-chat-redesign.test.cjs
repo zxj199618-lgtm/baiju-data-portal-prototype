@@ -18,7 +18,7 @@ test("新样式文件已接入页面和单文件构建", () => {
 
 const workbench = () => {
   const source = read("assets/portal/page-analysis-workbench.js");
-  const start = source.indexOf("template: `");
+  const start = source.indexOf("const BASIS_TPL");
   const end = source.indexOf("data:()=>({");
   assert.ok(start > -1 && end > start, "找不到工作台模板");
   return source.slice(start, end);
@@ -37,4 +37,27 @@ test("布局：会话栏收窄、对话列居中、输入卡片有样式", () =>
   assert.match(css, /\.portal-vue-ai-layout\s*\{[^}]*grid-template-columns:\s*168px/);
   assert.match(css, /\.ai-composer-card/);
   assert.match(css, /max-width:\s*760px/);
+});
+
+test("消息：依据收成一行，原有功能与 data-test 保留", () => {
+  const template = workbench();
+  assert.ok(template.includes('v-if="basisSummary(msg)"'), "依据折叠区必须由 basisSummary(msg) 控制，没有依据的历史 / 飞书消息不渲染空壳");
+  assert.ok(template.includes("msg.basisOpen"), "缺少展开状态 msg.basisOpen");
+  for (const needle of ['data-test="ai-plan"', 'data-test="plan-change"', 'data-test="plan-to-report"', 'data-test="ai-scope"', 'data-test="ai-basis-toggle"', 'data-test="ai-followups"', 'data-test="ai-followup"', "rateMessage(msg, 'up')", "rateMessage(msg, 'down')"]) {
+    assert.ok(template.includes(needle), "模板缺少：" + needle);
+  }
+  assert.ok(template.includes('v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"'), "反馈按钮仍只在有 requestId 且生成完成后出现");
+  assert.equal(template.split('data-test="ai-plan"').length - 1, 1, "ai-plan 只在共用的 BASIS_TPL 里定义一次");
+  assert.equal(template.split("${BASIS_TPL}").length - 1, 2, "报告类与回答类消息都要引用 BASIS_TPL");
+});
+
+test("消息：助手回答无气泡背景，用户气泡无渐变", () => {
+  const css = read("assets/portal-ai-chat.css");
+  const block = selector => {
+    const match = css.match(new RegExp(selector.replace(/[.]/g, "\\.") + "\\s*\\{([^}]*)\\}"));
+    assert.ok(match, "缺少样式：" + selector);
+    return match[1];
+  };
+  assert.match(block(".portal-vue-ai-message.assistant .portal-vue-ai-bubble"), /background:\s*transparent/);
+  assert.doesNotMatch(block(".portal-vue-ai-message.user .portal-vue-ai-bubble"), /gradient/);
 });
