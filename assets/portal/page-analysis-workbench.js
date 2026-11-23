@@ -18,8 +18,10 @@
     notify,
     refreshTick,
     skillRegistrySeed,
-    state
+    state,
+    aiCapabilities
   } = window.PortalVue;
+  const { visibleCapabilities, groupCapabilities, mergeDraft } = aiCapabilities;
 
 
   // 工作台场景卡片由「Skill 配置」驱动：icon/标题/描述/排序均来自 skill 注册表
@@ -150,7 +152,17 @@
     send: "M12 19V5M6 11l6-6 6 6",
     check: "M5 12.5l4.5 4.5L19 7.5",
     "chevron-down": "M6 9l6 6 6-6",
-    "chevron-up": "M6 15l6-6 6 6"
+    "chevron-up": "M6 15l6-6 6 6",
+    "chevron-right": "M9 6l6 6-6 6",
+    trend: "M4 17l5-5 4 3 7-8M16 7h4v4",
+    search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4",
+    book: "M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h10",
+    share: "M5 12h5M10 12l6-6M10 12l6 6M17 4a2 2 0 1 1 0 .01M17 18a2 2 0 1 1 0 .01",
+    layers: "M12 4l8 4-8 4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4",
+    clock: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 8v4l3 2",
+    lock: "M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3",
+    play: "M8 5l11 7-11 7z",
+    image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M9 9h.01"
   };
   const aiIcon = name => `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${AI_ICON_PATHS[name] || ""}"/></svg>`;
 
@@ -209,14 +221,18 @@
               <div v-if="!assetView" class="portal-vue-ai-chat" ref="chatBox">
                 <div v-if="!activeSession.messages.length" class="portal-vue-ai-welcome">
                   <span class="portal-vue-ai-welcome-logo">灵</span>
-                  <h3>灵犀智析</h3>
-                  <p class="portal-vue-ai-welcome-sub">直接说你想分析什么，系统会自动选择合适的分析技能</p>
-                  <ul class="portal-vue-ai-welcome-tips">
-                    <li><b>@</b><span>引用你有权限的数据表</span></li>
-                    <li><b>线</b><span>左下角可切换业务线</span></li>
-                    <li><b>飞</b><span>飞书机器人提问，记录同步到这里</span></li>
-                  </ul>
-                  <div class="portal-vue-ai-welcome-label">试试这样问</div>
+                  <h3>你好，想分析点什么？</h3>
+                  <p class="portal-vue-ai-welcome-sub">不知道问什么？点一张卡片，我带你试一遍</p>
+                  <div v-if="capabilityCan.length" class="ai-cap-cards">
+                    <button v-for="item in capabilityCan" :key="item.id" type="button" class="ai-cap-card" data-test="ai-capability-card" @click="openCapability(item)">
+                      <span class="ai-cap-card-icon ai-ico" v-html="icon(item.icon)"></span>
+                      <b>{{ item.title }}</b>
+                      <p>「{{ item.example }}」</p>
+                      <span class="ai-cap-card-tag"><span class="ai-ico" v-html="icon(item.video ? 'play' : 'image')"></span>{{ item.video ? (item.video.duration || '30 秒') + '看示例' : '图文说明' }}</span>
+                    </button>
+                  </div>
+                  <button type="button" class="ai-cap-open" data-test="ai-capability-open" @click="openCapabilityDrawer">我能做什么，不能做什么<span class="ai-ico" v-html="icon('chevron-right')"></span></button>
+                  <div class="portal-vue-ai-welcome-label">你也可以问</div>
                   <div class="portal-vue-ai-suggests">
                     <button v-for="text in starterSuggests" :key="text" type="button" class="portal-vue-ai-starter" data-test="ai-starter" @click="askFollowUp(text)">{{ text }}</button>
                   </div>
@@ -286,7 +302,7 @@
                   </div>
                 </div>
                 <div class="portal-vue-ai-composer ai-composer-card">
-                  <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
+                  <el-input ref="inputBox" v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
                     <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper" data-test="ai-line-select" @update:model-value="pickLine">
                       <el-option label="通用" value="通用"></el-option>
@@ -385,6 +401,10 @@
       historyLastAt: 0,
       reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
       assetView: false,
+      capDrawer: false,
+      capDetail: null,
+      capView: "video",
+      capVideoFailed: false,
       reportDialog: false,
       activeReportId: "",
       activeId: analysisSessionsSeed[0]?.id || "",
@@ -402,6 +422,13 @@
         // 输出类 Skill（报告生成）不是用来选的分析技能：由「整理成报告」按钮或「出个周报」这类说法按需调用
         return source.filter(item=>item.id!=="numa-warehouse"&&item.kind!=="output"&&item.enabled!==false&&item.status!=="已停用").sort((a,b)=>(a.sort||99)-(b.sort||99)).map(item=>({...item,key:item.scenarioKey||item.id,icon:item.icon||"✦",name:item.title||item.name,desc:item.displayDesc||item.desc||""}));
       },
+      /* 能力导览：Skill 列表还没加载时（用兜底数据）全部显示，加载后只显示仍在线的 Skill 对应的卡片 */
+      capabilityGroups(){
+        refreshTick.value;
+        const keys=state.skills?.length?this.skillScenarios.map(item=>item.key):null;
+        return groupCapabilities(visibleCapabilities(aiCapabilities.list,keys));
+      },
+      capabilityCan(){return (this.capabilityGroups.find(group=>group.key==="can")||{items:[]}).items;},
       activeSkill(){return this.skillScenarios.find(item=>item.key===this.scenario);},
       scenarioHint(){return this.activeSkill?.kind==="router"?"自动根据问题内容与你可用的技能选择，也可以手动切换":`当前使用「${this.scenarioName}」，可随时切换，或选「通用分析」让系统自动选择`;},
       scenarioName(){return this.activeSkill?.name||"单表分析";},
@@ -498,6 +525,14 @@
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
       icon: aiIcon,
+      openCapabilityDrawer(){this.capDrawer=true;},
+      openCapability(item){this.capDetail=item;this.capView="video";this.capVideoFailed=false;},
+      /* 「试一试」：把示例问法填进输入框（有草稿则追加到新的一行），不自动发送 */
+      tryCapability(item){
+        this.input=mergeDraft(this.input,item.example);
+        this.capDetail=null;this.capDrawer=false;
+        this.$nextTick(()=>this.$refs.inputBox?.focus?.());
+      },
       /* 回答上方「依据」折叠行的文案；没有技能 / 引用表 / 口径信息（历史会话、飞书来源）或还在生成时返回空串，折叠区不渲染 */
       basisSummary(msg){
         if(msg.streaming)return "";

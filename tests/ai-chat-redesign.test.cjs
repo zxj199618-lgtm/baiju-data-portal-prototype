@@ -88,3 +88,18 @@ test("视觉规范：新样式自成一套 Ink & Paper 变量，不沿用站点�
   assert.deepEqual(hexes, [], "变量定义之外不应直接写色值（#fff 和象牙白字色除外）：" + hexes.join(" "));
   assert.ok(read("docs/superpowers/specs/2026-11-23-ai-chat-design-system.md").includes("Ink & Paper"), "缺少视觉规范文档");
 });
+
+test("能力导览：欢迎页是能力卡片 + 「我能做什么」入口，个性化问法保留为一行", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  for (const needle of ['data-test="ai-capability-card"', 'data-test="ai-capability-open"', "capabilityCan", "openCapability(item)", "openCapabilityDrawer", "你好，想分析点什么？", 'data-test="ai-starter"']) {
+    assert.ok(template.includes(needle), "模板缺少：" + needle);
+  }
+  assert.ok(!template.includes("portal-vue-ai-welcome-tips"), "文字 tips 应被能力卡片取代");
+  assert.ok(!read("assets/portal-ai-chat.css").includes("portal-vue-ai-welcome-tips"), "不再使用的 tips 样式应删除");
+  assert.match(source, /aiCapabilities\s*\n?\s*\}\s*=\s*window\.PortalVue/, "工作台要从 PortalVue 取 aiCapabilities");
+  assert.ok(source.includes("capabilityGroups(){") && source.includes("state.skills?.length?"), "能力卡片要随 Skill 在线情况过滤，Skill 未加载时全部显示");
+  assert.ok(source.includes("mergeDraft(this.input"), "试一试必须用 mergeDraft 保留草稿");
+  const tryBody = source.slice(source.indexOf("tryCapability(item)"), source.indexOf("tryCapability(item)") + 600);
+  assert.ok(!/sendMessage|askFollowUp/.test(tryBody), "试一试只填入输入框，不能自动发送");
+});
