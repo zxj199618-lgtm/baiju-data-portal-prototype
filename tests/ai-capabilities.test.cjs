@@ -55,3 +55,16 @@ test("能力数据结构完整：字段齐全、id 不重复、每项 3 步图�
   }
   assert.deepEqual(plain(list.filter(item => item.group === "can").map(item => item.skillKey).sort()), ["asset", "attribution", "data-query", "lineage"]);
 });
+
+test("图文示意图：每个步骤的图片都存在，且是有效的 SVG", () => {
+  const { list } = load();
+  for (const item of list) {
+    for (const step of item.steps) {
+      const file = path.join(root, step.image);
+      assert.ok(fs.existsSync(file), "缺少示意图：" + step.image);
+      const svg = fs.readFileSync(file, "utf8");
+      assert.match(svg, /^<svg[^>]+viewBox="0 0 640 360"/, step.image + " 应是 640×360 的 SVG");
+      assert.ok(svg.trim().endsWith("</svg>"), step.image + " 没有闭合");
+    }
+  }
+});
