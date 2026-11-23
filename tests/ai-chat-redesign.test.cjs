@@ -114,3 +114,12 @@ test("能力导览：抽屉按三组展示，详情弹层有视频 / 图文切�
   assert.match(source, /onCapVideoError\(\)\{[^}]*capVideoFailed\s*=\s*true/, "视频出错要置 capVideoFailed");
   assert.match(source, /capSteps\(\)\{|showVideo\(\)\{/, "要有判断「显示视频还是图文」的计算属性");
 });
+
+test("能力入口：输入卡片里有常驻的「能力」按钮；静态资源版本号已递增", () => {
+  const template = workbench();
+  assert.ok(template.includes('data-test="ai-capability-entry"'), "输入卡片缺少「能力」入口");
+  assert.ok(/data-test="ai-capability-entry"[^>]*@click="openCapabilityDrawer"|@click="openCapabilityDrawer"[^>]*data-test="ai-capability-entry"/.test(template), "「能力」按钮要打开抽屉");
+  const html = read("index.html");
+  assert.ok(!html.includes("20261118e"), "index.html 里还有旧的静态资源版本号 20261118e");
+  assert.ok(html.includes("?v=20261123a"), "index.html 缺少新的静态资源版本号 20261123a");
+});

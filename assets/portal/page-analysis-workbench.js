@@ -327,6 +327,7 @@
                         <el-select :model-value="reasoning" size="default" class="mp-level-select" :teleported="false" placeholder="选择思考强度" @change="pickLevel"><el-option v-for="item in reasoningChoices" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
                       </div>
                     </el-popover>
+                    <button type="button" class="ai-cap-entry" data-test="ai-capability-entry" aria-label="能力" @click="openCapabilityDrawer"><span class="ai-ico" v-html="icon('spark')"></span>能力</button>
                     <el-button type="primary" circle class="portal-vue-ai-composer-send" aria-label="发送" :disabled="!input.trim() || thinking" @click="sendMessage"><span class="ai-ico" v-html="icon('send')"></span></el-button>
                   </div>
                 </div>

@@ -108,6 +108,10 @@
 .portal-vue-ai-mention-list button { border-color: var(--ai-line); background: var(--ai-sunken); color: var(--ai-ink-2); }
 .portal-vue-ai-mention-list button:hover { border-color: var(--ai-accent); color: var(--ai-accent); }
 
+.ai-cap-entry { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--ai-sunken); color: var(--ai-ink-2); font-size: 12px; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.ai-cap-entry:hover { background: var(--ai-accent-tint); color: var(--ai-accent); }
+.ai-cap-entry .ai-ico { width: 14px; height: 14px; font-size: 14px; }
+
 /* 消息：用户保留浅沙色气泡，回答去气泡 */
 .portal-vue-ai-message.user .portal-vue-ai-bubble { padding: 9px 14px; border-radius: 16px 16px 4px 16px; background: var(--ai-sunken); color: var(--ai-ink); box-shadow: none; }
 .portal-vue-ai-message.user .portal-vue-ai-refs .el-tag { background: var(--ai-surface); color: var(--ai-ink-2); }
