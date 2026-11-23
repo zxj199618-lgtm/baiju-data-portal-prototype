@@ -4,4 +4,42 @@
   --ai-brand: #0066FF;
   --ai-text: #1f2733;
   --ai-sub: #6b7587;
+  display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 0; align-items: stretch;
+  height: calc(100vh - 176px); min-height: 500px; margin-top: 4px;
+  border: 1px solid var(--ai-line); border-radius: 12px; background: #fff; overflow: hidden;
 }
+.portal-vue-ai-layout .ai-ico { display: inline-flex; flex: none; width: 16px; height: 16px; font-size: 16px; line-height: 1; }
+.portal-vue-ai-layout .ai-ico svg { display: block; }
+
+/* 会话栏 */
+.portal-vue-ai-side { height: auto; min-height: 0; padding: 12px 8px; gap: 8px; border: 0; border-right: 1px solid var(--ai-line); border-radius: 0; background: #fafbfd; }
+.portal-vue-ai-asset-btn { gap: 6px; margin: 0; padding: 8px 10px; border: 1px solid var(--ai-line); border-radius: 8px; background: #fff; box-shadow: none; }
+.portal-vue-ai-asset-btn:hover { background: #fff; border-color: #9cc5ff; }
+.portal-vue-ai-asset-btn.active { background: #f0f7ff; border-color: var(--ai-brand); box-shadow: none; }
+.portal-vue-ai-asset-btn-icon { color: var(--ai-brand); }
+.portal-vue-ai-asset-btn-text { color: var(--ai-text); font-size: 12.5px; font-weight: 500; }
+.portal-vue-ai-asset-btn .el-tag { display: none; }
+.portal-vue-ai-new { width: 100%; }
+.portal-vue-ai-session { padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; }
+.portal-vue-ai-session:hover { background: #eef2f8; }
+.portal-vue-ai-session.active { background: #e8f1ff; }
+.portal-vue-ai-session-top { flex-direction: column; align-items: flex-start; gap: 1px; }
+.portal-vue-ai-session-top strong { max-width: 100%; font-size: 12.5px; font-weight: 500; }
+.portal-vue-ai-session-top time { font-size: 11px; }
+.portal-vue-ai-session-meta { margin-top: 3px; gap: 6px; }
+.portal-vue-ai-session-meta .ai-channel { color: #98a2b3; }
+.portal-vue-ai-session-meta .ai-channel.feishu { color: #12a150; }
+.portal-vue-ai-session-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 对话区 */
+.portal-vue-ai-main { height: auto; min-height: 0; border: 0; border-radius: 0; box-shadow: none; background: #fff; }
+.portal-vue-ai-chat { padding: 24px 28px; gap: 18px; background: #fff; }
+.portal-vue-ai-message { max-width: 760px; }
+.portal-vue-ai-welcome { max-width: 620px; padding: 32px 0 28px; background: transparent; box-shadow: none; }
+
+/* 输入卡片 */
+.portal-vue-ai-input { padding: 0 24px 16px; border-top: 0; background: #fff; }
+.ai-composer-card { max-width: 760px; margin: 0 auto; border: 1px solid #dfe5ef; border-radius: 14px; background: #fff; box-shadow: none; }
+.ai-composer-card:focus-within { border-color: var(--ai-brand); box-shadow: 0 0 0 3px rgba(0, 102, 255, .08); }
+.portal-vue-ai-composer-send.el-button { width: 28px; height: 28px; margin-left: auto; padding: 0; border-radius: 50%; font-size: 16px; }
+.portal-vue-ai-composer-send.el-button::after { content: none; }

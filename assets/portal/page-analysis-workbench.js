@@ -135,6 +135,19 @@
     ".portal-vue-ai-meta-tags span{padding:1px 8px;border-radius:999px;background:#fff;border:1px solid #e1e7f0;color:#51607a;line-height:1.7}"
   ].join(""); document.head.appendChild(el); })();
 
+  /* 线性图标：24 栅格、1.8 描边，颜色随文字（currentColor） */
+  const AI_ICON_PATHS = {
+    grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
+    chat: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
+    web: "M3 5h18v12H3zM8 21h8M12 17v4",
+    spark: "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18",
+    file: "M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6",
+    up: "M7 11v9H4v-9zM7 11l4-8c1.5 0 2.5 1 2 2.5L12.5 9H19a1.5 1.5 0 0 1 1.4 2l-2 7a2 2 0 0 1-1.9 1.5H7",
+    down: "M7 13V4H4v9zM7 13l4 8c1.5 0 2.5-1 2-2.5L12.5 15H19a1.5 1.5 0 0 0 1.4-2l-2-7A2 2 0 0 0 16.5 4.5H7",
+    send: "M12 19V5M6 11l6-6 6 6"
+  };
+  const aiIcon = name => `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${AI_ICON_PATHS[name] || ""}"/></svg>`;
+
   const AnalysisWorkbenchApp = {
     template: `
       <el-config-provider :locale="locale">
@@ -142,7 +155,7 @@
           <div class="portal-vue-ai-layout">
             <aside class="portal-vue-ai-side">
               <button type="button" class="portal-vue-ai-asset-btn" :class="{ active: assetView }" @click="assetView = true">
-                <span class="portal-vue-ai-asset-btn-icon">📊</span>
+                <span class="portal-vue-ai-asset-btn-icon ai-ico" v-html="icon('grid')"></span>
                 <span class="portal-vue-ai-asset-btn-text">分析资产</span>
                 <el-tag size="small" round effect="plain">{{ reports.length }} 份报告</el-tag>
               </button>
@@ -153,12 +166,12 @@
                   <template v-if="ongoingSessions.length">
                     <article v-for="session in ongoingSessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
                       <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time :title="session.time">{{ relativeTime(session.time) }}</time></div>
-                      <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span><span class="portal-vue-ai-session-status running">{{ session.status }}</span></div>
+                      <div class="portal-vue-ai-session-meta"><span class="ai-channel ai-ico" :class="{ feishu: session.channel === '飞书机器人' }" :title="session.channel" v-html="icon(session.channel === '飞书机器人' ? 'chat' : 'web')"></span><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span><span class="portal-vue-ai-session-status running">{{ session.status }}</span></div>
                     </article>
                   </template>
                   <article v-for="session in historySessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
                     <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time :title="session.time">{{ relativeTime(session.time) }}</time></div>
-                    <div class="portal-vue-ai-session-meta"><el-tag size="small" :type="session.channel === '飞书机器人' ? 'success' : 'primary'" :effect="session.channel === '飞书机器人' ? 'plain' : 'light'">{{ session.channel }}</el-tag><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span></div>
+                    <div class="portal-vue-ai-session-meta"><span class="ai-channel ai-ico" :class="{ feishu: session.channel === '飞书机器人' }" :title="session.channel" v-html="icon(session.channel === '飞书机器人' ? 'chat' : 'web')"></span><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span></div>
                   </article>
                   <p v-if="!sessions.length" class="portal-vue-muted">暂无会话</p>
                 </div>
@@ -241,7 +254,7 @@
                   <div v-else class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
                     <div v-if="msg.reasoning" class="portal-vue-ai-think" :class="{ 'is-open': msg.thinkOpen }">
                       <button type="button" class="portal-vue-ai-think-head" @click="msg.thinkOpen = !msg.thinkOpen">
-                        <span class="portal-vue-ai-think-icon">🤔</span>
+                        <span class="portal-vue-ai-think-icon ai-ico" v-html="icon('spark')"></span>
                         <strong>{{ msg.streaming && !msg.html ? "思考中…" : "思考过程" }}</strong>
                         <span class="portal-vue-muted">{{ msg.reasoning.length }} 字</span>
                         <span class="portal-vue-ai-think-arrow">{{ msg.thinkOpen ? "收起 ▴" : "展开 ▾" }}</span>
@@ -249,10 +262,10 @@
                       <div v-show="msg.thinkOpen" class="portal-vue-ai-think-body" :class="{ 'is-live': msg.streaming && !msg.html }">{{ msg.reasoning }}</div>
                     </div>
                     <template v-if="msg.reportId"><div v-if="msg.plan && msg.plan.source && msg.plan.source !== 'manual' && !msg.streaming" class="portal-vue-ai-plan" data-test="ai-plan"><span class="portal-vue-ai-plan-label">本次</span><span class="portal-vue-ai-plan-chip">{{ msg.plan.skillName || '通用分析' }} · {{ msg.plan.output === 'report' ? '报告' : '回答' }}</span><span class="portal-vue-ai-plan-reason">{{ planReasonText(msg.plan) }}</span><el-dropdown trigger="click" @command="command => changePlan(msg, command)"><button type="button" class="portal-vue-ai-plan-change" data-test="plan-change">换一个</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="alt in (msg.plan.alternatives || [])" :key="alt.id" :command="'skill:' + alt.id">改用「{{ alt.name }}」重新回答</el-dropdown-item><el-dropdown-item v-if="msg.plan.output !== 'report'" command="output:report" :divided="!!(msg.plan.alternatives || []).length" data-test="plan-to-report">改为生成报告</el-dropdown-item><el-dropdown-item v-else command="output:answer" :divided="!!(msg.plan.alternatives || []).length">改为简短回答</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><div class="portal-vue-ai-report-card">
-  <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file">📄</span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportById(msg.reportId)">打开展示所有 ›</button></div>
+  <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file ai-ico" v-html="icon('file')"></span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportById(msg.reportId)">打开展示所有 ›</button></div>
   <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
-</div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><div v-if="msg.meta" class="portal-vue-ai-meta-card"><template v-for="item in metaItems(msg.meta)" :key="item.k + item.v"><div v-if="item.list" class="portal-vue-ai-meta-row"><em>{{ item.k }}</em><span class="portal-vue-ai-meta-tags"><span v-for="name in item.list" :key="name">{{ name }}</span></span></div><div v-else class="portal-vue-ai-meta-item" :class="{ warn: item.warn }"><em>{{ item.k }}</em><span>{{ item.v }}</span></div></template></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><button v-for="text in msg.suggestions" :key="text" type="button" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</button></div></template>
-                    <template v-else-if="msg.html"><div v-if="msg.plan && msg.plan.source && msg.plan.source !== 'manual' && !msg.streaming" class="portal-vue-ai-plan" data-test="ai-plan"><span class="portal-vue-ai-plan-label">本次</span><span class="portal-vue-ai-plan-chip">{{ msg.plan.skillName || '通用分析' }} · {{ msg.plan.output === 'report' ? '报告' : '回答' }}</span><span class="portal-vue-ai-plan-reason">{{ planReasonText(msg.plan) }}</span><el-dropdown trigger="click" @command="command => changePlan(msg, command)"><button type="button" class="portal-vue-ai-plan-change" data-test="plan-change">换一个</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="alt in (msg.plan.alternatives || [])" :key="alt.id" :command="'skill:' + alt.id">改用「{{ alt.name }}」重新回答</el-dropdown-item><el-dropdown-item v-if="msg.plan.output !== 'report'" command="output:report" :divided="!!(msg.plan.alternatives || []).length" data-test="plan-to-report">改为生成报告</el-dropdown-item><el-dropdown-item v-else command="output:answer" :divided="!!(msg.plan.alternatives || []).length">改为简短回答</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div><div class="portal-vue-ai-report-body" v-html="msg.html"></div><div v-if="msg.meta" class="portal-vue-ai-meta-card"><template v-for="item in metaItems(msg.meta)" :key="item.k + item.v"><div v-if="item.list" class="portal-vue-ai-meta-row"><em>{{ item.k }}</em><span class="portal-vue-ai-meta-tags"><span v-for="name in item.list" :key="name">{{ name }}</span></span></div><div v-else class="portal-vue-ai-meta-item" :class="{ warn: item.warn }"><em>{{ item.k }}</em><span>{{ item.v }}</span></div></template></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" @click="rateMessage(msg, 'up')">👍</button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" @click="rateMessage(msg, 'down')">👎</button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><button v-for="text in msg.suggestions" :key="text" type="button" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</button></div></template>
+</div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><div v-if="msg.meta" class="portal-vue-ai-meta-card"><template v-for="item in metaItems(msg.meta)" :key="item.k + item.v"><div v-if="item.list" class="portal-vue-ai-meta-row"><em>{{ item.k }}</em><span class="portal-vue-ai-meta-tags"><span v-for="name in item.list" :key="name">{{ name }}</span></span></div><div v-else class="portal-vue-ai-meta-item" :class="{ warn: item.warn }"><em>{{ item.k }}</em><span>{{ item.v }}</span></div></template></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><button v-for="text in msg.suggestions" :key="text" type="button" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</button></div></template>
+                    <template v-else-if="msg.html"><div v-if="msg.plan && msg.plan.source && msg.plan.source !== 'manual' && !msg.streaming" class="portal-vue-ai-plan" data-test="ai-plan"><span class="portal-vue-ai-plan-label">本次</span><span class="portal-vue-ai-plan-chip">{{ msg.plan.skillName || '通用分析' }} · {{ msg.plan.output === 'report' ? '报告' : '回答' }}</span><span class="portal-vue-ai-plan-reason">{{ planReasonText(msg.plan) }}</span><el-dropdown trigger="click" @command="command => changePlan(msg, command)"><button type="button" class="portal-vue-ai-plan-change" data-test="plan-change">换一个</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="alt in (msg.plan.alternatives || [])" :key="alt.id" :command="'skill:' + alt.id">改用「{{ alt.name }}」重新回答</el-dropdown-item><el-dropdown-item v-if="msg.plan.output !== 'report'" command="output:report" :divided="!!(msg.plan.alternatives || []).length" data-test="plan-to-report">改为生成报告</el-dropdown-item><el-dropdown-item v-else command="output:answer" :divided="!!(msg.plan.alternatives || []).length">改为简短回答</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div><div class="portal-vue-ai-report-body" v-html="msg.html"></div><div v-if="msg.meta" class="portal-vue-ai-meta-card"><template v-for="item in metaItems(msg.meta)" :key="item.k + item.v"><div v-if="item.list" class="portal-vue-ai-meta-row"><em>{{ item.k }}</em><span class="portal-vue-ai-meta-tags"><span v-for="name in item.list" :key="name">{{ name }}</span></span></div><div v-else class="portal-vue-ai-meta-item" :class="{ warn: item.warn }"><em>{{ item.k }}</em><span>{{ item.v }}</span></div></template></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><button v-for="text in msg.suggestions" :key="text" type="button" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</button></div></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div></template>
@@ -266,7 +279,7 @@
                     <p v-if="!mentionTables.length" class="portal-vue-muted">没有匹配的数据表，或当前权限组未配置数据表权限。</p>
                   </div>
                 </div>
-                <div class="portal-vue-ai-composer">
+                <div class="portal-vue-ai-composer ai-composer-card">
                   <el-input v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
                     <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper" data-test="ai-line-select" @update:model-value="pickLine">
@@ -290,7 +303,7 @@
                         <el-select :model-value="reasoning" size="default" class="mp-level-select" :teleported="false" placeholder="选择思考强度" @change="pickLevel"><el-option v-for="item in reasoningChoices" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
                       </div>
                     </el-popover>
-                    <el-button type="primary" size="small" class="portal-vue-ai-composer-send" :disabled="!input.trim() || thinking" @click="sendMessage">发送</el-button>
+                    <el-button type="primary" circle class="portal-vue-ai-composer-send" aria-label="发送" :disabled="!input.trim() || thinking" @click="sendMessage"><span class="ai-ico" v-html="icon('send')"></span></el-button>
                   </div>
                 </div>
               </div>
@@ -478,6 +491,7 @@
     },
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
+      icon: aiIcon,
       async loadGatewaySkills(){
         try{
           const response=await fetch(`${analysisGatewayBase}/v1/skills`);
