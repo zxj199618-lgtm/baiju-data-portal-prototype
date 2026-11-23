@@ -18,7 +18,7 @@ test("新样式文件已接入页面和单文件构建", () => {
 
 const workbench = () => {
   const source = read("assets/portal/page-analysis-workbench.js");
-  const start = source.indexOf("const BASIS_TPL");
+  const start = source.indexOf("template: `");
   const end = source.indexOf("data:()=>({");
   assert.ok(start > -1 && end > start, "找不到工作台模板");
   return source.slice(start, end);
@@ -39,16 +39,14 @@ test("布局：会话栏收窄、对话列居中、输入卡片有样式", () =>
   assert.match(css, /max-width:\s*760px/);
 });
 
-test("消息：依据收成一行，原有功能与 data-test 保留", () => {
+test("消息：过程信息用 Trace 行，原有功能与 data-test 保留", () => {
   const template = workbench();
-  assert.ok(template.includes('v-if="basisSummary(msg)"'), "依据折叠区必须由 basisSummary(msg) 控制，没有依据的历史 / 飞书消息不渲染空壳");
-  assert.ok(template.includes("msg.basisOpen"), "缺少展开状态 msg.basisOpen");
-  for (const needle of ['data-test="ai-plan"', 'data-test="plan-change"', 'data-test="plan-to-report"', 'data-test="ai-scope"', 'data-test="ai-basis-toggle"', 'data-test="ai-followups"', 'data-test="ai-followup"', "rateMessage(msg, 'up')", "rateMessage(msg, 'down')"]) {
+  for (const needle of ['class="ai-trace"', "traceRows(msg)", 'data-test="ai-trace-row"', ':aria-expanded=', "toggleTrace(msg", 'ai-basis-toggle', 'data-test="ai-plan"', 'data-test="plan-change"', 'data-test="plan-to-report"', 'data-test="ai-scope"', 'data-test="ai-followups"', 'data-test="ai-followup"', "rateMessage(msg, 'up')", "rateMessage(msg, 'down')"]) {
     assert.ok(template.includes(needle), "模板缺少：" + needle);
   }
+  assert.ok(!template.includes("basisSummary") && !/portal-vue-ai-think(?!ing)/.test(template), "旧的「依据」折叠条和思考块应被 Trace 行取代");
   assert.ok(template.includes('v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"'), "反馈按钮仍只在有 requestId 且生成完成后出现");
-  assert.equal(template.split('data-test="ai-plan"').length - 1, 1, "ai-plan 只在共用的 BASIS_TPL 里定义一次");
-  assert.equal(template.split("${BASIS_TPL}").length - 1, 2, "报告类与回答类消息都要引用 BASIS_TPL");
+  assert.equal(template.split('data-test="ai-plan"').length - 1, 1, "ai-plan 只在技能行里出现一次");
 });
 
 test("消息：助手回答无气泡背景，用户气泡无渐变", () => {
@@ -74,7 +72,7 @@ test("清理：旧样式里被新样式取代的重复规则和没人用的规�
   assert.ok(moduleCss.includes("portal-vue-ai-bot-icon"), "告警页在用的 bot-icon 规则不能删");
 });
 
-test("视觉规范：新样式自成一套 Ink & Paper 变量，不沿用站点蓝，颜色只通过变量使用", () => {
+test("视觉规范：新样式自成一套中性色变量（shadcn 风格），不沿用站点蓝，颜色只通过变量使用", () => {
   const css = read("assets/portal-ai-chat.css");
   const rootBlock = css.match(/:root\s*\{([^}]*)\}/);
   assert.ok(rootBlock, "缺少 :root 变量定义");
@@ -83,9 +81,9 @@ test("视觉规范：新样式自成一套 Ink & Paper 变量，不沿用站点�
   }
   assert.ok(!/#0066ff/i.test(css), "新样式不应使用站点蓝 #0066FF");
   const outsideRoot = css.replace(/:root\s*\{[^}]*\}/, "");
-  const hexes = (outsideRoot.match(/#[0-9a-fA-F]{3,8}\b/g) || []).filter(hex => !["#fff", "#F6F4EF"].includes(hex));
-  assert.deepEqual(hexes, [], "变量定义之外不应直接写色值（#fff 和象牙白字色除外）：" + hexes.join(" "));
-  assert.ok(read("docs/superpowers/specs/2026-11-23-ai-chat-design-system.md").includes("Ink & Paper"), "缺少视觉规范文档");
+  const hexes = (outsideRoot.match(/#[0-9a-fA-F]{3,8}\b/g) || []).filter(hex => !["#fff"].includes(hex));
+  assert.deepEqual(hexes, [], "变量定义之外不应直接写色值（#fff 除外）：" + hexes.join(" "));
+  assert.ok(read("docs/superpowers/specs/2026-11-23-ai-chat-design-system.md").includes("shadcn 风格"), "缺少视觉规范文档");
 });
 
 test("能力导览：欢迎页是能力卡片 + 「我能做什么」入口，个性化问法保留为一行", () => {
@@ -143,4 +141,12 @@ test("细节：聊天样式只由 portal-ai-chat.css 一处负责，Markdown 内
     assert.ok(css.includes(selector), "缺少样式：" + selector);
   }
   assert.match(css, /:focus-visible/, "键盘焦点要有可见的样式");
+});
+
+test("Trace 样式：行、展开内容、三种状态、流光（尊重减少动效）", () => {
+  const css = read("assets/portal-ai-chat.css");
+  for (const needle of [".ai-trace-trigger", ".ai-trace-line", ".ai-trace-content", ".ai-trace-title", '[data-status="running"]', '[data-status="error"]', '[data-status="pending"]', "@keyframes ai-shimmer", "prefers-reduced-motion"]) {
+    assert.ok(css.includes(needle), "缺少 Trace 样式：" + needle);
+  }
+  assert.match(css, /\.ai-trace-content\s*\{[^}]*border-left:\s*1px solid var\(--ai-line\)/, "展开内容左侧要有 1px 竖线");
 });

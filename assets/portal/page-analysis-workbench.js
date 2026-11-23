@@ -138,9 +138,6 @@
     ".portal-vue-ai-meta-tags span{padding:1px 8px;border-radius:999px;background:#fff;border:1px solid #e1e7f0;color:#51607a;line-height:1.7}"
   ].join(""); document.head.appendChild(el); })();
 
-  /* 回答上方的「依据」折叠区：把「本次用了什么技能 / 口径 / 数据来源」收成一行，点开才看细节（报告类与回答类消息共用） */
-  const BASIS_TPL = `<div v-if="basisSummary(msg)" class="ai-basis" :class="{ 'is-open': msg.basisOpen }"><button type="button" class="ai-basis-head" data-test="ai-basis-toggle" @click="msg.basisOpen = !msg.basisOpen"><span class="ai-ico ai-basis-ok" v-html="icon('check')"></span><span class="ai-basis-text">{{ basisSummary(msg) }}</span><span class="ai-basis-more">看依据<span class="ai-ico" v-html="icon(msg.basisOpen ? 'chevron-up' : 'chevron-down')"></span></span></button><div v-show="msg.basisOpen" class="ai-basis-body"><div v-if="msg.plan && msg.plan.source && msg.plan.source !== 'manual' && !msg.streaming" class="portal-vue-ai-plan" data-test="ai-plan"><span class="portal-vue-ai-plan-label">本次</span><span class="portal-vue-ai-plan-chip">{{ msg.plan.skillName || '通用分析' }} · {{ msg.plan.output === 'report' ? '报告' : '回答' }}</span><span class="portal-vue-ai-plan-reason">{{ planReasonText(msg.plan) }}</span><el-dropdown trigger="click" @command="command => changePlan(msg, command)"><button type="button" class="portal-vue-ai-plan-change" data-test="plan-change">换一个</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="alt in (msg.plan.alternatives || [])" :key="alt.id" :command="'skill:' + alt.id">改用「{{ alt.name }}」重新回答</el-dropdown-item><el-dropdown-item v-if="msg.plan.output !== 'report'" command="output:report" :divided="!!(msg.plan.alternatives || []).length" data-test="plan-to-report">改为生成报告</el-dropdown-item><el-dropdown-item v-else command="output:answer" :divided="!!(msg.plan.alternatives || []).length">改为简短回答</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div><div v-if="msg.meta" class="portal-vue-ai-meta-card"><template v-for="item in metaItems(msg.meta)" :key="item.k + item.v"><div v-if="item.list" class="portal-vue-ai-meta-row"><em>{{ item.k }}</em><span class="portal-vue-ai-meta-tags"><span v-for="name in item.list" :key="name">{{ name }}</span></span></div><div v-else class="portal-vue-ai-meta-item" :class="{ warn: item.warn }"><em>{{ item.k }}</em><span>{{ item.v }}</span></div></template></div></div></div>`;
-
   /* 线性图标：24 栅格、1.8 描边，颜色随文字（currentColor） */
   const AI_ICON_PATHS = {
     grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
@@ -156,6 +153,7 @@
     "chevron-up": "M6 15l6-6 6 6",
     "chevron-right": "M9 6l6 6-6 6",
     close: "M6 6l12 12M18 6L6 18",
+    database: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6",
     alert: "M12 8v5M12 16.5v.01M10.3 4.5L3 18h18L13.7 4.5a2 2 0 0 0-3.4 0z",
     trend: "M4 17l5-5 4 3 7-8M16 7h4v4",
     search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4",
@@ -275,20 +273,26 @@
                     </div>
                   </div>
                   <div v-else class="portal-vue-ai-bubble" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
-                    <div v-if="msg.reasoning" class="portal-vue-ai-think" :class="{ 'is-open': msg.thinkOpen }">
-                      <button type="button" class="portal-vue-ai-think-head" @click="msg.thinkOpen = !msg.thinkOpen">
-                        <span class="portal-vue-ai-think-icon ai-ico" v-html="icon('spark')"></span>
-                        <strong>{{ msg.streaming && !msg.html ? "思考中…" : "思考过程" }}</strong>
-                        <span class="portal-vue-muted">{{ msg.reasoning.length }} 字</span>
-                        <span class="portal-vue-ai-think-arrow">{{ msg.thinkOpen ? "收起 ▴" : "展开 ▾" }}</span>
-                      </button>
-                      <div v-show="msg.thinkOpen" class="portal-vue-ai-think-body" :class="{ 'is-live': msg.streaming && !msg.html }">{{ msg.reasoning }}</div>
+                    <div v-if="traceRows(msg).length" class="ai-trace">
+                      <div v-for="row in traceRows(msg)" :key="row.key" class="ai-trace-row" data-test="ai-trace-row">
+                        <button type="button" class="ai-trace-trigger" :data-test="row.key === 'skill' ? 'ai-basis-toggle' : null" :aria-expanded="isTraceOpen(msg, row.key)" @click="toggleTrace(msg, row.key)">
+                          <span class="ai-trace-line" :data-status="row.status || null"><span class="ai-ico ai-trace-icon" v-html="icon(row.status === 'error' ? 'alert' : row.icon)"></span><span class="ai-trace-title">{{ row.title }}</span><span v-if="row.desc" class="ai-trace-desc">{{ row.desc }}</span></span>
+                          <span class="ai-ico ai-trace-chevron" :class="{ 'is-open': isTraceOpen(msg, row.key) }" v-html="icon('chevron-right')"></span>
+                        </button>
+                        <div v-show="isTraceOpen(msg, row.key)" class="ai-trace-content">
+                          <div v-if="row.key === 'reasoning'" class="ai-trace-reasoning" :class="{ 'is-live': msg.streaming && !msg.html }">{{ msg.reasoning }}</div>
+                          <template v-else-if="row.key === 'skill'"><div v-if="msg.plan && msg.plan.source && msg.plan.source !== 'manual' && !msg.streaming" class="portal-vue-ai-plan" data-test="ai-plan"><span class="portal-vue-ai-plan-label">本次</span><span class="portal-vue-ai-plan-chip">{{ msg.plan.skillName || '通用分析' }} · {{ msg.plan.output === 'report' ? '报告' : '回答' }}</span><span class="portal-vue-ai-plan-reason">{{ planReasonText(msg.plan) }}</span><el-dropdown trigger="click" @command="command => changePlan(msg, command)"><button type="button" class="portal-vue-ai-plan-change" data-test="plan-change">换一个</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="alt in (msg.plan.alternatives || [])" :key="alt.id" :command="'skill:' + alt.id">改用「{{ alt.name }}」重新回答</el-dropdown-item><el-dropdown-item v-if="msg.plan.output !== 'report'" command="output:report" :divided="!!(msg.plan.alternatives || []).length" data-test="plan-to-report">改为生成报告</el-dropdown-item><el-dropdown-item v-else command="output:answer" :divided="!!(msg.plan.alternatives || []).length">改为简短回答</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></template>
+                          <div v-else-if="row.key === 'sources'" class="ai-trace-list"><span v-for="name in row.tables" :key="name" class="ai-trace-line"><span class="ai-ico ai-trace-icon" v-html="icon('database')"></span><span class="ai-trace-title">{{ name }}</span></span></div>
+                          <template v-else-if="row.key === 'scope'"><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div></template>
+                          <template v-else><div v-if="msg.meta" class="portal-vue-ai-meta-card"><template v-for="item in detailItems(msg)" :key="item.k + item.v"><div v-if="item.list" class="portal-vue-ai-meta-row"><em>{{ item.k }}</em><span class="portal-vue-ai-meta-tags"><span v-for="name in item.list" :key="name">{{ name }}</span></span></div><div v-else class="portal-vue-ai-meta-item" :class="{ warn: item.warn }"><em>{{ item.k }}</em><span>{{ item.v }}</span></div></template></div></template>
+                        </div>
+                      </div>
                     </div>
-                    <template v-if="msg.reportId">${BASIS_TPL}<p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><div class="portal-vue-ai-report-card">
+                    <template v-if="msg.reportId"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><div class="portal-vue-ai-report-card">
   <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file ai-ico" v-html="icon('file')"></span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportById(msg.reportId)">打开展示所有 ›</button></div>
   <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
 </div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><button v-for="text in msg.suggestions" :key="text" type="button" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</button></div></template>
-                    <template v-else-if="msg.html">${BASIS_TPL}<div class="portal-vue-ai-report-body" v-html="msg.html"></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><button v-for="text in msg.suggestions" :key="text" type="button" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</button></div></template>
+                    <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><button v-for="text in msg.suggestions" :key="text" type="button" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</button></div></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </div>
                 </div></template>
@@ -561,16 +565,15 @@
         this.capDetail=null;this.capDrawer=false;
         this.$nextTick(()=>this.$refs.inputBox?.focus?.());
       },
-      /* 回答上方「依据」折叠行的文案；没有技能 / 引用表 / 口径信息（历史会话、飞书来源）或还在生成时返回空串，折叠区不渲染 */
-      basisSummary(msg){
-        if(msg.streaming)return "";
-        const plan=msg.plan&&msg.plan.source&&msg.plan.source!=="manual"?msg.plan:null;
-        const tables=(this.metaItems(msg.meta).find(item=>item.k==="引用表")||{}).list||[];
-        if(!plan&&!msg.meta&&!(msg.resolved&&msg.resolved.length))return "";
-        const parts=[];
-        if(plan)parts.push(`已用「${plan.skillName||"通用分析"}」`);
-        if(tables.length)parts.push(`查了「${tables.slice(0,2).join("、")}${tables.length>2?` 等 ${tables.length} 张表`:""}」`);
-        return parts.join("")||"分析依据";
+      /* 助手消息上方的 Trace 行（见 ai-chat-helpers.js），旧消息没有过程信息时为空 */
+      traceRows(msg){return aiChatHelpers.buildTraceRows(msg,this.metaItems);},
+      /* 「运行详情」只放元信息里除「引用表」以外的条目（引用表有自己的一行） */
+      detailItems(msg){return this.metaItems(msg.meta).filter(item=>item.k!=="引用表");},
+      isTraceOpen(msg,key){return key==="reasoning"?!!msg.thinkOpen:!!(msg.traceOpen&&msg.traceOpen[key]);},
+      toggleTrace(msg,key){
+        if(key==="reasoning"){msg.thinkOpen=!msg.thinkOpen;return;}
+        if(!msg.traceOpen)msg.traceOpen={};
+        msg.traceOpen[key]=!msg.traceOpen[key];
       },
       async loadGatewaySkills(){
         try{

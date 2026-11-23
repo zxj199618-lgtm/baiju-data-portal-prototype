@@ -1,51 +1,45 @@
-# 灵犀智析 视觉规范（Ink & Paper）
+# 灵犀智析 视觉规范（Neutral · shadcn 风格）
 
-日期：2026-11-23　适用范围：「灵犀智析」对话页及其抽屉、弹层。**不沿用站点的蓝色主题**，页面内自成一套；站点左侧导航与顶栏不变。
+日期：2026-11-23（第二版：由「Ink & Paper」改为参考 [shadcn/ui Trace](https://ui.shadcn.com/docs/components/base/trace) 的中性色风格）　适用范围：「灵犀智析」对话页及其抽屉、弹层。**不沿用站点的蓝色主题**。
 
 ## 设计意图
-安静、克制、像一本纸质笔记本：暖色纸面做底，墨色文字，**只留一个深绿色强调色**。质感靠材质层次、细边框和柔和投影，不靠渐变和高饱和色。让小白觉得「专业但不吓人」，让回答内容成为页面里最突出的东西。
+克制、单色、信息密：黑白灰为主，主色就是近黑色，靠间距、细边框和**小而安静的状态行（Trace）**表达层次。回答正文是页面里最突出的东西，过程信息（思考、用了什么技能、查了哪些表）收成一行行灰色小字，点开才看。
 
-## 色彩
-所有颜色只通过 `:root` 上的 `--ai-*` 变量使用，样式里不写十六进制色值（变量定义处除外）。
+## 来源与取舍
+shadcn/ui 是 React + Tailwind 的组件源码，本项目是 Vue + Element Plus 且没有构建步骤，**不能直接引入**。这里照它的设计令牌和 Trace 的结构与尺寸，用 Vue 模板和 CSS 重写了一份（`.ai-trace*`）。字体用系统无衬线字体栈（不引入 Geist 字体文件）。
 
-| 变量 | 值 | 用途 |
-|---|---|---|
-| `--ai-canvas` | `#F6F4EF` | 对话区底色（暖纸色） |
-| `--ai-surface` | `#FFFFFF` | 悬浮卡片：输入框、能力卡、弹层 |
-| `--ai-surface-2` | `#FBFAF7` | 会话栏、折叠面板内层 |
-| `--ai-sunken` | `#EFECE5` | 用户气泡、chip、下沉区域 |
-| `--ai-line` / `--ai-line-strong` | `#E6E1D6` / `#D5CFC2` | 细边框 / 悬停边框 |
-| `--ai-ink` / `--ai-ink-2` / `--ai-ink-3` | `#1E1C19` / `#5C5850` / `#8E897E` | 正文 / 次要 / 提示文字 |
-| `--ai-accent` / `--ai-accent-hover` | `#1F5A4C` / `#174A3E` | 唯一强调色（深松绿）：主按钮、链接、选中态 |
-| `--ai-accent-tint` | `#E4EEEA` | 强调色浅底：选中会话、标签 |
-| `--ai-amber` / `--ai-amber-tint` | `#B4761B` / `#F7EBD6` | 仅用于「边界 / 提醒」 |
-| `--ai-ok` / `--ai-danger` | `#2F7D5B` / `#B4432B` | 成功 / 错误，只用于状态点和图标 |
+## 色彩（只通过 `:root` 的 `--ai-*` 变量使用）
+| 变量 | 值 | 对应 shadcn | 用途 |
+|---|---|---|---|
+| `--ai-canvas` / `--ai-surface` | `#FFFFFF` | background / card | 页面与卡片底 |
+| `--ai-surface-2` | `#FAFAFA` | — | 会话栏、弹层内层 |
+| `--ai-sunken` | `#F5F5F5` | muted | 用户气泡、代码块、chip |
+| `--ai-line` / `--ai-line-strong` | `#E5E5E5` / `#D4D4D4` | border / input | 边框 / 悬停边框 |
+| `--ai-ink` | `#0A0A0A` | foreground | 正文 |
+| `--ai-ink-2` / `--ai-ink-3` | `#737373` / `#A3A3A3` | muted-foreground | Trace 行、次要文字 / 占位 |
+| `--ai-accent` / `--ai-accent-hover` | `#171717` / `#262626` | primary | 主按钮（近黑） |
+| `--ai-accent-tint` | `#F5F5F5` | accent | 选中、悬停底 |
+| `--ai-danger` | `#DC2626` | destructive | 失败状态 |
+| `--ai-ok` / `--ai-amber` / `--ai-amber-tint` | `#16A34A` / `#B45309` / `#FFFBEB` | — | 仅用于状态点和「边界」提示 |
 
-规则：一屏里强调色面积不超过 10%；琥珀色只出现在边界提示；不用纯黑（`#000`）和纯灰（无色相的灰）。
+## 形状与字体
+- 圆角：`--ai-r-sm` 8、`--ai-r-md` 14（shadcn 的 rounded-2xl，卡片、代码块）、`--ai-r-lg` 22（rounded-3xl，用户气泡、输入框、弹层）；按钮和 chip 用胶囊（999px）。
+- 正文 14px / 行高 1.75；Trace 行 14px / 20px；代码 12px 等宽。字重只有 400、500。
+- 投影只有两档且很轻：`--ai-shadow-1`、`--ai-shadow-2`。不用渐变、不用发光。
 
-## 字体
-- 正文沿用站点系统字体栈（`PingFang SC` 等），正文 14px / 行高 1.75；辅助 12–12.5px。
-- **标题（欢迎语、抽屉与弹层标题）用衬线体**：`"Songti SC","Noto Serif SC","Source Han Serif SC",Georgia,serif`（变量 `--ai-font-display`），字重 500。这是页面「质感」的主要来源。
-- 只有两个字重：400、500。不用 600 / 700。
-
-## 形状与层次
-- 圆角：`--ai-r-sm` 8（chip、按钮）/ `--ai-r-md` 12（卡片）/ `--ai-r-lg` 18（输入框、弹层）。
-- 边框一律 1px `--ai-line`；悬停时 `--ai-line-strong`。
-- 投影两档：`--ai-shadow-1`（`0 1px 2px rgba(30,28,25,.05)`，卡片静止）、`--ai-shadow-2`（`0 1px 2px rgba(30,28,25,.04), 0 10px 28px -10px rgba(30,28,25,.14)`，输入框、弹层、悬停卡片）。投影带暖色，不用纯黑阴影。
-- 不用渐变，不用发光。
+## Trace 行（参考 shadcn Trace 的实测尺寸）
+- 一行 = 图标（16px）+ 标题（一句话，不换行省略）+ 可选描述 + 展开箭头；文字 `--ai-ink-2`，悬停变 `--ai-ink`；行间距 8px，图标与标题间距 8px。
+- 状态：无状态=已完成；`running` 标题带流光（`prefers-reduced-motion` 时关闭）；`error` 标题和图标用 `--ai-danger`；`pending` 用 `--ai-ink-3`。状态要写进标题文字里（例如「正在思考…」「调用失败」），不能只靠颜色。
+- 展开内容：上 8px、下 4px，左侧 1px `--ai-line` 竖线，左内边距 16px，文字 `--ai-ink-2`，行高 1.625。
+- 本页用到的行：思考过程、已使用的技能（含「换一个」）、查了哪些表（展开后是表名行）、口径理解、运行详情。
 
 ## 组件约定
-- **头像**：墨色圆角方块（`--ai-ink` 底、象牙白字，衬线「灵」），26px。
-- **用户消息**：`--ai-sunken` 浅沙色气泡，右下角小圆角；**回答**：无气泡，直接是正文。
-- **主按钮**：`--ai-accent` 底、白字；其余按钮是描边或文字按钮。一屏只有一个主按钮（发送）。
-- **chip**：`--ai-sunken` 底、`--ai-ink-2` 字；选中 / 悬停用 `--ai-accent-tint` 底 + `--ai-accent` 字。
-- **依据折叠条**：一行 `--ai-ink-3` 小字，对勾用 `--ai-ok`，「看依据」用 `--ai-accent`。
-- **能力卡**：白底 + `--ai-line` 边框 + `--ai-shadow-1`；悬停升到 `--ai-shadow-2`。图标放在 `--ai-accent-tint` 圆角底上。
+- **用户消息**：`--ai-sunken` 底、22px 圆角、靠右、最大宽度 80%。**助手回答**：无气泡、无头像，直接是正文。
+- **按钮 / chip**：描边胶囊（1px `--ai-line`、白底、32px 高、14px / 500），悬停边框加深；主按钮为 `--ai-accent` 底白字，一屏只有一个（发送）。
+- **输入框**：白底、22px 圆角、1px 边框、轻投影。
+- **能力卡**：白底、1px 边框、14px 圆角，悬停背景变 `--ai-sunken`；图标放在 `--ai-sunken` 圆角底上。
 - **边界提示**：`--ai-amber-tint` 底、`--ai-amber` 字。
-- **Element Plus 组件**：在对话页范围内把 `--el-color-primary` 指向 `--ai-accent`，其余随之变化；弹层 / 抽屉 / 下拉浮层用 `popper-class` / `class` 加 `ai-theme` 以取到同样的变量。
-
-## 动效
-只用两种：悬停过渡 `.15s ease`；抽屉 / 弹层使用 Element Plus 默认进出场。不做装饰性动画。
+- **Element Plus 组件**：对话页范围内 `--el-color-primary` 指向 `--ai-accent`；浮层 / 抽屉 / 弹层加 `ai-theme` 类取同一套变量。
 
 ## 无障碍
-正文与背景对比度不低于 4.5:1（`--ai-ink` 在 `--ai-canvas` 上约 15:1，`--ai-ink-3` 在 `--ai-canvas` 上约 3.2:1，**仅用于非关键的辅助信息**）；所有图标按钮带 `aria-label`。
+Trace 行的展开按钮带 `aria-expanded`；图标按钮带 `aria-label`；状态写进标题文字；流光动画在 `prefers-reduced-motion` 下关闭。正文对比度不低于 4.5:1（`--ai-ink-3` 仅用于占位等非关键文字）。

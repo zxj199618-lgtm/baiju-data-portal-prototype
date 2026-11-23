@@ -29,5 +29,32 @@
     return Object.keys(buckets).filter(key => buckets[key].length).map(key => ({ key, label: LABELS[key], items: buckets[key] }));
   }
 
-  window.PortalVue.aiChatHelpers = { groupSessions };
+  /**
+   * 一条助手消息上方的 Trace 行（参考 shadcn Trace）：思考过程 → 使用的技能 → 查了哪些表 → 口径理解 → 运行详情。
+   * 每行 { key, icon, title, desc, status, tables? }，status 为 "running" / "error" / ""；
+   * 没有任何过程信息的旧消息（历史会话、飞书来源）返回空数组；生成中只返回思考行。
+   * metaItems 是把元信息行拆成条目的函数（由组件传入）。
+   */
+  function buildTraceRows(msg, metaItems) {
+    const rows = [];
+    const live = !!(msg.streaming && !msg.html);
+    if (msg.reasoning) {
+      rows.push({ key: "reasoning", icon: "spark", title: live ? "正在思考…" : "思考过程", desc: live ? "" : `${msg.reasoning.length} 字`, status: live ? "running" : "" });
+    }
+    if (msg.streaming) return rows;
+    const plan = msg.plan && msg.plan.source && msg.plan.source !== "manual" ? msg.plan : null;
+    if (plan) rows.push({ key: "skill", icon: "layers", title: `已使用「${plan.skillName || "通用分析"}」`, desc: plan.output === "report" ? "报告" : "回答", status: "" });
+    const items = msg.meta ? metaItems(msg.meta) : [];
+    const tables = (items.find(item => item.k === "引用表") || {}).list || [];
+    if (tables.length) rows.push({ key: "sources", icon: "database", title: `查了 ${tables.length} 张表`, desc: "", status: "", tables });
+    if (msg.resolved && msg.resolved.length) rows.push({ key: "scope", icon: "book", title: `按你的口径理解了 ${msg.resolved.length} 个词`, desc: "", status: "" });
+    if (items.some(item => item.k !== "引用表")) {
+      const warn = items.some(item => item.warn);
+      const elapsed = (items.find(item => item.k === "耗时") || {}).v || "";
+      rows.push({ key: "details", icon: "clock", title: warn ? "运行详情（有提醒）" : "运行详情", desc: elapsed, status: warn ? "error" : "" });
+    }
+    return rows;
+  }
+
+  window.PortalVue.aiChatHelpers = { groupSessions, buildTraceRows };
 })();
