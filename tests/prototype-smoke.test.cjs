@@ -17,7 +17,7 @@ const audienceBridge = read("assets/cp-bridge.js");
 // 前端已按页面拆成 assets/portal/*.js（加载顺序见 manifest.json）；这里拼成一个整体，沿用原来对源码的断言
 const portalVueFiles = JSON.parse(read("assets/portal/manifest.json")).map(file => `assets/portal/${file}`);
 const portalVue = portalVueFiles.map(read).join("\n");
-const portalCss = read("assets/portal-vue-module.css") + "\n" + read("assets/portal-ai-chat.css");
+const portalCss = read("assets/portal-vue-module.css") + "\n" + read("assets/portal-ai-ui.css") + "\n" + read("assets/portal-ai-chat.css");
 const audienceVue = read("assets/cp-vue-module.js");
 const shareHtml = read("share.html");
 assert(exists("share.html"), "缺少公开报告页 share.html");
@@ -44,6 +44,7 @@ assert(portalVue.includes("window.PORTAL_GATEWAY_BASE") && shareHtml.includes("w
   "assets/portal-vue-module.css",
   "assets/cp-vue-module.css",
   "assets/portal-shell.css",
+  "assets/portal-ai-ui.css",
   "assets/portal-ai-chat.css",
   "assets/vendor/vue.global.prod.js",
   "assets/vendor/element-plus.full.min.js",

@@ -6,6 +6,8 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = relative => fs.readFileSync(path.join(root, relative), "utf8");
 const exists = relative => fs.existsSync(path.join(root, relative));
+/** 组件样式（portal-ai-ui.css）和页面样式（portal-ai-chat.css）一起读 */
+const allCss = () => read("assets/portal-ai-ui.css") + "\n" + read("assets/portal-ai-chat.css");
 
 test("新样式文件已接入页面和单文件构建", () => {
   const html = read("index.html");
@@ -27,21 +29,21 @@ const workbench = () => {
 test("布局：模板里没有 emoji，关键入口与 data-test 保持不变", () => {
   const template = workbench();
   assert.equal(template.match(/\p{Extended_Pictographic}/gu), null, "模板里不应再有 emoji：" + (template.match(/\p{Extended_Pictographic}/gu) || []).join(""));
-  for (const needle of ["＋ 新的分析", 'data-test="ai-line-select"', 'data-test="model-chip"', 'class="portal-vue-ai-model-chip"', "ai-composer-card"]) {
+  for (const needle of ["＋ 新的分析", 'data-test="ai-line-select"', 'data-test="model-chip"', 'class="portal-vue-ai-model-chip"', "<ai-prompt-input"]) {
     assert.ok(template.includes(needle), "模板缺少：" + needle);
   }
 });
 
 test("布局：会话栏收窄、对话列居中、输入卡片有样式", () => {
-  const css = read("assets/portal-ai-chat.css");
+  const css = allCss();
   assert.match(css, /\.portal-vue-ai-layout\s*\{[^}]*grid-template-columns:\s*168px/);
-  assert.match(css, /\.ai-composer-card/);
+  assert.match(css, /\.ai-prompt-input\s*\{/);
   assert.match(css, /max-width:\s*760px/);
 });
 
 test("消息：过程信息用 Trace 行，原有功能与 data-test 保留", () => {
   const template = workbench();
-  for (const needle of ['class="ai-trace"', "traceRows(msg)", 'data-test="ai-trace-row"', ':aria-expanded=', "toggleTrace(msg", 'ai-basis-toggle', 'data-test="ai-plan"', 'data-test="plan-change"', 'data-test="plan-to-report"', 'data-test="ai-scope"', 'data-test="ai-followups"', 'data-test="ai-followup"', "rateMessage(msg, 'up')", "rateMessage(msg, 'down')"]) {
+  for (const needle of ["<ai-trace", "traceRows(msg)", 'data-test="ai-trace-row"', "toggleTrace(msg", 'ai-basis-toggle', 'data-test="ai-plan"', 'data-test="plan-change"', 'data-test="plan-to-report"', 'data-test="ai-scope"', 'data-test="ai-followups"', 'data-test="ai-followup"', "rateMessage(msg, 'up')", "rateMessage(msg, 'down')"]) {
     assert.ok(template.includes(needle), "模板缺少：" + needle);
   }
   assert.ok(!template.includes("basisSummary") && !/portal-vue-ai-think(?!ing)/.test(template), "旧的「依据」折叠条和思考块应被 Trace 行取代");
@@ -50,14 +52,15 @@ test("消息：过程信息用 Trace 行，原有功能与 data-test 保留", ()
 });
 
 test("消息：助手回答无气泡背景，用户气泡无渐变", () => {
-  const css = read("assets/portal-ai-chat.css");
+  const css = read("assets/portal-ai-ui.css");
   const block = selector => {
-    const match = css.match(new RegExp(selector.replace(/[.]/g, "\\.") + "\\s*\\{([^}]*)\\}"));
+    const escaped = selector.replace(/[.[\]"()]/g, "\\$&");
+    const match = css.match(new RegExp(escaped + "\\s*\\{([^}]*)\\}"));
     assert.ok(match, "缺少样式：" + selector);
     return match[1];
   };
-  assert.match(block(".portal-vue-ai-message.assistant .portal-vue-ai-bubble"), /background:\s*transparent/);
-  assert.doesNotMatch(block(".portal-vue-ai-message.user .portal-vue-ai-bubble"), /gradient/);
+  assert.match(block('.ai-bubble[data-role="assistant"]'), /background:\s*transparent/);
+  assert.doesNotMatch(block('.ai-bubble[data-role="user"]'), /gradient/);
 });
 
 test("清理：旧样式里被新样式取代的重复规则和没人用的规则已删除", () => {
@@ -73,7 +76,7 @@ test("清理：旧样式里被新样式取代的重复规则和没人用的规�
 });
 
 test("视觉规范：新样式自成一套中性色变量（shadcn 风格），不沿用站点蓝，颜色只通过变量使用", () => {
-  const css = read("assets/portal-ai-chat.css");
+  const css = allCss();
   const rootBlock = css.match(/:root\s*\{([^}]*)\}/);
   assert.ok(rootBlock, "缺少 :root 变量定义");
   for (const token of ["--ai-canvas", "--ai-surface", "--ai-sunken", "--ai-line", "--ai-ink", "--ai-accent", "--ai-accent-tint", "--ai-amber", "--ai-shadow-1", "--ai-shadow-2", "--ai-font-display"]) {
@@ -94,7 +97,7 @@ test("能力导览：欢迎页是能力卡片 + 「我能做什么」入口，�
   }
   assert.ok(!template.includes("portal-vue-ai-welcome-tips"), "文字 tips 应被能力卡片取代");
   assert.ok(!read("assets/portal-ai-chat.css").includes("portal-vue-ai-welcome-tips"), "不再使用的 tips 样式应删除");
-  assert.match(source, /aiCapabilities,?\s*(aiChatHelpers\s*)?\}\s*=\s*window\.PortalVue/, "工作台要从 PortalVue 取 aiCapabilities");
+  assert.match(source, /aiCapabilities,[\s\S]*?\}\s*=\s*window\.PortalVue/, "工作台要从 PortalVue 取 aiCapabilities");
   assert.ok(source.includes("capabilityGroups(){") && source.includes("state.skills?.length?"), "能力卡片要随 Skill 在线情况过滤，Skill 未加载时全部显示");
   assert.ok(source.includes("mergeDraft(this.input"), "试一试必须用 mergeDraft 保留草稿");
   const tryBody = source.slice(source.indexOf("tryCapability(item)"), source.indexOf("tryCapability(item)") + 600);
@@ -118,7 +121,7 @@ test("能力入口：输入卡片里有常驻的「能力」按钮；静态资�
   assert.ok(/data-test="ai-capability-entry"[^>]*@click="openCapabilityDrawer"|@click="openCapabilityDrawer"[^>]*data-test="ai-capability-entry"/.test(template), "「能力」按钮要打开抽屉");
   const html = read("index.html");
   assert.ok(!html.includes("20261118e"), "index.html 里还有旧的静态资源版本号 20261118e");
-  assert.ok(html.includes("?v=20261123a"), "index.html 缺少新的静态资源版本号 20261123a");
+  assert.ok(html.includes("?v=20261123b"), "index.html 缺少新的静态资源版本号 20261123b");
 });
 
 test("细节：会话分组、对话标题栏、浮层带 ai-theme，状态标签改为圆点", () => {
@@ -144,7 +147,7 @@ test("细节：聊天样式只由 portal-ai-chat.css 一处负责，Markdown 内
 });
 
 test("Trace 样式：行、展开内容、三种状态、流光（尊重减少动效）", () => {
-  const css = read("assets/portal-ai-chat.css");
+  const css = read("assets/portal-ai-ui.css");
   for (const needle of [".ai-trace-trigger", ".ai-trace-line", ".ai-trace-content", ".ai-trace-title", '[data-status="running"]', '[data-status="error"]', '[data-status="pending"]', "@keyframes ai-shimmer", "prefers-reduced-motion"]) {
     assert.ok(css.includes(needle), "缺少 Trace 样式：" + needle);
   }
