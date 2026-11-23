@@ -19,7 +19,8 @@
     refreshTick,
     skillRegistrySeed,
     state,
-    aiCapabilities
+    aiCapabilities,
+    aiChatHelpers
   } = window.PortalVue;
   const { visibleCapabilities, groupCapabilities, mergeDraft } = aiCapabilities;
 
@@ -183,16 +184,13 @@
               <el-scrollbar class="portal-vue-ai-session-scroll">
                 <div class="portal-vue-ai-sessions">
                   <p class="portal-vue-ai-group-label">会话记录 <span>含飞书机器人</span></p>
-                  <template v-if="ongoingSessions.length">
-                    <article v-for="session in ongoingSessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
+                  <template v-for="group in sessionGroups" :key="group.key">
+                    <p class="ai-session-group"><i v-if="group.key === 'running'" class="ai-live-dot"></i>{{ group.label }}</p>
+                    <article v-for="session in group.items" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
                       <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time :title="session.time">{{ relativeTime(session.time) }}</time></div>
-                      <div class="portal-vue-ai-session-meta"><span class="ai-channel ai-ico" :class="{ feishu: session.channel === '飞书机器人' }" :title="session.channel" v-html="icon(session.channel === '飞书机器人' ? 'chat' : 'web')"></span><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span><span class="portal-vue-ai-session-status running">{{ session.status }}</span></div>
+                      <div class="portal-vue-ai-session-meta"><span class="ai-channel ai-ico" :class="{ feishu: session.channel === '飞书机器人' }" :title="session.channel" v-html="icon(session.channel === '飞书机器人' ? 'chat' : 'web')"></span><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span></div>
                     </article>
                   </template>
-                  <article v-for="session in historySessions" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
-                    <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time :title="session.time">{{ relativeTime(session.time) }}</time></div>
-                    <div class="portal-vue-ai-session-meta"><span class="ai-channel ai-ico" :class="{ feishu: session.channel === '飞书机器人' }" :title="session.channel" v-html="icon(session.channel === '飞书机器人' ? 'chat' : 'web')"></span><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span></div>
-                  </article>
                   <p v-if="!sessions.length" class="portal-vue-muted">暂无会话</p>
                 </div>
               </el-scrollbar>
@@ -220,6 +218,7 @@
                   <el-empty v-if="!reports.length" description="暂无分析报告，发起一次分析后自动归档到这里"></el-empty>
                 </div>
               </div>
+              <header v-if="!assetView && activeSession.messages.length" class="ai-chat-head"><strong>{{ activeSession.title }}</strong><span class="ai-chat-head-meta">{{ activeSession.channel }} · {{ relativeTime(activeSession.time) }}</span></header>
               <div v-if="!assetView" class="portal-vue-ai-chat" ref="chatBox">
                 <div v-if="!activeSession.messages.length" class="portal-vue-ai-welcome">
                   <span class="portal-vue-ai-welcome-logo">灵</span>
@@ -306,11 +305,11 @@
                 <div class="portal-vue-ai-composer ai-composer-card">
                   <el-input ref="inputBox" v-model="input" type="textarea" :rows="2" resize="none" placeholder="输入分析问题，@ 可引用数据表；回车发送" @keydown.enter.native="onEnter" @input="onInput"></el-input>
                   <div class="portal-vue-ai-composer-bar">
-                    <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper" data-test="ai-line-select" @update:model-value="pickLine">
+                    <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper ai-theme" data-test="ai-line-select" @update:model-value="pickLine">
                       <el-option label="通用" value="通用"></el-option>
                       <el-option v-for="line in lineChoices" :key="line" :label="line" :value="line"></el-option>
                     </el-select>
-                    <el-popover v-model:visible="modelPop" trigger="click" placement="top-start" :width="320" :disabled="!models.length" popper-class="portal-vue-ai-model-pop">
+                    <el-popover v-model:visible="modelPop" trigger="click" placement="top-start" :width="320" :disabled="!models.length" popper-class="portal-vue-ai-model-pop ai-theme">
                       <template #reference>
                         <button type="button" class="portal-vue-ai-model-chip" :class="{ disabled: !models.length }" data-test="model-chip"><b>模型</b><span class="mc-name">{{ model || (modelsLoading ? '加载中…' : '请选择') }}</span><em v-if="reasoningSupported">{{ reasoningLabel }}</em><i class="mc-arrow"></i></button>
                       </template>
@@ -358,7 +357,7 @@
               <p class="ai-cap-boundary"><span class="ai-ico" v-html="icon('alert')"></span>边界：{{ capDetail.boundary }}</p>
             </template>
           </el-dialog>
-          <el-dialog v-model="reportDialog" width="1100px" top="4vh" :close-on-click-modal="true" class="portal-vue-ai-report-dialog">
+          <el-dialog v-model="reportDialog" width="1100px" top="4vh" :close-on-click-modal="true" class="portal-vue-ai-report-dialog ai-theme">
 <template #header>
               <div style="width:100%">
                 <div class="portal-vue-ai-report-dialog-head">
@@ -518,8 +517,7 @@
       shownModels(){const keyword=this.modelKeyword.trim().toLowerCase();return keyword?this.models.filter(item=>String(item).toLowerCase().includes(keyword)):this.models;},
       reasoningLabel(){return (this.reasoningChoices.find(item=>item.value===this.reasoning)||{}).label||"";},
       reasoningSupported(){return this.reasoningChoices.length>0;},
-      ongoingSessions(){return this.sessions.filter(item=>item.status==="进行中");},
-      historySessions(){return this.sessions.filter(item=>item.status!=="进行中");},
+      sessionGroups(){return aiChatHelpers.groupSessions(this.sessions);},
       archivedReports(){refreshTick.value;return this.reports;},
       assetTree(){
         const groups={};

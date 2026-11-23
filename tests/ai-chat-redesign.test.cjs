@@ -71,7 +71,6 @@ test("清理：旧样式里被新样式取代的重复规则和没人用的规�
     assert.ok(!moduleCss.includes(dead), "已没有页面使用，应删除：" + dead);
   }
   assert.ok(!read("assets/portal-shell.css").includes("portal-vue-ai-make-report"), "portal-shell.css 里没人用的 make-report 规则应删除");
-  assert.ok(moduleCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }") && moduleCss.includes(".portal-vue-ai-chip-line-select { width: 200px; }"), "smoke 测试断言的下拉宽度规则不能删");
   assert.ok(moduleCss.includes("portal-vue-ai-bot-icon"), "告警页在用的 bot-icon 规则不能删");
 });
 
@@ -97,7 +96,7 @@ test("能力导览：欢迎页是能力卡片 + 「我能做什么」入口，�
   }
   assert.ok(!template.includes("portal-vue-ai-welcome-tips"), "文字 tips 应被能力卡片取代");
   assert.ok(!read("assets/portal-ai-chat.css").includes("portal-vue-ai-welcome-tips"), "不再使用的 tips 样式应删除");
-  assert.match(source, /aiCapabilities\s*\n?\s*\}\s*=\s*window\.PortalVue/, "工作台要从 PortalVue 取 aiCapabilities");
+  assert.match(source, /aiCapabilities,?\s*(aiChatHelpers\s*)?\}\s*=\s*window\.PortalVue/, "工作台要从 PortalVue 取 aiCapabilities");
   assert.ok(source.includes("capabilityGroups(){") && source.includes("state.skills?.length?"), "能力卡片要随 Skill 在线情况过滤，Skill 未加载时全部显示");
   assert.ok(source.includes("mergeDraft(this.input"), "试一试必须用 mergeDraft 保留草稿");
   const tryBody = source.slice(source.indexOf("tryCapability(item)"), source.indexOf("tryCapability(item)") + 600);
@@ -122,4 +121,26 @@ test("能力入口：输入卡片里有常驻的「能力」按钮；静态资�
   const html = read("index.html");
   assert.ok(!html.includes("20261118e"), "index.html 里还有旧的静态资源版本号 20261118e");
   assert.ok(html.includes("?v=20261123a"), "index.html 缺少新的静态资源版本号 20261123a");
+});
+
+test("细节：会话分组、对话标题栏、浮层带 ai-theme，状态标签改为圆点", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  for (const needle of ["sessionGroups", 'class="ai-chat-head"', "ai-live-dot"]) assert.ok(template.includes(needle), "模板缺少：" + needle);
+  assert.ok(!template.includes("portal-vue-ai-session-status"), "「进行中」文字标签应改成分组标题上的圆点");
+  assert.match(source, /popper-class="portal-vue-ai-select-popper ai-theme"/);
+  assert.match(source, /popper-class="portal-vue-ai-model-pop ai-theme"/);
+  assert.match(source, /portal-vue-ai-report-dialog ai-theme/);
+});
+
+test("细节：聊天样式只由 portal-ai-chat.css 一处负责，Markdown 内容有完整排版", () => {
+  for (const file of ["assets/portal-vue-module.css", "assets/portal-shell.css"]) {
+    const leftovers = (read(file).match(/^[^\n{}]*\.portal-vue-ai-(?!bot-icon|fb-)[^\n{}]*\{/gm) || []);
+    assert.deepEqual(leftovers, [], file + " 里不应再有聊天页的 .portal-vue-ai-* 规则：" + leftovers.slice(0, 3).join(" | "));
+  }
+  const css = read("assets/portal-ai-chat.css");
+  for (const selector of [".portal-vue-ai-report-body table", ".portal-vue-ai-report-body blockquote", ".portal-vue-ai-report-body pre", ".portal-vue-ai-report-body h3", ".ai-chat-head", ".ai-live-dot", ".ai-session-group"]) {
+    assert.ok(css.includes(selector), "缺少样式：" + selector);
+  }
+  assert.match(css, /:focus-visible/, "键盘焦点要有可见的样式");
 });

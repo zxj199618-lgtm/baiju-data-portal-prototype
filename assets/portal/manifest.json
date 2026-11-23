@@ -1,6 +1,7 @@
 [
   "core.js",
   "ai-capabilities.js",
+  "ai-chat-helpers.js",
   "page-sidebar.js",
   "page-analysis-workbench.js",
   "page-topbar.js",

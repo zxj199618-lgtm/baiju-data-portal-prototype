@@ -592,7 +592,7 @@ assert(portalCss.includes(".portal-vue-alert-table .el-table__cell { vertical-al
 assert(!portalVue.includes("canViewAll") && !portalVue.includes('view: "mine"'), "数据告警列表不应再提供「我的 / 全部」切换");
 assert(portalVue.includes("portal-vue-ai-chip-line-select") && !portalVue.includes("portal-vue-ai-table-panel-popper"), "业务线选择应是输入框下方的单选下拉，不应先打开中间弹层");
 assert(portalVue.includes("portal-vue-ai-model-chip") && !portalVue.includes("portal-vue-ai-model-panel-popper"), "模型选择按钮应直接展开模型列表，不应先打开中间弹层");
-assert(portalCss.includes(".portal-vue-ai-chip-line-select { width: 200px; }") && portalCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }"), "业务线与模型下拉应统一为紧凑的 200px 宽度");
+assert(portalCss.includes(".portal-vue-ai-chip-line-select { width: auto; min-width: 190px; max-width: 260px; }") && portalCss.includes(".portal-vue-ai-chip-model-select { width: 200px; }"), "业务线与模型下拉应统一为紧凑的 200px 宽度");
 assert(portalVue.includes('reasoning: "high"') && portalVue.includes("maxTokens=this.currentContextLimit") && portalVue.includes("reasoningEffort:this.reasoning,maxTokens:this.maxTokens"), "分析请求应固定使用最高推理强度和当前模型最高上下文");
 assert(!portalVue.includes("推理强度") && !portalVue.includes("上下文长度") && !portalVue.includes("重置为默认设置") && !portalVue.includes("portal-vue-ai-model-reset"), "模型菜单只应保留模型选择，不展示额外设置");
 assert(portalVue.includes('label="业务线"') && portalVue.includes("bizLines()"), "表管理应提供业务线列与筛选");
