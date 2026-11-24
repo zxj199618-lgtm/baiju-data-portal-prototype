@@ -34,9 +34,9 @@ test("布局：模板里没有 emoji，关键入口与 data-test 保持不变", 
   }
 });
 
-test("布局：会话栏收窄、对话列居中、输入卡片有样式", () => {
+test("布局：会话栏 248px、对话列居中、输入卡片有样式", () => {
   const css = allCss();
-  assert.match(css, /\.portal-vue-ai-layout\s*\{[^}]*grid-template-columns:\s*168px/);
+  assert.match(css, /\.portal-vue-ai-layout\s*\{[^}]*grid-template-columns:\s*248px/);
   assert.match(css, /\.ai-prompt-input\s*\{/);
   assert.match(css, /max-width:\s*760px/);
 });
@@ -107,7 +107,7 @@ test("能力导览：欢迎页是能力卡片 + 「我能做什么」入口，�
 test("能力导览：抽屉按三组展示，详情弹层有视频 / 图文切换、试一试和边界，视频出错自动退回图文", () => {
   const template = workbench();
   const source = read("assets/portal/page-analysis-workbench.js");
-  for (const needle of ['data-test="ai-capability-drawer"', 'data-test="ai-capability-dialog"', 'data-test="ai-capability-try"', 'data-test="ai-capability-row"', "tryCapability(capDetail)", '@error="onCapVideoError"', "capVideoFailed", "capDetail.video", "可以改问", "边界："]) {
+  for (const needle of ['data-test="ai-capability-drawer"', 'data-test="ai-capability-dialog"', 'data-test="ai-capability-try"', 'data-test="ai-capability-row"', "tryCapability(capDetail, text)", '@error="onCapVideoError"', "capVideoFailed", "capDetail.video", "可以改问", "边界："]) {
     assert.ok(template.includes(needle), "模板缺少：" + needle);
   }
   assert.ok(template.includes('class="ai-theme') || template.includes('ai-theme"'), "抽屉和弹层是挂到 body 上的，要加 ai-theme 类才能取到视觉变量");
@@ -121,7 +121,7 @@ test("能力入口：输入卡片里有常驻的「能力」按钮；静态资�
   assert.ok(/data-test="ai-capability-entry"[^>]*@click="openCapabilityDrawer"|@click="openCapabilityDrawer"[^>]*data-test="ai-capability-entry"/.test(template), "「能力」按钮要打开抽屉");
   const html = read("index.html");
   assert.ok(!html.includes("20261118e"), "index.html 里还有旧的静态资源版本号 20261118e");
-  assert.ok(html.includes("?v=20261123b"), "index.html 缺少新的静态资源版本号 20261123b");
+  assert.ok(html.includes("?v=20261124a"), "index.html 缺少新的静态资源版本号 20261124a");
 });
 
 test("细节：会话分组、对话标题栏、浮层带 ai-theme，状态标签改为圆点", () => {
@@ -152,4 +152,29 @@ test("Trace 样式：行、展开内容、三种状态、流光（尊重减少�
     assert.ok(css.includes(needle), "缺少 Trace 样式：" + needle);
   }
   assert.match(css, /\.ai-trace-content\s*\{[^}]*border-left:\s*1px solid var\(--ai-line\)/, "展开内容左侧要有 1px 竖线");
+});
+
+test("能力卡片：每张卡直接列出几条问法，点一条填进输入框（不自动发送）；整张卡仍可点开详情", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  assert.match(template, /<div[^>]*class="ai-cap-card"[^>]*role="button"[^>]*data-test="ai-capability-card"|<div[^>]*data-test="ai-capability-card"[^>]*class="ai-cap-card"[^>]*role="button"/, "卡片根节点不能是 button（里面还有按钮），要用带 role=button 的 div");
+  for (const needle of ['data-test="ai-capability-question"', "item.examples.slice(0, 3)", '@click.stop="tryCapability(item, text)"', '@keydown.enter="openCapability(item)"', 'v-for="text in capDetail.examples"', "tryCapability(capDetail, text)"]) {
+    assert.ok(template.includes(needle), "模板缺少：" + needle);
+  }
+  assert.match(source, /tryCapability\(item,text\)\{[^}]*mergeDraft\(this\.input,\s*text\s*\|\|\s*item\.example\)/, "tryCapability 要支持传入具体问法，不传时用 example");
+});
+
+test("站点左侧导航默认折叠，用户手动展开 / 收起后记住选择", () => {
+  const source = read("assets/portal/page-sidebar.js");
+  assert.ok(source.includes("portalSidebarCollapsed"), "要用 localStorage 记住导航的折叠状态");
+  assert.match(source, /data:\s*\(\)\s*=>\s*\(\{\s*collapsed:\s*readCollapsed\(\)\s*\}\)/, "初始折叠状态来自 readCollapsed()");
+  assert.match(source, /function readCollapsed\(\)\s*\{[\s\S]*?return\s+true;/, "没有存过选择时默认折叠");
+  assert.match(source, /mounted\(\)\s*\{[^}]*classList\.toggle\("collapsed",\s*this\.collapsed\)/, "挂载后要把状态同步到 #sidebar 的 collapsed 类");
+  assert.match(source, /toggleCollapse\(\)[\s\S]*?writeCollapsed\(this\.collapsed\)/, "切换时写入存储");
+});
+
+test("欢迎页（空会话）打开后停在顶部，有消息的会话才停在最新一条", () => {
+  const source = read("assets/portal/page-analysis-workbench.js");
+  assert.match(source, /scrollChatToStart\(\)\{[^}]*messages\?\.length\?box\.scrollHeight:0/);
+  assert.ok(!source.includes("scrollTo({top:this.$refs.chatBox.scrollHeight}))"), "打开会话后的滚动要统一走 scrollChatToStart");
 });

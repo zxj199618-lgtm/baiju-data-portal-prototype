@@ -68,3 +68,14 @@ test("图文示意图：每个步骤的图片都存在，且是有效的 SVG", (
     }
   }
 });
+
+test("每项能力有多条示例问法：直接能做的至少 4 条，其余至少 2 条，第一条就是 example，不重复", () => {
+  const { list } = load();
+  for (const item of list) {
+    assert.ok(Array.isArray(item.examples), `${item.id} 缺少 examples`);
+    assert.ok(item.examples.length >= (item.group === "can" ? 4 : 2), `${item.id} 的示例问法太少：${item.examples.length}`);
+    assert.equal(item.examples[0], item.example, `${item.id} 的 example 应等于 examples[0]`);
+    assert.equal(new Set(item.examples).size, item.examples.length, `${item.id} 的示例问法有重复`);
+    for (const text of item.examples) assert.ok(String(text).trim().length >= 6 && String(text).length <= 40, `${item.id} 的问法长度不合适：${text}`);
+  }
+});

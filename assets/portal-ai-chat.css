@@ -104,7 +104,7 @@
 .portal-vue-ai-plan-change:hover { text-decoration: underline; }
 .portal-vue-ai-followups { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .portal-vue-ai-layout, .ai-theme { --el-color-primary: var(--ai-accent); --el-color-primary-light-3: color-mix(in srgb, var(--ai-accent) 70%, #fff); --el-color-primary-light-5: color-mix(in srgb, var(--ai-accent) 50%, #fff); --el-color-primary-light-7: color-mix(in srgb, var(--ai-accent) 30%, #fff); --el-color-primary-light-8: color-mix(in srgb, var(--ai-accent) 20%, #fff); --el-color-primary-light-9: var(--ai-accent-tint); --el-color-primary-dark-2: var(--ai-accent-hover); --el-text-color-primary: var(--ai-ink); --el-border-color: var(--ai-line); --el-border-radius-base: var(--ai-r-sm); }
-.portal-vue-ai-layout { margin-top: 4px; display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 0; align-items: stretch; height: calc(100vh - 176px); min-height: 500px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-canvas); overflow: hidden; color: var(--ai-ink); }
+.portal-vue-ai-layout { margin-top: 4px; display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 0; align-items: stretch; height: calc(100vh - 176px); min-height: 500px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-canvas); overflow: hidden; color: var(--ai-ink); }
 .portal-vue-ai-layout .ai-ico { display: inline-flex; flex: none; width: 16px; height: 16px; font-size: 16px; line-height: 1; }
 .portal-vue-ai-layout .ai-ico svg { display: block; }
 .portal-vue-ai-side { display: flex; flex-direction: column; gap: 8px; padding: 12px 8px; border: 0; border-radius: 0; background: var(--ai-surface-2); height: auto; min-height: 0; border-right: 1px solid var(--ai-line); }
@@ -133,15 +133,6 @@
 .portal-vue-ai-chat { flex: 1 1 auto; min-height: 0; padding: 24px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; background: var(--ai-canvas); }
 .portal-vue-ai-welcome-logo { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: var(--ai-ink); color: var(--ai-amber); font-family: var(--ai-font-display); font-size: 17px; font-weight: 500; }
 .portal-vue-ai-welcome-label { margin: 16px 0 8px; color: var(--ai-ink-3); font-size: 12px; letter-spacing: 1px; }
-.ai-cap-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
-.ai-cap-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 14px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: var(--ai-shadow-1); text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
-.ai-cap-card:hover { border-color: var(--ai-line-strong); box-shadow: var(--ai-shadow-2); }
-.ai-cap-card-icon { box-sizing: content-box; width: 18px; height: 18px; margin-bottom: 2px; padding: 6px; border-radius: 10px; background: var(--ai-accent-tint); color: var(--ai-accent); font-size: 18px; }
-.ai-cap-card-icon svg { width: 18px; height: 18px; }
-.ai-cap-card b { color: var(--ai-ink); font-size: 14px; font-weight: 500; }
-.ai-cap-card p { margin: 0; color: var(--ai-ink-2); font-size: 12.5px; line-height: 1.6; }
-.ai-cap-card-tag { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; color: var(--ai-accent); font-size: 11.5px; }
-.ai-cap-card-tag .ai-ico { width: 12px; height: 12px; font-size: 12px; }
 .ai-cap-open { display: inline-flex; align-items: center; gap: 2px; margin-top: 12px; padding: 0; border: 0; background: none; color: var(--ai-accent); font-size: 12.5px; cursor: pointer; }
 .ai-cap-open:hover { color: var(--ai-accent-hover); }
 .ai-cap-open .ai-ico { width: 14px; height: 14px; font-size: 14px; }
@@ -213,10 +204,6 @@
 .ai-cap-switch button.on { background: var(--ai-accent); color: var(--ai-line-strong); }
 .ai-cap-title { margin: 16px 20px 0; font-size: 20px; }
 .ai-cap-sum { margin: 6px 20px 0; color: var(--ai-ink-2); font-size: 13px; line-height: 1.7; }
-.ai-cap-try { display: flex; align-items: center; gap: 10px; margin: 14px 20px 0; padding: 8px 8px 8px 14px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface-2); color: var(--ai-ink); font-size: 13px; }
-.ai-cap-try span { flex: 1; min-width: 0; }
-.ai-cap-try-btn { flex: none; padding: 5px 16px; border: 0; border-radius: 999px; background: var(--ai-accent); color: var(--ai-line-strong); font-size: 12.5px; cursor: pointer; }
-.ai-cap-try-btn:hover { background: var(--ai-accent-hover); }
 .ai-cap-boundary { display: flex; align-items: flex-start; gap: 6px; margin: 12px 20px 0; padding: 8px 12px; border-radius: var(--ai-r-sm); background: var(--ai-amber-tint); color: var(--ai-amber); font-size: 12.5px; line-height: 1.6; }
 .ai-cap-boundary .ai-ico { margin-top: 2px; }
 .ai-theme .ai-ico { display: inline-flex; flex: none; width: 16px; height: 16px; font-size: 16px; line-height: 1; }
@@ -299,5 +286,32 @@
 /* ===== Trace 行（移植自 shadcn/ui Trace 的尺寸与状态） ===== */
 
 /* ===== shadcn 对话气泡与按钮 ===== */
-.ai-cap-card:hover, .ai-cap-row:hover { background: var(--ai-surface-2); }
 .portal-vue-ai-mention { max-width: 760px; margin: 0 auto 8px; }
+
+/* 能力卡片：标题 + 一句话 + 几条可直接点用的问法 */
+.portal-vue-ai-layout .ai-empty { max-width: 760px; }
+.ai-cap-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; text-align: left; }
+.ai-cap-card { display: flex; flex-direction: column; gap: 6px; padding: 14px 14px 10px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: var(--ai-shadow-1); cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
+.ai-cap-card:hover { border-color: var(--ai-line-strong); box-shadow: var(--ai-shadow-2); }
+.ai-cap-card:focus-visible { outline: 2px solid var(--ai-ink); outline-offset: 2px; }
+.ai-cap-card-head { display: flex; align-items: center; gap: 8px; }
+.ai-cap-card-head b { color: var(--ai-ink); font-size: 14px; font-weight: 500; }
+.ai-cap-card-icon { box-sizing: content-box; width: 16px; height: 16px; padding: 6px; border-radius: 10px; background: var(--ai-sunken); color: var(--ai-ink); }
+.ai-cap-card-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; color: var(--ai-ink-3); font-size: 12px; }
+.ai-cap-card-tag .ai-ico { width: 12px; height: 12px; font-size: 12px; }
+.ai-cap-card-sum { color: var(--ai-ink-2); font-size: 12.5px; line-height: 1.6; }
+.ai-cap-card-qs { display: flex; flex-direction: column; gap: 2px; margin: 4px -6px 0; }
+.ai-cap-q { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: var(--ai-r-sm); background: transparent; color: var(--ai-ink); font: inherit; font-size: 13px; line-height: 1.5; text-align: left; cursor: pointer; transition: background .15s ease; }
+.ai-cap-q:hover { background: var(--ai-sunken); }
+.ai-cap-q:focus-visible { outline: 2px solid var(--ai-ink); outline-offset: -2px; }
+.ai-cap-q-text { flex: 1; min-width: 0; }
+.ai-cap-q-go { width: 14px; height: 14px; color: var(--ai-ink-3); font-size: 14px; opacity: 0; transition: opacity .15s ease; }
+.ai-cap-q:hover .ai-cap-q-go { opacity: 1; }
+@media (max-width: 900px) { .ai-cap-cards { grid-template-columns: 1fr; } }
+
+/* 详情弹层：每条问法一行，各有「试一试」 */
+.ai-cap-tries { display: flex; flex-direction: column; gap: 8px; margin: 14px 20px 0; }
+.ai-cap-try { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface-2); color: var(--ai-ink); font-size: 13px; }
+.ai-cap-try span { flex: 1; min-width: 0; }
+.ai-cap-try-btn { flex: none; padding: 5px 16px; border: 0; border-radius: 999px; background: var(--ai-accent); color: #fff; font-size: 12.5px; cursor: pointer; }
+.ai-cap-try-btn:hover { background: var(--ai-accent-hover); }

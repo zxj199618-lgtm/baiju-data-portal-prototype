@@ -21,53 +21,56 @@
     {
       id: "trend", group: "can", skillKey: "data-query", icon: "trend", title: "看趋势",
       summary: "说清楚看什么指标、什么时间，我会选合适的表和图。",
-      example: "近 7 天各媒体消耗怎么变化？",
+      examples: ["近 7 天各媒体消耗怎么变化？", "上周和本周的 CPA 对比怎么样？", "这个月每天的消耗走势是什么样？", "近 30 天哪个渠道的激活数涨得最快？"],
       boundary: "只能查你有权限的数据表，数据按日更新。",
       steps: steps("trend", ["在输入框里说出指标和时间", "系统自动选表、查数", "得到趋势图和结论，可继续追问"])
     },
     {
       id: "cause", group: "can", skillKey: "attribution", icon: "search", title: "找原因",
       summary: "指标涨了跌了，帮你拆到具体的渠道、产品或计划。",
-      example: "本周 CPA 为什么涨了？",
+      examples: ["本周 CPA 为什么涨了？", "昨天的消耗为什么比前天低？", "哪些计划拉高了整体成本？", "近 7 天自营签约率为什么下滑？"],
       boundary: "能指出变化集中在哪里，但不能保证就是业务上的真实原因。",
       steps: steps("cause", ["问一个指标为什么变化", "系统按渠道、产品等维度逐层拆解", "得到贡献最大的几项，可点开看依据"])
     },
     {
       id: "caliber", group: "can", skillKey: "asset", icon: "book", title: "查口径",
       summary: "有哪些表、字段怎么算、谁负责，直接问就行。",
-      example: "哪些表能看渠道归因？口径是什么？",
+      examples: ["哪些表能看渠道归因？口径是什么？", "激活数这个指标是怎么算的？", "广告计划日报表里有哪些字段？", "渠道归因明细这张表是谁负责的？"],
       boundary: "只能说明你有权限看到的表。",
       steps: steps("caliber", ["问想看的数据在哪张表", "系统检索表和字段说明", "得到表名、口径和负责人"])
     },
     {
       id: "impact", group: "can", skillKey: "lineage", icon: "share", title: "查影响",
       summary: "改一个字段或一张表之前，先看会影响哪些下游。",
-      example: "如果改 tag_value 字段长度，会影响哪些下游？",
+      examples: ["如果改 tag_value 字段长度，会影响哪些下游？", "广告计划日报表要下线，会影响哪些任务？", "哪些看板用到了渠道归因明细？", "改动用户画像标签明细表要通知谁？"],
       boundary: "只覆盖已登记的血缘关系，没登记的依赖看不到。",
       steps: steps("impact", ["说出准备改的字段或表", "系统沿血缘找上下游", "得到受影响的表、任务和负责人"])
     },
     {
       id: "cross-line", group: "need", icon: "layers", title: "跨业务线分析",
       summary: "一次只能分析一条业务线，请先在输入框里选好业务线。",
-      example: "近 7 天各媒体的消耗趋势",
+      examples: ["近 7 天各媒体的消耗趋势", "近 7 天各部门的消耗对比", "本周消耗环比上涨的原因是什么？"],
       boundary: "要对比多条业务线，请分别提问后自己对照。",
       steps: steps("cross-line", ["点输入框里的「业务线」选一条", "再提出你的问题", "得到该业务线范围内的结果"])
     },
     {
       id: "realtime", group: "cannot", icon: "clock", title: "实时数据",
       summary: "看不了此刻正在发生的数据，只能看到已经入库的。",
-      example: "昨天各媒体的消耗是多少？",
+      examples: ["昨天各媒体的消耗是多少？", "上周同一天的消耗是多少？", "近 7 天每天的消耗是多少？"],
       boundary: "数据按日更新，最新到昨天。",
       steps: steps("realtime", ["问「现在」「刚刚」这类实时问题", "系统提示这类数据暂时查不到", "改问昨天或更早的数据就能得到答案"])
     },
     {
       id: "modify", group: "cannot", icon: "lock", title: "修改数据和配置",
       summary: "只能查询和分析，不能修改、删除数据，也不能改配置。",
-      example: "这张表的字段口径是什么？",
+      examples: ["这张表的字段口径是什么？", "这张表是谁负责的？", "这张表被哪些任务用到？"],
       boundary: "需要改动请联系对应的数据负责人。",
       steps: steps("modify", ["提出修改或删除数据的要求", "系统说明这类操作不在能力范围内", "改成查询类问题，或联系数据负责人"])
     }
   ];
+
+  /* 每项的 example 就是 examples 的第一条（旧代码、抽屉里「可以改问」仍读它） */
+  list.forEach(item => { item.example = item.examples[0]; });
 
   /** Skill 列表还没加载（enabledSkillKeys 为 null）时全部显示；否则隐藏关联的 Skill 已下线的项，没有关联 Skill 的项始终保留。 */
   function visibleCapabilities(items, enabledSkillKeys) {

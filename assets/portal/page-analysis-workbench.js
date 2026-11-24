@@ -196,12 +196,11 @@
                   <template #title>你好，想分析点什么？</template>
                   <template #description>不知道问什么？点一张卡片，我带你试一遍</template>
                   <div v-if="capabilityCan.length" class="ai-cap-cards">
-                    <button v-for="item in capabilityCan" :key="item.id" type="button" class="ai-cap-card" data-test="ai-capability-card" @click="openCapability(item)">
-                      <span class="ai-cap-card-icon ai-ico" v-html="icon(item.icon)"></span>
-                      <b>{{ item.title }}</b>
-                      <p>「{{ item.example }}」</p>
-                      <span class="ai-cap-card-tag"><span class="ai-ico" v-html="icon(item.video ? 'play' : 'image')"></span>{{ item.video ? (item.video.duration || '30 秒') + '看示例' : '图文说明' }}</span>
-                    </button>
+                    <div v-for="item in capabilityCan" :key="item.id" class="ai-cap-card" role="button" tabindex="0" data-test="ai-capability-card" @click="openCapability(item)" @keydown.enter="openCapability(item)">
+                      <span class="ai-cap-card-head"><span class="ai-cap-card-icon ai-ico" v-html="icon(item.icon)"></span><b>{{ item.title }}</b><span class="ai-cap-card-tag"><span class="ai-ico" v-html="icon(item.video ? 'play' : 'image')"></span>{{ item.video ? (item.video.duration || '30 秒') + '看示例' : '图文说明' }}</span></span>
+                      <span class="ai-cap-card-sum">{{ item.summary }}</span>
+                      <span class="ai-cap-card-qs"><button v-for="text in item.examples.slice(0, 3)" :key="text" type="button" class="ai-cap-q" data-test="ai-capability-question" @click.stop="tryCapability(item, text)"><span class="ai-cap-q-text">{{ text }}</span><span class="ai-ico ai-cap-q-go" v-html="icon('chevron-right')"></span></button></span>
+                    </div>
                   </div>
                   <button type="button" class="ai-cap-open" data-test="ai-capability-open" @click="openCapabilityDrawer">我能做什么，不能做什么<span class="ai-ico" v-html="icon('chevron-right')"></span></button>
                   <div class="portal-vue-ai-welcome-label">你也可以问</div>
@@ -288,7 +287,7 @@
               </div>
               <h3 class="ai-cap-title">{{ capDetail.title }}</h3>
               <p class="ai-cap-sum">{{ capDetail.summary }}</p>
-              <div class="ai-cap-try"><span>{{ capDetail.example }}</span><button type="button" class="ai-cap-try-btn" data-test="ai-capability-try" @click="tryCapability(capDetail)">试一试</button></div>
+              <div class="ai-cap-tries"><div v-for="text in capDetail.examples" :key="text" class="ai-cap-try"><span>{{ text }}</span><button type="button" class="ai-cap-try-btn" data-test="ai-capability-try" @click="tryCapability(capDetail, text)">试一试</button></div></div>
               <p class="ai-cap-boundary"><span class="ai-ico" v-html="icon('alert')"></span>边界：{{ capDetail.boundary }}</p>
             </template>
           </el-dialog>
@@ -478,7 +477,7 @@
       }
     },
     mounted(){
-      this.pageHandler=event=>{if(event.detail?.page==="灵犀智析"){this.loadGatewaySkills();this.loadMyTables();this.loadModels();this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));}};
+      this.pageHandler=event=>{if(event.detail?.page==="灵犀智析"){this.loadGatewaySkills();this.loadMyTables();this.loadModels();this.$nextTick(()=>this.scrollChatToStart());}};
       window.addEventListener("portal:page-change",this.pageHandler);
       this.loadModels();
       this.loadGatewaySkills();
@@ -487,12 +486,14 @@
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
     methods:{
       icon: aiUi.icon,
+      /* 打开 / 切换会话后的滚动位置：有消息停在最新一条，空会话（欢迎页）回到顶部，免得标题被卷到上面 */
+      scrollChatToStart(){const box=this.$refs.chatBox;if(box)box.scrollTo({top:this.activeSession?.messages?.length?box.scrollHeight:0});},
       openCapabilityDrawer(){this.capDrawer=true;},
       onCapVideoError(){this.capVideoFailed=true;},
       openCapability(item){this.capDetail=item;this.capView="video";this.capVideoFailed=false;},
       /* 「试一试」：把示例问法填进输入框（有草稿则追加到新的一行），不自动发送 */
-      tryCapability(item){
-        this.input=mergeDraft(this.input,item.example);
+      tryCapability(item,text){
+        this.input=mergeDraft(this.input,text||item.example);
         this.capDetail=null;this.capDrawer=false;
         this.$nextTick(()=>this.$refs.inputBox?.focus?.());
       },
@@ -655,7 +656,7 @@
         const session=this.sessions.find(item=>item.id===id);
         this.restoreSessionLine(session);
         if(session)this.scenario="general"; // 不再手动选 Skill：一律走自动路由，按问题动态加载
-        this.$nextTick(()=>this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight}));
+        this.$nextTick(()=>this.scrollChatToStart());
       },
       setScenario(key){
         this.scenario=key;

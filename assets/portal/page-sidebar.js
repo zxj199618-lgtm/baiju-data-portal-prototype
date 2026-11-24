@@ -22,6 +22,16 @@
     return toolItemsOf(groupName).some(item => canViewMenu(item.name));
   }
 
+  /* 导航折叠状态：没存过选择时默认折叠（给对话页留出宽度），用户手动展开 / 收起后记住 */
+  const COLLAPSE_KEY = "portalSidebarCollapsed";
+  function readCollapsed() {
+    try { const saved = localStorage.getItem(COLLAPSE_KEY); if (saved === "0") return false; if (saved === "1") return true; } catch { /* 隐私模式等读不到存储，用默认值 */ }
+    return true;
+  }
+  function writeCollapsed(value) {
+    try { localStorage.setItem(COLLAPSE_KEY, value ? "1" : "0"); } catch { /* 写不进存储不影响使用 */ }
+  }
+
   const SidebarApp = {
     template: `
       <el-config-provider :locale="locale">
@@ -50,7 +60,8 @@
         </div>
       </el-config-provider>
     `,
-    data: () => ({ collapsed: false }),
+    data: () => ({ collapsed: readCollapsed() }),
+    mounted() { document.getElementById("sidebar").classList.toggle("collapsed", this.collapsed); },
     computed: {
       sections() { refreshTick.value; return state.nav.map(section => ({ ...section, items: section.items.filter(item => isOverviewItem(item) ? canViewToolbox(section.group) : canViewMenu(item.name)) })).filter(section => section.items.length); },
       page() { return currentPage.value; },
@@ -82,6 +93,7 @@
       toggleCollapse() {
         this.collapsed = !this.collapsed;
         document.getElementById("sidebar").classList.toggle("collapsed", this.collapsed);
+        writeCollapsed(this.collapsed);
       }
     }
   };
