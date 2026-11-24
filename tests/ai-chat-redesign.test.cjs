@@ -89,10 +89,10 @@ test("视觉规范：新样式自成一套中性色变量（shadcn 风格），�
   assert.ok(read("docs/superpowers/specs/2026-11-23-ai-chat-design-system.md").includes("shadcn 风格"), "缺少视觉规范文档");
 });
 
-test("能力导览：欢迎页是能力卡片 + 「我能做什么」入口，个性化问法保留为一行", () => {
+test("能力导览：欢迎页只有能力卡片 + 「我能做什么」入口，没有另外一排推荐胶囊", () => {
   const template = workbench();
   const source = read("assets/portal/page-analysis-workbench.js");
-  for (const needle of ['data-test="ai-capability-card"', 'data-test="ai-capability-open"', "capabilityCan", "openCapability(item)", "openCapabilityDrawer", "你好，想分析点什么？", 'data-test="ai-starter"']) {
+  for (const needle of ['data-test="ai-capability-card"', 'data-test="ai-capability-open"', "capabilityCan", "openCapability(item)", "openCapabilityDrawer", "你好，想分析点什么？"]) {
     assert.ok(template.includes(needle), "模板缺少：" + needle);
   }
   assert.ok(!template.includes("portal-vue-ai-welcome-tips"), "文字 tips 应被能力卡片取代");
@@ -121,7 +121,7 @@ test("能力入口：输入卡片里有常驻的「能力」按钮；静态资�
   assert.ok(/data-test="ai-capability-entry"[^>]*@click="openCapabilityDrawer"|@click="openCapabilityDrawer"[^>]*data-test="ai-capability-entry"/.test(template), "「能力」按钮要打开抽屉");
   const html = read("index.html");
   assert.ok(!html.includes("20261118e"), "index.html 里还有旧的静态资源版本号 20261118e");
-  assert.ok(html.includes("?v=20261124a"), "index.html 缺少新的静态资源版本号 20261124a");
+  assert.ok(html.includes("?v=20261124b"), "index.html 缺少新的静态资源版本号 20261124b");
 });
 
 test("细节：会话分组、对话标题栏、浮层带 ai-theme，状态标签改为圆点", () => {
@@ -177,4 +177,28 @@ test("欢迎页（空会话）打开后停在顶部，有消息的会话才停�
   const source = read("assets/portal/page-analysis-workbench.js");
   assert.match(source, /scrollChatToStart\(\)\{[^}]*messages\?\.length\?box\.scrollHeight:0/);
   assert.ok(!source.includes("scrollTo({top:this.$refs.chatBox.scrollHeight}))"), "打开会话后的滚动要统一走 scrollChatToStart");
+});
+
+test("线条精简：页面只有一层外框，会话栏与对话区之间、标题栏下面都不再画分割线", () => {
+  const css = allCss();
+  const block = selector => {
+    const escaped = selector.replace(/[.#[\]"()>]/g, "\\$&");
+    const all = [...css.matchAll(new RegExp("(?:^|\\n)" + escaped + "\\s*\\{([^}]*)\\}", "g"))].map(m => m[1]).join(" ");
+    assert.ok(all, "缺少样式：" + selector);
+    return all;
+  };
+  assert.match(block("#analysisWorkbenchView .portal-vue-panel"), /border:\s*0/, "站点自带的面板外框要去掉");
+  assert.match(block(".portal-vue-ai-layout"), /border:\s*0/, "对话页自己的外框也要去掉，不能双层框");
+  assert.match(block(".portal-vue-ai-side"), /border-right:\s*0/, "会话栏右侧不画分割线，靠底色区分");
+  assert.match(block(".ai-chat-head"), /border-bottom:\s*0/, "标题栏下面不画线");
+  assert.match(block(".ai-cap-card"), /border:\s*0/, "能力卡不再描边，用浅底色");
+  const template = workbench();
+  for (const gone of ["portal-vue-ai-suggests", "ai-starter", "你也可以问", "portal-vue-ai-welcome-label"]) assert.ok(!template.includes(gone), "欢迎页下面那排推荐胶囊应删除：" + gone);
+});
+
+test("按权限个性化的问法并入能力卡：有权益表权限的用户，看趋势和找原因卡里排在最前", () => {
+  const source = read("assets/portal/page-analysis-workbench.js");
+  assert.ok(!source.includes("starterSuggests") && !/\bsuggests:\s*\[/.test(source), "旧的推荐胶囊数据应删除");
+  assert.match(source, /equityExamples\(\)\{[\s\S]*?权益-账号维度消耗统计表[\s\S]*?trend:\[[^\]]*任哥近 7 天的消耗和自营 ROI/, "权益用户的个性化问法来自 equityExamples");
+  assert.match(source, /capabilityCan\(\)\{[\s\S]*?equityExamples[\s\S]*?new Set\(\[\.\.\.extra\[item\.id\],\.\.\.item\.examples\]\)/, "capabilityCan 把个性化问法放在前面并去重");
 });

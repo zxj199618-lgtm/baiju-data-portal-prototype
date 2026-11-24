@@ -332,8 +332,8 @@ describe("浏览器端到端", () => {
       await login(page, "林金维");
       await appVisible(page);
       await page.getByText("＋ 新的分析").first().click(); // 同账号在本文件前面的用例里已有历史，先开一个空白会话才会显示首屏推荐
-      await page.locator('[data-test="ai-starter"]').filter({ hasText: "任哥近 7 天的消耗和自营 ROI" }).first().waitFor({ timeout: 15000 }); // 表权限异步加载
-      const starters = await page.locator('[data-test="ai-starter"]').allTextContents();
+      await page.locator('[data-test="ai-capability-question"]').filter({ hasText: "任哥近 7 天的消耗和自营 ROI" }).first().waitFor({ timeout: 15000 }); // 表权限异步加载；个性化问法在能力卡里
+      const starters = await page.locator('[data-test="ai-capability-question"]').allTextContents();
       assert.ok(!starters.some(text => /超过目标值/.test(text)), "首屏不推荐平台回答不了的问题");
 
       await page.getByPlaceholder(/输入分析问题/).fill("权益近 7 天自营 ROI 怎么样");

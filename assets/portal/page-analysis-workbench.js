@@ -203,10 +203,6 @@
                     </div>
                   </div>
                   <button type="button" class="ai-cap-open" data-test="ai-capability-open" @click="openCapabilityDrawer">我能做什么，不能做什么<span class="ai-ico" v-html="icon('chevron-right')"></span></button>
-                  <div class="portal-vue-ai-welcome-label">你也可以问</div>
-                  <div class="portal-vue-ai-suggests">
-                    <ai-button v-for="text in starterSuggests" :key="text" class="portal-vue-ai-starter" data-test="ai-starter" @click="askFollowUp(text)">{{ text }}</ai-button>
-                  </div>
                 </ai-empty>
                 <template v-for="(msg, index) in activeSession.messages" :key="index"><ai-marker v-if="msg.contextReset" variant="separator" data-test="ai-context-reset">已切换到「{{ msg.contextReset.to.join("、") }}」，之前针对「{{ msg.contextReset.from.join("、") }}」的对话不再作为上下文</ai-marker><ai-message v-show="!isEmptyMsg(msg)" :role="msg.role" :class="{ 'is-ask': !!msg.ask }">
                   <ai-questionnaire v-if="msg.ask" :ask="msg.ask" :disabled="thinking" @toggle="(q, opt) => toggleAsk(msg.ask, q, opt)" @custom="q => onAskCustom(msg.ask, q)" @submit="submitAsk(msg)" @skip="submitAsk(msg, true)"></ai-questionnaire>
@@ -367,15 +363,14 @@
       capVideoFailed: false,
       reportDialog: false,
       activeReportId: "",
-      activeId: analysisSessionsSeed[0]?.id || "",
-      suggests: ["近 7 天各媒体消耗趋势如何？", "本周消耗环比上涨的原因是什么？", "有哪些表可以看渠道归因？"]
+      activeId: analysisSessionsSeed[0]?.id || ""
     }),
     computed:{
       scenarios(){refreshTick.value;return this.skillScenarios;},
-      /* 首屏推荐问题：只推平台能回答的；有权益表权限的用户先看到权益场景的问法 */
-      starterSuggests(){
-        const equity=this.myTables.includes("权益-账号维度消耗统计表")?["任哥近 7 天的消耗和自营 ROI 怎么样？","近 7 天各部门的消耗对比","近 7 天自营签约率为什么下滑？"]:[];
-        return [...equity,...this.suggests].slice(0,5);
+      /* 有权益表权限的用户，权益场景的问法排在能力卡里最前（看趋势 / 找原因各放最相关的） */
+      equityExamples(){
+        if(!this.myTables.includes("权益-账号维度消耗统计表"))return {};
+        return {trend:["任哥近 7 天的消耗和自营 ROI 怎么样？","近 7 天各部门的消耗对比"],cause:["近 7 天自营签约率为什么下滑？"]};
       },
       skillScenarios(){
         const source = state.skills?.length ? state.skills : skillScenarioFallback;
@@ -390,7 +385,11 @@
       },
       /* 详情弹层：有视频、没出错、且选的是「视频」时放视频，否则放图文 */
       showVideo(){return !!(this.capDetail&&this.capDetail.video&&this.capDetail.video.src)&&!this.capVideoFailed&&this.capView==="video";},
-      capabilityCan(){return (this.capabilityGroups.find(group=>group.key==="can")||{items:[]}).items;},
+      capabilityCan(){
+        const extra=this.equityExamples;
+        const items=(this.capabilityGroups.find(group=>group.key==="can")||{items:[]}).items;
+        return items.map(item=>extra[item.id]?{...item,examples:[...new Set([...extra[item.id],...item.examples])]}:item);
+      },
       activeSkill(){return this.skillScenarios.find(item=>item.key===this.scenario);},
       scenarioHint(){return this.activeSkill?.kind==="router"?"自动根据问题内容与你可用的技能选择，也可以手动切换":`当前使用「${this.scenarioName}」，可随时切换，或选「通用分析」让系统自动选择`;},
       scenarioName(){return this.activeSkill?.name||"单表分析";},
