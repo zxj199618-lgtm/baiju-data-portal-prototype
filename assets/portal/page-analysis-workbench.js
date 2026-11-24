@@ -219,12 +219,12 @@
                     <template v-if="msg.reportId"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><div class="portal-vue-ai-report-card">
   <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file ai-ico" v-html="icon('file')"></span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportById(msg.reportId)">打开展示所有 ›</button></div>
   <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
-</div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><ai-button v-for="text in msg.suggestions" :key="text" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</ai-button></div></template>
-                    <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><ai-button v-for="text in msg.suggestions" :key="text" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</ai-button></div></template>
+</div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><div v-if="skillRefs(msg).length" class="ai-skill-refs" data-test="ai-skill-refs"><span class="ai-skill-refs-label">引用了</span><el-tooltip v-for="skill in skillRefs(msg)" :key="skill.id" placement="top" :show-after="150" popper-class="ai-theme ai-skill-tip"><template #content><b>{{ skill.name }}</b><span>{{ skill.desc || '暂无简介' }}</span></template><span class="ai-skill-chip" tabindex="0" data-test="ai-skill-chip">{{ skill.name }}</span></el-tooltip></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><ai-button v-for="text in msg.suggestions" :key="text" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</ai-button></div></template>
+                    <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><div v-if="skillRefs(msg).length" class="ai-skill-refs" data-test="ai-skill-refs"><span class="ai-skill-refs-label">引用了</span><el-tooltip v-for="skill in skillRefs(msg)" :key="skill.id" placement="top" :show-after="150" popper-class="ai-theme ai-skill-tip"><template #content><b>{{ skill.name }}</b><span>{{ skill.desc || '暂无简介' }}</span></template><span class="ai-skill-chip" tabindex="0" data-test="ai-skill-chip">{{ skill.name }}</span></el-tooltip></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><ai-button v-for="text in msg.suggestions" :key="text" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</ai-button></div></template>
                     <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </ai-bubble>
                 </ai-message></template>
-                <ai-message v-if="thinking" role="assistant"><ai-trace><ai-trace-line status="running" icon="spark" title="正在基于你有权限的数据表进行分析…"></ai-trace-line></ai-trace></ai-message>
+                <ai-message v-if="thinking" role="assistant"><ai-trace><ai-trace-line status="running" icon="spark" title="正在基于你有权限的数据表进行分析…" :desc="etaText"></ai-trace-line></ai-trace></ai-message>
               </div>
               <div v-if="!assetView" class="portal-vue-ai-input">
                 <div v-if="mentionOpen" class="portal-vue-ai-mention">
@@ -236,13 +236,14 @@
                 </div>
                 <ai-prompt-input ref="inputBox" v-model="input" placeholder="输入分析问题，@ 可引用数据表；回车发送" :can-send="!!input.trim() && !thinking" @enter="onEnter" @input="onInput" @send="sendMessage">
                   <template #tools>
-                    <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper ai-theme" data-test="ai-line-select" @update:model-value="pickLine">
+                    <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper ai-theme" data-test="ai-line-select" title="业务线" @update:model-value="pickLine">
+                      <template #prefix><span class="ai-ico" v-html="icon('briefcase')"></span></template>
                       <el-option label="通用" value="通用"></el-option>
                       <el-option v-for="line in lineChoices" :key="line" :label="line" :value="line"></el-option>
                     </el-select>
                     <el-popover v-model:visible="modelPop" trigger="click" placement="top-start" :width="320" :disabled="!models.length" popper-class="portal-vue-ai-model-pop ai-theme">
                       <template #reference>
-                        <button type="button" class="portal-vue-ai-model-chip" :class="{ disabled: !models.length }" data-test="model-chip"><b>模型</b><span class="mc-name">{{ model || (modelsLoading ? '加载中…' : '请选择') }}</span><em v-if="reasoningSupported">{{ reasoningLabel }}</em><i class="mc-arrow"></i></button>
+                        <button type="button" class="portal-vue-ai-model-chip" :class="{ disabled: !models.length }" data-test="model-chip" aria-label="模型" title="模型"><span class="ai-ico" v-html="icon('cpu')"></span><span class="mc-name">{{ model || (modelsLoading ? '加载中…' : '请选择') }}</span><em v-if="reasoningSupported">{{ reasoningLabel }}</em><i class="mc-arrow"></i></button>
                       </template>
                       <div class="mp-section">
                         <div class="mp-title">模型</div>
@@ -256,6 +257,7 @@
                         <div class="mp-title">思考强度</div>
                         <el-select :model-value="reasoning" size="default" class="mp-level-select" :teleported="false" placeholder="选择思考强度" @change="pickLevel"><el-option v-for="item in reasoningChoices" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
                       </div>
+                      <div v-else class="mp-note">这个模型没有配置思考深度（管理员可在「模型配置」里勾选）</div>
                     </el-popover>
 
                   </template>
@@ -357,6 +359,10 @@
       historyLastAt: 0,
       reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
       assetView: false,
+      etaStartAt: 0,
+      etaNow: 0,
+      etaEstimate: null,
+      etaTimer: null,
       capDrawer: false,
       capDetail: null,
       capView: "video",
@@ -452,6 +458,8 @@
       shownModels(){const keyword=this.modelKeyword.trim().toLowerCase();return keyword?this.models.filter(item=>String(item).toLowerCase().includes(keyword)):this.models;},
       reasoningLabel(){return (this.reasoningChoices.find(item=>item.value===this.reasoning)||{}).label||"";},
       reasoningSupported(){return this.reasoningChoices.length>0;},
+      /* 生成中的「已用 · 预计」文案；不在生成中为空 */
+      etaText(){return this.thinking||this.activeSession.messages.some(msg=>msg.streaming&&!msg.html)?aiChatHelpers.formatEta((this.etaNow-this.etaStartAt)/1000,this.etaEstimate):"";},
       sessionGroups(){return aiChatHelpers.groupSessions(this.sessions);},
       archivedReports(){refreshTick.value;return this.reports;},
       assetTree(){
@@ -484,7 +492,7 @@
       this.loadGatewaySkills();
       this.loadHistory();
     },
-    beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);},
+    beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);clearInterval(this.etaTimer);},
     methods:{
       icon: aiUi.icon,
       /* 打开 / 切换会话后的滚动位置：有消息停在最新一条，空会话（欢迎页）回到顶部，免得标题被卷到上面 */
@@ -498,8 +506,34 @@
         this.capDetail=null;this.capDrawer=false;
         this.$nextTick(()=>this.$refs.inputBox?.focus?.());
       },
+      /* 回答末尾「引用了」的 skill：名称优先用 plan 里的，简介来自 Skill 注册表（鼠标移上去显示） */
+      skillRefs(msg){
+        return aiChatHelpers.skillsUsed(msg).map(item=>{
+          const skill=(state.skills||[]).find(entry=>entry.id===item.id)||{};
+          return {id:item.id,name:item.name||skill.title||skill.name||item.id,desc:skill.desc||skill.displayDesc||""};
+        });
+      },
+      /* ===== 预计回答时长：按「模型 | 思考档位」记住最近 10 次耗时，用中位数估计这次要多久 ===== */
+      etaKey(){return `${this.model}|${this.reasoning}`;},
+      readDurations(){try{return (JSON.parse(localStorage.getItem("portalAnswerDurations")||"{}")[this.etaKey()])||[];}catch(error){return [];}},
+      etaBegin(){
+        clearInterval(this.etaTimer);
+        this.etaStartAt=Date.now();this.etaNow=this.etaStartAt;
+        this.etaEstimate=aiChatHelpers.estimateSeconds(this.readDurations());
+        this.etaTimer=setInterval(()=>{this.etaNow=Date.now();},1000);
+      },
+      /* 结束计时；成功的回答才记下耗时，失败的不计入估计 */
+      etaEnd(ok){
+        clearInterval(this.etaTimer);this.etaTimer=null;
+        if(!ok||!this.etaStartAt)return;
+        try{
+          const all=JSON.parse(localStorage.getItem("portalAnswerDurations")||"{}");
+          all[this.etaKey()]=aiChatHelpers.pushDuration(all[this.etaKey()],(Date.now()-this.etaStartAt)/1000);
+          localStorage.setItem("portalAnswerDurations",JSON.stringify(all));
+        }catch(error){/* 存不了就不记 */}
+      },
       /* 助手消息上方的 Trace 行（见 ai-chat-helpers.js），旧消息没有过程信息时为空 */
-      traceRows(msg){return aiChatHelpers.buildTraceRows(msg,this.metaItems);},
+      traceRows(msg){return aiChatHelpers.buildTraceRows(msg,this.metaItems,this.etaText);},
       /* 「运行详情」只放元信息里除「引用表」以外的条目（引用表有自己的一行） */
       detailItems(msg){return this.metaItems(msg.meta).filter(item=>item.k!=="引用表");},
       isTraceOpen(msg,key){return key==="reasoning"?!!msg.thinkOpen:!!(msg.traceOpen&&msg.traceOpen[key]);},
@@ -942,11 +976,13 @@
         this.input="";
         this.mentionOpen=false;
         this.thinking=true;
+        this.etaBegin();
         this.persistHistory();
         const gatewayAvailable=this.models.length>0;
         if(!gatewayAvailable){
           await new Promise(resolve=>setTimeout(resolve,700));
           this.thinking=false;
+          this.etaEnd(false);
           if(!resumed&&!mentionedTables.length&&this.myTables.length){
             /* 演示：网关未启动时模拟「AI 信息不足 → 提问 → 用户选择后继续」 */
             session.messages.push({role:"assistant",lines:[],ask:this.buildAsk({
@@ -1058,6 +1094,7 @@
               }
             }
             this.thinking=false;
+            this.etaEnd(!errorMsg);
             liveMsg.streaming=false;
             if(liveMsg.reasoning)liveMsg.thinkOpen=false;
             const askFound=this.extractAsk(full);
@@ -1104,6 +1141,7 @@
           }
         }catch(error){
           this.thinking=false;
+          this.etaEnd(false);
           session.status="已完成";
           session.messages.push({role:"assistant",lines:[`分析请求失败：${error.message}。请确认本地网关已启动（node scripts/analysis-gateway.cjs）。`]});
           this.persistHistory();

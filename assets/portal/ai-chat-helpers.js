@@ -33,13 +33,13 @@
    * 一条助手消息上方的 Trace 行（参考 shadcn Trace）：思考过程 → 使用的技能 → 查了哪些表 → 口径理解 → 运行详情。
    * 每行 { key, icon, title, desc, status, tables? }，status 为 "running" / "error" / ""；
    * 没有任何过程信息的旧消息（历史会话、飞书来源）返回空数组；生成中只返回思考行。
-   * metaItems 是把元信息行拆成条目的函数（由组件传入）。
+   * metaItems 是把元信息行拆成条目的函数（由组件传入）；liveDesc 是生成中思考行右边的预计时长文案。
    */
-  function buildTraceRows(msg, metaItems) {
+  function buildTraceRows(msg, metaItems, liveDesc) {
     const rows = [];
     const live = !!(msg.streaming && !msg.html);
     if (msg.reasoning) {
-      rows.push({ key: "reasoning", icon: "spark", title: live ? "正在思考…" : "思考过程", desc: live ? "" : `${msg.reasoning.length} 字`, status: live ? "running" : "" });
+      rows.push({ key: "reasoning", icon: "spark", title: live ? "正在思考…" : "思考过程", desc: live ? (liveDesc || "") : `${msg.reasoning.length} 字`, status: live ? "running" : "" });
     }
     if (msg.streaming) return rows;
     const plan = msg.plan && msg.plan.source && msg.plan.source !== "manual" ? msg.plan : null;
@@ -56,5 +56,50 @@
     return rows;
   }
 
-  window.PortalVue.aiChatHelpers = { groupSessions, buildTraceRows };
+
+  /* ---------- 预计回答时长 ---------- */
+  /** 最近 10 次耗时（秒）的中位数，限制在 3–300 秒；没有有效记录返回 null。 */
+  function estimateSeconds(history) {
+    const list = (Array.isArray(history) ? history : []).filter(value => typeof value === "number" && Number.isFinite(value) && value > 0).slice(-10).sort((a, b) => a - b);
+    if (!list.length) return null;
+    const mid = list.length >> 1;
+    const median = list.length % 2 ? list[mid] : (list[mid - 1] + list[mid]) / 2;
+    return Math.min(300, Math.max(3, Math.round(median)));
+  }
+
+  /** 记下一次耗时（保留 1 位小数），只留最近 10 次；非法值不写入。 */
+  function pushDuration(history, seconds, max = 10) {
+    const list = Array.isArray(history) ? history.slice() : [];
+    if (typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0) list.push(Math.round(seconds * 10) / 10);
+    return list.slice(-max);
+  }
+
+  function formatDuration(seconds) {
+    const total = Math.max(0, Math.round(seconds));
+    if (total < 60) return `${total} 秒`;
+    const minutes = Math.floor(total / 60);
+    const rest = total % 60;
+    return rest ? `${minutes} 分 ${rest} 秒` : `${minutes} 分钟`;
+  }
+
+  /** 生成中显示的文案：已用多久 + 预计多久；没有历史时给个范围；明显超过预计时提示「比平常久一点」。 */
+  function formatEta(elapsedSeconds, estimate) {
+    const elapsed = Math.max(0, Math.round(elapsedSeconds));
+    const slow = estimate ? elapsed > estimate * 1.5 + 3 : elapsed > 40;
+    if (slow) return `已用 ${formatDuration(elapsed)} · 比平常久一点，还在处理`;
+    return `已用 ${formatDuration(elapsed)} · ${estimate ? `预计约 ${formatDuration(estimate)}` : "预计 10–30 秒"}`;
+  }
+
+  /* ---------- 回答末尾的「引用了哪些 skill」 ---------- */
+  /** 一条助手回答用到的 skill：来自 plan 和 skillId，按 id 去重；生成中、旧消息、用户消息返回空数组。 */
+  function skillsUsed(msg) {
+    if (!msg || msg.role !== "assistant" || msg.streaming) return [];
+    const found = [];
+    const add = (id, name) => { if (id && !found.some(item => item.id === id)) found.push({ id, name: name || "" }); };
+    if (msg.plan) add(msg.plan.skillId, msg.plan.skillName);
+    add(msg.skillId, "");
+    return found;
+  }
+
+  window.PortalVue.aiChatHelpers = { groupSessions, buildTraceRows, estimateSeconds, pushDuration, formatDuration, formatEta, skillsUsed };
 })();

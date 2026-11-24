@@ -37,7 +37,9 @@
     clock: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 8v4l3 2",
     lock: "M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3",
     play: "M8 5l11 7-11 7z",
-    image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M9 9h.01"
+    image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M9 9h.01",
+    briefcase: "M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M4 13h16",
+    cpu: "M7 7h10v10H7zM10 10h4v4h-4zM9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4"
   };
   const icon = name => `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[name] || ""}"/></svg>`;
 

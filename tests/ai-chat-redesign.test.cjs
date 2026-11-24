@@ -121,7 +121,7 @@ test("输入框里不放「能力」按钮（每次新建会话首页都有入�
   assert.ok(!allCss().includes(".ai-cap-entry"), "不再使用的「能力」按钮样式应删除");
   const html = read("index.html");
   assert.ok(!html.includes("20261124b"), "index.html 里还有旧的静态资源版本号 20261124b");
-  assert.ok(html.includes("?v=20261124d"), "index.html 缺少新的静态资源版本号 20261124d");
+  assert.ok(html.includes("?v=20261124e"), "index.html 缺少新的静态资源版本号 20261124e");
 });
 
 
@@ -223,4 +223,42 @@ test("追问胶囊要安静：小一号字、常规字重、灰色文字、浅�
   assert.match(body, /font-size:\s*12\.5px/);
   assert.match(body, /background:\s*transparent/);
   assert.match(body, /height:\s*28px/);
+});
+
+test("回答末尾列出引用的 skill，鼠标移上去显示简介", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  assert.equal(template.split('data-test="ai-skill-refs"').length - 1, 2, "报告类和回答类消息的末尾各一处");
+  for (const needle of ["skillRefs(msg)", 'data-test="ai-skill-chip"', "<el-tooltip", 'popper-class="ai-theme ai-skill-tip"', "skill.desc || '暂无简介'", 'class="ai-skill-refs-label">引用了']) {
+    assert.ok(template.includes(needle), "模板缺少：" + needle);
+  }
+  assert.ok(template.indexOf('data-test="ai-skill-refs"') < template.indexOf('class="portal-vue-ai-feedback"'), "引用的 skill 在反馈按钮之前，也就是回答的结尾");
+  assert.match(source, /skillRefs\(msg\)\{[\s\S]*?state\.skills[\s\S]*?skill\.desc\|\|skill\.displayDesc/, "简介来自 Skill 注册表的 desc / displayDesc");
+  const css = allCss();
+  for (const selector of [".ai-skill-refs", ".ai-skill-chip", ".ai-skill-tip"]) assert.ok(css.includes(selector), "缺少样式：" + selector);
+});
+
+test("预计回答时长：每次提问开始计时，生成中显示「已用 · 预计」，按模型和思考档位记录最近几次耗时", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  for (const needle of ['title="正在基于你有权限的数据表进行分析…"', ':desc="etaText"']) assert.ok(template.includes(needle), "模板缺少：" + needle);
+  for (const needle of ["portalAnswerDurations", "etaBegin()", "etaEnd(", "estimateSeconds(", "pushDuration(", "formatEta(", "clearInterval(this.etaTimer)", "buildTraceRows(msg,this.metaItems,this.etaText)"]) assert.ok(source.includes(needle), "缺少：" + needle);
+  assert.equal((source.match(/this\.etaBegin\(\)/g) || []).length, 1, "只在 sendMessage 开始处计时一次");
+  assert.ok((source.match(/this\.etaEnd\(/g) || []).length >= 3, "完成、失败、网关不可用三处都要结束计时");
+  assert.match(source, /beforeUnmount\(\)\{[^}]*clearInterval\(this\.etaTimer\)/, "离开页面要清掉定时器");
+});
+
+test("输入框里的业务线和模型选择：文字标签换成图标，去掉描边，改成安静的按钮；模型没有思考档位时在面板里说明", () => {
+  const css = allCss();
+  const grab = selector => {
+    const escaped = selector.replace(/[.#[\]"()>:]/g, "\\$&");
+    return [...css.matchAll(new RegExp("(?:^|\\n)" + escaped + "\\s*\\{([^}]*)\\}", "g"))].map(m => m[1]).join(" ");
+  };
+  assert.match(grab(".ai-composer-card .portal-vue-ai-chip-line-select .el-select__wrapper::before"), /content:\s*none/, "不再用伪元素写「线」字");
+  assert.match(grab(".ai-composer-card .portal-vue-ai-model-chip"), /background:\s*transparent/);
+  const template = workbench();
+  assert.ok(template.includes("<template #prefix><span class=\"ai-ico\" v-html=\"icon('briefcase')\"></span></template>"), "业务线下拉用图标做前缀");
+  assert.ok(template.includes("icon('cpu')") && !template.includes("<b>模型</b>"), "模型按钮用图标，不再写「模型」两个字");
+  assert.ok(template.includes('aria-label="业务线"') || template.includes("title=\"业务线\""), "图标按钮要有文字提示");
+  assert.ok(template.includes('class="mp-note"') && template.includes("没有配置思考深度"), "不支持思考的模型要说明原因，而不是悄悄少一项");
 });

@@ -78,3 +78,55 @@ test("Trace 行：历史会话、飞书来源这类没有任何过程信息的�
   const rows = plain(buildTraceRows({ role: "assistant", html: "x", plan: { source: "manual", skillName: "单表分析" } }, metaItemsStub));
   assert.ok(!rows.some(row => row.key === "skill"));
 });
+
+test("预计时长：取最近若干次耗时的中位数，没有记录时返回 null，异常值不计入、结果限制在 3–300 秒", () => {
+  const { estimateSeconds } = load();
+  assert.equal(estimateSeconds([]), null);
+  assert.equal(estimateSeconds(undefined), null);
+  assert.equal(estimateSeconds([10, 20, 30]), 20);
+  assert.equal(estimateSeconds([10, 20, 30, 40]), 25);
+  assert.equal(estimateSeconds([0, -5, "x", NaN, 12]), 12, "非正数和非数字不计入");
+  assert.equal(estimateSeconds([1]), 3, "最少 3 秒");
+  assert.equal(estimateSeconds([900]), 300, "最多 300 秒");
+  assert.equal(estimateSeconds([1000, 1000, 1000, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]), 8, "只看最近 10 次");
+});
+
+test("预计时长：记录最近 10 次，非法值不写入", () => {
+  const { pushDuration } = load();
+  assert.deepEqual(plain(pushDuration([], 8.64)), [8.6]);
+  assert.deepEqual(plain(pushDuration([1, 2], 0)), [1, 2]);
+  assert.deepEqual(plain(pushDuration([1, 2], NaN)), [1, 2]);
+  const full = Array.from({ length: 10 }, (_, i) => i + 5);
+  assert.deepEqual(plain(pushDuration(full, 99)), [6, 7, 8, 9, 10, 11, 12, 13, 14, 99]);
+});
+
+test("预计时长：文案——有历史显示「预计约 N 秒」，没有历史显示范围，超时提示「比平常久一点」，超过 1 分钟用分秒", () => {
+  const { formatEta, formatDuration } = load();
+  assert.equal(formatDuration(8), "8 秒");
+  assert.equal(formatDuration(60), "1 分钟");
+  assert.equal(formatDuration(65), "1 分 5 秒");
+  assert.equal(formatEta(5, 12), "已用 5 秒 · 预计约 12 秒");
+  assert.equal(formatEta(0, 12), "已用 0 秒 · 预计约 12 秒");
+  assert.equal(formatEta(-3, 12), "已用 0 秒 · 预计约 12 秒", "时钟回拨不出现负数");
+  assert.equal(formatEta(5, null), "已用 5 秒 · 预计 10–30 秒");
+  assert.equal(formatEta(40, 12), "已用 40 秒 · 比平常久一点，还在处理");
+  assert.equal(formatEta(50, null), "已用 50 秒 · 比平常久一点，还在处理");
+});
+
+test("引用的 skill：来自 plan 和 skillId，去重；生成中和旧消息不返回", () => {
+  const { skillsUsed } = load();
+  assert.deepEqual(plain(skillsUsed({ role: "assistant", html: "x", plan: { skillId: "asset-qa", skillName: "数据资产问答" } })), [{ id: "asset-qa", name: "数据资产问答" }]);
+  assert.deepEqual(plain(skillsUsed({ role: "assistant", html: "x", skillId: "lineage-analyst" })), [{ id: "lineage-analyst", name: "" }]);
+  assert.deepEqual(plain(skillsUsed({ role: "assistant", html: "x", skillId: "asset-qa", plan: { skillId: "asset-qa", skillName: "数据资产问答" } })).length, 1, "同一个 skill 只出现一次");
+  assert.deepEqual(plain(skillsUsed({ role: "assistant", streaming: true, html: "x", skillId: "asset-qa" })), [], "生成中不显示");
+  assert.deepEqual(plain(skillsUsed({ role: "assistant", lines: ["旧消息"] })), []);
+  assert.deepEqual(plain(skillsUsed({ role: "user", lines: ["问"] })), []);
+});
+
+test("buildTraceRows：生成中的思考行可带预计时长文案", () => {
+  const { buildTraceRows } = load();
+  const rows = plain(buildTraceRows({ role: "assistant", streaming: true, reasoning: "x" }, () => [], "已用 5 秒 · 预计约 12 秒"));
+  assert.equal(rows[0].desc, "已用 5 秒 · 预计约 12 秒");
+  const done = plain(buildTraceRows({ role: "assistant", html: "x", reasoning: "一二三" }, () => [], "不该出现"));
+  assert.equal(done[0].desc, "3 字");
+});
