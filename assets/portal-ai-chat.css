@@ -323,3 +323,7 @@
 .ai-cap-card-icon { background: var(--ai-surface); }
 .ai-cap-q:hover { background: var(--ai-surface); }
 .ai-prompt-input { box-shadow: none; }
+
+/* 追问胶囊：安静的小字，不抢回答的风头 */
+.portal-vue-ai-followups .ai-button { height: 28px; padding: 0 12px; border-color: var(--ai-line); background: transparent; color: var(--ai-ink-2); font-size: 12.5px; font-weight: 400; }
+.portal-vue-ai-followups .ai-button:hover { border-color: var(--ai-line-strong); background: var(--ai-sunken); color: var(--ai-ink); }

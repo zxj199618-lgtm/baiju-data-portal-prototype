@@ -121,7 +121,7 @@ test("输入框里不放「能力」按钮（每次新建会话首页都有入�
   assert.ok(!allCss().includes(".ai-cap-entry"), "不再使用的「能力」按钮样式应删除");
   const html = read("index.html");
   assert.ok(!html.includes("20261124b"), "index.html 里还有旧的静态资源版本号 20261124b");
-  assert.ok(html.includes("?v=20261124c"), "index.html 缺少新的静态资源版本号 20261124c");
+  assert.ok(html.includes("?v=20261124d"), "index.html 缺少新的静态资源版本号 20261124d");
 });
 
 
@@ -211,4 +211,16 @@ test("「不能做什么」：首页只留一个入口，抽屉只列「要你�
   assert.ok(!template.includes("我能做什么，不能做什么") && !template.includes("我能帮你做什么"), "旧的「我能做什么」文案应删除");
   assert.ok(template.includes('v-for="group in boundaryGroups"') && !template.includes('v-for="group in capabilityGroups"'), "抽屉按 boundaryGroups 渲染");
   assert.match(source, /boundaryGroups\(\)\{[^}]*filter\(group=>group\.key!=="can"\)/, "boundaryGroups 要去掉「直接能做」组");
+});
+
+test("追问胶囊要安静：小一号字、常规字重、灰色文字、浅边框，不抢回答的风头", () => {
+  const css = allCss();
+  const match = css.match(/\.portal-vue-ai-followups \.ai-button\s*\{([^}]*)\}/);
+  assert.ok(match, "缺少 .portal-vue-ai-followups .ai-button 样式");
+  const body = match[1];
+  assert.match(body, /font-weight:\s*400/);
+  assert.match(body, /color:\s*var\(--ai-ink-2\)/);
+  assert.match(body, /font-size:\s*12\.5px/);
+  assert.match(body, /background:\s*transparent/);
+  assert.match(body, /height:\s*28px/);
 });
