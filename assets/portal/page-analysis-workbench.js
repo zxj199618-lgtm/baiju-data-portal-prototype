@@ -202,7 +202,7 @@
                       <span class="ai-cap-card-qs"><button v-for="text in item.examples.slice(0, 3)" :key="text" type="button" class="ai-cap-q" data-test="ai-capability-question" @click.stop="tryCapability(item, text)"><span class="ai-cap-q-text">{{ text }}</span><span class="ai-ico ai-cap-q-go" v-html="icon('chevron-right')"></span></button></span>
                     </div>
                   </div>
-                  <button type="button" class="ai-cap-open" data-test="ai-capability-open" @click="openCapabilityDrawer">我能做什么，不能做什么<span class="ai-ico" v-html="icon('chevron-right')"></span></button>
+                  <button type="button" class="ai-cap-open" data-test="ai-capability-open" @click="openCapabilityDrawer">我暂时做不了什么<span class="ai-ico" v-html="icon('chevron-right')"></span></button>
                 </ai-empty>
                 <template v-for="(msg, index) in activeSession.messages" :key="index"><ai-marker v-if="msg.contextReset" variant="separator" data-test="ai-context-reset">已切换到「{{ msg.contextReset.to.join("、") }}」，之前针对「{{ msg.contextReset.from.join("、") }}」的对话不再作为上下文</ai-marker><ai-message v-show="!isEmptyMsg(msg)" :role="msg.role" :class="{ 'is-ask': !!msg.ask }">
                   <ai-questionnaire v-if="msg.ask" :ask="msg.ask" :disabled="thinking" @toggle="(q, opt) => toggleAsk(msg.ask, q, opt)" @custom="q => onAskCustom(msg.ask, q)" @submit="submitAsk(msg)" @skip="submitAsk(msg, true)"></ai-questionnaire>
@@ -257,16 +257,16 @@
                         <el-select :model-value="reasoning" size="default" class="mp-level-select" :teleported="false" placeholder="选择思考强度" @change="pickLevel"><el-option v-for="item in reasoningChoices" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
                       </div>
                     </el-popover>
-                    <button type="button" class="ai-cap-entry" data-test="ai-capability-entry" aria-label="能力" @click="openCapabilityDrawer"><span class="ai-ico" v-html="icon('spark')"></span>能力</button>
+
                   </template>
                 </ai-prompt-input>
               </div>
               </div>
 
           <el-drawer v-model="capDrawer" direction="rtl" size="360px" :with-header="false" :close-on-click-modal="true" append-to-body class="ai-theme ai-cap-drawer" data-test="ai-capability-drawer">
-            <div class="ai-cap-drawer-head"><h3>我能帮你做什么</h3><button type="button" class="ai-cap-close" aria-label="关闭" @click="capDrawer = false"><span class="ai-ico" v-html="icon('close')"></span></button></div>
-            <p class="ai-cap-drawer-sub">点任意一项，看示例再试一试</p>
-            <section v-for="group in capabilityGroups" :key="group.key" class="ai-cap-group">
+            <div class="ai-cap-drawer-head"><h3>我暂时做不了什么</h3><button type="button" class="ai-cap-close" aria-label="关闭" @click="capDrawer = false"><span class="ai-ico" v-html="icon('close')"></span></button></div>
+            <p class="ai-cap-drawer-sub">下面这些要你配合，或者暂时还做不了；能做的事都在首页的卡片里。</p>
+            <section v-for="group in boundaryGroups" :key="group.key" class="ai-cap-group">
               <h4><i class="ai-cap-dot" :class="'is-' + group.key"></i>{{ group.label }}</h4>
               <button v-for="item in group.items" :key="item.id" type="button" class="ai-cap-row" data-test="ai-capability-row" @click="openCapability(item)">
                 <span class="ai-cap-thumb"><img :src="item.steps[0].image" alt="" /><span v-if="item.video" class="ai-cap-thumb-play ai-ico" v-html="icon('play')"></span></span>
@@ -385,6 +385,8 @@
       },
       /* 详情弹层：有视频、没出错、且选的是「视频」时放视频，否则放图文 */
       showVideo(){return !!(this.capDetail&&this.capDetail.video&&this.capDetail.video.src)&&!this.capVideoFailed&&this.capView==="video";},
+      /* 「我暂时做不了什么」抽屉：只列需要补充信息的和暂时做不了的（能做的已经是首页卡片） */
+      boundaryGroups(){return this.capabilityGroups.filter(group=>group.key!=="can");},
       capabilityCan(){
         const extra=this.equityExamples;
         const items=(this.capabilityGroups.find(group=>group.key==="can")||{items:[]}).items;

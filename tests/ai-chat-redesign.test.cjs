@@ -115,14 +115,15 @@ test("能力导览：抽屉按三组展示，详情弹层有视频 / 图文切�
   assert.match(source, /capSteps\(\)\{|showVideo\(\)\{/, "要有判断「显示视频还是图文」的计算属性");
 });
 
-test("能力入口：输入卡片里有常驻的「能力」按钮；静态资源版本号已递增", () => {
+test("输入框里不放「能力」按钮（每次新建会话首页都有入口）；静态资源版本号已递增", () => {
   const template = workbench();
-  assert.ok(template.includes('data-test="ai-capability-entry"'), "输入卡片缺少「能力」入口");
-  assert.ok(/data-test="ai-capability-entry"[^>]*@click="openCapabilityDrawer"|@click="openCapabilityDrawer"[^>]*data-test="ai-capability-entry"/.test(template), "「能力」按钮要打开抽屉");
+  assert.ok(!template.includes("ai-capability-entry"), "输入卡片里不再放「能力」按钮");
+  assert.ok(!allCss().includes(".ai-cap-entry"), "不再使用的「能力」按钮样式应删除");
   const html = read("index.html");
-  assert.ok(!html.includes("20261118e"), "index.html 里还有旧的静态资源版本号 20261118e");
-  assert.ok(html.includes("?v=20261124b"), "index.html 缺少新的静态资源版本号 20261124b");
+  assert.ok(!html.includes("20261124b"), "index.html 里还有旧的静态资源版本号 20261124b");
+  assert.ok(html.includes("?v=20261124c"), "index.html 缺少新的静态资源版本号 20261124c");
 });
+
 
 test("细节：会话分组、对话标题栏、浮层带 ai-theme，状态标签改为圆点", () => {
   const template = workbench();
@@ -201,4 +202,13 @@ test("按权限个性化的问法并入能力卡：有权益表权限的用户�
   assert.ok(!source.includes("starterSuggests") && !/\bsuggests:\s*\[/.test(source), "旧的推荐胶囊数据应删除");
   assert.match(source, /equityExamples\(\)\{[\s\S]*?权益-账号维度消耗统计表[\s\S]*?trend:\[[^\]]*任哥近 7 天的消耗和自营 ROI/, "权益用户的个性化问法来自 equityExamples");
   assert.match(source, /capabilityCan\(\)\{[\s\S]*?equityExamples[\s\S]*?new Set\(\[\.\.\.extra\[item\.id\],\.\.\.item\.examples\]\)/, "capabilityCan 把个性化问法放在前面并去重");
+});
+
+test("「不能做什么」：首页只留一个入口，抽屉只列「要你补充信息」和「暂时做不了」（能做的已经在卡片里）", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  assert.ok(template.includes("我暂时做不了什么"), "入口文案和抽屉标题应是「我暂时做不了什么」");
+  assert.ok(!template.includes("我能做什么，不能做什么") && !template.includes("我能帮你做什么"), "旧的「我能做什么」文案应删除");
+  assert.ok(template.includes('v-for="group in boundaryGroups"') && !template.includes('v-for="group in capabilityGroups"'), "抽屉按 boundaryGroups 渲染");
+  assert.match(source, /boundaryGroups\(\)\{[^}]*filter\(group=>group\.key!=="can"\)/, "boundaryGroups 要去掉「直接能做」组");
 });

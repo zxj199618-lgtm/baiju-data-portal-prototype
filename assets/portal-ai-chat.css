@@ -143,9 +143,6 @@
 .portal-vue-ai-mention { margin-bottom: 8px; padding: 8px 10px; border: 0; border-radius: var(--ai-r-md); background: var(--ai-surface); max-width: 980px; margin: 0 auto 8px; box-shadow: 0 6px 20px rgba(31, 90, 76, .12); border-color: var(--ai-line); }
 .portal-vue-ai-mention-list button { padding: 4px 10px; border: 1px solid var(--ai-line); border-radius: 999px; background: var(--ai-sunken); font-size: 12px; color: var(--ai-ink-2); cursor: pointer; border-color: var(--ai-line); }
 .portal-vue-ai-mention-list button:hover { border-color: var(--ai-accent); color: var(--ai-accent); }
-.ai-cap-entry { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--ai-sunken); color: var(--ai-ink-2); font-size: 12px; cursor: pointer; transition: background .15s ease, color .15s ease; }
-.ai-cap-entry:hover { background: var(--ai-accent-tint); color: var(--ai-accent); }
-.ai-cap-entry .ai-ico { width: 14px; height: 14px; font-size: 14px; }
 .portal-vue-ai-refs .el-tag, .portal-vue-ai-confirms .el-tag { border: 0; background: var(--ai-sunken); color: var(--ai-ink-2); }
 .portal-vue-ai-plan-chip, .portal-vue-ai-scope-chip { background: var(--ai-sunken); color: var(--ai-ink-2); }
 .portal-vue-ai-plan-label, .portal-vue-ai-scope-label { color: var(--ai-ink-3); }
@@ -252,7 +249,6 @@
 .ai-composer-card .portal-vue-ai-chip-line-select { width: auto; min-width: 150px; max-width: 220px; }
 .ai-composer-card .portal-vue-ai-chip-line-select .el-select__wrapper, .ai-composer-card .portal-vue-ai-chip-line-select.el-select--small .el-select__wrapper { min-height: 26px !important; height: 26px !important; padding: 0 10px !important; background: var(--ai-sunken) !important; box-shadow: none; }
 .ai-composer-card .portal-vue-ai-chip-line-select .el-select__wrapper:hover, .ai-composer-card .portal-vue-ai-chip-line-select .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px var(--ai-line-strong) inset !important; }
-.ai-composer-card .portal-vue-ai-model-chip, .ai-composer-card .ai-cap-entry { height: 26px; padding-top: 0; padding-bottom: 0; background: var(--ai-sunken); }
 .ai-composer-card .portal-vue-ai-model-chip { padding-left: 10px; padding-right: 10px; }
 
 /* 浮层：模型选择、业务线下拉、引用面板 */
