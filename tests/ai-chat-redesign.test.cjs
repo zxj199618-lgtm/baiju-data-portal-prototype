@@ -121,7 +121,7 @@ test("输入框里不放「能力」按钮（每次新建会话首页都有入�
   assert.ok(!allCss().includes(".ai-cap-entry"), "不再使用的「能力」按钮样式应删除");
   const html = read("index.html");
   assert.ok(!html.includes("20261124b"), "index.html 里还有旧的静态资源版本号 20261124b");
-  assert.ok(html.includes("?v=20261124g"), "index.html 缺少新的静态资源版本号 20261124g");
+  assert.ok(html.includes("?v=20261124j"), "index.html 缺少新的静态资源版本号 20261124j");
 });
 
 
@@ -346,4 +346,26 @@ test("报告卡片重做：卡片头是图标块 + 标题 + 描边小按钮（�
   assert.ok(/border-bottom:\s*1px solid var\(--ai-line\)/.test(cell) && !/border:\s*1px/.test(cell), "表格单元格只画横线，不画竖线和四周框");
   const dashedReport = css.split("\n").filter(line => /report/.test(line.split("{")[0]) && line.includes("dashed"));
   assert.deepEqual(dashedReport, [], "报告相关的规则里不再有虚线分割");
+});
+
+test("引用 skill 的提示框：浅色箭头（不是黑色菱形），名称前带 skill 图标，芯片里也有图标", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  assert.equal(template.split('effect="light"').length - 1, 2, "两处 el-tooltip 都用浅色样式，箭头才会跟着变浅");
+  assert.equal(template.split('class="ai-skill-icon"').length - 1 >= 4, true, "芯片和提示框标题里都有图标（图片或线性图标各一种写法）");
+  assert.match(source, /iconSrc:isImageIconValue\(iconSrc\)\?iconSrc:""/, "图标来自 Skill 注册表，只接受图片地址，不用 emoji");
+  assert.ok(source.includes("resolveSkillIcon(skill.icon)"), "旧的 emoji 图标要先转成新的图标文件");
+  const css = allCss();
+  const arrow = (css.match(/\.ai-skill-tip\.is-light \.el-popper__arrow::before\s*\{([^}]*)\}/) || [])[1] || "";
+  assert.match(arrow, /background:\s*var\(--ai-surface\)/);
+  assert.match(arrow, /border-color:\s*var\(--ai-line\)/);
+  assert.ok(css.includes(".ai-skill-icon"), "缺少 .ai-skill-icon 样式");
+});
+
+test("业务线下拉宽度跟着当前文字走，不再留一块固定宽度的空白", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  assert.ok(template.includes(':style="{ width: lineSelectWidth }"'), "下拉按钮宽度来自 lineSelectWidth");
+  assert.match(source, /lineSelectWidth\(\)\{return `\$\{aiChatHelpers\.chipWidth\(this\.activeBusinessLine\|\|"通用"\)\}px`;\}/);
+  assert.ok(!/portal-vue-ai-chip-line-select\s*\{[^}]*(?:min-)?width:\s*132px/.test(allCss()), "不再写死 132px");
 });

@@ -101,5 +101,14 @@
     return found;
   }
 
-  window.PortalVue.aiChatHelpers = { groupSessions, buildTraceRows, estimateSeconds, pushDuration, formatDuration, formatEta, skillsUsed };
+  /**
+   * 下拉按钮的宽度（px）：按文字估算——中文 13px、其他 7.5px，加上前面的图标、后面的箭头和内边距共 72px；
+   * 最小 96，最大 240（再长的文字由省略号处理）。Element Plus 的 select 自己撑不开，所以由页面传宽度。
+   */
+  function chipWidth(text) {
+    const width = [...String(text || "")].reduce((sum, char) => sum + (/[\u2e80-\u9fff\uff00-\uffef]/.test(char) ? 13 : 7.5), 0);
+    return Math.min(240, Math.max(96, Math.round(72 + width)));
+  }
+
+  window.PortalVue.aiChatHelpers = { chipWidth, groupSessions, buildTraceRows, estimateSeconds, pushDuration, formatDuration, formatEta, skillsUsed };
 })();

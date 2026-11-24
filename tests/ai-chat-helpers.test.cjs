@@ -130,3 +130,15 @@ test("buildTraceRows：生成中的思考行可带预计时长文案", () => {
   const done = plain(buildTraceRows({ role: "assistant", html: "x", reasoning: "一二三" }, () => [], "不该出现"));
   assert.equal(done[0].desc, "3 字");
 });
+
+test("下拉按钮宽度按文字自适应：中文 13px、其他 7.5px，加上图标、箭头和内边距共 72px，最小 96px", () => {
+  const { chipWidth } = load();
+  assert.equal(chipWidth("通用"), 98, "两个字 26px + 72px");
+  assert.equal(chipWidth("权益"), 98);
+  assert.equal(chipWidth("号卡推广业务线"), Math.round(72 + 7 * 13), "7 个中文字");
+  assert.equal(chipWidth("ab"), 96, "短英文也取最小宽度");
+  assert.equal(chipWidth("A".repeat(20)), Math.round(72 + 20 * 7.5));
+  assert.equal(chipWidth(""), 96);
+  assert.equal(chipWidth(undefined), 96);
+  assert.ok(chipWidth("很长很长很长很长很长很长很长很长很长很长很长很长") <= 240, "最宽不超过 240px，超出的文字由省略号处理");
+});
