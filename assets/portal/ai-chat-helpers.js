@@ -110,5 +110,26 @@
     return Math.min(240, Math.max(96, Math.round(72 + width)));
   }
 
-  window.PortalVue.aiChatHelpers = { chipWidth, groupSessions, buildTraceRows, estimateSeconds, pushDuration, formatDuration, formatEta, skillsUsed };
+  /** @ 引用下拉里右侧的表介绍：缺哪项给空，不抛错；字段只列前 6 个，优先用中文说明。asset 可能是 undefined（只在网关里存在的表）。 */
+  function tableIntro(asset, fallbackName) {
+    const table = asset || {};
+    const fields = (Array.isArray(table.fields) ? table.fields : []).filter(Boolean);
+    const text = value => (typeof value === "string" ? value.trim() : "");
+    return {
+      title: text(table.cnName) || String(fallbackName || ""),
+      tableName: text(table.table) ? [text(table.database), text(table.table)].filter(Boolean).join(".") : "",
+      bizLine: text(table.bizLine), desc: text(table.desc), owner: text(table.owner), update: text(table.nextSync),
+      fieldCount: fields.length,
+      fields: fields.slice(0, 6).map(field => text(field.comment) || text(field.name)).filter(Boolean)
+    };
+  }
+
+  /** 列表里上下移动一格，到头循环；空列表或下标越界回到 0。 */
+  function moveIndex(index, delta, length) {
+    if (!length) return 0;
+    if (!Number.isInteger(index) || index < 0 || index >= length) return 0;
+    return (index + delta + length) % length;
+  }
+
+  window.PortalVue.aiChatHelpers = { tableIntro, moveIndex, chipWidth, groupSessions, buildTraceRows, estimateSeconds, pushDuration, formatDuration, formatEta, skillsUsed };
 })();

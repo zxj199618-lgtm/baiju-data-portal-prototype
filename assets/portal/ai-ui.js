@@ -167,7 +167,7 @@
   const AiPromptInput = {
     name: "AiPromptInput",
     props: { modelValue: { type: String, default: "" }, placeholder: String, canSend: Boolean, images: { type: Array, default: () => [] }, busy: Boolean },
-    emits: ["update:modelValue", "enter", "input", "send", "paste-files", "remove-image"],
+    emits: ["update:modelValue", "enter", "input", "send", "paste-files", "remove-image", "keydown"],
     computed: { sendSvg() { return icon("send"); }, closeSvg() { return icon("close"); } },
     methods: {
       focus() { const field = this.$refs.field; if (field && field.focus) field.focus(); },
@@ -185,7 +185,7 @@
         <div v-for="(item, index) in images" :key="item.id" class="ai-attach"><img :src="item.thumb" alt="已粘贴的图片" /><button type="button" class="ai-attach-x" :aria-label="'移除图片 ' + (index + 1)" @click="$emit('remove-image', index)"><span class="ai-ico" v-html="closeSvg"></span></button></div>
         <span v-if="busy" class="ai-attach-busy">处理图片中…</span>
       </div>
-      <el-input ref="field" :model-value="modelValue" type="textarea" :rows="2" resize="none" :placeholder="placeholder" @update:model-value="$emit('update:modelValue', $event)" @keydown.enter="$emit('enter', $event)" @input="$emit('input', $event)" @paste="onPaste"></el-input>
+      <el-input ref="field" :model-value="modelValue" type="textarea" :rows="2" resize="none" :placeholder="placeholder" @update:model-value="$emit('update:modelValue', $event)" @keydown.enter="$emit('enter', $event)" @keydown="$emit('keydown', $event)" @input="$emit('input', $event)" @paste="onPaste"></el-input>
       <div class="ai-prompt-input-bar portal-vue-ai-composer-bar">
         <slot name="tools"></slot>
         <button type="button" class="ai-prompt-input-send portal-vue-ai-composer-send" aria-label="发送" :disabled="!canSend" @click="$emit('send')"><span class="ai-ico" v-html="sendSvg"></span></button>

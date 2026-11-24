@@ -70,3 +70,9 @@ test("输入框组件：粘贴图片交给页面处理，图片缩略图在输�
   }
   assert.match(source, /onPaste\(event\)\s*\{[\s\S]*?preventDefault\(\)/, "粘贴到图片时要阻止默认行为，普通文字粘贴不受影响");
 });
+
+test("输入框组件把键盘事件原样抛给页面（下拉里用上下键选择）", () => {
+  const source = read("assets/portal/ai-ui.js");
+  assert.ok(source.includes('emits: ["update:modelValue", "enter", "input", "send", "paste-files", "remove-image", "keydown"]'));
+  assert.ok(source.includes('@keydown="$emit(\'keydown\', $event)"'));
+});

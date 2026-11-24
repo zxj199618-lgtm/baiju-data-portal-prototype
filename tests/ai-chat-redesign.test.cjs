@@ -121,7 +121,7 @@ test("输入框里不放「能力」按钮（每次新建会话首页都有入�
   assert.ok(!allCss().includes(".ai-cap-entry"), "不再使用的「能力」按钮样式应删除");
   const html = read("index.html");
   assert.ok(!html.includes("20261124b"), "index.html 里还有旧的静态资源版本号 20261124b");
-  assert.ok(html.includes("?v=20261124k"), "index.html 缺少新的静态资源版本号 20261124k");
+  assert.ok(html.includes("?v=20261124l"), "index.html 缺少新的静态资源版本号 20261124l");
 });
 
 
@@ -382,4 +382,16 @@ test("会话栏滚动条默认隐藏，鼠标移进列表才显示一条很细�
   const tag = (css.match(/\.portal-vue-ai-asset-btn \.el-tag\s*\{([^}]*)\}/g) || []).join(" ");
   assert.match(tag, /background:\s*var\(--ai-ink\)/);
   assert.match(tag, /color:\s*#fff/);
+});
+
+test("@ 引用数据表改成下拉列表：一行一张表，鼠标移上去或键盘选中时右侧显示这张表的基本介绍", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  for (const needle of ['class="ai-mention"', 'role="listbox"', 'role="option"', '@mouseenter="mentionIndex = i"', '@mousedown.prevent="insertMention(table)"', 'data-test="ai-mention-info"', 'data-test="ai-mention-item"', "mentionInfo", "暂无介绍", '@keydown="onComposerKey"']) assert.ok(template.includes(needle), "模板缺少：" + needle);
+  assert.ok(!template.includes("portal-vue-ai-mention-list"), "旧的胶囊式列表应删除");
+  for (const needle of ["mentionInfo(){", "tableIntro(", "onComposerKey(event)", '"ArrowDown"', '"ArrowUp"', '"Escape"', "moveIndex(", "mentionIndex"]) assert.ok(source.includes(needle), "缺少：" + needle);
+  assert.match(source, /onEnter\(event\)\{[\s\S]{0,80}?if\(this\.mentionOpen&&this\.mentionTables\.length\)\{[^}]*insertMention\(/, "下拉打开时回车是选中当前这张表，不是发送");
+  const css = allCss();
+  for (const selector of [".ai-mention", ".ai-mention-list", ".ai-mention-item", ".ai-mention-info"]) assert.ok(css.includes(selector), "缺少样式：" + selector);
+  assert.ok(!css.includes(".portal-vue-ai-mention-list"), "旧样式应删除");
 });

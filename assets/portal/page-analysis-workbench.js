@@ -228,14 +228,27 @@
                 <ai-message v-if="thinking" role="assistant"><ai-trace><ai-trace-line status="running" icon="spark" title="正在基于你有权限的数据表进行分析…" :desc="etaText"></ai-trace-line></ai-trace></ai-message>
               </div>
               <div v-if="!assetView" class="portal-vue-ai-input">
-                <div v-if="mentionOpen" class="portal-vue-ai-mention">
-                  <div class="portal-vue-ai-mention-head"><span>引用数据表</span><span class="portal-vue-muted">仅限你有权限的 {{ myTables.length }} 张表</span></div>
-                  <div class="portal-vue-ai-mention-list">
-                    <button v-for="table in mentionTables" :key="table" type="button" @click="insertMention(table)">{{ table }}</button>
-                    <p v-if="!mentionTables.length" class="portal-vue-muted">没有匹配的数据表，或当前权限组未配置数据表权限。</p>
+                <div v-if="mentionOpen" class="ai-mention" data-test="ai-mention">
+                  <div class="ai-mention-head"><span>引用数据表</span><span>仅限你有权限的 {{ myTables.length }} 张表</span></div>
+                  <div class="ai-mention-body">
+                    <ul class="ai-mention-list" role="listbox" aria-label="可引用的数据表">
+                      <li v-for="(table, i) in mentionTables" :key="table" class="ai-mention-item" :class="{ active: i === mentionIndex }" role="option" :aria-selected="i === mentionIndex" data-test="ai-mention-item" @mouseenter="mentionIndex = i" @mousedown.prevent="insertMention(table)"><span class="ai-ico" v-html="icon('database')"></span><span class="ai-mention-name">{{ table }}</span><span v-if="bizLineMeta[table]" class="ai-mention-tag">{{ bizLineMeta[table] }}</span></li>
+                      <li v-if="!mentionTables.length" class="ai-mention-empty">没有匹配的数据表，或当前权限组未配置数据表权限。</li>
+                    </ul>
+                    <aside v-if="mentionInfo" class="ai-mention-info" data-test="ai-mention-info">
+                      <b>{{ mentionInfo.title }}</b>
+                      <span v-if="mentionInfo.bizLine" class="ai-mention-tag">{{ mentionInfo.bizLine }}</span>
+                      <p>{{ mentionInfo.desc || '暂无介绍' }}</p>
+                      <dl>
+                        <div v-if="mentionInfo.tableName"><dt>表名</dt><dd>{{ mentionInfo.tableName }}</dd></div>
+                        <div v-if="mentionInfo.owner"><dt>负责人</dt><dd>{{ mentionInfo.owner }}</dd></div>
+                        <div v-if="mentionInfo.update"><dt>更新</dt><dd>{{ mentionInfo.update }}</dd></div>
+                        <div v-if="mentionInfo.fieldCount"><dt>字段</dt><dd>共 {{ mentionInfo.fieldCount }} 个：{{ mentionInfo.fields.join('、') }}{{ mentionInfo.fieldCount > mentionInfo.fields.length ? '…' : '' }}</dd></div>
+                      </dl>
+                    </aside>
                   </div>
                 </div>
-                <ai-prompt-input ref="inputBox" v-model="input" placeholder="输入分析问题，@ 可引用数据表，可直接粘贴图片；回车发送" :can-send="!!input.trim() && !thinking" :images="attachments" :busy="attachBusy" @enter="onEnter" @input="onInput" @send="sendMessage" @paste-files="addImageFiles" @remove-image="removeAttachment">
+                <ai-prompt-input ref="inputBox" v-model="input" placeholder="输入分析问题，@ 可引用数据表，可直接粘贴图片；回车发送" :can-send="!!input.trim() && !thinking" :images="attachments" :busy="attachBusy" @enter="onEnter" @keydown="onComposerKey" @input="onInput" @send="sendMessage" @paste-files="addImageFiles" @remove-image="removeAttachment">
                   <template #tools>
                     <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" :style="{ width: lineSelectWidth }" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper ai-theme" data-test="ai-line-select" title="业务线" @update:model-value="pickLine">
                       <template #prefix><span class="ai-ico" v-html="icon('briefcase')"></span></template>
@@ -353,6 +366,7 @@
       input: "",
       thinking: false,
       mentionOpen: false,
+      mentionIndex: 0,
       mentionKeyword: "",
       activeBusinessLine: "",
       lineChoicesSeen: false,
@@ -481,6 +495,11 @@
       etaText(){return this.thinking||this.activeSession.messages.some(msg=>msg.streaming&&!msg.html)?aiChatHelpers.formatEta((this.etaNow-this.etaStartAt)/1000,this.etaEstimate):"";},
       /* 业务线下拉按当前文字自适应宽度，不留固定宽度的空白 */
       lineSelectWidth(){return `${aiChatHelpers.chipWidth(this.activeBusinessLine||"通用")}px`;},
+      /* @ 下拉里当前高亮那张表的介绍（鼠标移上去或键盘选中都会更新） */
+      mentionInfo(){
+        const name=this.mentionTables[this.mentionIndex];
+        return name?aiChatHelpers.tableIntro(state.assets.find(asset=>asset.cnName===name),name):null;
+      },
       sessionGroups(){return aiChatHelpers.groupSessions(this.sessions);},
       archivedReports(){refreshTick.value;return this.reports;},
       assetTree(){
@@ -926,13 +945,24 @@
         this.persistHistory();
       },
       onEnter(event){
+        /* @ 下拉打开时回车 = 选中当前这张表，不发送 */
+        if(this.mentionOpen&&this.mentionTables.length){event.preventDefault();this.insertMention(this.mentionTables[this.mentionIndex]||this.mentionTables[0]);return;}
         if(event.shiftKey)return;
         event.preventDefault();
         this.sendMessage();
       },
+      /* @ 下拉里：上下键移动、Esc 关闭 */
+      onComposerKey(event){
+        if(!this.mentionOpen)return;
+        if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+          event.preventDefault();
+          this.mentionIndex=aiChatHelpers.moveIndex(this.mentionIndex,event.key==="ArrowDown"?1:-1,this.mentionTables.length);
+          this.$nextTick(()=>document.querySelector(".ai-mention-item.active")?.scrollIntoView({block:"nearest"}));
+        }else if(event.key==="Escape"){this.mentionOpen=false;}
+      },
       onInput(value){
         const match=String(value||"").match(/@([^@\s]*)$/);
-        if(match){this.mentionOpen=true;this.mentionKeyword=match[1];}
+        if(match){this.mentionOpen=true;this.mentionKeyword=match[1];this.mentionIndex=0;}
         else this.mentionOpen=false;
       },
       insertMention(table){

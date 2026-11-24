@@ -142,3 +142,27 @@ test("下拉按钮宽度按文字自适应：中文 13px、其他 7.5px，加上
   assert.equal(chipWidth(undefined), 96);
   assert.ok(chipWidth("很长很长很长很长很长很长很长很长很长很长很长很长") <= 240, "最宽不超过 240px，超出的文字由省略号处理");
 });
+
+test("表介绍：名称、英文表名、业务线、说明、负责人、更新频率、字段数和前几个字段；缺什么就给空，不抛错", () => {
+  const { tableIntro } = load();
+  const intro = plain(tableIntro({
+    cnName: "广告计划日报表", table: "dm_ad_plan_daily", database: "prod_callup", bizLine: "权益", desc: "广告计划日粒度消耗、转化和成本数据。",
+    owner: "黄佩贤", nextSync: "每日 02:30", fields: Array.from({ length: 9 }, (_, i) => ({ name: `f${i}`, comment: `字段${i}` }))
+  }, "广告计划日报表"));
+  assert.deepEqual([intro.title, intro.tableName, intro.bizLine, intro.desc, intro.owner, intro.update, intro.fieldCount], ["广告计划日报表", "prod_callup.dm_ad_plan_daily", "权益", "广告计划日粒度消耗、转化和成本数据。", "黄佩贤", "每日 02:30", 9]);
+  assert.deepEqual(intro.fields, ["字段0", "字段1", "字段2", "字段3", "字段4", "字段5"], "只列前 6 个字段，用中文说明，没有说明时用字段名");
+  const bare = plain(tableIntro(undefined, "只在网关里的表"));
+  assert.deepEqual([bare.title, bare.tableName, bare.bizLine, bare.desc, bare.owner, bare.update, bare.fieldCount, bare.fields.length], ["只在网关里的表", "", "", "", "", "", 0, 0]);
+  const noComment = plain(tableIntro({ cnName: "x", fields: [{ name: "stat_date" }, { name: "cost", comment: "  " }, null] }, "x"));
+  assert.deepEqual(noComment.fields, ["stat_date", "cost"]);
+});
+
+test("键盘选择：上下移动在列表内循环，空列表保持 0", () => {
+  const { moveIndex } = load();
+  assert.equal(moveIndex(0, 1, 3), 1);
+  assert.equal(moveIndex(2, 1, 3), 0, "到底回到第一项");
+  assert.equal(moveIndex(0, -1, 3), 2, "到顶回到最后一项");
+  assert.equal(moveIndex(1, -1, 3), 0);
+  assert.equal(moveIndex(0, 1, 0), 0);
+  assert.equal(moveIndex(5, 1, 3), 0, "下标越界时从头开始");
+});
