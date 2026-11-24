@@ -62,3 +62,11 @@ test("页面已全量换用组件库：消息、Trace、Marker、问卷、欢迎
   assert.match(source, /icon:\s*aiUi\.icon/, "图标函数来自组件库");
   assert.ok(!source.includes("const AI_ICON_PATHS"), "图标表已搬进组件库");
 });
+
+test("输入框组件：粘贴图片交给页面处理，图片缩略图在输入框里显示并可移除", () => {
+  const source = read("assets/portal/ai-ui.js");
+  for (const needle of ["images: { type: Array", "busy: Boolean", '@paste="onPaste"', "filesFromClipboard", 'this.$emit("paste-files"', '$emit(\'remove-image\'', 'class="ai-prompt-input-tray"', 'class="ai-attach"', "'移除图片 '"]) {
+    assert.ok(source.includes(needle), "ai-ui.js 缺少：" + needle);
+  }
+  assert.match(source, /onPaste\(event\)\s*\{[\s\S]*?preventDefault\(\)/, "粘贴到图片时要阻止默认行为，普通文字粘贴不受影响");
+});

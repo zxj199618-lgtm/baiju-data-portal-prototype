@@ -38,6 +38,7 @@ const { createUsageTracker } = require("./usage-quota.cjs");
 const { createSemanticLayer } = require("./semantic-layer.cjs");
 const { scopeTables, scopeRowsOf, isHidden, hiddenNamesOf, redactLines } = require("./field-scope.cjs");
 const { createFeedbackStore, RATINGS } = require("./feedback-store.cjs");
+const { validateImages, createImageStore, toContentParts } = require("./attachments.cjs");
 const { createOrgStore } = require("./org-store.cjs");
 const { createBoardStore } = require("./board-store.cjs");
 const { createEventStore } = require("./event-store.cjs");
@@ -778,6 +779,7 @@ const AUDIT_FILE = path.join(DATA_DIR, "analysis-audit.jsonl");
 if (process.env.PORTAL_DEMO_LOGIN_PASSWORD && !process.env.PORTAL_GLOBAL_DAILY_TOKEN_LIMIT) process.env.PORTAL_GLOBAL_DAILY_TOKEN_LIMIT = "20000000";
 const usageTracker = createUsageTracker({ dataDir: DATA_DIR });
 const feedbackStore = createFeedbackStore({ dataDir: DATA_DIR });
+const feedbackImages = createImageStore({ dir: path.join(DATA_DIR, "feedback-images") });
 const tokensOf = usage => Number(usage?.total_tokens) || ((Number(usage?.prompt_tokens) || 0) + (Number(usage?.completion_tokens) || 0));
 
 /** 一次问答用到的 Skill：通用分析（转交时）→ 实际执行的 Skill → 报告生成（出报告时） */
@@ -850,16 +852,22 @@ function appendAuditEntry(entry) {
   }
 }
 
+/** 图片以 OpenAI 兼容的 image_url 格式发给模型；Anthropic 翻译层目前不转发图片，提前拒绝而不是悄悄丢掉图片 */
+function providerSupportsImages(modelId) {
+  const route = routeForModel(modelId);
+  return Boolean(route) && !isAnthropicProtocol(route.provider.protocol);
+}
+
 /** 只有 OpenAI 兼容协议的供应商会把 tools 原样转发；Anthropic 翻译层目前不支持，走原有证据方式 */
 function providerSupportsTools(modelId) {
   const route = routeForModel(modelId);
   return Boolean(route) && !isAnthropicProtocol(route.provider.protocol);
 }
 
-async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEvent = () => {}, systemExtra = "", contextBlock = "", defaultTables = [], maxSteps = TOOL_MAX_STEPS, maxCalls = TOOL_MAX_CALLS, lightThinking = {}, lightFromStep = 1 }) {
+async function runAnalysisToolLoop({ model, question, hints, toolkit, onToolEvent = () => {}, systemExtra = "", contextBlock = "", defaultTables = [], maxSteps = TOOL_MAX_STEPS, maxCalls = TOOL_MAX_CALLS, lightThinking = {}, lightFromStep = 1, userImages = [] }) {
   const messages = [
     { role: "system", content: `你是观星台数据分析助手。需要数据时调用工具：先用 search_tables 找表，用 get_schema 看口径。问业务指标（消耗、CPA、点击率、ROI 等）时优先用 list_metrics 与 query_metric，口径由平台统一定义；只有表里没有定义口径的数值字段才用 run_metric。问「为什么涨 / 跌 / 变了」时，先用 query_metric 确认总体变化，再用 attribute_change 定位原因（结构效应、效率效应与各组贡献由平台算好，直接解释）；问上下游、变更影响时用 get_lineage。问题里只要涉及具体数值（多少、是多少、几个、多高、怎么样、对比），必须先调用工具取数再回答，不能只凭口径说明或记忆作答；同一句话里既问数值又问概念（例如「一共多少、是去重的吗」），也要先取数，再顺带解释概念。只引用工具返回的数字；工具返回错误时如实说明，不要猜测。数据足够后停止调用工具。问题缺少关键信息（口径、时间范围、业务线、拆解维度）且无法从数据推断时，调用 ask_user 提问，不要猜测。${systemExtra ? `\n\n${systemExtra}` : ""}` },
-    { role: "user", content: `${contextBlock ? `${contextBlock}\n\n` : ""}## 用户问题\n${question}\n## 提示\n${hints.length ? `用户指定的数据表：${hints.join("、")}` : defaultTables.length ? `本 Skill 默认使用的数据表：${defaultTables.join("、")}，无需再搜索，直接用 list_metrics / query_metric 取数。` : "用户未指定数据表，请先搜索候选表。"}` }
+    { role: "user", content: toContentParts(`${contextBlock ? `${contextBlock}\n\n` : ""}## 用户问题\n${question}\n## 提示\n${hints.length ? `用户指定的数据表：${hints.join("、")}` : defaultTables.length ? `本 Skill 默认使用的数据表：${defaultTables.join("、")}，无需再搜索，直接用 list_metrics / query_metric 取数。` : "用户未指定数据表，请先搜索候选表。"}`, userImages) }
   ];
   const evidence = [];
   let calls = 0, steps = 0, tokens = 0;
@@ -2639,7 +2647,7 @@ function isPublicApi(method, pathname) {
 
 /* 管理类接口：AI 中心（供应商、模型配置、Skill 管理）、表数据与权限的写操作，以及供应商明细读取 */
 function requiresAdmin(method, pathname) {
-  if (method === "GET") return pathname === "/v1/providers" || pathname === "/v1/model-config" || pathname === "/v1/usage/all" || pathname === "/v1/feedback" || pathname === "/v1/accounts" || pathname === "/v1/audit" || pathname === "/v1/table-fields";
+  if (method === "GET") return pathname === "/v1/providers" || pathname === "/v1/model-config" || pathname === "/v1/usage/all" || pathname === "/v1/feedback" || pathname.startsWith("/v1/feedback/images/") || pathname === "/v1/accounts" || pathname === "/v1/audit" || pathname === "/v1/table-fields";
   return /^\/v1\/(providers|model-config|default-model|table-rows|permissions|quota|org|accounts|skills\/upload)(\/|$)/.test(pathname) || /^\/v1\/skills\/[^/]+\/config$/.test(pathname);
 }
 
@@ -3033,13 +3041,27 @@ async function handleRequest(req, res) {
 
   // 回答反馈：只能评价自己的分析（用审计里的 requestId 校验归属）；管理员查看列表与汇总
   if (req.method === "POST" && url.pathname === "/v1/feedback") {
-    const body = await readBody(req, 8000);
+    const body = await readBody(req, 8e6); // 最多 3 张截图（每张 ≤ 1.5 MB，base64 后约 2 MB）加上评语和上下文
     const requestId = String(body.requestId || "").slice(0, 80);
     if (!RATINGS.includes(body.rating)) return sendJson(res, 400, { error: "评价只能是 up 或 down" });
+    let parsedImages = [];
+    if (body.rating === "down") {
+      try { parsedImages = validateImages(body.images); } catch (error) { return sendJson(res, 400, { error: error.message }); }
+    }
     const analysis = readAuditEntries().find(entry => entry.type === "analysis" && entry.requestId === requestId && (entry.scope || entry.user) === req.session.scope);
     if (!analysis) return sendJson(res, 404, { error: "找不到这次分析，或它不属于当前账号" });
-    const saved = feedbackStore.set({ requestId, user: req.session.name, rating: body.rating, comment: body.comment, model: analysis.model, skill: analysis.skill, scenario: analysis.scenario, toolMode: analysis.toolMode, question: analysis.question, answer: body.answer });
+    const imageIds = feedbackImages.save(parsedImages); // 确认这条分析属于当前账号之后才落盘
+    const { saved, removedImages } = feedbackStore.set({ requestId, user: req.session.name, rating: body.rating, comment: body.comment, model: analysis.model, skill: analysis.skill, scenario: analysis.scenario, toolMode: analysis.toolMode, question: analysis.question, answer: body.answer, images: imageIds, context: body.context });
+    removedImages.forEach(id => feedbackImages.remove(id));
     return sendJson(res, 200, { saved: true, rating: saved.rating });
+  }
+  // 反馈截图：只有管理员能看（路由层 requiresAdmin 已拦截）；id 严格校验，读不到就是 404
+  if (req.method === "GET" && url.pathname.startsWith("/v1/feedback/images/")) {
+    let imageId = ""; try { imageId = decodeURIComponent(url.pathname.slice("/v1/feedback/images/".length)); } catch { /* 编码不合法按找不到处理 */ }
+    const image = feedbackImages.read(imageId);
+    if (!image) return sendJson(res, 404, { error: "截图不存在" });
+    res.writeHead(200, { "Content-Type": image.mime, "Content-Length": image.buffer.length, "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff", "Content-Disposition": "inline", ...corsHeadersFor(res) });
+    return res.end(image.buffer);
   }
   if (req.method === "GET" && url.pathname === "/v1/feedback") {
     return sendJson(res, 200, { summary: feedbackStore.summary(), items: feedbackStore.list({ rating: url.searchParams.get("rating") || "", limit: url.searchParams.get("limit") || 50 }) });
@@ -3480,7 +3502,7 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/v1/analyze") {
-    const body = await readBody(req);
+    const body = await readBody(req, 8e6); // 含最多 3 张图片（base64）
     // 分析身份只取令牌里的登录用户，请求体里的 user 一律忽略
     const user = req.session.name;
     const scope = req.session.scope;
@@ -3493,6 +3515,11 @@ async function handleRequest(req, res) {
     if (modelConfig.disabled?.[model]) {
       return sendJson(res, 403, { error: `模型「${model}」已被管理员禁用${modelConfig.disabled[model].reason ? `：${modelConfig.disabled[model].reason}` : ""}，请在右下角切换其他模型` });
     }
+
+    /* 对话里粘贴的图片：只发给模型，不落盘；类型 / 文件头 / 张数 / 大小都在这里校验，不合格整个请求不调用模型 */
+    let userImages = [];
+    try { userImages = validateImages(body.images); } catch (error) { return sendJson(res, 400, { error: error.message }); }
+    if (userImages.length && !providerSupportsImages(model)) return sendJson(res, 400, { error: `模型「${model}」走的协议暂不支持图片，请换一个模型，或去掉图片后再问` });
 
     const allowed = userTables(user);
     /* 字段权限视图：本次请求里所有面向模型 / 用户的取数（工具、证据、归因、推荐问题）都只用它 */
@@ -3613,7 +3640,8 @@ async function handleRequest(req, res) {
       sessionId: String(body.sessionId || "").slice(0, 60) || undefined,
       sessionTitle: String(body.sessionTitle || "").slice(0, 60) || undefined,
       contextTurns: conversationTurns.length,
-      contextChars: conversationContext.length
+      contextChars: conversationContext.length,
+      imageCount: userImages.length || undefined
     };
     let specContext = "", reportSpecContext = "", packGuards = [], packMeta = { role: answerRole };
     if (packEntry) {
@@ -3702,7 +3730,7 @@ async function handleRequest(req, res) {
       try {
         loop = await runAnalysisToolLoop({
           model, question, hints: referenced, toolkit, onToolEvent: ev => { if (sseSend) sseSend({ tool: ev }); },
-          systemExtra: loopSystemExtra, contextBlock: conversationContext, defaultTables: packTables,
+          systemExtra: loopSystemExtra, contextBlock: conversationContext, defaultTables: packTables, userImages,
           ...(() => {
             const mode = LOOP_THINKING_MODES.includes(body.loopThinking) ? body.loopThinking : LOOP_THINKING_DEFAULT;
             return mode === "on" ? {} : { lightThinking: lightweightThinking(model, modelCapabilityFor(model).reasoning), lightFromStep: mode === "off" ? 1 : 2 };
@@ -3776,7 +3804,7 @@ async function handleRequest(req, res) {
       content: wantsReport
         ? `${reportSkill.buildReportSystem(reportPack.instructions, reportTemplate)}${specContext ? "\n\n（用户问题中的口径词已由平台解析，见用户消息里的「口径解析」。）" : ""}`
         : `${scene.system}\n\n（以上场景说明只提供事实边界与专业规则；回答的篇幅与结构以下面的「回答协议」为准。）\n\n${answerProtocol}\n\n${ASK_PROTOCOL}`
-    }, { role: "user", content: prompt }];
+    }, { role: "user", content: toContentParts(prompt, userImages) }];
 
     /* 流式模式：SSE 逐段转发给前端 */
     if (streaming) {

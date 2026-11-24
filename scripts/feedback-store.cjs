@@ -6,6 +6,28 @@ const fs = require("fs");
 const path = require("path");
 
 const RATINGS = ["up", "down"];
+const IMAGE_ID = /^[a-f0-9]{24}\.(png|jpg|webp)$/;
+
+/**
+ * 负反馈带上的上下文（前端自动收集）：只保留白名单字段，字符串和数组都按上限截断，
+ * 对话只留最近 6 条。不是对象时返回 {}。不把前端传来的任意字段原样存下来。
+ */
+function sanitizeContext(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const text = (value, max) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+  const out = {
+    question: text(raw.question, 300), businessLine: text(raw.businessLine, 40), model: text(raw.model, 80), reasoning: text(raw.reasoning, 20),
+    skill: text(raw.skill, 80), sessionId: text(raw.sessionId, 60), page: text(raw.page, 200), userAgent: text(raw.userAgent, 200),
+    appVersion: text(raw.appVersion, 40), viewport: text(raw.viewport, 20),
+    tables: (Array.isArray(raw.tables) ? raw.tables : []).filter(name => typeof name === "string" && name.trim()).slice(0, 20).map(name => name.trim().slice(0, 60)),
+    conversation: (Array.isArray(raw.conversation) ? raw.conversation : [])
+      .filter(item => item && typeof item === "object" && ["user", "assistant"].includes(item.role) && typeof item.text === "string")
+      .slice(-6).map(item => ({ role: item.role, text: item.text.trim().slice(0, 300) }))
+  };
+  const elapsed = Number(raw.elapsedSeconds);
+  if (typeof raw.elapsedSeconds === "number" && Number.isFinite(elapsed) && elapsed >= 0) out.elapsedSeconds = Math.round(elapsed * 10) / 10;
+  return out;
+}
 
 function createFeedbackStore({ dataDir }) {
   const file = path.join(dataDir, "feedback.json");
@@ -18,10 +40,17 @@ function createFeedbackStore({ dataDir }) {
     fs.renameSync(tmp, file);
   };
 
-  /** entry: { requestId, user, rating, comment?, model?, skill?, scenario?, toolMode?, question? } */
+  /**
+   * entry: { requestId, user, rating, comment?, model?, skill?, scenario?, toolMode?, question?, images?, context? }
+   * 只有「踩」保留截图 id 和上下文；返回 { saved, removedImages }，removedImages 是被覆盖掉的旧截图，调用方负责删文件。
+   */
   function set(entry) {
     if (!RATINGS.includes(entry.rating)) throw new Error("评价只能是 up 或 down");
     const data = load();
+    const previous = data[entry.requestId];
+    const down = entry.rating === "down";
+    const images = down ? (Array.isArray(entry.images) ? entry.images : []).filter(id => typeof id === "string" && IMAGE_ID.test(id)).slice(0, 3) : [];
+    const removedImages = ((previous && previous.images) || []).filter(id => !images.includes(id));
     data[entry.requestId] = {
       requestId: entry.requestId,
       user: entry.user,
@@ -33,10 +62,12 @@ function createFeedbackStore({ dataDir }) {
       toolMode: entry.toolMode || "",
       question: String(entry.question || "").slice(0, 200),
       answer: String(entry.answer || "").trim().slice(0, 4000),
+      images,
+      context: down ? sanitizeContext(entry.context) : {},
       at: new Date().toISOString()
     };
     save(data);
-    return data[entry.requestId];
+    return { saved: data[entry.requestId], removedImages };
   }
 
   function list({ rating = "", limit = 50 } = {}) {
@@ -61,4 +92,4 @@ function createFeedbackStore({ dataDir }) {
   return { set, list, summary };
 }
 
-module.exports = { createFeedbackStore, RATINGS };
+module.exports = { createFeedbackStore, sanitizeContext, RATINGS };

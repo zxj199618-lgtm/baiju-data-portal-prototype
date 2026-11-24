@@ -21,7 +21,8 @@
     state,
     aiCapabilities,
     aiChatHelpers,
-    aiUi
+    aiUi,
+    aiAttachments
   } = window.PortalVue;
   const { visibleCapabilities, groupCapabilities, mergeDraft } = aiCapabilities;
 
@@ -221,7 +222,7 @@
   <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
 </div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><div v-if="skillRefs(msg).length" class="ai-skill-refs" data-test="ai-skill-refs"><span class="ai-skill-refs-label">引用了</span><el-tooltip v-for="skill in skillRefs(msg)" :key="skill.id" placement="top" :show-after="150" popper-class="ai-theme ai-skill-tip"><template #content><b>{{ skill.name }}</b><span>{{ skill.desc || '暂无简介' }}</span></template><span class="ai-skill-chip" tabindex="0" data-test="ai-skill-chip">{{ skill.name }}</span></el-tooltip></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><ai-button v-for="text in msg.suggestions" :key="text" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</ai-button></div></template>
                     <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><div v-if="skillRefs(msg).length" class="ai-skill-refs" data-test="ai-skill-refs"><span class="ai-skill-refs-label">引用了</span><el-tooltip v-for="skill in skillRefs(msg)" :key="skill.id" placement="top" :show-after="150" popper-class="ai-theme ai-skill-tip"><template #content><b>{{ skill.name }}</b><span>{{ skill.desc || '暂无简介' }}</span></template><span class="ai-skill-chip" tabindex="0" data-test="ai-skill-chip">{{ skill.name }}</span></el-tooltip></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><ai-button v-for="text in msg.suggestions" :key="text" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</ai-button></div></template>
-                    <template v-else><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
+                    <template v-else><div v-if="msg.images && msg.images.length" class="ai-msg-images"><img v-for="(src, ii) in msg.images" :key="ii" :src="src" alt="提问时附的图片" /></div><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
                   </ai-bubble>
                 </ai-message></template>
                 <ai-message v-if="thinking" role="assistant"><ai-trace><ai-trace-line status="running" icon="spark" title="正在基于你有权限的数据表进行分析…" :desc="etaText"></ai-trace-line></ai-trace></ai-message>
@@ -234,7 +235,7 @@
                     <p v-if="!mentionTables.length" class="portal-vue-muted">没有匹配的数据表，或当前权限组未配置数据表权限。</p>
                   </div>
                 </div>
-                <ai-prompt-input ref="inputBox" v-model="input" placeholder="输入分析问题，@ 可引用数据表；回车发送" :can-send="!!input.trim() && !thinking" @enter="onEnter" @input="onInput" @send="sendMessage">
+                <ai-prompt-input ref="inputBox" v-model="input" placeholder="输入分析问题，@ 可引用数据表，可直接粘贴图片；回车发送" :can-send="!!input.trim() && !thinking" :images="attachments" :busy="attachBusy" @enter="onEnter" @input="onInput" @send="sendMessage" @paste-files="addImageFiles" @remove-image="removeAttachment">
                   <template #tools>
                     <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper ai-theme" data-test="ai-line-select" title="业务线" @update:model-value="pickLine">
                       <template #prefix><span class="ai-ico" v-html="icon('briefcase')"></span></template>
@@ -265,6 +266,20 @@
               </div>
               </div>
 
+          <el-dialog v-model="fb.visible" width="520px" align-center append-to-body class="ai-theme ai-feedback-dialog" data-test="ai-feedback-dialog" title="反馈">
+            <div class="ai-fb-body" @paste="onFeedbackPaste">
+              <p class="ai-fb-label">哪里不满意？<span>（可选，帮助我们改进口径与回答）</span></p>
+              <el-input v-model="fb.comment" type="textarea" :rows="3" maxlength="500" show-word-limit resize="none" placeholder="例如：口径不对、数字对不上、没有回答我的问题" data-test="ai-feedback-comment"></el-input>
+              <div class="ai-fb-shots">
+                <div v-for="(item, index) in fb.images" :key="item.id" class="ai-attach"><img :src="item.thumb" alt="反馈截图" /><button type="button" class="ai-attach-x" :aria-label="'移除截图 ' + (index + 1)" @click="removeFeedbackImage(index)"><span class="ai-ico" v-html="icon('close')"></span></button></div>
+                <button v-if="fb.images.length < 3" type="button" class="ai-fb-add" @click="$refs.fbFile.click()"><span class="ai-ico" v-html="icon('image')"></span>{{ fb.busy ? '处理中…' : '添加截图' }}</button>
+                <input ref="fbFile" type="file" accept="image/*" multiple hidden @change="onFeedbackPick" />
+              </div>
+              <p class="ai-fb-hint">可以直接按 Ctrl / ⌘ + V 粘贴截图，最多 3 张。</p>
+              <p class="ai-fb-context">提交时会自动附上：这轮的问题和回答、最近几轮对话、用到的 skill 和模型、业务线与引用的表、页面和浏览器信息。截图和这些信息只有管理员能看到。</p>
+            </div>
+            <template #footer><ai-button variant="outline" @click="fb.visible = false">取消</ai-button><ai-button variant="default" data-test="ai-feedback-submit" :disabled="fb.submitting || fb.busy" @click="submitFeedback">{{ fb.submitting ? '提交中…' : '提交' }}</ai-button></template>
+          </el-dialog>
           <el-drawer v-model="capDrawer" direction="rtl" size="360px" :with-header="false" :close-on-click-modal="true" append-to-body class="ai-theme ai-cap-drawer" data-test="ai-capability-drawer">
             <div class="ai-cap-drawer-head"><h3>我暂时做不了什么</h3><button type="button" class="ai-cap-close" aria-label="关闭" @click="capDrawer = false"><span class="ai-ico" v-html="icon('close')"></span></button></div>
             <p class="ai-cap-drawer-sub">下面这些要你配合，或者暂时还做不了；能做的事都在首页的卡片里。</p>
@@ -359,6 +374,10 @@
       historyLastAt: 0,
       reports: analysisReportsSeed.map(report => createAnalysisReport(report)),
       assetView: false,
+      attachments: [],
+      attachBusy: false,
+      lastImages: [],
+      fb: { visible: false, msg: null, comment: "", images: [], busy: false, submitting: false },
       etaStartAt: 0,
       etaNow: 0,
       etaEstimate: null,
@@ -505,6 +524,75 @@
         this.input=mergeDraft(this.input,text||item.example);
         this.capDetail=null;this.capDrawer=false;
         this.$nextTick(()=>this.$refs.inputBox?.focus?.());
+      },
+      /* ===== 粘贴图片：压缩成长边 ≤ 1600 的 JPEG，只在发送时带给网关（不落盘、不进聊天记录，记录里只有缩略图） ===== */
+      async readImages(files,existingCount){
+        const picked=aiAttachments.pickImageFiles(files,existingCount);
+        if(picked.overflow)ep.ElMessage.warning(`最多 ${aiAttachments.MAX_IMAGES} 张图片，多出来的 ${picked.overflow} 张没有添加`);
+        if(picked.tooBig)ep.ElMessage.warning(`有 ${picked.tooBig} 张图片超过 20 MB，没有添加`);
+        const done=[];
+        for(const file of picked.accepted){
+          try{
+            const dataUrl=await aiAttachments.compressImage(file);
+            done.push({id:`${Date.now()}-${done.length}-${Math.random().toString(36).slice(2,6)}`,dataUrl,thumb:await aiAttachments.makeThumb(dataUrl)});
+          }catch(error){ep.ElMessage.warning(error.message||"这张图片无法处理");}
+        }
+        return done;
+      },
+      async addImageFiles(files){
+        this.attachBusy=true;
+        try{this.attachments=[...this.attachments,...await this.readImages(files,this.attachments.length)];}
+        finally{this.attachBusy=false;}
+      },
+      removeAttachment(index){this.attachments=this.attachments.filter((item,at)=>at!==index);},
+      /* ===== 负反馈：评语 + 截图 + 自动带上的上下文 ===== */
+      openFeedback(msg){this.fb={visible:true,msg,comment:"",images:[],busy:false,submitting:false};},
+      async addFeedbackFiles(files){
+        this.fb.busy=true;
+        try{this.fb.images=[...this.fb.images,...await this.readImages(files,this.fb.images.length)];}
+        finally{this.fb.busy=false;}
+      },
+      onFeedbackPaste(event){
+        const files=aiAttachments.filesFromClipboard(event.clipboardData);
+        if(!files.length)return;
+        event.preventDefault();
+        this.addFeedbackFiles(files);
+      },
+      onFeedbackPick(event){
+        const files=Array.from(event.target.files||[]);
+        event.target.value="";
+        if(files.length)this.addFeedbackFiles(files);
+      },
+      removeFeedbackImage(index){this.fb.images=this.fb.images.filter((item,at)=>at!==index);},
+      /* 上下文由页面自动收集：问题、最近几轮对话、业务线、引用的表、模型、skill、会话、页面和浏览器信息 */
+      feedbackContext(msg){
+        const messages=this.activeSession.messages;
+        const elapsed=Number((String(msg.meta||"").match(/耗时\s*([\d.]+)s/)||[])[1]);
+        const version=(document.querySelector('script[src*="assets/portal/core.js"]')?.getAttribute("src")||"").match(/[?&]v=(\w+)/)?.[1]||"";
+        return aiAttachments.buildFeedbackContext({
+          messages,index:messages.indexOf(msg),textOf:item=>this.answerTextOf(item),
+          businessLine:this.activeBusinessLine||"",tables:(this.metaItems(msg.meta).find(item=>item.k==="引用表")||{}).list||[],
+          model:this.model,reasoning:this.reasoning,skill:msg.plan?.skillName||msg.skillId||"",sessionId:this.activeSession.id,
+          page:location.hash,userAgent:navigator.userAgent,appVersion:version,viewport:`${innerWidth}x${innerHeight}`,
+          elapsedSeconds:Number.isFinite(elapsed)?elapsed:undefined
+        });
+      },
+      async submitFeedback(){
+        if(this.fb.submitting||!this.fb.msg)return;
+        this.fb.submitting=true;
+        const ok=await this.postFeedback(this.fb.msg,"down",{comment:this.fb.comment,images:this.fb.images.map(item=>item.dataUrl),context:this.feedbackContext(this.fb.msg)});
+        this.fb.submitting=false;
+        if(ok)this.fb.visible=false;
+      },
+      async postFeedback(msg,rating,extra={}){
+        try{
+          const response=await fetch(`${analysisGatewayBase}/v1/feedback`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId:msg.requestId,rating,comment:"",answer:this.answerTextOf(msg),...extra})});
+          if(!response.ok){const data=await response.json().catch(()=>({}));ep.ElMessage.warning(data.error||"提交失败，请稍后再试");return false;}
+          msg.feedback=rating;
+          this.persistHistory(true);
+          ep.ElMessage.success("感谢反馈");
+          return true;
+        }catch(error){ep.ElMessage.warning("提交失败：无法连接分析网关");return false;}
       },
       /* 回答末尾「引用了」的 skill：名称优先用 plan 里的，简介来自 Skill 注册表（鼠标移上去显示） */
       skillRefs(msg){
@@ -930,6 +1018,10 @@
       async sendMessage({question:questionOverride="",clarifyAnswers=null,askResult=[],resumed=false,skipped=false,reportOutput=null,forcedSkillId=""}={}){
         const question=(questionOverride||this.input).trim();
         if(!question||this.thinking)return;
+        /* 图片：新问题用输入框里的图并清空；澄清后续答沿用上一次的原图 */
+        const images=resumed?this.lastImages:this.attachments.map(item=>item.dataUrl);
+        const thumbs=resumed?[]:this.attachments.map(item=>item.thumb);
+        if(!resumed){this.lastImages=images;this.attachments=[];}
         const explicitlyReferenced=this.myTables.some(table=>question.includes(`@${table}`))||!!this.activeBusinessLine;
         /* clarifyAnswers 为 null 表示用户刚发出问题：先走澄清面板；{} 表示用户选择跳过 */
         // 追问（本会话已经有回答）和「整理成报告」不再重复问业务线：上下文已经有了
@@ -971,7 +1063,7 @@
         const apiQuestion=resumed?(askResult.length
           ?`${question}\n\n用户补充信息（针对你刚才的提问）：\n${askResult.map(item=>`- ${item.question}：${item.answer.join("、")}`).join("\n")}\n请基于以上补充信息直接给出分析，不要再次提问。`
           :`${question}\n\n（用户选择跳过补充，请基于现有信息尽力分析，并在结论中说明你的假设，不要再次提问。）`):question;
-        session.messages.push({role:"user",lines:[resumed?(skipped?"跳过补充，直接分析":"已补充信息，请继续分析"):question],confirms:(resumed?askConfirms:confirmations).length?(resumed?askConfirms:confirmations):undefined,refs:evidenceTables.length?evidenceTables:undefined,businessLine:businessLine||undefined});
+        session.messages.push({role:"user",images:thumbs.length?thumbs:undefined,lines:[resumed?(skipped?"跳过补充，直接分析":"已补充信息，请继续分析"):question],confirms:(resumed?askConfirms:confirmations).length?(resumed?askConfirms:confirmations):undefined,refs:evidenceTables.length?evidenceTables:undefined,businessLine:businessLine||undefined});
         if(!resumed)session.title=session.title==="新的分析"?question.slice(0,18):session.title;
         this.input="";
         this.mentionOpen=false;
@@ -1010,7 +1102,7 @@
           const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question:apiQuestion,scenario:forcedSkillId?(this.skillScenarios.find(item=>item.id===forcedSkillId)?.key||this.scenario):this.scenario,skillId:forcedSkillId||this.activeSkill?.id||"",tables:mentionedTables,assetCandidates,businessLine,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,...(reportOutput||{}),conversation:this.buildConversation(session,businessLine),sessionId:session.id,sessionTitle:session.title,portalContext:this.buildPortalContext(evidenceTables)})
+            body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question:apiQuestion,scenario:forcedSkillId?(this.skillScenarios.find(item=>item.id===forcedSkillId)?.key||this.scenario):this.scenario,skillId:forcedSkillId||this.activeSkill?.id||"",tables:mentionedTables,assetCandidates,businessLine,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,images:images.length?images:undefined,...(reportOutput||{}),conversation:this.buildConversation(session,businessLine),sessionId:session.id,sessionTitle:session.title,portalContext:this.buildPortalContext(evidenceTables)})
           });
           const contentType=response.headers.get("content-type")||"";
           if(!response.ok||(contentType.includes("application/json")&&!contentType.includes("event-stream"))){
@@ -1154,22 +1246,11 @@
         const plain=value=>String(value||"").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/\s+/g," ").trim();
         return plain((msg.lines||[]).join("\n")+" "+(msg.html||"")).slice(0,3000);
       },
-      async rateMessage(msg,rating){
+      /* 好评直接提交；点踩打开反馈弹窗（评语、截图、自动上下文） */
+      rateMessage(msg,rating){
         if(!msg.requestId)return;
-        let comment="";
-        if(rating==="down"){
-          try{
-            const answer=await ep.ElMessageBox.prompt("哪里不满意？（可选，帮助我们改进口径与回答）","反馈",{confirmButtonText:"提交",cancelButtonText:"取消",inputPlaceholder:"例如：口径不对、数字对不上、没有回答我的问题"});
-            comment=answer?.value||"";
-          }catch(cancelled){return;}
-        }
-        try{
-          const response=await fetch(`${analysisGatewayBase}/v1/feedback`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId:msg.requestId,rating,comment,answer:this.answerTextOf(msg)})});
-          if(!response.ok){const data=await response.json().catch(()=>({}));ep.ElMessage.warning(data.error||"提交失败，请稍后再试");return;}
-          msg.feedback=rating;
-          this.persistHistory(true);
-          ep.ElMessage.success("感谢反馈");
-        }catch(error){ep.ElMessage.warning("提交失败：无法连接分析网关");}
+        if(rating==="down"){this.openFeedback(msg);return;}
+        return this.postFeedback(msg,rating);
       },
       /* 追问要带上前几轮：最近 3 轮的问题、回答摘要，以及上一轮用的技能和已确定的口径词（服务端据此沿用，不信任这里的过滤条件） */
       buildConversation(session,businessLine=""){

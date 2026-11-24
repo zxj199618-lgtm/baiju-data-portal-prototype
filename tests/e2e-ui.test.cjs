@@ -79,6 +79,75 @@ describe("浏览器端到端", () => {
     }
   });
 
+  /** 在指定输入框里模拟「粘贴一张截图」：用画布生成 PNG，放进剪贴板事件 */
+  const pasteScreenshot = (page, selector) => page.evaluate(async selector => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 320; canvas.height = 200;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#3b82f6"; context.fillRect(0, 0, 320, 200);
+    context.fillStyle = "#fff"; context.fillRect(20, 20, 120, 60);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([blob], "截图.png", { type: "image/png" }));
+    document.querySelector(selector).dispatchEvent(new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true, cancelable: true }));
+  }, selector);
+
+  test("输入框粘贴图片：缩略图出现在输入框，发送后模型收到图片，用户消息里留缩略图，输入框清空", async t => withPage(t, async page => {
+    harness.relay.requests.length = 0;
+    harness.relay.report = "已看到你贴的图片。";
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      await pasteScreenshot(page, ".ai-prompt-input textarea");
+      await page.locator(".ai-prompt-input-tray .ai-attach img").first().waitFor({ timeout: 15000 });
+      assert.equal(await page.locator(".ai-prompt-input-tray .ai-attach").count(), 1);
+      await page.getByPlaceholder(/输入分析问题/).fill("看下这张截图里的数字对不对 8801");
+      await page.keyboard.press("Enter");
+      await page.locator(".ai-msg-images img").first().waitFor({ timeout: 20000 });
+      assert.equal(await page.locator(".ai-prompt-input-tray .ai-attach").count(), 0, "发出后输入框里的图片要清空");
+      await page.locator(".portal-vue-ai-feedback").first().waitFor({ timeout: 30000 });
+      const withImage = harness.relay.requests.filter(request => request.messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === "image_url")));
+      assert.ok(withImage.length >= 1, "模型应收到 image_url");
+      const url = withImage[0].messages.flatMap(message => (Array.isArray(message.content) ? message.content : [])).find(part => part.type === "image_url").image_url.url;
+      assert.match(url, /^data:image\/jpeg;base64,/, "前端统一压缩成 JPEG 再发");
+    } finally {
+      harness.relay.report = "默认测试回答";
+    }
+  }));
+
+  test("负反馈：弹窗里写评语、粘贴截图，提交后管理员能看到评语、截图和自动带上的上下文", async t => withPage(t, async page => {
+    harness.relay.report = "负反馈测试回答。";
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      await page.getByPlaceholder(/输入分析问题/).fill("负反馈上下文测试问题 8802");
+      await page.keyboard.press("Enter");
+      await page.locator(".portal-vue-ai-feedback").first().waitFor({ timeout: 30000 });
+      await page.locator('.portal-vue-ai-feedback button[aria-label="没帮助"]').first().click();
+      await page.locator('[data-test="ai-feedback-dialog"]').waitFor();
+      await page.locator('textarea[data-test="ai-feedback-comment"]').fill("数字对不上 8802");
+      await pasteScreenshot(page, '[data-test="ai-feedback-dialog"] .ai-fb-body textarea');
+      await page.locator(".ai-fb-shots .ai-attach img").first().waitFor({ timeout: 15000 });
+      await page.locator('[data-test="ai-feedback-submit"]').click();
+      await page.locator('[data-test="ai-feedback-dialog"]').waitFor({ state: "hidden" });
+      const admin = await harness.tokenFor("曾祥竞");
+      const list = (await harness.call("GET", "/v1/feedback?rating=down&limit=100", { token: admin })).data.items;
+      const item = list.find(entry => /数字对不上 8802/.test(entry.comment));
+      assert.ok(item, "应保存这条差评");
+      assert.equal(item.images.length, 1);
+      assert.match(item.context.question, /负反馈上下文测试问题 8802/);
+      assert.ok(item.context.conversation.some(turn => turn.role === "assistant" && /负反馈测试回答/.test(turn.text)), "上下文里要有这轮的回答");
+      assert.equal(item.context.model, harness.MODEL);
+      assert.match(item.context.page, /analysis/);
+      assert.ok(item.context.userAgent && item.context.viewport && item.context.appVersion, "浏览器信息和前端版本也要带上");
+      const image = await fetch(`${harness.baseUrl}/v1/feedback/images/${item.images[0]}`, { headers: { Authorization: `Bearer ${admin}` } });
+      assert.equal(image.status, 200);
+      assert.equal(image.headers.get("content-type"), "image/jpeg");
+    } finally {
+      harness.relay.report = "默认测试回答";
+    }
+  }));
+
   test("登录：密码错误提示且不进入系统；正确登录后进入系统并显示账号", async t => withPage(t, async page => {
     await login(page, "李雨航", "wrong-password");
     await page.waitForSelector("#gatewayLoginError:not([hidden])");

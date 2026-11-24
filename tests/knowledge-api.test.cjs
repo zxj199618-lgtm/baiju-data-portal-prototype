@@ -229,8 +229,8 @@ describe("业务线接口：大请求体、失效关联、编辑者字段", () =
     const huge = await send("PUT", "曾祥竞", "/v1/knowledge/business-lines", { rev: 0, businessLines: [{ name: "x", knowledge: "中".repeat(3_000_000) }] });
     assert.equal(huge.status, 413);
     assert.match(huge.data.error, /请求内容过大/);
-    const feedback = await send("POST", "曾祥竞", "/v1/feedback", { note: "a".repeat(9000) });
-    assert.equal(feedback.status, 413, "反馈接口原上限 8000 字符");
+    const feedback = await send("POST", "曾祥竞", "/v1/feedback", { note: "a".repeat(9_000_000) });
+    assert.equal(feedback.status, 413, "反馈接口上限 800 万字符（最多 3 张截图 + 评语 + 上下文）");
     assert.match(feedback.data.error, /请求内容过大/);
     // 服务仍可用
     assert.equal((await get("曾祥竞", "/v1/knowledge")).status, 200);

@@ -121,7 +121,7 @@ test("输入框里不放「能力」按钮（每次新建会话首页都有入�
   assert.ok(!allCss().includes(".ai-cap-entry"), "不再使用的「能力」按钮样式应删除");
   const html = read("index.html");
   assert.ok(!html.includes("20261124b"), "index.html 里还有旧的静态资源版本号 20261124b");
-  assert.ok(html.includes("?v=20261124e"), "index.html 缺少新的静态资源版本号 20261124e");
+  assert.ok(html.includes("?v=20261124f"), "index.html 缺少新的静态资源版本号 20261124f");
 });
 
 
@@ -261,4 +261,25 @@ test("输入框里的业务线和模型选择：文字标签换成图标，去�
   assert.ok(template.includes("icon('cpu')") && !template.includes("<b>模型</b>"), "模型按钮用图标，不再写「模型」两个字");
   assert.ok(template.includes('aria-label="业务线"') || template.includes("title=\"业务线\""), "图标按钮要有文字提示");
   assert.ok(template.includes('class="mp-note"') && template.includes("没有配置思考深度"), "不支持思考的模型要说明原因，而不是悄悄少一项");
+});
+
+test("对话里粘贴图片：缩略图显示在输入框和用户消息里，发送时随请求带给网关，澄清续答沿用原图", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  for (const needle of [':images="attachments"', ':busy="attachBusy"', '@paste-files="addImageFiles"', '@remove-image="removeAttachment"', 'class="ai-msg-images"']) assert.ok(template.includes(needle), "模板缺少：" + needle);
+  for (const needle of ["async addImageFiles(files)", "removeAttachment(index)", "pickImageFiles(files,existingCount)", "this.readImages(files,this.attachments.length)", "compressImage(", "makeThumb(", "images:images.length?images:undefined", "images:thumbs.length?thumbs:undefined", "lastImages"]) assert.ok(source.includes(needle), "缺少：" + needle);
+  assert.match(source, /const images=resumed\?this\.lastImages:this\.attachments\.map\(item=>item\.dataUrl\)/, "续答（澄清后）沿用上一次的原图，新提问用输入框里的图");
+  assert.match(source, /if\(!resumed\)\{this\.lastImages=images;this\.attachments=\[\];\}/, "发出新问题后清空输入框里的图片");
+  assert.ok(!/images:\s*thumbs\.length\?\s*thumbs/.test(source) || source.includes("thumbs"), "历史里只保留缩略图");
+});
+
+test("负反馈：弹窗里写评语、粘贴 / 选择截图，提交时自动带上上下文", () => {
+  const template = workbench();
+  const source = read("assets/portal/page-analysis-workbench.js");
+  for (const needle of ['data-test="ai-feedback-dialog"', 'data-test="ai-feedback-comment"', '@paste="onFeedbackPaste"', 'type="file"', 'accept="image/*"', "提交时会自动附上", "只有管理员能看到", 'data-test="ai-feedback-submit"', 'class="ai-fb-shots"']) assert.ok(template.includes(needle), "模板缺少：" + needle);
+  assert.ok(!source.includes("ElMessageBox.prompt(\"哪里不满意"), "旧的单行输入弹窗应被新的反馈弹窗取代");
+  for (const needle of ["openFeedback(msg)", "async submitFeedback()", "buildFeedbackContext(", "images:this.fb.images.map(item=>item.dataUrl)", "context", "postFeedback("]) assert.ok(source.includes(needle), "缺少：" + needle);
+  assert.match(source, /rateMessage\(msg,rating\)\{[\s\S]*?rating==="down"[\s\S]*?openFeedback\(msg\)/, "点踩打开反馈弹窗");
+  const css = allCss();
+  for (const selector of [".ai-prompt-input-tray", ".ai-attach", ".ai-msg-images", ".ai-fb-shots", ".ai-feedback-dialog", ".ai-fb-context"]) assert.ok(css.includes(selector), "缺少样式：" + selector);
 });

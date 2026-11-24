@@ -349,3 +349,19 @@
 .ai-composer-card .portal-vue-ai-model-chip .ai-ico { color: var(--ai-ink-3); }
 .ai-composer-card .portal-vue-ai-model-chip b { font-weight: 400; }
 .portal-vue-ai-model-pop .mp-note { padding: 4px 2px 2px; color: var(--ai-ink-3); font-size: 12px; line-height: 1.6; }
+
+/* 用户消息里的图片缩略图 */
+.ai-msg-images { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.ai-msg-images img { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; }
+
+/* 负反馈弹窗 */
+.ai-feedback-dialog.el-dialog { border-radius: var(--ai-r-lg); background: var(--ai-surface); box-shadow: var(--ai-shadow-2); }
+.ai-feedback-dialog .el-dialog__title { color: var(--ai-ink); font-size: 16px; font-weight: 500; }
+.ai-fb-label { margin: 0 0 8px; color: var(--ai-ink); font-size: 14px; }
+.ai-fb-label span { color: var(--ai-ink-3); font-size: 12.5px; }
+.ai-fb-shots { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+.ai-fb-shots .ai-attach { width: 64px; height: 64px; }
+.ai-fb-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 64px; padding: 0 16px; border: 1px dashed var(--ai-line-strong); border-radius: 10px; background: transparent; color: var(--ai-ink-2); font-size: 13px; cursor: pointer; }
+.ai-fb-add:hover { background: var(--ai-sunken); color: var(--ai-ink); }
+.ai-fb-hint { margin: 8px 0 0; color: var(--ai-ink-3); font-size: 12px; }
+.ai-fb-context { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--ai-r-sm); background: var(--ai-surface-2); color: var(--ai-ink-2); font-size: 12.5px; line-height: 1.7; }
