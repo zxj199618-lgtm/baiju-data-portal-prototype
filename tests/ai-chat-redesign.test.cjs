@@ -121,7 +121,7 @@ test("输入框里不放「能力」按钮（每次新建会话首页都有入�
   assert.ok(!allCss().includes(".ai-cap-entry"), "不再使用的「能力」按钮样式应删除");
   const html = read("index.html");
   assert.ok(!html.includes("20261124b"), "index.html 里还有旧的静态资源版本号 20261124b");
-  assert.ok(html.includes("?v=20261124j"), "index.html 缺少新的静态资源版本号 20261124j");
+  assert.ok(html.includes("?v=20261124k"), "index.html 缺少新的静态资源版本号 20261124k");
 });
 
 
@@ -316,7 +316,7 @@ test("会话栏：每条只有标题 + 一行「时间 · 业务线」；只有�
   assert.match(css, /\.portal-vue-ai-session-top\s*\{[^}]*display:\s*block/, "标题单独一行");
 });
 
-test("会话栏顶部两个按钮更突出：「新的分析」是黑色主按钮，「分析资产」是白底描边按钮", () => {
+test("会话栏顶部两个按钮更突出：「新的分析」是黑色主按钮，「分析资产」是深色描边按钮，报告数是黑底小标", () => {
   const css = allCss();
   const grab = selector => {
     const escaped = selector.replace(/[.#[\]"()>:]/g, "\\$&");
@@ -328,7 +328,7 @@ test("会话栏顶部两个按钮更突出：「新的分析」是黑色主按�
   assert.match(primary, /height:\s*36px/);
   const secondary = grab(".portal-vue-ai-asset-btn");
   assert.match(secondary, /background:\s*var\(--ai-surface\)/);
-  assert.match(secondary, /border:\s*1px solid var\(--ai-line-strong\)/);
+  assert.match(secondary, /border:\s*1px solid var\(--ai-ink\)/, "分析资产用深色描边，比之前醒目");
 });
 
 test("报告卡片重做：卡片头是图标块 + 标题 + 描边小按钮（文字可见），预览渐隐收起，表格只画横线，不再有虚线", () => {
@@ -368,4 +368,18 @@ test("业务线下拉宽度跟着当前文字走，不再留一块固定宽度�
   assert.ok(template.includes(':style="{ width: lineSelectWidth }"'), "下拉按钮宽度来自 lineSelectWidth");
   assert.match(source, /lineSelectWidth\(\)\{return `\$\{aiChatHelpers\.chipWidth\(this\.activeBusinessLine\|\|"通用"\)\}px`;\}/);
   assert.ok(!/portal-vue-ai-chip-line-select\s*\{[^}]*(?:min-)?width:\s*132px/.test(allCss()), "不再写死 132px");
+});
+
+test("会话栏滚动条默认隐藏，鼠标移进列表才显示一条很细的浅色滚动条；报告数标签是黑底白字", () => {
+  const css = allCss();
+  const bar = (css.match(/\.portal-vue-ai-session-scroll \.el-scrollbar__bar\s*\{([^}]*)\}/) || [])[1] || "";
+  assert.match(bar, /opacity:\s*0\s*!important/, "默认不显示");
+  assert.match(bar, /width:\s*4px/, "显示时也只有 4px 宽");
+  const hover = (css.match(/\.portal-vue-ai-session-scroll:hover \.el-scrollbar__bar\s*\{([^}]*)\}/) || [])[1] || "";
+  assert.match(hover, /opacity:\s*1\s*!important/, "鼠标移进列表才显示");
+  const thumb = (css.match(/\.portal-vue-ai-session-scroll \.el-scrollbar__thumb\s*\{([^}]*)\}/) || [])[1] || "";
+  assert.match(thumb, /background:\s*var\(--ai-line-strong\)/, "滚动条滑块用浅色");
+  const tag = (css.match(/\.portal-vue-ai-asset-btn \.el-tag\s*\{([^}]*)\}/g) || []).join(" ");
+  assert.match(tag, /background:\s*var\(--ai-ink\)/);
+  assert.match(tag, /color:\s*#fff/);
 });

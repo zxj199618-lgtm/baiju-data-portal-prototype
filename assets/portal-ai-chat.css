@@ -333,7 +333,7 @@
 /* ===== 会话栏：顶部两个按钮 + 每条会话两行 ===== */
 .portal-vue-ai-new.el-button { width: 100%; height: 36px; margin: 0; border: 0; border-radius: 10px; background: var(--ai-accent); color: #fff; font-size: 13px; font-weight: 500; }
 .portal-vue-ai-new.el-button:hover, .portal-vue-ai-new.el-button:focus { background: var(--ai-accent-hover); color: #fff; }
-.portal-vue-ai-asset-btn { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; margin: 0; padding: 0 12px; border: 1px solid var(--ai-line-strong); border-radius: 10px; background: var(--ai-surface); box-shadow: none; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+.portal-vue-ai-asset-btn { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; margin: 0; padding: 0 12px; border: 1px solid var(--ai-ink); border-radius: 10px; background: var(--ai-surface); box-shadow: none; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
 .portal-vue-ai-asset-btn:hover { background: var(--ai-sunken); }
 .portal-vue-ai-asset-btn.active { border-color: var(--ai-ink); background: var(--ai-surface); }
 .portal-vue-ai-asset-btn-icon { color: var(--ai-ink); }
@@ -372,3 +372,13 @@
 .ai-skill-tip-head .ai-skill-icon { width: 20px; height: 20px; border-radius: 6px; }
 .ai-skill-tip-head b { margin: 0; }
 .ai-skill-tip.is-light .el-popper__arrow::before { border-color: var(--ai-line); background: var(--ai-surface); }
+
+/* 分析资产：深色描边；报告数是黑底白字的小标 */
+.portal-vue-ai-asset-btn .el-tag { display: inline-flex; height: 20px; padding: 0 8px; border: 0; border-radius: 999px; background: var(--ai-ink); color: #fff; font-size: 11.5px; font-weight: 500; }
+.portal-vue-ai-asset-btn:hover { background: var(--ai-sunken); }
+
+/* 会话栏滚动条：默认隐藏，鼠标移进列表才显示一条 4px 的浅色细条 */
+.portal-vue-ai-session-scroll .el-scrollbar__bar { right: 2px; width: 4px; opacity: 0 !important; transition: opacity .2s ease; }
+.portal-vue-ai-session-scroll:hover .el-scrollbar__bar { opacity: 1 !important; }
+.portal-vue-ai-session-scroll .el-scrollbar__thumb { background: var(--ai-line-strong); opacity: 1; }
+.portal-vue-ai-session-scroll .el-scrollbar__thumb:hover { background: var(--ai-ink-3); }
