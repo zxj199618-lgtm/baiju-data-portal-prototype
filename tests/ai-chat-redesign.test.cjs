@@ -121,7 +121,7 @@ test("输入框里不放「能力」按钮（每次新建会话首页都有入�
   assert.ok(!allCss().includes(".ai-cap-entry"), "不再使用的「能力」按钮样式应删除");
   const html = read("index.html");
   assert.ok(!html.includes("20261124b"), "index.html 里还有旧的静态资源版本号 20261124b");
-  assert.ok(html.includes("?v=20261124f"), "index.html 缺少新的静态资源版本号 20261124f");
+  assert.ok(html.includes("?v=20261124g"), "index.html 缺少新的静态资源版本号 20261124g");
 });
 
 
@@ -282,4 +282,68 @@ test("负反馈：弹窗里写评语、粘贴 / 选择截图，提交时自动�
   assert.match(source, /rateMessage\(msg,rating\)\{[\s\S]*?rating==="down"[\s\S]*?openFeedback\(msg\)/, "点踩打开反馈弹窗");
   const css = allCss();
   for (const selector of [".ai-prompt-input-tray", ".ai-attach", ".ai-msg-images", ".ai-fb-shots", ".ai-feedback-dialog", ".ai-fb-context"]) assert.ok(css.includes(selector), "缺少样式：" + selector);
+});
+
+test("样式防呆：同一条规则里文字颜色和背景色不能是同一个令牌（否则文字看不见，比如黑底黑字的按钮）", () => {
+  const css = allCss();
+  const bad = [];
+  for (const match of css.matchAll(/(?:^|\n)([^{}\n@][^{}\n]*)\{([^}]*)\}/g)) {
+    const body = match[2];
+    const background = (body.match(/(?:^|;|\s)background(?:-color)?:\s*(var\(--ai-[a-z0-9-]+\))/) || [])[1];
+    const color = (body.match(/(?:^|;|\s)color:\s*(var\(--ai-[a-z0-9-]+\))/) || [])[1];
+    if (background && color && background === color) bad.push(match[1].trim().slice(0, 80));
+  }
+  assert.deepEqual(bad, [], "这些规则的文字色和背景色相同：" + bad.join(" | "));
+});
+
+test("问卷底部按钮一行排完：操作区不换行，提示文字只留「已回答 N / M」，长说明放进提示里", () => {
+  const css = read("assets/portal-ai-ui.css");
+  const actions = (css.match(/\.ai-questionnaire-actions\s*\{([^}]*)\}/) || [])[1] || "";
+  assert.match(actions, /flex-wrap:\s*nowrap/);
+  const hint = (css.match(/\.ai-questionnaire-hint\s*\{([^}]*)\}/) || [])[1] || "";
+  assert.match(hint, /white-space:\s*nowrap/);
+  assert.match(hint, /text-overflow:\s*ellipsis/);
+  const kit = read("assets/portal/ai-ui.js");
+  assert.ok(kit.includes('class="ai-questionnaire-hint" title="没回答的我按常规口径处理">已回答 {{ answered }} / {{ total }}</span>'), "提示文字缩短，完整说明放在 title 里");
+});
+
+test("会话栏：每条只有标题 + 一行「时间 · 业务线」；只有来自飞书的会话才有图标，不再给每条都放一个显示器图标", () => {
+  const template = workbench();
+  assert.ok(!template.includes("icon('web')"), "工作台来源不再显示显示器图标");
+  assert.ok(template.includes('v-if="session.channel === \'飞书机器人\'"') && template.includes("来自飞书机器人"), "飞书来源才显示图标，并有文字提示");
+  assert.match(template, /class="portal-vue-ai-session-meta"><time[^>]*>\{\{ relativeTime\(session\.time\) \}\}<\/time>/, "时间和业务线放在同一行");
+  const css = allCss();
+  assert.match(css, /\.portal-vue-ai-session-top\s*\{[^}]*display:\s*block/, "标题单独一行");
+});
+
+test("会话栏顶部两个按钮更突出：「新的分析」是黑色主按钮，「分析资产」是白底描边按钮", () => {
+  const css = allCss();
+  const grab = selector => {
+    const escaped = selector.replace(/[.#[\]"()>:]/g, "\\$&");
+    return [...css.matchAll(new RegExp("(?:^|\\n)" + escaped + "\\s*\\{([^}]*)\\}", "g"))].map(m => m[1]).join(" ");
+  };
+  const primary = grab(".portal-vue-ai-new.el-button");
+  assert.match(primary, /background:\s*var\(--ai-accent\)/);
+  assert.match(primary, /color:\s*#fff/);
+  assert.match(primary, /height:\s*36px/);
+  const secondary = grab(".portal-vue-ai-asset-btn");
+  assert.match(secondary, /background:\s*var\(--ai-surface\)/);
+  assert.match(secondary, /border:\s*1px solid var\(--ai-line-strong\)/);
+});
+
+test("报告卡片重做：卡片头是图标块 + 标题 + 描边小按钮（文字可见），预览渐隐收起，表格只画横线，不再有虚线", () => {
+  const css = allCss();
+  const grab = selector => {
+    const escaped = selector.replace(/[.#[\]"()>:]/g, "\\$&");
+    return [...css.matchAll(new RegExp("(?:^|\\n)" + escaped + "\\s*\\{([^}]*)\\}", "g"))].map(m => m[1]).join(" ");
+  };
+  const open = grab(".portal-vue-ai-report-open-btn");
+  assert.match(open, /color:\s*var\(--ai-ink\)/);
+  assert.match(open, /background:\s*var\(--ai-surface\)/);
+  assert.match(grab(".portal-vue-ai-report-card-file"), /background:\s*var\(--ai-sunken\)/, "文件图标放在浅灰图标块里");
+  assert.match(grab(".portal-vue-ai-report-preview"), /mask-image:/, "预览底部渐隐收起");
+  const cell = grab(".portal-vue-ai-report-table td");
+  assert.ok(/border-bottom:\s*1px solid var\(--ai-line\)/.test(cell) && !/border:\s*1px/.test(cell), "表格单元格只画横线，不画竖线和四周框");
+  const dashedReport = css.split("\n").filter(line => /report/.test(line.split("{")[0]) && line.includes("dashed"));
+  assert.deepEqual(dashedReport, [], "报告相关的规则里不再有虚线分割");
 });

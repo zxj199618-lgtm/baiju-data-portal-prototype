@@ -146,7 +146,7 @@
           <el-input v-if="current.allowCustom !== false" v-model="ask.draft[current.key].custom" clearable class="ai-questionnaire-input" placeholder="都不合适？在这里自己写" @input="$emit('custom', current)"></el-input>
         </div>
         <div class="ai-questionnaire-actions">
-          <span class="ai-questionnaire-hint">已回答 {{ answered }} / {{ total }}，没回答的我按常规口径处理</span>
+          <span class="ai-questionnaire-hint" title="没回答的我按常规口径处理">已回答 {{ answered }} / {{ total }}</span>
           <ai-button variant="ghost" :disabled="disabled" @click="$emit('skip')">跳过，直接分析</ai-button>
           <ai-button v-if="index > 0" variant="outline" @click="move(-1)">上一题</ai-button>
           <ai-button v-if="!last" variant="outline" @click="move(1)">下一题</ai-button>

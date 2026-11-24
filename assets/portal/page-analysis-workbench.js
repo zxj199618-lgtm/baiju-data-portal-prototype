@@ -159,8 +159,8 @@
                   <template v-for="group in sessionGroups" :key="group.key">
                     <p class="ai-session-group"><i v-if="group.key === 'running'" class="ai-live-dot"></i>{{ group.label }}</p>
                     <article v-for="session in group.items" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
-                      <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong><time :title="session.time">{{ relativeTime(session.time) }}</time></div>
-                      <div class="portal-vue-ai-session-meta"><span class="ai-channel ai-ico" :class="{ feishu: session.channel === '飞书机器人' }" :title="session.channel" v-html="icon(session.channel === '飞书机器人' ? 'chat' : 'web')"></span><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">{{ sessionLine(session) }}</span></div>
+                      <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong></div>
+                      <div class="portal-vue-ai-session-meta"><time :title="session.time">{{ relativeTime(session.time) }}</time><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">· {{ sessionLine(session) }}</span><span v-if="session.channel === '飞书机器人'" class="ai-channel feishu ai-ico" title="来自飞书机器人" aria-label="来自飞书机器人" v-html="icon('chat')"></span></div>
                     </article>
                   </template>
                   <p v-if="!sessions.length" class="portal-vue-muted">暂无会话</p>

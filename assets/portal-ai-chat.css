@@ -26,12 +26,7 @@
 .portal-vue-ai-report-body pre code { background: transparent; color: var(--ai-ink); }
 .portal-vue-ai-report-lead { margin: 0 0 8px; font-size: 13px; color: var(--ai-ink); line-height: 1.75; }
 .portal-vue-ai-report-trail { margin: 8px 0 0; font-size: 12.5px; color: var(--ai-ink-3); line-height: 1.7; }
-.portal-vue-ai-report-open-btn:hover { background: var(--ai-accent); }
-.portal-vue-ai-report-preview { margin: 6px 0 0; font-size: 12.5px; color: var(--ai-ink-2); line-height: 1.6; max-height: 560px; overflow-y: auto; margin-top: 6px; padding-top: 10px; border-top: 1px dashed var(--ai-line); }
 .portal-vue-ai-report-dialog-markdown { max-height: none; }
-.portal-vue-ai-report-summary { padding: 10px 12px; border-radius: 8px; background: var(--ai-accent-tint); }
-.portal-vue-ai-report-summary span { font-size: 12px; color: var(--ai-accent); }
-.portal-vue-ai-report-summary p { margin: 4px 0 0; font-size: 13px; color: var(--ai-ink); line-height: 1.7; }
 .portal-vue-ai-bubble-streaming { min-width: 120px; }
 .portal-vue-ai-bubble-streaming p::after { content: "▍"; color: var(--ai-accent); animation: portal-vue-ai-blink 1s steps(2) infinite; }
 .portal-vue-ai-assets-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
@@ -46,7 +41,7 @@
 .portal-vue-ai-report-dialog .el-dialog__body { padding: 16px 20px 22px; max-height: calc(100vh - 180px); overflow-y: auto; }
 .portal-vue-ai-report-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 24px; }
 .portal-vue-ai-report-dialog-head strong { font-size: 16px; color: var(--ai-ink); }
-.portal-vue-ai-share-line { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--ai-line); }
+.portal-vue-ai-share-line { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--ai-line); }
 .portal-vue-ai-share-line > span { flex: none; font-size: 12px; }
 .portal-vue-ai-share-input { flex: 1; }
 .portal-vue-ai-share-input .el-input__wrapper { background: var(--ai-surface-2); box-shadow: 0 0 0 1px var(--ai-line-strong) inset; }
@@ -55,12 +50,7 @@
 .portal-vue-ai-report-dialog-content { display: grid; gap: 12px; }
 @media (max-width: 1440px) { .portal-vue-ai-layout { grid-template-columns: 264px minmax(0,1fr); } }
 .portal-vue-ai-sessions { display: flex; flex-direction: column; gap: 2px; padding-right: 6px; }
-.portal-vue-ai-session-meta .el-tag { height: 18px; padding: 0 6px; border: 0; border-radius: 4px; font-size: 11px; }
-.portal-vue-ai-report-card-title { flex: 1 1 auto; min-width: 0; font-size: 15px; color: var(--ai-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-ai-report-body code { padding: 1px 5px; border-radius: 4px; background: var(--ai-accent-tint); font-size: 12px; color: var(--ai-danger); }
-.portal-vue-ai-report-table { margin: 8px 0; border-collapse: collapse; width: 100%; font-size: 12.5px; border-radius: 8px; overflow: hidden; }
-.portal-vue-ai-report-table th, .portal-vue-ai-report-table td { border: 1px solid var(--ai-line); padding: 6px 10px; text-align: left; word-break: break-all; border-color: var(--ai-line); }
-.portal-vue-ai-report-table th { background: var(--ai-surface-2); font-weight: 650; }
 .portal-vue-ai-chip-line-select .el-select__wrapper, .portal-vue-ai-chip-model-select .el-select__wrapper, .portal-vue-ai-chip-reasoning-select .el-select__wrapper { background: var(--ai-surface-2); box-shadow: none; }
 .portal-vue-ai-assets-page { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 20px 24px; overflow: hidden; background: var(--ai-surface-2); }
 .portal-vue-ai-asset-card { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 0; border-radius: 14px; background: #fff; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; box-shadow: 0 2px 10px rgba(31, 90, 76, .06); }
@@ -105,27 +95,11 @@
 .portal-vue-ai-layout .ai-ico { display: inline-flex; flex: none; width: 16px; height: 16px; font-size: 16px; line-height: 1; }
 .portal-vue-ai-layout .ai-ico svg { display: block; }
 .portal-vue-ai-side { display: flex; flex-direction: column; gap: 8px; padding: 12px 8px; border: 0; border-radius: 0; background: var(--ai-surface-2); height: auto; min-height: 0; border-right: 1px solid var(--ai-line); }
-.portal-vue-ai-asset-btn { display: flex; align-items: center; gap: 6px; width: 100%; margin-bottom: 10px; padding: 8px 10px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-sm); background: var(--ai-surface); cursor: pointer; transition: border-color .15s ease; margin: 0; box-shadow: var(--ai-shadow-1); }
-.portal-vue-ai-asset-btn:hover { background: var(--ai-surface); border-color: var(--ai-line-strong); }
-.portal-vue-ai-asset-btn.active { background: var(--ai-accent-tint); border-color: var(--ai-accent); color: var(--ai-accent); box-shadow: none; }
-.portal-vue-ai-asset-btn-icon { font-size: 15px; color: var(--ai-accent); }
-.portal-vue-ai-asset-btn-text { flex: 1; text-align: left; font-size: 12.5px; font-weight: 500; color: var(--ai-ink); }
-.portal-vue-ai-asset-btn .el-tag { display: none; }
-.portal-vue-ai-new { width: 100%; }
-.portal-vue-ai-new.el-button { height: 38px; border-radius: 12px; border: 1px dashed var(--ai-line-strong); background: transparent; color: var(--ai-ink); font-weight: 600; border-color: var(--ai-line-strong); }
-.portal-vue-ai-new.el-button:hover { border-style: solid; background: var(--ai-accent-tint); border-color: var(--ai-accent); color: var(--ai-accent); }
 .portal-vue-ai-group-label { margin: 4px 4px -2px; display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; color: var(--ai-ink-3); font-weight: 600; letter-spacing: .2px; }
 .portal-vue-ai-session { padding: 7px 10px; border: 0; border-radius: var(--ai-r-sm); background: transparent; cursor: pointer; transition: border-color .15s, background .15s; position: relative; box-shadow: none; }
 .portal-vue-ai-session:hover { border-color: var(--ai-line-strong); background: var(--ai-sunken); }
 .portal-vue-ai-session.active { background: var(--ai-accent-tint); box-shadow: none; }
-.portal-vue-ai-session-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 1px; flex-direction: column; }
-.portal-vue-ai-session-top strong { font-size: 12.5px; color: var(--ai-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; max-width: 100%; }
-.portal-vue-ai-session-top time { flex-shrink: 0; font-size: 11px; color: var(--ai-ink-3); }
-.portal-vue-ai-session-meta { margin-top: 3px; display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ai-ink-3); }
-.portal-vue-ai-session-meta .ai-channel { color: var(--ai-ink-3); }
-.portal-vue-ai-session-meta .ai-channel.feishu { color: var(--ai-ok); }
 .portal-vue-ai-session-status.running { color: var(--ai-amber); padding: 0 6px; border-radius: 4px; background: var(--ai-amber-tint); font-size: 11px; }
-.portal-vue-ai-session-line { padding: 0 6px; height: 18px; line-height: 18px; border-radius: 4px; background: var(--ai-surface-2); color: var(--ai-ink-2); font-size: 11px; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .portal-vue-ai-main { display: flex; flex-direction: column; height: auto; min-height: 0; border: 0; border-radius: 0; background: var(--ai-canvas); overflow: hidden; box-shadow: none; }
 .portal-vue-ai-chat { flex: 1 1 auto; min-height: 0; padding: 24px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; background: var(--ai-canvas); }
 .portal-vue-ai-welcome-logo { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: var(--ai-ink); color: var(--ai-amber); font-family: var(--ai-font-display); font-size: 17px; font-weight: 500; }
@@ -148,11 +122,6 @@
 .portal-vue-ai-plan-label, .portal-vue-ai-scope-label { color: var(--ai-ink-3); }
 .portal-vue-ai-plan-change { border: 0; background: none; padding: 0; color: var(--ai-accent); cursor: pointer; font-size: 12px; }
 .portal-vue-ai-meta-tags span { border-color: var(--ai-line); background: var(--ai-surface); color: var(--ai-ink-2); }
-.portal-vue-ai-report-card { display: flex; flex-direction: column; padding: 10px 12px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: var(--ai-shadow-1); transition: box-shadow .15s ease; }
-.portal-vue-ai-report-card:hover { border-color: var(--ai-line-strong); background: var(--ai-surface); box-shadow: var(--ai-shadow-2); }
-.portal-vue-ai-report-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 0; border-bottom: 0; }
-.portal-vue-ai-report-card-file { font-size: 16px; color: var(--ai-accent); }
-.portal-vue-ai-report-open-btn { flex: none; padding: 5px 12px; border: 1px solid var(--ai-accent); border-radius: 999px; background: var(--ai-accent); color: var(--ai-accent); font-size: 12.5px; cursor: pointer; transition: background .15s; }
 .portal-vue-ai-feedback { display: flex; gap: 4px; margin-top: 10px; }
 .portal-vue-ai-feedback button { border: 0; background: transparent; border-radius: 6px; padding: 0; font-size: 14px; line-height: 1.4; cursor: pointer; opacity: 0.6; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; color: var(--ai-ink-3); }
 .portal-vue-ai-feedback button:hover { background: var(--ai-sunken); color: var(--ai-ink); }
@@ -313,11 +282,6 @@
 .portal-vue-ai-layout { height: calc(100vh - 96px); margin-top: 0; border: 0; border-radius: 0; background: var(--ai-canvas); }
 .portal-vue-ai-side { border-right: 0; background: var(--ai-surface-2); border-radius: var(--ai-r-md); margin: 0 8px 0 0; }
 .ai-chat-head { border-bottom: 0; }
-.portal-vue-ai-asset-btn { border: 0; background: var(--ai-sunken); box-shadow: none; }
-.portal-vue-ai-asset-btn:hover { background: var(--ai-line); }
-.portal-vue-ai-asset-btn.active { border: 0; background: var(--ai-line); }
-.portal-vue-ai-new.el-button { border: 0; background: transparent; color: var(--ai-ink); }
-.portal-vue-ai-new.el-button:hover { background: var(--ai-sunken); color: var(--ai-ink); }
 .ai-cap-card { border: 0; background: var(--ai-surface-2); box-shadow: none; }
 .ai-cap-card:hover { background: var(--ai-sunken); box-shadow: none; }
 .ai-cap-card-icon { background: var(--ai-surface); }
@@ -365,3 +329,38 @@
 .ai-fb-add:hover { background: var(--ai-sunken); color: var(--ai-ink); }
 .ai-fb-hint { margin: 8px 0 0; color: var(--ai-ink-3); font-size: 12px; }
 .ai-fb-context { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--ai-r-sm); background: var(--ai-surface-2); color: var(--ai-ink-2); font-size: 12.5px; line-height: 1.7; }
+
+/* ===== 会话栏：顶部两个按钮 + 每条会话两行 ===== */
+.portal-vue-ai-new.el-button { width: 100%; height: 36px; margin: 0; border: 0; border-radius: 10px; background: var(--ai-accent); color: #fff; font-size: 13px; font-weight: 500; }
+.portal-vue-ai-new.el-button:hover, .portal-vue-ai-new.el-button:focus { background: var(--ai-accent-hover); color: #fff; }
+.portal-vue-ai-asset-btn { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; margin: 0; padding: 0 12px; border: 1px solid var(--ai-line-strong); border-radius: 10px; background: var(--ai-surface); box-shadow: none; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+.portal-vue-ai-asset-btn:hover { background: var(--ai-sunken); }
+.portal-vue-ai-asset-btn.active { border-color: var(--ai-ink); background: var(--ai-surface); }
+.portal-vue-ai-asset-btn-icon { color: var(--ai-ink); }
+.portal-vue-ai-asset-btn-text { flex: 1; color: var(--ai-ink); font-size: 13px; font-weight: 500; text-align: left; }
+.portal-vue-ai-session-top { display: block; }
+.portal-vue-ai-session-top strong { display: block; max-width: 100%; overflow: hidden; color: var(--ai-ink); font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.portal-vue-ai-session-meta { display: flex; align-items: center; gap: 4px; margin-top: 2px; color: var(--ai-ink-3); font-size: 11.5px; }
+.portal-vue-ai-session-meta time { flex: none; }
+.portal-vue-ai-session-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-vue-ai-session-meta .ai-channel { margin-left: auto; width: 14px; height: 14px; font-size: 14px; color: var(--ai-ok); }
+
+/* ===== 报告卡片（对话里的报告）===== */
+.portal-vue-ai-report-card { display: flex; flex-direction: column; margin: 4px 0 0; padding: 0; overflow: hidden; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: none; }
+.portal-vue-ai-report-card:hover { border-color: var(--ai-line-strong); box-shadow: var(--ai-shadow-1); }
+.portal-vue-ai-report-card-head { display: flex; align-items: center; gap: 12px; margin: 0; padding: 12px 14px; border: 0; }
+.portal-vue-ai-report-card-file { box-sizing: content-box; flex: none; width: 18px; height: 18px; padding: 7px; border-radius: 10px; background: var(--ai-sunken); color: var(--ai-ink); font-size: 18px; }
+.portal-vue-ai-report-card-file svg { width: 18px; height: 18px; }
+.portal-vue-ai-report-card-title { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--ai-ink); font-size: 14px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.portal-vue-ai-report-open-btn { flex: none; height: 28px; padding: 0 12px; border: 1px solid var(--ai-line-strong); border-radius: 999px; background: var(--ai-surface); color: var(--ai-ink); font-size: 12.5px; font-weight: 500; cursor: pointer; transition: background .15s ease; }
+.portal-vue-ai-report-open-btn:hover { background: var(--ai-sunken); }
+.portal-vue-ai-report-preview { position: relative; max-height: 320px; margin: 0; padding: 14px 18px 4px; overflow: hidden; border-top: 1px solid var(--ai-line); color: var(--ai-ink); -webkit-mask-image: linear-gradient(to bottom, black 78%, transparent); mask-image: linear-gradient(to bottom, black 78%, transparent); }
+.portal-vue-ai-report-preview .portal-vue-ai-report-body { font-size: 13.5px; }
+.portal-vue-ai-report-preview .portal-vue-ai-report-body h1 { font-size: 18px; }
+.portal-vue-ai-report-preview .portal-vue-ai-report-body h2 { font-size: 16px; }
+.portal-vue-ai-report-preview .portal-vue-ai-report-body h3 { font-size: 15px; }
+.portal-vue-ai-report-summary { padding: 10px 14px; border-radius: var(--ai-r-md); background: var(--ai-surface-2); }
+.portal-vue-ai-report-table { width: 100%; margin: 12px 0; border: 1px solid var(--ai-line); border-collapse: separate; border-spacing: 0; border-radius: var(--ai-r-md); overflow: hidden; background: var(--ai-surface); font-size: 13px; font-variant-numeric: tabular-nums; }
+.portal-vue-ai-report-table th { padding: 8px 14px; border-bottom: 1px solid var(--ai-line); background: var(--ai-surface-2); color: var(--ai-ink-2); font-weight: 500; text-align: left; white-space: nowrap; }
+.portal-vue-ai-report-table td { padding: 8px 14px; border-bottom: 1px solid var(--ai-line); text-align: left; word-break: break-word; }
+.portal-vue-ai-report-table tr:last-child td { border-bottom: 0; }
