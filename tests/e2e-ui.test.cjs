@@ -35,6 +35,8 @@ describe("浏览器端到端", () => {
   async function withPage(t, run) {
     if (skipReason) return t.skip(skipReason);
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    // 站点导航默认是折叠的（折叠时菜单文字不在页面里）；其余用例按展开状态断言，单独的用例验证默认折叠
+    await context.addInitScript(() => { try { localStorage.setItem("portalSidebarCollapsed", "0"); } catch { /* 读不到存储就算了 */ } });
     const page = await context.newPage();
     page.setDefaultTimeout(30000);
     try { await run(page); } finally { await context.close(); }
@@ -52,6 +54,30 @@ describe("浏览器端到端", () => {
     await page.waitForFunction(() => window.portalVueModuleApi && window.portalVueModuleApi.orgSync.ready);
     await page.waitForLoadState("networkidle");
   };
+
+  test("站点导航默认折叠；手动展开后刷新仍是展开，再收起后刷新仍是收起", async t => {
+    if (skipReason) return t.skip(skipReason);
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }); // 不预置存储：看真实的默认值
+    const page = await context.newPage();
+    page.setDefaultTimeout(30000);
+    try {
+      await login(page, "曾祥竞");
+      await appVisible(page);
+      const collapsed = () => page.evaluate(() => document.getElementById("sidebar").classList.contains("collapsed"));
+      assert.equal(await collapsed(), true, "首次进入导航应是折叠的");
+      await page.locator(".portal-vue-collapse").click();
+      assert.equal(await collapsed(), false);
+      await page.reload();
+      await appVisible(page);
+      assert.equal(await collapsed(), false, "手动展开后刷新应仍是展开");
+      await page.locator(".portal-vue-collapse").click();
+      await page.reload();
+      await appVisible(page);
+      assert.equal(await collapsed(), true, "再收起后刷新应仍是收起");
+    } finally {
+      await context.close();
+    }
+  });
 
   test("登录：密码错误提示且不进入系统；正确登录后进入系统并显示账号", async t => withPage(t, async page => {
     await login(page, "李雨航", "wrong-password");
