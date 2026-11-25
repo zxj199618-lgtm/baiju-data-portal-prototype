@@ -163,7 +163,7 @@
                 </div>
                 <div class="ai-side-filter" role="tablist" aria-label="会话渠道筛选">
                   <button type="button" :class="{ active: sessionChannel === 'all' }" @click="sessionChannel = 'all'">全部</button>
-                  <button type="button" :class="{ active: sessionChannel === 'feishu' }" @click="sessionChannel = 'feishu'">飞书</button>
+                  <button type="button" :class="{ active: sessionChannel === 'feishu' }" @click="sessionChannel = 'feishu'"><img class="ai-feishu-inline" src="assets/feishu-icon.svg" alt="" />飞书</button>
                 </div>
               </div>
               <el-scrollbar class="portal-vue-ai-session-scroll">

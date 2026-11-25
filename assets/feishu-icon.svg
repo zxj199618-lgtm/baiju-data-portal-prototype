@@ -1,22 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
   <defs>
-    <linearGradient id="fs-a" x1="3" y1="3" x2="15" y2="17" gradientUnits="userSpaceOnUse">
+    <linearGradient id="feishu-top" x1="14" y1="12" x2="40" y2="38" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#00D6B9"/>
-      <stop offset="100%" stop-color="#00B8D9"/>
+      <stop offset="100%" stop-color="#00C4B4"/>
     </linearGradient>
-    <linearGradient id="fs-b" x1="12" y1="11" x2="21" y2="6" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#1456F0"/>
-      <stop offset="100%" stop-color="#3370FF"/>
+    <linearGradient id="feishu-mid" x1="28" y1="42" x2="56" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#133C9A"/>
+      <stop offset="100%" stop-color="#1456F0"/>
     </linearGradient>
-    <linearGradient id="fs-c" x1="4" y1="16" x2="20" y2="12" gradientUnits="userSpaceOnUse">
+    <linearGradient id="feishu-bot" x1="6" y1="22" x2="46" y2="54" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#3370FF"/>
-      <stop offset="100%" stop-color="#00D6B9"/>
+      <stop offset="100%" stop-color="#245BDB"/>
     </linearGradient>
   </defs>
-  <!-- 飞书左翼（青绿） -->
-  <path d="M4.2 3.4c.3-.3.8-.3 1.1 0l8.3 7.5-4.3 4.8L3.4 9.3c-.6-.6-.7-1.6-.2-2.3l1-3.6z" fill="url(#fs-a)"/>
-  <!-- 飞书右翼（亮蓝） -->
-  <path d="M20.6 7.4c.4.2.5.7.2 1.1l-6.6 8.3-4.9-2.8 7.5-7.4c1-.9 2.5-.9 3.8.8z" fill="url(#fs-b)"/>
-  <!-- 飞书底翼折面（蓝绿融合） -->
-  <path d="M5.1 17.7c-.4-.3-.5-.8-.2-1.2l4.4-5.4 6.1 3.5-4.2 5.2c-1.4 1.7-3.9 1.8-5.5.4l-.6-2.5z" fill="url(#fs-c)"/>
+  <!-- 顶部青绿展翼 -->
+  <path d="M13.5 12.2H36.6C38.4 12.2 40 13.2 40.9 14.8L47.5 26.8C41.8 25.8 35.8 29.2 31.2 35.8C26.4 25.4 20.6 18.2 13.5 12.2Z" fill="url(#feishu-top)"/>
+  <!-- 右侧深蓝折翼（鸟头与喙尖） -->
+  <path d="M58.2 26.6C53.6 23.4 44.2 23.6 37.6 29.8C32.4 34.7 28.2 38.4 22.8 41.2C31.5 46.8 40.8 47.6 46.8 44.4C50.6 42.4 53.1 38.2 54.6 33.4C55.4 30.8 56.6 28.4 58.2 26.6Z" fill="url(#feishu-mid)"/>
+  <!-- 左下亮蓝主翼（底部圆弧兜底托起） -->
+  <path d="M6.2 21.8C13.8 29.4 21.2 36.2 29.6 40.8C36.8 44.8 43.2 46.2 48.2 43.6C44.2 49.4 36.4 54.4 25.6 54.8C16.6 55.1 9.6 51.6 6.2 47.6V21.8Z" fill="url(#feishu-bot)"/>
 </svg>
