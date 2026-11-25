@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <defs>
+    <linearGradient id="fs-a" x1="3" y1="3" x2="15" y2="17" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00D6B9"/>
+      <stop offset="100%" stop-color="#00B8D9"/>
+    </linearGradient>
+    <linearGradient id="fs-b" x1="12" y1="11" x2="21" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1456F0"/>
+      <stop offset="100%" stop-color="#3370FF"/>
+    </linearGradient>
+    <linearGradient id="fs-c" x1="4" y1="16" x2="20" y2="12" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3370FF"/>
+      <stop offset="100%" stop-color="#00D6B9"/>
+    </linearGradient>
+  </defs>
+  <!-- 飞书左翼（青绿） -->
+  <path d="M4.2 3.4c.3-.3.8-.3 1.1 0l8.3 7.5-4.3 4.8L3.4 9.3c-.6-.6-.7-1.6-.2-2.3l1-3.6z" fill="url(#fs-a)"/>
+  <!-- 飞书右翼（亮蓝） -->
+  <path d="M20.6 7.4c.4.2.5.7.2 1.1l-6.6 8.3-4.9-2.8 7.5-7.4c1-.9 2.5-.9 3.8.8z" fill="url(#fs-b)"/>
+  <!-- 飞书底翼折面（蓝绿融合） -->
+  <path d="M5.1 17.7c-.4-.3-.5-.8-.2-1.2l4.4-5.4 6.1 3.5-4.2 5.2c-1.4 1.7-3.9 1.8-5.5.4l-.6-2.5z" fill="url(#fs-c)"/>
+</svg>

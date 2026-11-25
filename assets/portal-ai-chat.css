@@ -339,7 +339,8 @@
 .portal-vue-ai-session-meta { display: flex; align-items: center; gap: 4px; margin-top: 2px; color: var(--ai-ink-3); font-size: 11.5px; }
 .portal-vue-ai-session-meta time { flex: none; }
 .portal-vue-ai-session-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.portal-vue-ai-session-meta .ai-channel { margin-left: auto; width: 14px; height: 14px; font-size: 14px; color: var(--ai-ok); }
+.portal-vue-ai-session-meta .ai-channel { margin-left: auto; width: 15px; height: 15px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.ai-feishu-logo { display: block; width: 15px; height: 15px; object-fit: contain; }
 
 /* ===== 报告卡片（对话里的报告）===== */
 .portal-vue-ai-report-card { display: flex; flex-direction: column; margin: 4px 0 0; padding: 0; overflow: hidden; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: none; }

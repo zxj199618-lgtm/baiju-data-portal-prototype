@@ -180,7 +180,7 @@
                           <button type="button" class="is-danger" title="删除会话" aria-label="删除会话" @click="removeSession(session)"><span class="ai-ico" v-html="icon('trash')"></span></button>
                         </div>
                       </div>
-                      <div class="portal-vue-ai-session-meta"><time :title="session.time">{{ relativeTime(session.time) }}</time><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">· {{ sessionLine(session) }}</span><span v-if="session.channel === '飞书机器人'" class="ai-channel feishu ai-ico" title="来自飞书机器人" aria-label="来自飞书机器人" v-html="icon('chat')"></span></div>
+                      <div class="portal-vue-ai-session-meta"><time :title="session.time">{{ relativeTime(session.time) }}</time><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">· {{ sessionLine(session) }}</span><span v-if="session.channel === '飞书机器人'" class="ai-channel feishu" title="来自飞书机器人" aria-label="来自飞书机器人"><img class="ai-feishu-logo" src="assets/feishu-icon.svg" alt="" /></span></div>
                     </article>
                   </template>
                   <p v-if="!sessionGroups.length" class="portal-vue-muted">{{ sessionKeyword || sessionChannel !== 'all' ? '没有匹配的会话' : '暂无会话' }}</p>

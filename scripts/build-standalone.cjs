@@ -45,6 +45,7 @@ const imagePaths = [
   "assets/skill-attribution.svg",
   "assets/skill-single-table.svg",
   "assets/lingxi-mark.svg",
+  "assets/feishu-icon.svg",
   "assets/home-hero.png"
 ];
 
