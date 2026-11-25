@@ -38,6 +38,7 @@
     lock: '<rect x="5" y="10.5" width="14" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
     play: '<path d="M7.5 5.2l11.2 6.8-11.2 6.8V5.2z" fill="currentColor" stroke="none"/>',
     image: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="8.8" cy="9.5" r="1.4"/><path d="M20.5 15.5l-4.5-4.5-6.5 6.5"/>',
+    "image-plus": '<path d="M16 5h6M19 2v6M21 11.5V17a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17V7a2.5 2.5 0 0 1 2.5-2.5H13"/><circle cx="8.5" cy="9.5" r="1.4"/><path d="M21 15.5l-4.2-4.2a1.8 1.8 0 0 0-2.6 0L6.5 19.5"/>',
     briefcase: '<rect x="3.5" y="7.5" width="17" height="12.5" rx="2.2"/><path d="M8.5 7.5V5.8A1.8 1.8 0 0 1 10.3 4h3.4a1.8 1.8 0 0 1 1.8 1.8v1.7M3.5 12.5h17"/>',
     cpu: '<rect x="6" y="6" width="12" height="12" rx="2.2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3"/>',
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5.5 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v.5"/>',

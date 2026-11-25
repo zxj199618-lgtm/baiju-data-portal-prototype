@@ -331,7 +331,7 @@
                           </div>
                           <div v-else class="mp-note">这个模型没有配置思考深度（管理员可在「模型配置」里勾选）</div>
                         </el-popover>
-                        <button type="button" class="ai-tool-icon-btn" title="添加图片（最多 3 张，也可直接粘贴）" aria-label="添加图片" data-test="ai-upload-btn" @click="$refs.composerFile.click()"><span class="ai-ico" v-html="icon('upload')"></span></button>
+                        <button type="button" class="ai-tool-icon-btn" title="添加图片（最多 3 张，也可直接粘贴）" aria-label="添加图片" data-test="ai-upload-btn" @click="$refs.composerFile.click()"><span class="ai-ico" v-html="icon('image-plus')"></span></button>
                         <input ref="composerFile" type="file" accept="image/*" multiple hidden @change="onComposerPick" />
                       </template>
                     </ai-prompt-input>
