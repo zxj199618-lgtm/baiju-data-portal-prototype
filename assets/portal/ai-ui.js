@@ -12,49 +12,49 @@
   "use strict";
   if (!window.PortalVue) return;
 
-  /* ---------- 图标 ---------- */
-  const ICON_PATHS = {
-    grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
-    chat: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
-    web: "M3 5h18v12H3zM8 21h8M12 17v4",
-    spark: "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18",
-    file: "M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6",
-    up: "M7 11v9H4v-9zM7 11l4-8c1.5 0 2.5 1 2 2.5L12.5 9H19a1.5 1.5 0 0 1 1.4 2l-2 7a2 2 0 0 1-1.9 1.5H7",
-    down: "M7 13V4H4v9zM7 13l4 8c1.5 0 2.5-1 2-2.5L12.5 15H19a1.5 1.5 0 0 0 1.4-2l-2-7A2 2 0 0 0 16.5 4.5H7",
-    send: "M12 19V5M6 11l6-6 6 6",
-    check: "M5 12.5l4.5 4.5L19 7.5",
-    "chevron-down": "M6 9l6 6 6-6",
-    "chevron-up": "M6 15l6-6 6 6",
-    "chevron-right": "M9 6l6 6-6 6",
-    close: "M6 6l12 12M18 6L6 18",
-    alert: "M12 8v5M12 16.5v.01M10.3 4.5L3 18h18L13.7 4.5a2 2 0 0 0-3.4 0z",
-    database: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6",
-    trend: "M4 17l5-5 4 3 7-8M16 7h4v4",
-    search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4",
-    book: "M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h10",
-    share: "M5 12h5M10 12l6-6M10 12l6 6M17 4a2 2 0 1 1 0 .01M17 18a2 2 0 1 1 0 .01",
-    layers: "M12 4l8 4-8 4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4",
-    clock: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 8v4l3 2",
-    lock: "M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3",
-    play: "M8 5l11 7-11 7z",
-    image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M9 9h.01",
-    briefcase: "M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M4 13h16",
-    cpu: "M7 7h10v10H7zM10 10h4v4h-4zM9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4",
-    copy: "M9 9h10v10H9zM5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1",
-    stop: "M6 6h12v12H6z",
-    refresh: "M4 12a8 8 0 0 1 13.7-5.6L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.6L4 16M4 20v-4h4",
-    trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
-    edit: "M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3zM13.5 6.5l3 3",
-    pin: "M12 17v5M9 4h6l-1 6 3 3H7l3-3-1-6z",
-    upload: "M12 16V4M7 9l5-5 5 5M4 20h16",
-    download: "M12 4v12M7 11l5 5 5-5M4 20h16",
-    "panel-right": "M4 5h16v14H4zM15 5v14",
-    "shield-check": "M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3zM9 12l2 2 4-4",
-    expand: "M15 4h5v5M9 20H4v-5M20 4l-6 6M4 20l6-6",
-    star: "M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9L12 3z",
-    slash: "M16 4L8 20"
+  /* ---------- 图标（Lucide 风格 24x24 精细几何，统一 1.65 描边） ---------- */
+  const ICON_SHAPES = {
+    grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/>',
+    chat: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+    web: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+    spark: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z"/>',
+    file: '<path d="M14 2.5H7a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5L14 2.5z"/><path d="M14 2.5v6h5M9 13h6M9 17h4"/>',
+    up: '<path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3zm0 0l3.7-6.5A1.5 1.5 0 0 1 13.5 4.3L12.5 9h6.2a2 2 0 0 1 1.9 2.5l-1.6 6.8a2 2 0 0 1-1.9 1.7H7"/>',
+    down: '<path d="M7 14V3H4a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3zm0 0l3.7 6.5a1.5 1.5 0 0 0 2.8-.8L12.5 15h6.2a2 2 0 0 0 1.9-2.5l-1.6-6.8A2 2 0 0 0 17.1 4H7"/>',
+    send: '<path d="M12 19V5M6.5 10.5L12 5l5.5 5.5"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    "chevron-down": '<path d="M6 9l6 6 6-6"/>',
+    "chevron-up": '<path d="M6 15l6-6 6 6"/>',
+    "chevron-right": '<path d="M9 6l6 6-6 6"/>',
+    close: '<path d="M18 6L6 18M6 6l12 12"/>',
+    alert: '<path d="M10.3 3.9L2.8 17.1A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.9L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 16.8h.01"/>',
+    database: '<ellipse cx="12" cy="5.5" rx="7.5" ry="2.5"/><path d="M4.5 5.5v13c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-13"/><path d="M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5"/>',
+    trend: '<path d="M3.5 17l5.5-5.5 4 3.5 7.5-8"/><path d="M15.5 7h5v5"/>',
+    search: '<circle cx="11" cy="11" r="6.8"/><path d="M20.2 20.2l-4.1-4.1"/>',
+    book: '<path d="M4.5 19.5A2.5 2.5 0 0 1 7 17h12.5"/><path d="M6.5 2.5H19.5v19H7a2.5 2.5 0 0 1-2.5-2.5V5a2.5 2.5 0 0 1 2-2.5z"/>',
+    share: '<circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 13.3l7.4 4.4M15.7 6.3l-7.4 4.4"/>',
+    layers: '<path d="M12 3L3.5 7.5 12 12l8.5-4.5L12 3z"/><path d="M3.5 12L12 16.5 20.5 12"/><path d="M3.5 16.5L12 21l8.5-4.5"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    lock: '<rect x="5" y="10.5" width="14" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+    play: '<path d="M7.5 5.2l11.2 6.8-11.2 6.8V5.2z" fill="currentColor" stroke="none"/>',
+    image: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="8.8" cy="9.5" r="1.4"/><path d="M20.5 15.5l-4.5-4.5-6.5 6.5"/>',
+    briefcase: '<rect x="3.5" y="7.5" width="17" height="12.5" rx="2.2"/><path d="M8.5 7.5V5.8A1.8 1.8 0 0 1 10.3 4h3.4a1.8 1.8 0 0 1 1.8 1.8v1.7M3.5 12.5h17"/>',
+    cpu: '<rect x="6" y="6" width="12" height="12" rx="2.2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3"/>',
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5.5 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v.5"/>',
+    stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2.2" fill="currentColor" stroke="none"/>',
+    refresh: '<path d="M20 11a8 8 0 0 0-14.9-4L3.5 8.8"/><path d="M3.5 4.5v4.3h4.3"/><path d="M4 13a8 8 0 0 0 14.9 4l1.6-1.8"/><path d="M20.5 19.5v-4.3h-4.3"/>',
+    trash: '<path d="M4.5 7h15M9.5 11v6M14.5 11v6M6.5 7l.8 11.6a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9L17.5 7M9.5 7V4.8A1.3 1.3 0 0 1 10.8 3.5h2.4a1.3 1.3 0 0 1 1.3 1.3V7"/>',
+    edit: '<path d="M12 20h7.5"/><path d="M16.2 3.8a2.1 2.1 0 0 1 3 3L7.5 18.5 3.5 20l1.5-4L16.2 3.8z"/>',
+    pin: '<path d="M12 17v5M8.5 4h7l-1.2 5.8 2.7 2.7v1H7v-1l2.7-2.7L8.5 4z"/>',
+    upload: '<path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/>',
+    download: '<path d="M12 4v11.5M7.5 11.5L12 16l4.5-4.5M4.5 19.5h15"/>',
+    "panel-right": '<rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="M14.5 4.5v15"/>',
+    "shield-check": '<path d="M12 3l7.5 3v5.2c0 4.6-3.1 8.5-7.5 10.3-4.4-1.8-7.5-5.7-7.5-10.3V6L12 3z"/><path d="M9 12.2l2 2 4.2-4.2"/>',
+    expand: '<path d="M15 4h5v5M9 20H4v-5M20 4l-6 6M4 20l6-6"/>',
+    star: '<path d="M12 3.5l2.6 5.4 6 .9-4.3 4.2 1 6-5.3-2.8L6.7 20l1-6-4.3-4.2 6-.9L12 3.5z"/>',
+    slash: '<path d="M16 4L8 20"/>'
   };
-  const icon = name => `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[name] || ""}"/></svg>`;
+  const icon = name => `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_SHAPES[name] || '<path d=""/>'}</svg>`;
 
   /* ---------- 问卷的纯函数 ---------- */
   /** 一道题当前的回答：已选项 + 自定义输入（去空白后非空才算）。 */
@@ -179,9 +179,9 @@
   /* 输入卡片：多行输入 + 工具栏插槽 + 发送。回车 / 输入事件原样抛给页面处理（发送、@ 引用）。 */
   const AiPromptInput = {
     name: "AiPromptInput",
-    props: { modelValue: { type: String, default: "" }, placeholder: String, canSend: Boolean, images: { type: Array, default: () => [] }, busy: Boolean },
+    props: { modelValue: { type: String, default: "" }, placeholder: String, canSend: Boolean, streaming: Boolean, onStop: Function, images: { type: Array, default: () => [] }, busy: Boolean },
     emits: ["update:modelValue", "enter", "input", "send", "paste-files", "remove-image", "keydown"],
-    computed: { sendSvg() { return icon("send"); }, closeSvg() { return icon("close"); } },
+    computed: { sendSvg() { return icon("send"); }, stopSvg() { return icon("stop"); }, closeSvg() { return icon("close"); } },
     methods: {
       focus() { const field = this.$refs.field; if (field && field.focus) field.focus(); },
       /* 剪贴板里有图片就交给页面处理（并阻止把图片当文字粘贴）；纯文字粘贴不受影响 */
@@ -201,7 +201,8 @@
       <el-input ref="field" :model-value="modelValue" type="textarea" :rows="2" resize="none" :placeholder="placeholder" @update:model-value="$emit('update:modelValue', $event)" @keydown.enter="$emit('enter', $event)" @keydown="$emit('keydown', $event)" @input="$emit('input', $event)" @paste="onPaste"></el-input>
       <div class="ai-prompt-input-bar portal-vue-ai-composer-bar">
         <slot name="tools"></slot>
-        <button type="button" class="ai-prompt-input-send portal-vue-ai-composer-send" aria-label="发送" :disabled="!canSend" @click="$emit('send')"><span class="ai-ico" v-html="sendSvg"></span></button>
+        <button v-if="streaming" type="button" class="ai-prompt-input-send is-stop" data-test="ai-stop-btn" aria-label="停止生成" title="停止生成" @click="onStop && onStop()"><span class="ai-ico" v-html="stopSvg"></span></button>
+        <button v-else type="button" class="ai-prompt-input-send portal-vue-ai-composer-send" aria-label="发送" :disabled="!canSend" @click="$emit('send')"><span class="ai-ico" v-html="sendSvg"></span></button>
       </div>
     </div>`
   };

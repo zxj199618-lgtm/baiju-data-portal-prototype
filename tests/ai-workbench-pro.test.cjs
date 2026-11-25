@@ -73,9 +73,11 @@ test("富交互视图：数值解析、涨跌识别、CSV 导出、SVG 图表与
 
 test("工作台专业升级：停止生成、完整操作栏、分屏报告画布、表溯源抽屉、/ 指令均已接入", () => {
   const source = read("assets/portal/page-analysis-workbench.js");
+  const uiKit = read("assets/portal/ai-ui.js");
+  assert.ok(uiKit.includes('data-test="ai-stop-btn"') && uiKit.includes("is-stop"), "停止按钮应位于输入框右下角替代发送按钮");
   for (const needle of [
     'data-test="ai-session-search"',
-    'data-test="ai-stop-btn"',
+    ':on-stop="abortGeneration"',
     'data-test="ai-copy-btn"',
     'data-test="ai-regen-btn"',
     'data-test="ai-to-report-btn"',

@@ -556,3 +556,49 @@
 .ai-asset-card-ops button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ai-ink-3); cursor: pointer; }
 .ai-asset-card-ops button:hover { background: var(--ai-sunken); color: var(--ai-ink); }
 .ai-asset-card-ops button.on { color: var(--ai-amber); opacity: 1; }
+
+/* ===== 视觉精修：输入框、回答排版、报告卡片、分屏画布与资产页 ===== */
+.ai-tool-divider { width: 1px; height: 14px; margin: 0 2px; background: var(--ai-line); flex: none; }
+.ai-composer-card .portal-vue-ai-chip-line-select .el-select__wrapper, .ai-composer-card .portal-vue-ai-chip-line-select.el-select--small .el-select__wrapper { height: 28px !important; min-height: 28px !important; border-radius: var(--ai-r-sm); }
+.ai-composer-card .portal-vue-ai-model-chip { height: 28px; border-radius: var(--ai-r-sm); font-size: 12.5px; }
+.ai-tool-icon-btn { width: 28px; height: 28px; border-radius: var(--ai-r-sm); }
+.ai-tool-icon-btn .ai-ico { width: 15px; height: 15px; font-size: 15px; }
+
+/* 回答正文与用户气泡精修 */
+.ai-bubble[data-role="user"] { padding: 10px 16px; border-radius: 18px; font-size: 14px; line-height: 1.65; }
+.portal-vue-ai-report-body { font-size: 14.5px; line-height: 1.82; letter-spacing: .005em; }
+.portal-vue-ai-report-body h1, .portal-vue-ai-report-body h2, .portal-vue-ai-report-body h3, .portal-vue-ai-report-body h4 { font-weight: 600; letter-spacing: -.01em; margin: 22px 0 8px; }
+.portal-vue-ai-report-body h3 { font-size: 16px; padding-bottom: 4px; border-bottom: 1px solid var(--ai-line); }
+.portal-vue-ai-report-body h4 { font-size: 14.5px; }
+.portal-vue-ai-report-body strong, .portal-vue-ai-report-body b { font-weight: 600; color: var(--ai-ink); }
+.portal-vue-ai-report-body blockquote { padding: 10px 14px; border-left: 3px solid var(--ai-ink); border-radius: 0 var(--ai-r-sm) var(--ai-r-sm) 0; background: var(--ai-surface-2); color: var(--ai-ink-2); }
+.portal-vue-ai-report-body pre { padding: 14px 16px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface-2); }
+.portal-vue-ai-feedback { gap: 4px; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--ai-line); }
+.portal-vue-ai-feedback button { opacity: .72; transition: background .15s ease, color .15s ease, opacity .15s ease; }
+.portal-vue-ai-feedback button:hover { opacity: 1; }
+.portal-vue-ai-feedback button .ai-ico { width: 15px; height: 15px; font-size: 15px; }
+
+/* 对话内联报告卡片与结论摘要 */
+.portal-vue-ai-report-card { margin: 10px 0; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: var(--ai-shadow-1); overflow: hidden; transition: border-color .15s ease, box-shadow .15s ease; }
+.portal-vue-ai-report-card:hover { border-color: var(--ai-line-strong); box-shadow: var(--ai-shadow-2); }
+.portal-vue-ai-report-card-head { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--ai-line); background: var(--ai-surface-2); }
+.portal-vue-ai-report-card-file { width: 28px; height: 28px; padding: 6px; border-radius: var(--ai-r-sm); background: var(--ai-sunken); color: var(--ai-ink); display: inline-flex; align-items: center; justify-content: center; }
+.portal-vue-ai-report-card-title { flex: 1; min-width: 0; overflow: hidden; color: var(--ai-ink); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.portal-vue-ai-report-open-btn { flex: none; height: 28px; padding: 0 12px; border: 1px solid var(--ai-line-strong); border-radius: 999px; background: var(--ai-surface); color: var(--ai-ink); font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+.portal-vue-ai-report-open-btn:hover { background: var(--ai-sunken); border-color: var(--ai-ink); }
+.portal-vue-ai-report-preview { max-height: 220px; padding: 14px 16px; overflow: hidden; }
+.portal-vue-ai-report-summary { display: flex; flex-direction: column; gap: 4px; margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--ai-line); border-left: 3px solid var(--ai-ink); border-radius: var(--ai-r-sm); background: var(--ai-surface-2); color: var(--ai-ink); font-size: 13.5px; line-height: 1.7; }
+.portal-vue-ai-report-summary span { color: var(--ai-ink-3); font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+
+/* 分屏报告画布与分析资产页卡片统一中性极简质感 */
+.ai-canvas-pane { background: var(--ai-surface); box-shadow: -4px 0 24px -12px rgba(0, 0, 0, .08); }
+.ai-canvas-head { padding: 12px 18px; background: var(--ai-surface); }
+.ai-canvas-title-wrap strong { font-weight: 600; }
+.ai-canvas-body { padding: 20px 24px 36px; }
+.ai-canvas-body > * { max-width: 680px; margin-left: auto; margin-right: auto; }
+.portal-vue-ai-assets-page { padding: 24px 28px; background: var(--ai-canvas); }
+.portal-vue-ai-asset-card { padding: 16px 18px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: var(--ai-shadow-1); }
+.portal-vue-ai-asset-card:hover { border-color: var(--ai-line-strong); box-shadow: var(--ai-shadow-2); transform: translateY(-2px); }
+.portal-vue-ai-asset-card-head strong { font-weight: 600; }
+.portal-vue-ai-report-dialog .el-dialog__body { padding: 22px 28px 32px; }
+.portal-vue-ai-report-dialog-body { max-width: 860px; margin: 0 auto; }
