@@ -22,6 +22,7 @@
     aiCapabilities,
     aiChatHelpers,
     aiUi,
+    aiRichView,
     aiAttachments
   } = window.PortalVue;
   const { visibleCapabilities, groupCapabilities, mergeDraft } = aiCapabilities;
@@ -41,6 +42,7 @@
       channel: seed?.channel || "工作台对话",
       scenario: seed?.scenario || "单表分析",
       status: seed?.status || "进行中",
+      pinned: Boolean(seed?.pinned),
       time: seed?.time || new Date().toLocaleString("zh-CN", { hour12: false }).replaceAll("/", "-"),
       messages: seed?.messages ? seed.messages.map(msg => ({ ...msg, lines: [...msg.lines], refs: msg.refs ? [...msg.refs] : undefined })) : [],
       suggested: seed?.suggested || false
@@ -153,30 +155,56 @@
                 <el-tag size="small" round effect="plain">{{ reports.length }} 份报告</el-tag>
               </button>
               <el-button class="portal-vue-ai-new" type="primary" plain @click="newSession">＋ 新的分析</el-button>
+              <div class="ai-side-tools" data-test="ai-session-tools">
+                <div class="ai-side-search">
+                  <span class="ai-ico" v-html="icon('search')"></span>
+                  <input v-model="sessionKeyword" type="text" placeholder="搜索会话…" aria-label="搜索会话" data-test="ai-session-search" />
+                  <button v-if="sessionKeyword" type="button" class="ai-side-search-clear" aria-label="清空搜索" @click="sessionKeyword = ''"><span class="ai-ico" v-html="icon('close')"></span></button>
+                </div>
+                <div class="ai-side-filter" role="tablist" aria-label="会话渠道筛选">
+                  <button type="button" :class="{ active: sessionChannel === 'all' }" @click="sessionChannel = 'all'">全部</button>
+                  <button type="button" :class="{ active: sessionChannel === 'feishu' }" @click="sessionChannel = 'feishu'">飞书</button>
+                </div>
+              </div>
               <el-scrollbar class="portal-vue-ai-session-scroll">
                 <div class="portal-vue-ai-sessions">
                   <p class="portal-vue-ai-group-label">会话记录 <span>含飞书机器人</span></p>
                   <template v-for="group in sessionGroups" :key="group.key">
                     <p class="ai-session-group"><i v-if="group.key === 'running'" class="ai-live-dot"></i>{{ group.label }}</p>
-                    <article v-for="session in group.items" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView }" @click="openSessionFromList(session.id)">
-                      <div class="portal-vue-ai-session-top"><strong>{{ session.title }}</strong></div>
+                    <article v-for="session in group.items" :key="session.id" class="portal-vue-ai-session" :class="{ active: session.id === activeId && !assetView, 'is-pinned': session.pinned }" @click="openSessionFromList(session.id)">
+                      <div class="portal-vue-ai-session-top">
+                        <strong>{{ session.title }}</strong>
+                        <div class="ai-session-ops" @click.stop>
+                          <button type="button" :class="{ on: session.pinned }" :title="session.pinned ? '取消置顶' : '置顶会话'" aria-label="置顶会话" @click="togglePinSession(session)"><span class="ai-ico" v-html="icon('pin')"></span></button>
+                          <button type="button" title="重命名" aria-label="重命名会话" @click="renameSession(session)"><span class="ai-ico" v-html="icon('edit')"></span></button>
+                          <button type="button" class="is-danger" title="删除会话" aria-label="删除会话" @click="removeSession(session)"><span class="ai-ico" v-html="icon('trash')"></span></button>
+                        </div>
+                      </div>
                       <div class="portal-vue-ai-session-meta"><time :title="session.time">{{ relativeTime(session.time) }}</time><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">· {{ sessionLine(session) }}</span><span v-if="session.channel === '飞书机器人'" class="ai-channel feishu ai-ico" title="来自飞书机器人" aria-label="来自飞书机器人" v-html="icon('chat')"></span></div>
                     </article>
                   </template>
-                  <p v-if="!sessions.length" class="portal-vue-muted">暂无会话</p>
+                  <p v-if="!sessionGroups.length" class="portal-vue-muted">{{ sessionKeyword || sessionChannel !== 'all' ? '没有匹配的会话' : '暂无会话' }}</p>
                 </div>
               </el-scrollbar>
             </aside>
-            <section class="portal-vue-ai-main">
+            <section class="portal-vue-ai-main" :class="{ 'has-canvas': !assetView && !!canvasReport }">
               <div v-if="assetView" class="portal-vue-ai-assets-page">
                 <div class="portal-vue-ai-assets-head">
-                  <div><h3>分析资产</h3><span class="portal-vue-muted">共 {{ reports.length }} 份分析报告，点击查看详情，右上角可复制链接分享给同事</span></div>
-                  <el-button @click="assetView=false">← 返回对话</el-button>
+                  <div><h3>分析资产</h3><span class="portal-vue-muted">共 {{ filteredReports.length }} / {{ reports.length }} 份分析报告，点击查看详情，右上角可复制链接分享给同事</span></div>
+                  <div class="ai-assets-head-ops">
+                    <div class="ai-assets-search"><span class="ai-ico" v-html="icon('search')"></span><input v-model="assetKeyword" type="text" placeholder="搜索报告标题、表或摘要…" aria-label="搜索分析资产" /></div>
+                    <button type="button" class="ai-assets-filter-btn" :class="{ active: assetStarOnly }" @click="assetStarOnly = !assetStarOnly"><span class="ai-ico" v-html="icon('star')"></span>仅看收藏</button>
+                    <el-button @click="assetView=false">← 返回对话</el-button>
+                  </div>
                 </div>
                 <div class="portal-vue-ai-assets-grid">
-                  <article v-for="report in reports" :key="report.id" class="portal-vue-ai-asset-card" @click="openReport(report)">
+                  <article v-for="report in filteredReports" :key="report.id" class="portal-vue-ai-asset-card" @click="openReport(report)">
                     <div class="portal-vue-ai-asset-card-head">
                       <strong>{{ report.title }}</strong>
+                      <div class="ai-asset-card-ops" @click.stop>
+                        <button type="button" :class="{ on: report.starred }" :title="report.starred ? '取消收藏' : '收藏报告'" aria-label="收藏报告" @click="toggleStar(report)"><span class="ai-ico" v-html="icon('star')"></span></button>
+                        <button type="button" title="删除报告" aria-label="删除报告" @click="removeReport(report)"><span class="ai-ico" v-html="icon('trash')"></span></button>
+                      </div>
                       <time>{{ (report.time || "").slice(5, 16) }}</time>
                     </div>
                     <div class="portal-vue-ai-asset-card-tags">
@@ -187,97 +215,180 @@
                     <p class="portal-vue-ai-asset-card-summary">{{ report.summary || (report.markdown || "").slice(0, 80) || "（无摘要）" }}</p>
                     <div v-if="report.tables.length" class="portal-vue-ai-refs"><el-tag v-for="table in report.tables.slice(0, 3)" :key="table" size="small" effect="plain">{{ table }}</el-tag></div>
                   </article>
-                  <el-empty v-if="!reports.length" description="暂无分析报告，发起一次分析后自动归档到这里"></el-empty>
+                  <el-empty v-if="!filteredReports.length" :description="reports.length ? '没有匹配的分析报告' : '暂无分析报告，发起一次分析后自动归档到这里'"></el-empty>
                 </div>
               </div>
-              <header v-if="!assetView && activeSession.messages.length" class="ai-chat-head"><strong>{{ activeSession.title }}</strong><span class="ai-chat-head-meta">{{ activeSession.channel }} · {{ relativeTime(activeSession.time) }}</span></header>
-              <div v-if="!assetView" class="portal-vue-ai-chat" ref="chatBox">
-                <ai-empty v-if="!activeSession.messages.length">
-                  <template #media><span class="portal-vue-ai-welcome-logo">灵</span></template>
-                  <template #title>你好，想分析点什么？</template>
-                  <template #description>不知道问什么？点一张卡片，我带你试一遍</template>
-                  <div v-if="capabilityCan.length" class="ai-cap-cards">
-                    <div v-for="item in capabilityCan" :key="item.id" class="ai-cap-card" role="button" tabindex="0" data-test="ai-capability-card" @click="openCapability(item)" @keydown.enter="openCapability(item)">
-                      <span class="ai-cap-card-head"><span class="ai-cap-card-icon ai-ico" v-html="icon(item.icon)"></span><b>{{ item.title }}</b><span class="ai-cap-card-tag"><span class="ai-ico" v-html="icon(item.video ? 'play' : 'image')"></span>{{ item.video ? (item.video.duration || '30 秒') + '看示例' : '图文说明' }}</span></span>
-                      <span class="ai-cap-card-sum">{{ item.summary }}</span>
-                      <span class="ai-cap-card-qs"><button v-for="text in item.examples.slice(0, 3)" :key="text" type="button" class="ai-cap-q" data-test="ai-capability-question" @click.stop="tryCapability(item, text)"><span class="ai-cap-q-text">{{ text }}</span><span class="ai-ico ai-cap-q-go" v-html="icon('chevron-right')"></span></button></span>
+              <div v-if="!assetView" class="ai-workspace-split">
+                <div class="ai-workspace-chat-col">
+                  <header v-if="activeSession.messages.length" class="ai-chat-head">
+                    <strong>{{ activeSession.title }}</strong>
+                    <span class="ai-chat-head-meta">{{ activeSession.channel }} · {{ relativeTime(activeSession.time) }}</span>
+                    <div class="ai-chat-head-ops">
+                      <button v-if="latestSessionReport" type="button" class="ai-head-btn" data-test="ai-open-canvas" @click="toggleCanvas(latestSessionReport.id)"><span class="ai-ico" v-html="icon('panel-right')"></span>{{ canvasReportId === latestSessionReport.id ? '收起报告画布' : '报告画布' }}</button>
+                    </div>
+                  </header>
+                  <div class="portal-vue-ai-chat" ref="chatBox">
+                    <ai-empty v-if="!activeSession.messages.length">
+                      <template #media><span class="portal-vue-ai-welcome-logo">灵</span></template>
+                      <template #title>你好，想分析点什么？</template>
+                      <template #description>不知道问什么？点一张卡片，我带你试一遍</template>
+                      <div v-if="capabilityCan.length" class="ai-cap-cards">
+                        <div v-for="item in capabilityCan" :key="item.id" class="ai-cap-card" role="button" tabindex="0" data-test="ai-capability-card" @click="openCapability(item)" @keydown.enter="openCapability(item)">
+                          <span class="ai-cap-card-head"><span class="ai-cap-card-icon ai-ico" v-html="icon(item.icon)"></span><b>{{ item.title }}</b><span class="ai-cap-card-tag"><span class="ai-ico" v-html="icon(item.video ? 'play' : 'image')"></span>{{ item.video ? (item.video.duration || '30 秒') + '看示例' : '图文说明' }}</span></span>
+                          <span class="ai-cap-card-sum">{{ item.summary }}</span>
+                          <span class="ai-cap-card-qs"><button v-for="text in item.examples.slice(0, 3)" :key="text" type="button" class="ai-cap-q" data-test="ai-capability-question" @click.stop="tryCapability(item, text)"><span class="ai-cap-q-text">{{ text }}</span><span class="ai-ico ai-cap-q-go" v-html="icon('chevron-right')"></span></button></span>
+                        </div>
+                      </div>
+                      <button type="button" class="ai-cap-open" data-test="ai-capability-open" @click="openCapabilityDrawer">我暂时做不了什么<span class="ai-ico" v-html="icon('chevron-right')"></span></button>
+                    </ai-empty>
+                    <template v-for="(msg, index) in activeSession.messages" :key="index"><ai-marker v-if="msg.contextReset" variant="separator" data-test="ai-context-reset">已切换到「{{ msg.contextReset.to.join("、") }}」，之前针对「{{ msg.contextReset.from.join("、") }}」的对话不再作为上下文</ai-marker><ai-message v-show="!isEmptyMsg(msg)" :role="msg.role" :class="{ 'is-ask': !!msg.ask }">
+                      <ai-questionnaire v-if="msg.ask" :ask="msg.ask" :disabled="thinking" @toggle="(q, opt) => toggleAsk(msg.ask, q, opt)" @custom="q => onAskCustom(msg.ask, q)" @submit="submitAsk(msg)" @skip="submitAsk(msg, true)"></ai-questionnaire>
+                      <ai-bubble v-else :role="msg.role" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
+                        <ai-trace v-if="traceRows(msg).length || (msg.liveSteps && msg.liveSteps.length)">
+                          <ai-trace-collapsible v-for="row in traceRows(msg)" :key="row.key" data-test="ai-trace-row" :open="isTraceOpen(msg, row.key)" :status="row.status" :icon="row.icon" :title="row.title" :desc="row.desc" :trigger-test="row.key === 'skill' ? 'ai-basis-toggle' : null" @update:open="toggleTrace(msg, row.key)">
+                            <div v-if="row.key === 'reasoning'" class="ai-trace-reasoning" :class="{ 'is-live': msg.streaming && !msg.html }">{{ msg.reasoning }}</div>
+                            <template v-else-if="row.key === 'skill'"><div v-if="msg.plan && msg.plan.source && msg.plan.source !== 'manual' && !msg.streaming" class="portal-vue-ai-plan" data-test="ai-plan"><span class="portal-vue-ai-plan-label">本次</span><span class="portal-vue-ai-plan-chip">{{ msg.plan.skillName || '通用分析' }} · {{ msg.plan.output === 'report' ? '报告' : '回答' }}</span><span class="portal-vue-ai-plan-reason">{{ planReasonText(msg.plan) }}</span><el-dropdown trigger="click" @command="command => changePlan(msg, command)"><button type="button" class="portal-vue-ai-plan-change" data-test="plan-change">换一个</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="alt in (msg.plan.alternatives || [])" :key="alt.id" :command="'skill:' + alt.id">改用「{{ alt.name }}」重新回答</el-dropdown-item><el-dropdown-item v-if="msg.plan.output !== 'report'" command="output:report" :divided="!!(msg.plan.alternatives || []).length" data-test="plan-to-report">改为生成报告</el-dropdown-item><el-dropdown-item v-else command="output:answer" :divided="!!(msg.plan.alternatives || []).length">改为简短回答</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></template>
+                            <div v-else-if="row.key === 'sources'" class="ai-trace-list"><button v-for="name in row.tables" :key="name" type="button" class="ai-trace-table-btn" data-test="ai-trace-table" @click="inspectTable(name)"><ai-trace-line icon="database" :title="name" desc="查看结构"></ai-trace-line></button></div>
+                            <template v-else-if="row.key === 'scope'"><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div></template>
+                            <template v-else><div v-if="msg.meta" class="portal-vue-ai-meta-card"><template v-for="item in detailItems(msg)" :key="item.k + item.v"><div v-if="item.list" class="portal-vue-ai-meta-row"><em>{{ item.k }}</em><span class="portal-vue-ai-meta-tags"><span v-for="name in item.list" :key="name">{{ name }}</span></span></div><div v-else class="portal-vue-ai-meta-item" :class="{ warn: item.warn }"><em>{{ item.k }}</em><span>{{ item.v }}</span></div></template></div></template>
+                          </ai-trace-collapsible>
+                          <div v-if="msg.streaming && msg.liveSteps && msg.liveSteps.length" class="ai-live-steps" data-test="ai-live-steps">
+                            <ai-trace-line v-for="(step, si) in msg.liveSteps" :key="si" :status="step.status" :icon="step.icon || 'database'" :title="step.title" :desc="step.desc"></ai-trace-line>
+                          </div>
+                        </ai-trace>
+                        <template v-if="msg.reportId"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><div class="portal-vue-ai-report-card">
+  <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file ai-ico" v-html="icon('file')"></span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportInCanvas(msg.reportId)">打开展示所有 ›</button></div>
+  <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
+</div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><div v-if="skillRefs(msg).length || verificationOf(msg)" class="ai-skill-refs" data-test="ai-skill-refs"><template v-if="skillRefs(msg).length"><span class="ai-skill-refs-label">引用了</span><el-tooltip v-for="skill in skillRefs(msg)" :key="skill.id" placement="top" effect="light" :show-after="150" popper-class="ai-theme ai-skill-tip"><template #content><div class="ai-skill-tip-head"><img v-if="skill.iconSrc" class="ai-skill-icon" :src="skill.iconSrc" alt="" /><span v-else class="ai-ico ai-skill-icon" v-html="icon('layers')"></span><b>{{ skill.name }}</b></div><span>{{ skill.desc || '暂无简介' }}</span></template><span class="ai-skill-chip" tabindex="0" data-test="ai-skill-chip"><img v-if="skill.iconSrc" class="ai-skill-icon" :src="skill.iconSrc" alt="" /><span v-else class="ai-ico ai-skill-icon" v-html="icon('layers')"></span>{{ skill.name }}</span></el-tooltip></template><span v-if="verificationOf(msg)" class="ai-verify-badge" :class="'is-' + verificationOf(msg).status" :title="verificationOf(msg).ungrounded.length ? '未在证据中直接命中的数字：' + verificationOf(msg).ungrounded.join('、') : '回答中的核心数字均已在查数证据中核对'" data-test="ai-verify-badge"><span class="ai-ico" v-html="icon(verificationOf(msg).status === 'ok' ? 'shield-check' : 'alert')"></span>{{ verificationOf(msg).label }}</span></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: copiedId === msg.requestId }" :title="copiedId === msg.requestId ? '已复制' : '复制内容'" aria-label="复制内容" data-test="ai-copy-btn" @click="copyMessage(msg)"><span class="ai-ico" v-html="icon(copiedId === msg.requestId ? 'check' : 'copy')"></span></button><button type="button" title="重新生成" aria-label="重新生成" data-test="ai-regen-btn" @click="regenerateMessage(msg)"><span class="ai-ico" v-html="icon('refresh')"></span></button><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><ai-button v-for="text in msg.suggestions" :key="text" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</ai-button></div></template>
+                        <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><div v-if="skillRefs(msg).length || verificationOf(msg)" class="ai-skill-refs" data-test="ai-skill-refs"><template v-if="skillRefs(msg).length"><span class="ai-skill-refs-label">引用了</span><el-tooltip v-for="skill in skillRefs(msg)" :key="skill.id" placement="top" effect="light" :show-after="150" popper-class="ai-theme ai-skill-tip"><template #content><div class="ai-skill-tip-head"><img v-if="skill.iconSrc" class="ai-skill-icon" :src="skill.iconSrc" alt="" /><span v-else class="ai-ico ai-skill-icon" v-html="icon('layers')"></span><b>{{ skill.name }}</b></div><span>{{ skill.desc || '暂无简介' }}</span></template><span class="ai-skill-chip" tabindex="0" data-test="ai-skill-chip"><img v-if="skill.iconSrc" class="ai-skill-icon" :src="skill.iconSrc" alt="" /><span v-else class="ai-ico ai-skill-icon" v-html="icon('layers')"></span>{{ skill.name }}</span></el-tooltip></template><span v-if="verificationOf(msg)" class="ai-verify-badge" :class="'is-' + verificationOf(msg).status" :title="verificationOf(msg).ungrounded.length ? '未在证据中直接命中的数字：' + verificationOf(msg).ungrounded.join('、') : '回答中的核心数字均已在查数证据中核对'" data-test="ai-verify-badge"><span class="ai-ico" v-html="icon(verificationOf(msg).status === 'ok' ? 'shield-check' : 'alert')"></span>{{ verificationOf(msg).label }}</span></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: copiedId === msg.requestId }" :title="copiedId === msg.requestId ? '已复制' : '复制内容'" aria-label="复制内容" data-test="ai-copy-btn" @click="copyMessage(msg)"><span class="ai-ico" v-html="icon(copiedId === msg.requestId ? 'check' : 'copy')"></span></button><el-dropdown trigger="click" @command="tplId => requestReport(msg, tplId)"><button type="button" class="ai-action-pill" title="基于本轮查数证据整理成正式报告" data-test="ai-to-report-btn"><span class="ai-ico" v-html="icon('file')"></span>整理成报告</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="tpl in reportTemplates" :key="tpl.id" :command="tpl.id">{{ tpl.name }}</el-dropdown-item><el-dropdown-item v-if="!reportTemplates.length" command="">标准分析报告</el-dropdown-item></el-dropdown-menu></template></el-dropdown><button type="button" title="重新生成" aria-label="重新生成" data-test="ai-regen-btn" @click="regenerateMessage(msg)"><span class="ai-ico" v-html="icon('refresh')"></span></button><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><ai-button v-for="text in msg.suggestions" :key="text" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</ai-button></div></template>
+                        <template v-else><div v-if="msg.images && msg.images.length" class="ai-msg-images"><img v-for="(src, ii) in msg.images" :key="ii" :src="src" alt="提问时附的图片" /></div><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain" class="ai-ref-clickable" @click="inspectTable(ref)">{{ ref }}</el-tag></div></template>
+                      </ai-bubble>
+                    </ai-message></template>
+                    <ai-message v-if="thinking" role="assistant"><ai-trace><ai-trace-line status="running" icon="spark" title="正在基于你有权限的数据表进行分析…" :desc="etaText"></ai-trace-line></ai-trace></ai-message>
+                  </div>
+                  <div class="portal-vue-ai-input">
+                    <div v-if="slashOpen" class="ai-slash-menu" data-test="ai-slash-menu" role="listbox" aria-label="快捷分析指令">
+                      <div class="ai-mention-head"><span>快捷分析指令</span><span>回车选中</span></div>
+                      <ul class="ai-slash-list">
+                        <li v-for="(item, i) in slashMatches" :key="item.key" class="ai-slash-item" :class="{ active: i === slashIndex }" role="option" :aria-selected="i === slashIndex" @mouseenter="slashIndex = i" @mousedown.prevent="applySlash(item)">
+                          <span class="ai-slash-cmd">{{ item.cmd }}</span>
+                          <span class="ai-slash-title">{{ item.title }}</span>
+                          <span class="ai-slash-desc">{{ item.desc }}</span>
+                        </li>
+                      </ul>
+                    </div>
+                    <div v-if="mentionOpen" class="ai-mention" data-test="ai-mention">
+                      <div class="ai-mention-head"><span>引用数据表</span><span>仅限你有权限的 {{ myTables.length }} 张表</span></div>
+                      <div class="ai-mention-body">
+                        <ul class="ai-mention-list" role="listbox" aria-label="可引用的数据表">
+                          <li v-for="(table, i) in mentionTables" :key="table" class="ai-mention-item" :class="{ active: i === mentionIndex }" role="option" :aria-selected="i === mentionIndex" data-test="ai-mention-item" @mouseenter="mentionIndex = i" @mousedown.prevent="insertMention(table)"><span class="ai-ico" v-html="icon('database')"></span><span class="ai-mention-name">{{ table }}</span><span v-if="bizLineMeta[table]" class="ai-mention-tag">{{ bizLineMeta[table] }}</span></li>
+                          <li v-if="!mentionTables.length" class="ai-mention-empty">没有匹配的数据表，或当前权限组未配置数据表权限。</li>
+                        </ul>
+                        <aside v-if="mentionInfo" class="ai-mention-info" data-test="ai-mention-info">
+                          <b>{{ mentionInfo.title }}</b>
+                          <span v-if="mentionInfo.bizLine" class="ai-mention-tag">{{ mentionInfo.bizLine }}</span>
+                          <p>{{ mentionInfo.desc || '暂无介绍' }}</p>
+                          <dl>
+                            <div v-if="mentionInfo.tableName"><dt>表名</dt><dd>{{ mentionInfo.tableName }}</dd></div>
+                            <div v-if="mentionInfo.owner"><dt>负责人</dt><dd>{{ mentionInfo.owner }}</dd></div>
+                            <div v-if="mentionInfo.update"><dt>更新</dt><dd>{{ mentionInfo.update }}</dd></div>
+                            <div v-if="mentionInfo.fieldCount"><dt>字段</dt><dd>共 {{ mentionInfo.fieldCount }} 个：{{ mentionInfo.fields.join('、') }}{{ mentionInfo.fieldCount > mentionInfo.fields.length ? '…' : '' }}</dd></div>
+                          </dl>
+                        </aside>
+                      </div>
+                    </div>
+                    <div v-if="inputMentionedTables.length" class="ai-input-refs" data-test="ai-input-refs">
+                      <span class="ai-input-refs-label">已引用</span>
+                      <span v-for="table in inputMentionedTables" :key="table" class="ai-input-ref-chip">
+                        <button type="button" class="ai-input-ref-name" title="查看表结构与字段" @click="inspectTable(table)"><span class="ai-ico" v-html="icon('database')"></span>{{ table }}</button>
+                        <button type="button" class="ai-input-ref-x" :aria-label="'移除引用 ' + table" @click="removeMention(table)"><span class="ai-ico" v-html="icon('close')"></span></button>
+                      </span>
+                    </div>
+                    <ai-prompt-input ref="inputBox" v-model="input" placeholder="输入分析问题，@ 引用数据表，/ 快捷指令，支持粘贴或上传图片；回车发送" :can-send="!!input.trim() && !thinking && !isStreaming" :images="attachments" :busy="attachBusy" @enter="onEnter" @keydown="onComposerKey" @input="onInput" @send="sendMessage" @paste-files="addImageFiles" @remove-image="removeAttachment">
+                      <template #tools>
+                        <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" :style="{ width: lineSelectWidth }" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper ai-theme" data-test="ai-line-select" title="业务线" @update:model-value="pickLine">
+                          <template #prefix><span class="ai-ico" v-html="icon('briefcase')"></span></template>
+                          <el-option label="通用" value="通用"></el-option>
+                          <el-option v-for="line in lineChoices" :key="line" :label="line" :value="line"></el-option>
+                        </el-select>
+                        <el-popover v-model:visible="modelPop" trigger="click" placement="top-start" :width="320" :disabled="!models.length" popper-class="portal-vue-ai-model-pop ai-theme">
+                          <template #reference>
+                            <button type="button" class="portal-vue-ai-model-chip" :class="{ disabled: !models.length }" data-test="model-chip" aria-label="模型" title="模型"><span class="ai-ico" v-html="icon('cpu')"></span><span class="mc-name">{{ model || (modelsLoading ? '加载中…' : '请选择') }}</span><em v-if="reasoningSupported">{{ reasoningLabel }}</em><i class="mc-arrow"></i></button>
+                          </template>
+                          <div class="mp-section">
+                            <div class="mp-title">模型</div>
+                            <el-input v-model="modelKeyword" size="small" clearable placeholder="搜索模型" class="mp-search"></el-input>
+                            <el-scrollbar max-height="220px">
+                              <div v-for="item in shownModels" :key="item" class="mp-item" :class="{ active: item === model }" @click="pickModel(item)">{{ item }}</div>
+                              <div v-if="!shownModels.length" class="mp-empty">没有匹配的模型</div>
+                            </el-scrollbar>
+                          </div>
+                          <div v-if="reasoningSupported" class="mp-section">
+                            <div class="mp-title">思考强度</div>
+                            <el-select :model-value="reasoning" size="default" class="mp-level-select" :teleported="false" placeholder="选择思考强度" @change="pickLevel"><el-option v-for="item in reasoningChoices" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
+                          </div>
+                          <div v-else class="mp-note">这个模型没有配置思考深度（管理员可在「模型配置」里勾选）</div>
+                        </el-popover>
+                        <button type="button" class="ai-tool-icon-btn" title="上传图片（最多 3 张）" aria-label="上传图片" data-test="ai-upload-btn" @click="$refs.composerFile.click()"><span class="ai-ico" v-html="icon('upload')"></span></button>
+                        <input ref="composerFile" type="file" accept="image/*" multiple hidden @change="onComposerPick" />
+                        <button v-if="thinking || isStreaming" type="button" class="ai-stop-btn" data-test="ai-stop-btn" aria-label="停止生成" @click="abortGeneration"><span class="ai-ico" v-html="icon('stop')"></span>停止</button>
+                      </template>
+                    </ai-prompt-input>
+                  </div>
+                </div>
+                <aside v-if="canvasReport" class="ai-canvas-pane" data-test="ai-canvas-pane">
+                  <div class="ai-canvas-head">
+                    <div class="ai-canvas-title-wrap">
+                      <span class="ai-ico" v-html="icon('file')"></span>
+                      <strong :title="canvasReport.title">{{ canvasReport.title }}</strong>
+                    </div>
+                    <div class="ai-canvas-ops">
+                      <button type="button" class="ai-canvas-btn" :title="canvasReport._shared ? '已复制分享链接' : '复制分享链接'" @click="shareReport(canvasReport)"><span class="ai-ico" v-html="icon(canvasReport._shared ? 'check' : 'share')"></span>{{ canvasReport._shared ? '已复制' : '分享' }}</button>
+                      <button type="button" class="ai-canvas-btn" title="导出 Markdown 文件" @click="exportReportMd(canvasReport)"><span class="ai-ico" v-html="icon('download')"></span>导出</button>
+                      <button type="button" class="ai-canvas-icon-btn" title="全屏弹窗查看" aria-label="全屏查看" @click="openReport(canvasReport)"><span class="ai-ico" v-html="icon('expand')"></span></button>
+                      <button type="button" class="ai-canvas-icon-btn" title="关闭画布" aria-label="关闭画布" @click="canvasReportId = ''"><span class="ai-ico" v-html="icon('close')"></span></button>
                     </div>
                   </div>
-                  <button type="button" class="ai-cap-open" data-test="ai-capability-open" @click="openCapabilityDrawer">我暂时做不了什么<span class="ai-ico" v-html="icon('chevron-right')"></span></button>
-                </ai-empty>
-                <template v-for="(msg, index) in activeSession.messages" :key="index"><ai-marker v-if="msg.contextReset" variant="separator" data-test="ai-context-reset">已切换到「{{ msg.contextReset.to.join("、") }}」，之前针对「{{ msg.contextReset.from.join("、") }}」的对话不再作为上下文</ai-marker><ai-message v-show="!isEmptyMsg(msg)" :role="msg.role" :class="{ 'is-ask': !!msg.ask }">
-                  <ai-questionnaire v-if="msg.ask" :ask="msg.ask" :disabled="thinking" @toggle="(q, opt) => toggleAsk(msg.ask, q, opt)" @custom="q => onAskCustom(msg.ask, q)" @submit="submitAsk(msg)" @skip="submitAsk(msg, true)"></ai-questionnaire>
-                  <ai-bubble v-else :role="msg.role" :class="{ 'portal-vue-ai-report': msg.html, 'portal-vue-ai-bubble-streaming': msg.streaming }">
-                    <ai-trace v-if="traceRows(msg).length">
-                      <ai-trace-collapsible v-for="row in traceRows(msg)" :key="row.key" data-test="ai-trace-row" :open="isTraceOpen(msg, row.key)" :status="row.status" :icon="row.icon" :title="row.title" :desc="row.desc" :trigger-test="row.key === 'skill' ? 'ai-basis-toggle' : null" @update:open="toggleTrace(msg, row.key)">
-                        <div v-if="row.key === 'reasoning'" class="ai-trace-reasoning" :class="{ 'is-live': msg.streaming && !msg.html }">{{ msg.reasoning }}</div>
-                        <template v-else-if="row.key === 'skill'"><div v-if="msg.plan && msg.plan.source && msg.plan.source !== 'manual' && !msg.streaming" class="portal-vue-ai-plan" data-test="ai-plan"><span class="portal-vue-ai-plan-label">本次</span><span class="portal-vue-ai-plan-chip">{{ msg.plan.skillName || '通用分析' }} · {{ msg.plan.output === 'report' ? '报告' : '回答' }}</span><span class="portal-vue-ai-plan-reason">{{ planReasonText(msg.plan) }}</span><el-dropdown trigger="click" @command="command => changePlan(msg, command)"><button type="button" class="portal-vue-ai-plan-change" data-test="plan-change">换一个</button><template #dropdown><el-dropdown-menu><el-dropdown-item v-for="alt in (msg.plan.alternatives || [])" :key="alt.id" :command="'skill:' + alt.id">改用「{{ alt.name }}」重新回答</el-dropdown-item><el-dropdown-item v-if="msg.plan.output !== 'report'" command="output:report" :divided="!!(msg.plan.alternatives || []).length" data-test="plan-to-report">改为生成报告</el-dropdown-item><el-dropdown-item v-else command="output:answer" :divided="!!(msg.plan.alternatives || []).length">改为简短回答</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></template>
-                        <div v-else-if="row.key === 'sources'" class="ai-trace-list"><ai-trace-line v-for="name in row.tables" :key="name" icon="database" :title="name"></ai-trace-line></div>
-                        <template v-else-if="row.key === 'scope'"><div v-if="msg.resolved && msg.resolved.length" class="portal-vue-ai-scope" data-test="ai-scope"><span class="portal-vue-ai-scope-label">口径</span><span v-for="item in msg.resolved" :key="item.term" class="portal-vue-ai-scope-chip" :title="item.kind + (item.carried ? '（沿用上文）' : '')">{{ item.term }} → {{ item.means }}{{ item.carried ? '（沿用）' : '' }}</span></div></template>
-                        <template v-else><div v-if="msg.meta" class="portal-vue-ai-meta-card"><template v-for="item in detailItems(msg)" :key="item.k + item.v"><div v-if="item.list" class="portal-vue-ai-meta-row"><em>{{ item.k }}</em><span class="portal-vue-ai-meta-tags"><span v-for="name in item.list" :key="name">{{ name }}</span></span></div><div v-else class="portal-vue-ai-meta-item" :class="{ warn: item.warn }"><em>{{ item.k }}</em><span>{{ item.v }}</span></div></template></div></template>
-                      </ai-trace-collapsible>
-                    </ai-trace>
-                    <template v-if="msg.reportId"><p v-if="msg.leadMsg" class="portal-vue-ai-report-lead">{{ msg.leadMsg }}</p><div class="portal-vue-ai-report-card">
-  <div class="portal-vue-ai-report-card-head"><span class="portal-vue-ai-report-card-file ai-ico" v-html="icon('file')"></span><strong class="portal-vue-ai-report-card-title">{{ reportTitleOf(msg.reportId) }}</strong><button type="button" class="portal-vue-ai-report-open-btn" @click.stop="openReportById(msg.reportId)">打开展示所有 ›</button></div>
-  <div v-if="reportMarkdownOf(msg.reportId)" class="portal-vue-ai-report-preview"><div class="portal-vue-ai-report-body" v-html="reportMarkdownHtmlOf(msg.reportId)"></div></div>
-</div><p v-if="msg.trailMsg" class="portal-vue-ai-report-trail">{{ msg.trailMsg }}</p><div v-if="skillRefs(msg).length" class="ai-skill-refs" data-test="ai-skill-refs"><span class="ai-skill-refs-label">引用了</span><el-tooltip v-for="skill in skillRefs(msg)" :key="skill.id" placement="top" effect="light" :show-after="150" popper-class="ai-theme ai-skill-tip"><template #content><div class="ai-skill-tip-head"><img v-if="skill.iconSrc" class="ai-skill-icon" :src="skill.iconSrc" alt="" /><span v-else class="ai-ico ai-skill-icon" v-html="icon('layers')"></span><b>{{ skill.name }}</b></div><span>{{ skill.desc || '暂无简介' }}</span></template><span class="ai-skill-chip" tabindex="0" data-test="ai-skill-chip"><img v-if="skill.iconSrc" class="ai-skill-icon" :src="skill.iconSrc" alt="" /><span v-else class="ai-ico ai-skill-icon" v-html="icon('layers')"></span>{{ skill.name }}</span></el-tooltip></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><ai-button v-for="text in msg.suggestions" :key="text" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</ai-button></div></template>
-                    <template v-else-if="msg.html"><div class="portal-vue-ai-report-body" v-html="msg.html"></div><div v-if="skillRefs(msg).length" class="ai-skill-refs" data-test="ai-skill-refs"><span class="ai-skill-refs-label">引用了</span><el-tooltip v-for="skill in skillRefs(msg)" :key="skill.id" placement="top" effect="light" :show-after="150" popper-class="ai-theme ai-skill-tip"><template #content><div class="ai-skill-tip-head"><img v-if="skill.iconSrc" class="ai-skill-icon" :src="skill.iconSrc" alt="" /><span v-else class="ai-ico ai-skill-icon" v-html="icon('layers')"></span><b>{{ skill.name }}</b></div><span>{{ skill.desc || '暂无简介' }}</span></template><span class="ai-skill-chip" tabindex="0" data-test="ai-skill-chip"><img v-if="skill.iconSrc" class="ai-skill-icon" :src="skill.iconSrc" alt="" /><span v-else class="ai-ico ai-skill-icon" v-html="icon('layers')"></span>{{ skill.name }}</span></el-tooltip></div><div v-if="msg.requestId && !msg.streaming" class="portal-vue-ai-feedback"><button type="button" :class="{ on: msg.feedback === 'up' }" title="有帮助" aria-label="有帮助" @click="rateMessage(msg, 'up')"><span class="ai-ico" v-html="icon('up')"></span></button><button type="button" :class="{ on: msg.feedback === 'down' }" title="没帮助" aria-label="没帮助" @click="rateMessage(msg, 'down')"><span class="ai-ico" v-html="icon('down')"></span></button></div><div v-if="showSuggestions(msg)" class="portal-vue-ai-followups" data-test="ai-followups"><span class="portal-vue-ai-followups-label">你还可以问</span><ai-button v-for="text in msg.suggestions" :key="text" class="portal-vue-ai-followup" data-test="ai-followup" @click="askFollowUp(text)">{{ text }}</ai-button></div></template>
-                    <template v-else><div v-if="msg.images && msg.images.length" class="ai-msg-images"><img v-for="(src, ii) in msg.images" :key="ii" :src="src" alt="提问时附的图片" /></div><p v-for="(line, li) in msg.lines" :key="li">{{ line }}</p><div v-if="msg.confirms" class="portal-vue-ai-confirms"><el-tag v-for="item in msg.confirms" :key="item" size="small" type="info" effect="plain">{{ item }}</el-tag></div><div v-if="msg.refs" class="portal-vue-ai-refs"><el-tag v-for="ref in msg.refs" :key="ref" size="small" effect="plain">{{ ref }}</el-tag></div></template>
-                  </ai-bubble>
-                </ai-message></template>
-                <ai-message v-if="thinking" role="assistant"><ai-trace><ai-trace-line status="running" icon="spark" title="正在基于你有权限的数据表进行分析…" :desc="etaText"></ai-trace-line></ai-trace></ai-message>
-              </div>
-              <div v-if="!assetView" class="portal-vue-ai-input">
-                <div v-if="mentionOpen" class="ai-mention" data-test="ai-mention">
-                  <div class="ai-mention-head"><span>引用数据表</span><span>仅限你有权限的 {{ myTables.length }} 张表</span></div>
-                  <div class="ai-mention-body">
-                    <ul class="ai-mention-list" role="listbox" aria-label="可引用的数据表">
-                      <li v-for="(table, i) in mentionTables" :key="table" class="ai-mention-item" :class="{ active: i === mentionIndex }" role="option" :aria-selected="i === mentionIndex" data-test="ai-mention-item" @mouseenter="mentionIndex = i" @mousedown.prevent="insertMention(table)"><span class="ai-ico" v-html="icon('database')"></span><span class="ai-mention-name">{{ table }}</span><span v-if="bizLineMeta[table]" class="ai-mention-tag">{{ bizLineMeta[table] }}</span></li>
-                      <li v-if="!mentionTables.length" class="ai-mention-empty">没有匹配的数据表，或当前权限组未配置数据表权限。</li>
-                    </ul>
-                    <aside v-if="mentionInfo" class="ai-mention-info" data-test="ai-mention-info">
-                      <b>{{ mentionInfo.title }}</b>
-                      <span v-if="mentionInfo.bizLine" class="ai-mention-tag">{{ mentionInfo.bizLine }}</span>
-                      <p>{{ mentionInfo.desc || '暂无介绍' }}</p>
-                      <dl>
-                        <div v-if="mentionInfo.tableName"><dt>表名</dt><dd>{{ mentionInfo.tableName }}</dd></div>
-                        <div v-if="mentionInfo.owner"><dt>负责人</dt><dd>{{ mentionInfo.owner }}</dd></div>
-                        <div v-if="mentionInfo.update"><dt>更新</dt><dd>{{ mentionInfo.update }}</dd></div>
-                        <div v-if="mentionInfo.fieldCount"><dt>字段</dt><dd>共 {{ mentionInfo.fieldCount }} 个：{{ mentionInfo.fields.join('、') }}{{ mentionInfo.fieldCount > mentionInfo.fields.length ? '…' : '' }}</dd></div>
-                      </dl>
-                    </aside>
+                  <div v-if="canvasReport._shareUrl" class="ai-canvas-share">
+                    <input :value="canvasReport._shareUrl" readonly @click="selectShareInput" />
+                    <button type="button" @click="copyShareUrl(canvasReport)">复制</button>
                   </div>
+                  <div v-if="canvasOutline.length > 1" class="ai-canvas-outline" data-test="ai-canvas-outline">
+                    <button v-for="sec in canvasOutline" :key="sec.id" type="button" :class="'lv-' + sec.level" @click="scrollCanvasTo(sec.text)">{{ sec.text }}</button>
+                  </div>
+                  <div ref="canvasBody" class="ai-canvas-body">
+                    <div class="portal-vue-ai-refs" style="margin:0 0 12px">
+                      <el-tag size="small" :type="canvasReport.channel === '飞书机器人' ? 'success' : 'primary'" :effect="canvasReport.channel === '飞书机器人' ? 'plain' : 'light'">{{ canvasReport.channel }}</el-tag>
+                      <el-tag size="small" effect="plain">{{ canvasReport.scenario }}</el-tag>
+                      <el-tag v-for="table in canvasReport.tables" :key="table" size="small" effect="plain" class="ai-ref-clickable" @click="inspectTable(table)">{{ table }}</el-tag>
+                      <time style="margin-left:auto;font-size:12px;color:var(--ai-ink-3)">{{ canvasReport.time }}</time>
+                    </div>
+                    <p v-if="canvasReport.summary" class="portal-vue-ai-report-summary"><span>结论摘要</span>{{ canvasReport.summary }}</p>
+                    <div v-if="canvasReport.markdown" class="portal-vue-ai-report-body" v-html="reportMarkdownHtml(canvasReport)"></div>
+                    <p v-else class="portal-vue-muted">{{ canvasReport.summary || '（无内容）' }}</p>
+                  </div>
+                </aside>
+              </div>
+          <el-drawer :model-value="!!inspectedTable" direction="rtl" size="420px" :with-header="false" :close-on-click-modal="true" append-to-body class="ai-theme ai-table-drawer" data-test="ai-table-drawer" @update:model-value="value => { if (!value) inspectedTable = null; }">
+            <template v-if="inspectedTable">
+              <div class="ai-cap-drawer-head"><h3>{{ inspectedTable.title }}</h3><button type="button" class="ai-cap-close" aria-label="关闭" @click="inspectedTable = null"><span class="ai-ico" v-html="icon('close')"></span></button></div>
+              <p class="ai-table-drawer-sub">{{ inspectedTable.desc || '暂无表说明' }}</p>
+              <dl class="ai-table-drawer-meta">
+                <div v-if="inspectedTable.tableName"><dt>物理表</dt><dd><code>{{ inspectedTable.tableName }}</code></dd></div>
+                <div v-if="inspectedTable.bizLine"><dt>业务线</dt><dd>{{ inspectedTable.bizLine }}</dd></div>
+                <div v-if="inspectedTable.owner"><dt>负责人</dt><dd>{{ inspectedTable.owner }}</dd></div>
+                <div v-if="inspectedTable.update"><dt>更新周期</dt><dd>{{ inspectedTable.update }}</dd></div>
+              </dl>
+              <div class="ai-table-drawer-fields-head"><span>字段定义（{{ inspectedTable.allFields.length }}）</span><button type="button" class="ai-table-drawer-cite" @click="citeInspectedTable">+ 引用到提问</button></div>
+              <div class="ai-table-drawer-fields">
+                <div v-for="col in inspectedTable.allFields" :key="col.name" class="ai-table-drawer-field">
+                  <div class="ai-table-drawer-field-top"><code>{{ col.name }}</code><span v-if="col.dataType">{{ col.dataType }}</span></div>
+                  <p v-if="col.comment || col.remark">{{ col.comment || col.remark }}</p>
                 </div>
-                <ai-prompt-input ref="inputBox" v-model="input" placeholder="输入分析问题，@ 可引用数据表，可直接粘贴图片；回车发送" :can-send="!!input.trim() && !thinking" :images="attachments" :busy="attachBusy" @enter="onEnter" @keydown="onComposerKey" @input="onInput" @send="sendMessage" @paste-files="addImageFiles" @remove-image="removeAttachment">
-                  <template #tools>
-                    <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" :style="{ width: lineSelectWidth }" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper ai-theme" data-test="ai-line-select" title="业务线" @update:model-value="pickLine">
-                      <template #prefix><span class="ai-ico" v-html="icon('briefcase')"></span></template>
-                      <el-option label="通用" value="通用"></el-option>
-                      <el-option v-for="line in lineChoices" :key="line" :label="line" :value="line"></el-option>
-                    </el-select>
-                    <el-popover v-model:visible="modelPop" trigger="click" placement="top-start" :width="320" :disabled="!models.length" popper-class="portal-vue-ai-model-pop ai-theme">
-                      <template #reference>
-                        <button type="button" class="portal-vue-ai-model-chip" :class="{ disabled: !models.length }" data-test="model-chip" aria-label="模型" title="模型"><span class="ai-ico" v-html="icon('cpu')"></span><span class="mc-name">{{ model || (modelsLoading ? '加载中…' : '请选择') }}</span><em v-if="reasoningSupported">{{ reasoningLabel }}</em><i class="mc-arrow"></i></button>
-                      </template>
-                      <div class="mp-section">
-                        <div class="mp-title">模型</div>
-                        <el-input v-model="modelKeyword" size="small" clearable placeholder="搜索模型" class="mp-search"></el-input>
-                        <el-scrollbar max-height="220px">
-                          <div v-for="item in shownModels" :key="item" class="mp-item" :class="{ active: item === model }" @click="pickModel(item)">{{ item }}</div>
-                          <div v-if="!shownModels.length" class="mp-empty">没有匹配的模型</div>
-                        </el-scrollbar>
-                      </div>
-                      <div v-if="reasoningSupported" class="mp-section">
-                        <div class="mp-title">思考强度</div>
-                        <el-select :model-value="reasoning" size="default" class="mp-level-select" :teleported="false" placeholder="选择思考强度" @change="pickLevel"><el-option v-for="item in reasoningChoices" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
-                      </div>
-                      <div v-else class="mp-note">这个模型没有配置思考深度（管理员可在「模型配置」里勾选）</div>
-                    </el-popover>
-
-                  </template>
-                </ai-prompt-input>
+                <p v-if="!inspectedTable.allFields.length" class="portal-vue-muted">当前表暂无已登记的字段说明</p>
               </div>
-              </div>
+            </template>
+          </el-drawer>
 
           <el-dialog v-model="fb.visible" width="520px" align-center append-to-body class="ai-theme ai-feedback-dialog" data-test="ai-feedback-dialog" title="反馈">
             <div class="ai-fb-body" @paste="onFeedbackPaste">
@@ -402,7 +513,18 @@
       capVideoFailed: false,
       reportDialog: false,
       activeReportId: "",
-      activeId: analysisSessionsSeed[0]?.id || ""
+      activeId: analysisSessionsSeed[0]?.id || "",
+      sessionKeyword: "",
+      sessionChannel: "all",
+      assetKeyword: "",
+      assetStarOnly: false,
+      canvasReportId: "",
+      inspectedTable: null,
+      slashOpen: false,
+      slashIndex: 0,
+      slashKeyword: "",
+      copiedId: "",
+      abortCtrl: null
     }),
     computed:{
       scenarios(){refreshTick.value;return this.skillScenarios;},
@@ -500,7 +622,30 @@
         const name=this.mentionTables[this.mentionIndex];
         return name?aiChatHelpers.tableIntro(state.assets.find(asset=>asset.cnName===name),name):null;
       },
-      sessionGroups(){return aiChatHelpers.groupSessions(this.sessions);},
+      sessionGroups(){return aiChatHelpers.groupSessionsWithPin(aiChatHelpers.filterSessions(this.sessions,{keyword:this.sessionKeyword,channel:this.sessionChannel}));},
+      filteredReports(){
+        const kw=String(this.assetKeyword||"").trim().toLowerCase();
+        return this.reports.filter(report=>{
+          if(this.assetStarOnly&&!report.starred)return false;
+          if(!kw)return true;
+          return [report.title,report.scenario,report.summary,...(report.tables||[])].join(" ").toLowerCase().includes(kw);
+        });
+      },
+      isStreaming(){return (this.activeSession?.messages||[]).some(msg=>msg.streaming);},
+      inputMentionedTables(){return aiChatHelpers.extractMentionedTables(this.input,this.myTables);},
+      slashMatches(){
+        const kw=String(this.slashKeyword||"").trim().toLowerCase();
+        return (aiChatHelpers.SLASH_COMMANDS||[]).filter(item=>!kw||item.cmd.toLowerCase().includes(kw)||item.title.toLowerCase().includes(kw)||item.desc.toLowerCase().includes(kw));
+      },
+      canvasReport(){return this.canvasReportId?this.reports.find(item=>item.id===this.canvasReportId)||null:null;},
+      canvasOutline(){return this.canvasReport?.markdown&&aiRichView?aiRichView.extractOutline(this.canvasReport.markdown):[];},
+      latestSessionReport(){
+        const msgs=this.activeSession?.messages||[];
+        for(let i=msgs.length-1;i>=0;i--){
+          if(msgs[i].reportId){const hit=this.reports.find(r=>r.id===msgs[i].reportId);if(hit)return hit;}
+        }
+        return null;
+      },
       archivedReports(){refreshTick.value;return this.reports;},
       assetTree(){
         const groups={};
@@ -526,13 +671,15 @@
       }
     },
     mounted(){
-      this.pageHandler=event=>{if(event.detail?.page==="灵犀智析"){this.loadGatewaySkills();this.loadMyTables();this.loadModels();this.$nextTick(()=>this.scrollChatToStart());}};
+      this.pageHandler=event=>{if(event.detail?.page==="灵犀智析"){this.loadGatewaySkills();this.loadMyTables();this.loadModels();this.$nextTick(()=>{this.scrollChatToStart();this.enhanceRichViews();});}};
       window.addEventListener("portal:page-change",this.pageHandler);
       this.loadModels();
       this.loadGatewaySkills();
       this.loadHistory();
+      this.$nextTick(()=>this.enhanceRichViews());
     },
-    beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);clearInterval(this.etaTimer);},
+    updated(){this.enhanceRichViews();},
+    beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);clearInterval(this.etaTimer);this.abortCtrl?.abort();},
     methods:{
       icon: aiUi.icon,
       /* 打开 / 切换会话后的滚动位置：有消息停在最新一条，空会话（欢迎页）回到顶部，免得标题被卷到上面 */
@@ -778,13 +925,130 @@
       },
       newSession(){
         this.assetView=false;
+        this.canvasReportId="";
+        const existingEmpty=this.sessions.find(s=>!s.suggested&&(!s.messages||!s.messages.length));
+        if(existingEmpty){
+          this.activeId=existingEmpty.id;
+          this.input="";
+          this.mentionOpen=false;
+          this.slashOpen=false;
+          this.$nextTick(()=>this.$refs.inputBox?.focus?.());
+          return;
+        }
         const session=createAnalysisSession({title:"新的分析",scenario:this.scenarioName});
         session.status="进行中";
         this.sessions.unshift(session);
         this.activeId=session.id;
         this.input="";
         this.mentionOpen=false;
+        this.slashOpen=false;
         this.persistHistory();
+        this.$nextTick(()=>this.$refs.inputBox?.focus?.());
+      },
+      togglePinSession(session){
+        session.pinned=!session.pinned;
+        this.persistHistory(true);
+      },
+      async renameSession(session){
+        try{
+          const {value}=await ep.ElMessageBox.prompt("输入新的会话标题","重命名会话",{confirmButtonText:"保存",cancelButtonText:"取消",inputValue:session.title,inputValidator:val=>String(val||"").trim()?"":true});
+          const next=String(value||"").trim();
+          if(next){session.title=next.slice(0,40);this.persistHistory(true);}
+        }catch{ /* 用户取消 */ }
+      },
+      async removeSession(session){
+        if(!await confirmAction("删除会话",`确认删除「${session.title}」及其全部对话记录？`))return;
+        this.sessions=this.sessions.filter(item=>item.id!==session.id);
+        if(this.activeId===session.id){
+          this.canvasReportId="";
+          if(this.sessions.length)this.openSession(this.sessions[0].id);
+          else this.newSession();
+        }
+        this.persistHistory(true);
+      },
+      enhanceRichViews(){
+        if(!aiRichView)return;
+        if(this.$refs.chatBox)aiRichView.enhanceContainer(this.$refs.chatBox);
+        if(this.$refs.canvasBody)aiRichView.enhanceContainer(this.$refs.canvasBody);
+      },
+      verificationOf(msg){return aiChatHelpers.formatVerification(msg?.numericCheck);},
+      async copyMessage(msg){
+        const text=msg.reportId?this.reportMarkdownOf(msg.reportId):(msg.rawMarkdown||this.answerTextOf(msg));
+        if(!text)return;
+        try{
+          await navigator.clipboard.writeText(text);
+          this.copiedId=msg.requestId||"copied";
+          ep.ElMessage.success("已复制到剪贴板");
+          setTimeout(()=>{if(this.copiedId===(msg.requestId||"copied"))this.copiedId="";},1800);
+        }catch{ep.ElMessage.warning("复制失败，请手动选中复制");}
+      },
+      regenerateMessage(msg){
+        if(this.thinking||this.isStreaming)return;
+        const messages=this.activeSession?.messages||[];
+        const idx=messages.indexOf(msg);
+        const userMsg=messages.slice(0,Math.max(idx,0)).reverse().find(item=>item.role==="user");
+        const question=(userMsg?.lines||[]).join(" ").trim();
+        if(!question)return;
+        this.sendMessage({question,forcedSkillId:msg.plan?.skillId||""});
+      },
+      abortGeneration(){
+        if(this.abortCtrl){this.abortCtrl.abort();this.abortCtrl=null;}
+      },
+      onComposerPick(event){
+        const files=Array.from(event.target.files||[]);
+        event.target.value="";
+        if(files.length)this.addImageFiles(files);
+      },
+      openReportInCanvas(reportId){
+        const report=this.reports.find(item=>item.id===reportId);
+        if(!report){ep.ElMessage.info("该报告不存在或已被删除");return;}
+        this.canvasReportId=report.id;
+        this.$nextTick(()=>this.enhanceRichViews());
+      },
+      toggleCanvas(reportId){
+        this.canvasReportId=this.canvasReportId===reportId?"":reportId;
+        this.$nextTick(()=>this.enhanceRichViews());
+      },
+      scrollCanvasTo(headingText){
+        const body=this.$refs.canvasBody;
+        if(!body)return;
+        const target=Array.from(body.querySelectorAll("h3,h4,h5,h6")).find(el=>el.textContent.trim()===headingText);
+        if(target)target.scrollIntoView({behavior:"smooth",block:"start"});
+      },
+      exportReportMd(report){
+        if(!report)return;
+        const content=`# ${report.title}\n\n${report.summary?`> ${report.summary}\n\n`:""}${report.markdown||""}`;
+        const blob=new Blob([content],{type:"text/markdown;charset=utf-8;"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+        a.href=url;
+        a.download=`${report.title.replace(/[\\/:*?"<>|]/g,"-")}.md`;
+        a.click();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+      },
+      inspectTable(name){
+        const asset=(state.assets||[]).find(item=>item.cnName===name||item.table===name);
+        const intro=aiChatHelpers.tableIntro(asset,name);
+        const allFields=(Array.isArray(asset?.fields)?asset.fields:[]).map(f=>({name:f.name||"",dataType:f.type||"",comment:f.comment||"",remark:f.remark||""}));
+        this.inspectedTable={...intro,allFields};
+      },
+      citeInspectedTable(){
+        if(!this.inspectedTable?.title)return;
+        const token=`@${this.inspectedTable.title} `;
+        if(!this.input.includes(`@${this.inspectedTable.title}`)){
+          this.input=this.input?`${this.input.trimEnd()} ${token}`:token;
+        }
+        this.inspectedTable=null;
+        this.$nextTick(()=>this.$refs.inputBox?.focus?.());
+      },
+      removeMention(table){
+        this.input=String(this.input||"").replaceAll(`@${table} `,"").replaceAll(`@${table}`,"").trimStart();
+      },
+      applySlash(item){
+        this.input=item.template;
+        this.slashOpen=false;
+        this.slashKeyword="";
+        this.$nextTick(()=>this.$refs.inputBox?.focus?.());
       },
       /** 会话的业务线 = 该会话最近一次提问带的业务线 */
       sessionLine(session){
@@ -798,10 +1062,11 @@
       },
       openSession(id){
         this.activeId=id;
+        this.canvasReportId="";
         const session=this.sessions.find(item=>item.id===id);
         this.restoreSessionLine(session);
         if(session)this.scenario="general"; // 不再手动选 Skill：一律走自动路由，按问题动态加载
-        this.$nextTick(()=>this.scrollChatToStart());
+        this.$nextTick(()=>{this.scrollChatToStart();this.enhanceRichViews();});
       },
       setScenario(key){
         this.scenario=key;
@@ -947,21 +1212,34 @@
       onEnter(event){
         /* @ 下拉打开时回车 = 选中当前这张表，不发送 */
         if(this.mentionOpen&&this.mentionTables.length){event.preventDefault();this.insertMention(this.mentionTables[this.mentionIndex]||this.mentionTables[0]);return;}
+        if(this.slashOpen&&this.slashMatches.length){event.preventDefault();this.applySlash(this.slashMatches[this.slashIndex]||this.slashMatches[0]);return;}
         if(event.shiftKey)return;
         event.preventDefault();
         this.sendMessage();
       },
-      /* @ 下拉里：上下键移动、Esc 关闭 */
+      /* @ / 下拉里：上下键移动、Esc 关闭 */
       onComposerKey(event){
-        if(!this.mentionOpen)return;
-        if(event.key==="ArrowDown"||event.key==="ArrowUp"){
-          event.preventDefault();
-          this.mentionIndex=aiChatHelpers.moveIndex(this.mentionIndex,event.key==="ArrowDown"?1:-1,this.mentionTables.length);
-          this.$nextTick(()=>document.querySelector(".ai-mention-item.active")?.scrollIntoView({block:"nearest"}));
-        }else if(event.key==="Escape"){this.mentionOpen=false;}
+        if(this.mentionOpen){
+          if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+            event.preventDefault();
+            this.mentionIndex=aiChatHelpers.moveIndex(this.mentionIndex,event.key==="ArrowDown"?1:-1,this.mentionTables.length);
+            this.$nextTick(()=>document.querySelector(".ai-mention-item.active")?.scrollIntoView({block:"nearest"}));
+          }else if(event.key==="Escape"){this.mentionOpen=false;}
+          return;
+        }
+        if(this.slashOpen){
+          if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+            event.preventDefault();
+            this.slashIndex=aiChatHelpers.moveIndex(this.slashIndex,event.key==="ArrowDown"?1:-1,this.slashMatches.length);
+          }else if(event.key==="Escape"){this.slashOpen=false;}
+        }
       },
       onInput(value){
-        const match=String(value||"").match(/@([^@\s]*)$/);
+        const raw=String(value||"");
+        const slashMatch=raw.match(/^\/([^\s]*)$/);
+        if(slashMatch){this.slashOpen=true;this.slashKeyword=slashMatch[1];this.slashIndex=0;this.mentionOpen=false;return;}
+        this.slashOpen=false;
+        const match=raw.match(/@([^@\s]*)$/);
         if(match){this.mentionOpen=true;this.mentionKeyword=match[1];this.mentionIndex=0;}
         else this.mentionOpen=false;
       },
@@ -1132,9 +1410,12 @@
           return this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
         }
         try{
+          const controller=typeof AbortController==="function"?new AbortController():null;
+          this.abortCtrl=controller;
           const response=await fetch(`${analysisGatewayBase}/v1/analyze`,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
+            signal:controller?.signal,
             body:JSON.stringify({user:this.currentUser?.name||"曾祥竞",question:apiQuestion,scenario:forcedSkillId?(this.skillScenarios.find(item=>item.id===forcedSkillId)?.key||this.scenario):this.scenario,skillId:forcedSkillId||this.activeSkill?.id||"",tables:mentionedTables,assetCandidates,businessLine,model:this.model,reasoningEffort:this.reasoning,maxTokens:this.maxTokens,stream:true,images:images.length?images:undefined,...(reportOutput||{}),conversation:this.buildConversation(session,businessLine),sessionId:session.id,sessionTitle:session.title,portalContext:this.buildPortalContext(evidenceTables)})
           });
           const contentType=response.headers.get("content-type")||"";
@@ -1145,12 +1426,12 @@
             session.messages.push({role:"assistant",lines:[`分析失败：${data.error||"未知错误"}`]});
             this.persistHistory();
           }else{
-            const live={role:"assistant",lines:[""],streaming:true};
+            const live={role:"assistant",lines:[""],streaming:true,liveSteps:[]};
             session.messages.push(live);
             const liveMsg=session.messages[session.messages.length-1];
             const reader=response.body.getReader();
             const decoder=new TextDecoder();
-            let buffer="",full="",meta=null,errorMsg="",reasoningText="";
+            let buffer="",full="",meta=null,errorMsg="",reasoningText="",aborted=false;
             const toolLog=[];
             const idleTimeoutMs=45000, textIdleMs=60000;
             let lastDataAt=Date.now(), lastTextAt=Date.now();
@@ -1165,7 +1446,7 @@
                   reader.read(),
                   wait(Math.min(idleTimeoutMs-elapsedData, textIdleMs))
                 ]);
-              }catch(err){errorMsg="模型响应中断，请重试";break;}
+              }catch(err){if(err?.name==="AbortError"||controller?.signal?.aborted){aborted=true;break;}errorMsg="模型响应中断，请重试";break;}
               if(!chunk)continue;
               const {done,value}=chunk;
               if(done)break;
@@ -1204,6 +1485,7 @@
                   liveMsg.skillId=evt.routedSkill?.id||this.activeSkill?.id||"";
                   liveMsg.plan=evt.plan||null;
                   liveMsg.contextReset=evt.contextReset||undefined;
+                  if(evt.routedSkill?.name)liveMsg.liveSteps.push({icon:"layers",title:`已路由至「${evt.routedSkill.name}」`,desc:evt.output==="report"?"报告模式":"",status:""});
                 }
                 if(evt.status){
                   lastTextAt=Date.now();
@@ -1212,21 +1494,26 @@
                 if(evt.tool){
                   lastTextAt=Date.now();
                   toolLog.push(evt.tool);
+                  liveMsg.liveSteps.push({icon:"database",title:`调用 ${evt.tool.name}${evt.tool.table?` · ${evt.tool.table}`:""}`,desc:evt.tool.ok?"已返回":"异常",status:evt.tool.ok?"":"error"});
                   if(!full)liveMsg.lines=[`工具取数：${toolLog.map(call=>call.name+(call.table?`（${call.table}）`:"")+(call.ok?"":" ✗")).join("、")}`];
                 }
                 if(evt.done)meta=evt.meta||{};
                 if(evt.error)errorMsg=evt.error;
               }
             }
+            this.abortCtrl=null;
             this.thinking=false;
-            this.etaEnd(!errorMsg);
+            this.etaEnd(!errorMsg&&!aborted);
             liveMsg.streaming=false;
+            liveMsg.liveSteps=undefined;
             if(liveMsg.reasoning)liveMsg.thinkOpen=false;
-            const askFound=this.extractAsk(full);
+            const askFound=aborted?null:this.extractAsk(full);
             if(askFound)full=askFound.text;
             session.status=askFound?"进行中":"已完成";
             session.time=new Date().toLocaleString("zh-CN",{hour12:false}).replaceAll("/","-");
-            if(errorMsg&&!full){
+            if(aborted&&!full){
+              session.messages.splice(session.messages.indexOf(liveMsg),1,{role:"assistant",lines:["已停止本次分析。"]});
+            }else if(errorMsg&&!full){
               session.messages.splice(session.messages.indexOf(liveMsg),1,{role:"assistant",lines:[`分析失败：${errorMsg}`]});
             }else{
               // 上下总结：取自报告首两行（lead）与末尾要点（trail），报告本体只以超链形式置于中间
@@ -1234,9 +1521,11 @@
               const lead=allLines.slice(0,2).join("；").slice(0,120);
               const trail=(allLines.slice(2).map(line=>line.replace(/^[-•\d、.\s]+/,"").trim()).filter(line=>line.length>6&&!line.startsWith("证据限制")&&!line.includes("证据限制")).pop()||"分析详情、指标口径与上下游血缘见报告全文。").slice(0,80);
               // 只有用户明确要报告（服务端判定 output=report）才归档成报告卡片；其余回答不论长短都直接显示在对话里
-              const isReport=!errorMsg&&!askFound&&meta?.output==="report"&&full.trim().length>=40;
-              liveMsg.meta=this.buildMetaLine(meta||{})+(errorMsg?` · ⚠️ ${errorMsg}`:"");
+              const isReport=!errorMsg&&!askFound&&meta?.output==="report"&&full.trim().length>=40&&!aborted;
+              liveMsg.meta=this.buildMetaLine(meta||{})+(aborted?" · 已手动停止":"")+(errorMsg?` · ⚠️ ${errorMsg}`:"");
               liveMsg.requestId=meta?.requestId||"";
+              liveMsg.numericCheck=meta?.numericCheck||null;
+              liveMsg.rawMarkdown=full;
               if(liveMsg.requestId)this.loadReportTemplates();
               liveMsg.suggestions=(meta?.suggestions||[]).map(item=>item.text).filter(Boolean).slice(0,3);
               if(meta?.resolvedTerms)liveMsg.resolved=meta.resolvedTerms;
@@ -1263,12 +1552,18 @@
               this.persistHistory();
             }
             this.persistHistory(true);
+            this.$nextTick(()=>this.enhanceRichViews());
           }
         }catch(error){
+          this.abortCtrl=null;
           this.thinking=false;
           this.etaEnd(false);
           session.status="已完成";
-          session.messages.push({role:"assistant",lines:[`分析请求失败：${error.message}。请确认本地网关已启动（node scripts/analysis-gateway.cjs）。`]});
+          if(error?.name==="AbortError"){
+            session.messages.push({role:"assistant",lines:["已停止本次分析。"]});
+          }else{
+            session.messages.push({role:"assistant",lines:[`分析请求失败：${error.message}。请确认本地网关已启动（node scripts/analysis-gateway.cjs）。`]});
+          }
           this.persistHistory();
         }
         this.$nextTick(()=>{this.$refs.chatBox?.scrollTo({top:this.$refs.chatBox.scrollHeight,behavior:"smooth"});});
@@ -1383,33 +1678,38 @@
       renderMarkdown(markdown){
         const escape=value=>String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
         const lines=String(markdown).split(/\r?\n/);
-        let html="",inCode=false,inTable=false,inList=false,inMermaid=false,mermaidLines=[];
+        let html="",inCode=false,inTable=false,inList=false,inMermaid=false,inChart=false,mermaidLines=[],chartLines=[];
         const inline=value=>escape(value)
           .replace(/`([^`]+)`/g,"<code>$1</code>")
           .replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
         const closeList=()=>{if(inList){html+="</ul>";inList=false;}};
         const closeTable=()=>{if(inTable){html+="</tbody></table>";inTable=false;}};
-        lines.forEach(raw=>{
+        lines.forEach((raw,lineIndex)=>{
           const line=raw.trimEnd();
           if(/^```/.test(line)){
             closeList();closeTable();
             if(inCode){
-              if(inMermaid){html+="</div>";inMermaid=false;}else{html+="</code></pre>";}
+              if(inMermaid){html+=this.renderMermaidSvg(mermaidLines.join("\n"))+"</div>";inMermaid=false;}
+              else if(inChart){html+=(aiRichView?.renderChartBlock(chartLines.join("\n"))||`<pre><code>${escape(chartLines.join("\n"))}</code></pre>`);inChart=false;}
+              else{html+="</code></pre>";}
               inCode=false;
             }else{
-              const next=(lines[lines.indexOf(line)+1]||"");
-              if(/^mermaid/i.test(next)&&(next.includes("flowchart")||next.includes("graph"))){html+='<div class="portal-vue-mermaid" data-mermaid="1">';inMermaid=true;inCode=true;mermaidLines=[];lines.indexOf(line);return;}
+              const lang=line.slice(3).trim().toLowerCase();
+              const next=(lines[lineIndex+1]||"");
+              if(lang==="chart"){inChart=true;inCode=true;chartLines=[];return;}
+              if(lang==="mermaid"||(/^mermaid/i.test(next)&&(next.includes("flowchart")||next.includes("graph")))){html+='<div class="portal-vue-mermaid" data-mermaid="1">';inMermaid=true;inCode=true;mermaidLines=[];return;}
               html+='<pre><code>';inCode=true;
             }
             return;
           }
+          if(inChart){chartLines.push(raw);return;}
           if(inMermaid){mermaidLines.push(raw);return;}
           if(inCode){html+=escape(raw)+"\n";return;}
           if(/^\|.*\|$/.test(line)){
             const cells=line.replace(/^\||\|$/g,"").split("|");
             if(cells.every(cell=>/^\s*:?-{2,}:?\s*$/.test(cell)))return;
             if(!inTable){html+='<table class="portal-vue-ai-report-table"><tbody>';inTable=true;}
-            html+="<tr>"+cells.map((cell,index)=>`<${inTable&&html.endsWith("<tbody>")?"th":"td"}>${inline(cell.trim())}</${inTable&&html.endsWith("<tbody>")?"th":"td"}>`).join("")+"</tr>";
+            html+="<tr>"+cells.map(cell=>`<${inTable&&html.endsWith("<tbody>")?"th":"td"}>${inline(cell.trim())}</${inTable&&html.endsWith("<tbody>")?"th":"td"}>`).join("")+"</tr>";
             return;
           }
           closeTable();
@@ -1421,8 +1721,9 @@
           html+=`<p>${inline(line)}</p>`;
         });
         closeList();closeTable();
-        if(inCode)html+="</code></pre>";
-        if(inMermaid)html+=this.renderMermaidSvg(mermaidLines.join("\n"));
+        if(inCode&&!inMermaid&&!inChart)html+="</code></pre>";
+        if(inMermaid)html+=this.renderMermaidSvg(mermaidLines.join("\n"))+"</div>";
+        if(inChart)html+=(aiRichView?.renderChartBlock(chartLines.join("\n"))||"");
         return html;
       },
       renderMermaidSvg(source){

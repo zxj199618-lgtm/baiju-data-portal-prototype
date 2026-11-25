@@ -131,5 +131,58 @@
     return (index + delta + length) % length;
   }
 
-  window.PortalVue.aiChatHelpers = { tableIntro, moveIndex, chipWidth, groupSessions, buildTraceRows, estimateSeconds, pushDuration, formatDuration, formatEta, skillsUsed };
+  /** 会话筛选：按关键词（标题/业务线/消息摘要）和渠道过滤。 */
+  function filterSessions(sessions, { keyword = "", channel = "all" } = {}) {
+    const kw = String(keyword || "").trim().toLowerCase();
+    return (Array.isArray(sessions) ? sessions : []).filter(session => {
+      if (channel === "feishu" && session.channel !== "飞书机器人") return false;
+      if (channel === "web" && session.channel === "飞书机器人") return false;
+      if (!kw) return true;
+      const hay = [session.title, session.scenario, ...(session.messages || []).slice(0, 2).flatMap(m => m.lines || [])].join(" ").toLowerCase();
+      return hay.includes(kw);
+    });
+  }
+
+  /** 带置顶的会话分组：置顶会话单独置顶，其余复用 groupSessions。 */
+  function groupSessionsWithPin(sessions, now = new Date()) {
+    const list = Array.isArray(sessions) ? sessions : [];
+    const pinned = list.filter(s => s.pinned && s.status !== "进行中");
+    const rest = list.filter(s => !(s.pinned && s.status !== "进行中"));
+    const groups = groupSessions(rest, now);
+    if (!pinned.length) return groups;
+    const runningIdx = groups.findIndex(g => g.key === "running");
+    const pinGroup = { key: "pinned", label: "已置顶", items: pinned };
+    if (runningIdx >= 0) { groups.splice(runningIdx + 1, 0, pinGroup); return groups; }
+    return [pinGroup, ...groups];
+  }
+
+  /** 从输入框文本中提取所有已引用的合法表名（去重，保持出现顺序）。 */
+  function extractMentionedTables(text, myTables) {
+    const raw = String(text || "");
+    return [...new Set((Array.isArray(myTables) ? myTables : []).filter(table => raw.includes(`@${table}`)))];
+  }
+
+  /** 数字核验徽章文案：checked > 0 时返回状态、标题与未命中列表。 */
+  function formatVerification(numericCheck) {
+    if (!numericCheck || typeof numericCheck.checked !== "number" || numericCheck.checked <= 0) return null;
+    const ungrounded = Array.isArray(numericCheck.ungrounded) ? numericCheck.ungrounded : [];
+    if (!ungrounded.length) {
+      return { status: "ok", label: `${numericCheck.checked} 项数据已核验`, ungrounded: [] };
+    }
+    return { status: "warn", label: `${ungrounded.length} 项派生数字建议复核`, ungrounded };
+  }
+
+  /** 输入框 `/` 快捷分析指令。 */
+  const SLASH_COMMANDS = [
+    { key: "trend", cmd: "/趋势", title: "趋势分析", desc: "按日/周查看核心指标趋势与波动", template: "帮我分析近 7 天核心指标的变化趋势：" },
+    { key: "attribution", cmd: "/归因", title: "异动归因", desc: "拆解指标涨跌的渠道、产品或计划贡献", template: "帮我归因分析一下为什么出现波动：" },
+    { key: "caliber", cmd: "/口径", title: "指标与表口径", desc: "查询字段定义、计算口径与负责人", template: "帮我查一下相关表和指标口径：" },
+    { key: "lineage", cmd: "/血缘", title: "上下游影响", desc: "排查改表/改字段对下游任务和看板的影响", template: "帮我查一下变更的上下游血缘影响：" },
+    { key: "report", cmd: "/报告", title: "生成正式分析报告", desc: "将结论沉淀为可分享的结构化报告", template: "请基于以上分析生成一份结构化分析报告" }
+  ];
+
+  window.PortalVue.aiChatHelpers = {
+    tableIntro, moveIndex, chipWidth, groupSessions, buildTraceRows, estimateSeconds, pushDuration, formatDuration, formatEta, skillsUsed,
+    filterSessions, groupSessionsWithPin, extractMentionedTables, formatVerification, SLASH_COMMANDS
+  };
 })();

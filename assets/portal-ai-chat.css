@@ -398,3 +398,161 @@
 .ai-mention-info dt { flex: none; width: 44px; color: var(--ai-ink-3); }
 .ai-mention-info dd { min-width: 0; margin: 0; color: var(--ai-ink); overflow-wrap: anywhere; }
 @media (max-width: 900px) { .ai-mention-body { grid-template-columns: 1fr; } .ai-mention-info { display: none; } }
+
+/* ===== 会话栏搜索、渠道筛选与悬停快捷操作 ===== */
+.ai-side-tools { display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+.ai-side-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-sm); background: var(--ai-surface); transition: border-color .15s ease; }
+.ai-side-search:focus-within { border-color: var(--ai-line-strong); }
+.ai-side-search .ai-ico { width: 13px; height: 13px; font-size: 13px; color: var(--ai-ink-3); }
+.ai-side-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ai-ink); font-size: 12px; }
+.ai-side-search input::placeholder { color: var(--ai-ink-3); }
+.ai-side-search-clear { display: inline-flex; padding: 0; border: 0; background: transparent; color: var(--ai-ink-3); cursor: pointer; }
+.ai-side-search-clear:hover { color: var(--ai-ink); }
+.ai-side-filter { display: inline-flex; flex: none; padding: 2px; border-radius: var(--ai-r-sm); background: var(--ai-sunken); }
+.ai-side-filter button { height: 24px; padding: 0 7px; border: 0; border-radius: 6px; background: transparent; color: var(--ai-ink-2); font-size: 11.5px; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.ai-side-filter button.active { background: var(--ai-surface); color: var(--ai-ink); font-weight: 500; box-shadow: var(--ai-shadow-1); }
+.portal-vue-ai-session-top { position: relative; }
+.portal-vue-ai-session:hover .portal-vue-ai-session-top strong { padding-right: 64px; }
+.ai-session-ops { position: absolute; top: 50%; right: -2px; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 2px; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+.portal-vue-ai-session:hover .ai-session-ops, .portal-vue-ai-session:focus-within .ai-session-ops { opacity: 1; pointer-events: auto; }
+.ai-session-ops button { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: var(--ai-surface); color: var(--ai-ink-3); cursor: pointer; }
+.ai-session-ops button .ai-ico { width: 13px; height: 13px; font-size: 13px; }
+.ai-session-ops button:hover { background: var(--ai-line); color: var(--ai-ink); }
+.ai-session-ops button.on { color: var(--ai-ink); }
+.ai-session-ops button.is-danger:hover { background: var(--ai-danger-tint); color: var(--ai-danger); }
+
+/* ===== 左右分屏工作区与右侧报告画布 ===== */
+.ai-workspace-split { flex: 1 1 auto; min-height: 0; display: flex; overflow: hidden; }
+.ai-workspace-chat-col { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.ai-chat-head-ops { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.ai-head-btn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-sm); background: var(--ai-surface); color: var(--ai-ink-2); font-size: 12px; cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease; }
+.ai-head-btn:hover { border-color: var(--ai-line-strong); background: var(--ai-sunken); color: var(--ai-ink); }
+.ai-head-btn .ai-ico { width: 14px; height: 14px; font-size: 14px; }
+.ai-canvas-pane { flex: 0 0 46%; min-width: 380px; max-width: 640px; display: flex; flex-direction: column; border-left: 1px solid var(--ai-line); background: var(--ai-surface); overflow: hidden; }
+.ai-canvas-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--ai-line); background: var(--ai-surface-2); }
+.ai-canvas-title-wrap { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.ai-canvas-title-wrap .ai-ico { color: var(--ai-ink-2); }
+.ai-canvas-title-wrap strong { min-width: 0; overflow: hidden; color: var(--ai-ink); font-size: 14px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.ai-canvas-ops { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.ai-canvas-btn { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-sm); background: var(--ai-surface); color: var(--ai-ink); font-size: 12px; cursor: pointer; }
+.ai-canvas-btn:hover { border-color: var(--ai-line-strong); background: var(--ai-sunken); }
+.ai-canvas-btn .ai-ico, .ai-canvas-icon-btn .ai-ico { width: 14px; height: 14px; font-size: 14px; }
+.ai-canvas-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--ai-r-sm); background: transparent; color: var(--ai-ink-2); cursor: pointer; }
+.ai-canvas-icon-btn:hover { background: var(--ai-sunken); color: var(--ai-ink); }
+.ai-canvas-share { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--ai-line); background: var(--ai-surface-2); }
+.ai-canvas-share input { flex: 1; min-width: 0; height: 26px; padding: 0 8px; border: 1px solid var(--ai-line); border-radius: 6px; background: var(--ai-surface); color: var(--ai-ink-2); font-size: 12px; }
+.ai-canvas-share button { height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: var(--ai-accent); color: #fff; font-size: 12px; cursor: pointer; }
+.ai-canvas-outline { display: flex; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; overflow-x: auto; border-bottom: 1px solid var(--ai-line); background: var(--ai-surface); scrollbar-width: none; }
+.ai-canvas-outline::-webkit-scrollbar { display: none; }
+.ai-canvas-outline button { flex: none; padding: 3px 10px; border: 1px solid var(--ai-line); border-radius: 999px; background: var(--ai-surface-2); color: var(--ai-ink-2); font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+.ai-canvas-outline button:hover { border-color: var(--ai-line-strong); color: var(--ai-ink); }
+.ai-canvas-body { flex: 1 1 auto; min-height: 0; padding: 18px 20px 28px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--ai-line-strong) transparent; }
+@media (max-width: 1120px) { .ai-canvas-pane { position: absolute; inset: 0; max-width: none; min-width: 0; z-index: 12; } }
+
+/* ===== 实时步骤流、表溯源、数据核验徽章与扩展操作栏 ===== */
+.ai-live-steps { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; padding-left: 14px; border-left: 1px solid var(--ai-line); }
+.ai-trace-table-btn { display: inline-flex; width: fit-content; padding: 2px 8px 2px 4px; border: 0; border-radius: 6px; background: transparent; color: var(--ai-ink-2); font: inherit; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.ai-trace-table-btn:hover { background: var(--ai-sunken); color: var(--ai-ink); }
+.ai-ref-clickable { cursor: pointer; }
+.ai-ref-clickable:hover { opacity: .82; }
+.ai-verify-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 500; cursor: help; }
+.ai-verify-badge .ai-ico { width: 13px; height: 13px; font-size: 13px; }
+.ai-verify-badge.is-ok { background: var(--ai-ok-tint); color: var(--ai-ok); }
+.ai-verify-badge.is-warn { background: var(--ai-amber-tint); color: var(--ai-amber); }
+.portal-vue-ai-feedback { align-items: center; }
+.ai-action-pill { display: inline-flex; align-items: center; gap: 5px; height: 28px !important; width: auto !important; padding: 0 10px !important; border: 1px solid var(--ai-line) !important; border-radius: 999px !important; background: var(--ai-surface) !important; color: var(--ai-ink-2) !important; font-size: 12px !important; opacity: 1 !important; cursor: pointer; }
+.ai-action-pill:hover { border-color: var(--ai-line-strong) !important; background: var(--ai-sunken) !important; color: var(--ai-ink) !important; }
+.ai-action-pill .ai-ico { width: 13px; height: 13px; font-size: 13px; }
+
+/* ===== 输入区扩展：引用胶囊、/ 指令菜单、上传按钮、停止生成 ===== */
+.ai-input-refs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 760px; margin: 0 auto 8px; }
+.ai-input-refs-label { color: var(--ai-ink-3); font-size: 12px; }
+.ai-input-ref-chip { display: inline-flex; align-items: center; border: 1px solid var(--ai-line); border-radius: 999px; background: var(--ai-surface-2); overflow: hidden; }
+.ai-input-ref-name { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border: 0; background: transparent; color: var(--ai-ink); font-size: 12px; cursor: pointer; }
+.ai-input-ref-name .ai-ico { width: 12px; height: 12px; font-size: 12px; color: var(--ai-ink-3); }
+.ai-input-ref-name:hover { background: var(--ai-sunken); }
+.ai-input-ref-x { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 24px; padding: 0; border: 0; border-left: 1px solid var(--ai-line); background: transparent; color: var(--ai-ink-3); cursor: pointer; }
+.ai-input-ref-x .ai-ico { width: 10px; height: 10px; font-size: 10px; }
+.ai-input-ref-x:hover { background: var(--ai-sunken); color: var(--ai-ink); }
+.ai-slash-menu { max-width: 760px; margin: 0 auto 8px; overflow: hidden; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); box-shadow: var(--ai-shadow-2); }
+.ai-slash-list { margin: 0; padding: 6px; list-style: none; border-top: 1px solid var(--ai-line); }
+.ai-slash-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--ai-r-sm); cursor: pointer; }
+.ai-slash-item.active { background: var(--ai-sunken); }
+.ai-slash-cmd { flex: none; padding: 1px 8px; border-radius: 6px; background: var(--ai-sunken); color: var(--ai-ink); font-family: var(--ai-font-mono); font-size: 12px; font-weight: 500; }
+.ai-slash-item.active .ai-slash-cmd { background: var(--ai-surface); }
+.ai-slash-title { flex: none; color: var(--ai-ink); font-size: 13px; font-weight: 500; }
+.ai-slash-desc { min-width: 0; overflow: hidden; color: var(--ai-ink-3); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.ai-tool-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--ai-ink-2); cursor: pointer; transition: background .15s ease, color .15s ease; }
+.ai-tool-icon-btn:hover { background: var(--ai-sunken); color: var(--ai-ink); }
+.ai-stop-btn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 12px; border: 1px solid var(--ai-danger); border-radius: 999px; background: var(--ai-danger-tint); color: var(--ai-danger); font-size: 12px; font-weight: 500; cursor: pointer; }
+.ai-stop-btn .ai-ico { width: 11px; height: 11px; font-size: 11px; }
+.ai-stop-btn:hover { background: var(--ai-danger); color: #fff; }
+
+/* ===== 交互式数据表格卡片与原生 SVG 图表 ===== */
+.ai-table-card { margin: 12px 0; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); overflow: hidden; }
+.ai-table-card .portal-vue-ai-report-table { margin: 0; border: 0; border-radius: 0; }
+.ai-table-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 12px; border-bottom: 1px solid var(--ai-line); background: var(--ai-surface-2); }
+.ai-table-bar-left, .ai-table-bar-actions { display: inline-flex; align-items: center; gap: 8px; }
+.ai-table-meta { color: var(--ai-ink-3); font-size: 11.5px; }
+.ai-table-seg { display: inline-flex; padding: 2px; border-radius: var(--ai-r-sm); background: var(--ai-sunken); }
+.ai-table-seg button { height: 22px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--ai-ink-2); font-size: 11.5px; cursor: pointer; }
+.ai-table-seg button.active { background: var(--ai-surface); color: var(--ai-ink); font-weight: 500; box-shadow: var(--ai-shadow-1); }
+.ai-table-act { height: 24px; padding: 0 8px; border: 1px solid var(--ai-line); border-radius: 6px; background: var(--ai-surface); color: var(--ai-ink-2); font-size: 11.5px; cursor: pointer; }
+.ai-table-act:hover { border-color: var(--ai-line-strong); color: var(--ai-ink); }
+.ai-table-scroll { overflow-x: auto; }
+.portal-vue-ai-report-table th.is-num, .portal-vue-ai-report-table td.is-num { text-align: right; font-variant-numeric: tabular-nums; }
+.portal-vue-ai-report-table th.is-sortable { cursor: pointer; user-select: none; }
+.portal-vue-ai-report-table th.is-sortable:hover { color: var(--ai-ink); }
+.portal-vue-ai-report-table th[data-sort="asc"]::after { content: " ↑"; color: var(--ai-ink); }
+.portal-vue-ai-report-table th[data-sort="desc"]::after { content: " ↓"; color: var(--ai-ink); }
+.ai-num-delta { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+.ai-num-delta.is-up { background: var(--ai-ok-tint); color: var(--ai-ok); }
+.ai-num-delta.is-down { background: var(--ai-danger-tint); color: var(--ai-danger); }
+.ai-table-chart-host { padding: 12px 14px 14px; }
+.ai-chart-metrics { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ai-chart-metrics button { height: 24px; padding: 0 10px; border: 1px solid var(--ai-line); border-radius: 999px; background: var(--ai-surface-2); color: var(--ai-ink-2); font-size: 11.5px; cursor: pointer; }
+.ai-chart-metrics button.active { border-color: var(--ai-accent); background: var(--ai-accent); color: #fff; }
+.ai-chart-card { margin: 12px 0; padding: 14px 16px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface); }
+.ai-chart-stage { position: relative; }
+.ai-chart-title { margin-bottom: 8px; color: var(--ai-ink); font-size: 13px; font-weight: 500; }
+.ai-chart-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.ai-chart-grid { stroke: var(--ai-chart-grid); stroke-width: 1; }
+.ai-chart-axis { fill: var(--ai-ink-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ai-chart-val { fill: var(--ai-ink-2); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ai-chart-area { fill: var(--ai-sunken); opacity: .7; }
+.ai-chart-bar, .ai-chart-dot { cursor: pointer; transition: opacity .15s ease; }
+.ai-chart-bar:hover, .ai-chart-dot:hover { opacity: .78; }
+.ai-chart-tip { position: absolute; z-index: 5; padding: 5px 10px; border-radius: var(--ai-r-sm); background: var(--ai-ink); color: #fff; font-size: 12px; white-space: nowrap; pointer-events: none; box-shadow: var(--ai-shadow-2); }
+.ai-chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; color: var(--ai-ink-2); font-size: 11.5px; }
+.ai-chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.ai-chart-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* ===== 表结构溯源抽屉 & 分析资产工具栏 ===== */
+.ai-table-drawer.el-drawer { background: var(--ai-canvas); box-shadow: var(--ai-shadow-2); }
+.ai-table-drawer .el-drawer__body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.ai-table-drawer-sub { margin: 0; color: var(--ai-ink-2); font-size: 13px; line-height: 1.65; }
+.ai-table-drawer-meta { margin: 0; padding: 10px 12px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-md); background: var(--ai-surface-2); display: grid; gap: 6px; }
+.ai-table-drawer-meta > div { display: flex; gap: 10px; font-size: 12.5px; }
+.ai-table-drawer-meta dt { flex: none; width: 64px; color: var(--ai-ink-3); }
+.ai-table-drawer-meta dd { margin: 0; color: var(--ai-ink); min-width: 0; overflow-wrap: anywhere; }
+.ai-table-drawer-fields-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 500; color: var(--ai-ink); }
+.ai-table-drawer-cite { height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--ai-accent); color: #fff; font-size: 12px; cursor: pointer; }
+.ai-table-drawer-cite:hover { background: var(--ai-accent-hover); }
+.ai-table-drawer-fields { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.ai-table-drawer-field { padding: 8px 10px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-sm); background: var(--ai-surface); }
+.ai-table-drawer-field-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ai-table-drawer-field-top code { font-family: var(--ai-font-mono); font-size: 12.5px; color: var(--ai-ink); font-weight: 500; }
+.ai-table-drawer-field-top span { font-size: 11px; color: var(--ai-ink-3); }
+.ai-table-drawer-field p { margin: 4px 0 0; font-size: 12px; color: var(--ai-ink-2); line-height: 1.5; }
+.ai-assets-head-ops { display: flex; align-items: center; gap: 8px; }
+.ai-assets-search { display: flex; align-items: center; gap: 6px; height: 32px; width: 220px; padding: 0 10px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-sm); background: var(--ai-surface); }
+.ai-assets-search .ai-ico { width: 14px; height: 14px; font-size: 14px; color: var(--ai-ink-3); }
+.ai-assets-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ai-ink); font-size: 12.5px; }
+.ai-assets-filter-btn { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 12px; border: 1px solid var(--ai-line); border-radius: var(--ai-r-sm); background: var(--ai-surface); color: var(--ai-ink-2); font-size: 12.5px; cursor: pointer; }
+.ai-assets-filter-btn.active { border-color: var(--ai-accent); background: var(--ai-accent); color: #fff; }
+.ai-assets-filter-btn .ai-ico { width: 13px; height: 13px; font-size: 13px; }
+.ai-asset-card-ops { display: inline-flex; align-items: center; gap: 2px; opacity: 0; transition: opacity .15s ease; }
+.portal-vue-ai-asset-card:hover .ai-asset-card-ops { opacity: 1; }
+.ai-asset-card-ops button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ai-ink-3); cursor: pointer; }
+.ai-asset-card-ops button:hover { background: var(--ai-sunken); color: var(--ai-ink); }
+.ai-asset-card-ops button.on { color: var(--ai-amber); opacity: 1; }
