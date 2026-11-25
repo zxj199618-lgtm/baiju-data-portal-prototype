@@ -69,4 +69,37 @@ describe("审计日志查询", () => {
     const result = await query("?type=analysis&limit=1");
     assert.equal(result.data.items[0].question, "最新的一条");
   });
+
+  test("对话上下文详情接口：仅管理员可查，按 requestId 从历史中精准定位提问与模型输出", async () => {
+    const userToken = await harness.tokenFor("李雨航");
+    assert.equal((await harness.call("GET", "/v1/audit/context?requestId=req-1", { token: userToken })).status, 403);
+    assert.equal((await harness.call("GET", "/v1/audit/context", { token: admin })).status, 400);
+
+    await harness.call("PUT", "/v1/history", {
+      token: userToken,
+      body: {
+        sessions: [{
+          id: "S-CTX-1", title: "消耗异动排查", channel: "工作台对话", time: "2026-11-25 15:00",
+          messages: [
+            { role: "user", lines: ["第一轮问题"] },
+            { role: "assistant", lines: ["第一轮回答"], requestId: "req-turn-1" },
+            { role: "user", lines: ["第二轮追问：为什么 CPA 上涨？"] },
+            { role: "assistant", lines: [], rawMarkdown: "## 结论\n巨量渠道拉高了整体 CPA。", html: "<h4>结论</h4><p>巨量渠道拉高了整体 CPA。</p>", requestId: "req-turn-2" }
+          ]
+        }],
+        reports: []
+      }
+    });
+
+    const ctx = await harness.call("GET", "/v1/audit/context?requestId=req-turn-2&user=%E6%9D%8E%E9%9B%A8%E8%88%AA", { token: admin });
+    assert.equal(ctx.status, 200);
+    assert.equal(ctx.data.found, true);
+    assert.equal(ctx.data.source, "history");
+    assert.equal(ctx.data.session.id, "S-CTX-1");
+    assert.equal(ctx.data.messages.length, 4);
+    assert.equal(ctx.data.messages[2].isTargetQuestion, true);
+    assert.equal(ctx.data.messages[3].isTargetAnswer, true);
+    assert.equal(ctx.data.targetIndex, 3);
+    assert.ok(ctx.data.messages[3].markdown.includes("巨量渠道拉高了整体 CPA"));
+  });
 });

@@ -36,13 +36,13 @@
             <el-table-column prop="question" label="问题" min-width="220" show-overflow-tooltip></el-table-column>
             <el-table-column label="回答结果" min-width="320"><template #default="scope"><el-popover v-if="scope.row.answer" placement="left" :width="520" trigger="click"><template #reference><div class="portal-vue-ai-fb-answer" title="点击查看完整回答">{{ scope.row.answer }}</div></template><div style="max-height:360px;overflow:auto;white-space:pre-wrap;line-height:1.7">{{ scope.row.answer }}</div></el-popover><span v-else class="portal-vue-muted">—（历史记录未保存）</span></template></el-table-column>
             <el-table-column label="原因" min-width="200"><template #default="scope">{{ scope.row.comment }}<el-tag v-if="(scope.row.images || []).length" size="small" effect="plain" style="margin-left:6px">截图 {{ scope.row.images.length }}</el-tag></template></el-table-column>
-            <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button></template></el-table-column>
+            <el-table-column label="操作" width="130" fixed="right"><template #default="scope"><el-button link type="primary" @click="openDetail(scope.row)">详情</el-button><el-button link type="primary" data-test="feedback-row-context" @click="jumpToContext(scope.row)">上下文</el-button></template></el-table-column>
           </el-table>
           <div class="portal-vue-pagination"><span>共 {{ feedback.items.length }} 条，当前 {{ rangeOf(feedback.items.length) }}</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10,20,50]" :total="feedback.items.length" layout="sizes, prev, pager, next"></el-pagination></div>
         </section>
         <el-drawer v-model="detailVisible" title="反馈详情" direction="rtl" size="560px" :close-on-click-modal="true" @closed="closeDetail">
           <div v-if="detail" class="fbd">
-            <div class="fbd-rating"><span>{{ detail.rating === 'up' ? '👍' : '👎' }}</span><strong>{{ detail.rating === 'up' ? '好评' : '差评' }}</strong><small>{{ formatTime(detail.at) }} · {{ detail.user }}</small></div>
+            <div class="fbd-rating"><span>{{ detail.rating === 'up' ? '👍' : '👎' }}</span><strong>{{ detail.rating === 'up' ? '好评' : '差评' }}</strong><small>{{ formatTime(detail.at) }} · {{ detail.user }}</small><el-button size="small" type="primary" plain style="margin-left:auto" data-test="feedback-jump-context" @click="jumpToContext(detail)">在对话上下文中定位查看 →</el-button></div>
             <dl class="fbd-meta"><div><dt>模型</dt><dd>{{ detail.model || '—' }}</dd></div><div><dt>Skill</dt><dd>{{ detail.skill || '—' }}</dd></div><div><dt>请求编号</dt><dd><code>{{ detail.requestId }}</code></dd></div></dl>
             <h4>问题</h4><p class="fbd-box">{{ detail.question || '—' }}</p>
             <h4>用户反馈原因</h4><p class="fbd-box" :class="{ muted: !detail.comment }">{{ detail.comment || '（未填写）' }}</p>
@@ -71,6 +71,17 @@
       rangeOf(total) { if (!total) return "0-0"; return `${(this.page - 1) * this.pageSize + 1}-${Math.min(this.page * this.pageSize, total)}`; },
       formatTime,
       openDetail(row) { this.detail = row; this.detailVisible = true; this.loadImages(row); },
+      jumpToContext(row) {
+        if (!row) return;
+        this.detailVisible = false;
+        window.PortalVue.auditContextFocus = {
+          requestId: row.requestId || "",
+          sessionId: row.context?.sessionId || "",
+          user: row.user || "",
+          question: row.question || ""
+        };
+        window.portalVueBridge.setPage("访问记录");
+      },
       /* 截图只有管理员能看，接口要登录态：用带令牌的 fetch 取回再转成本地地址（<img src> 直连网关在跨域部署时不带令牌） */
       async loadImages(row) {
         this.releaseImages();

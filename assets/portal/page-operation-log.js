@@ -203,7 +203,17 @@
         { text: "近 7 天", value: () => back(604800000) }
       ];
     },
-    mounted() { this.loadRecords(); },
+    mounted() {
+      this.loadRecords();
+      this.pageHandler = event => {
+        if (event.detail?.page === "访问记录" && window.PortalVue.auditContextFocus) {
+          this.topTab = "ai";
+          this.$nextTick(() => window.dispatchEvent(new CustomEvent("portal:open-audit-context")));
+        }
+      };
+      window.addEventListener("portal:page-change", this.pageHandler);
+    },
+    beforeUnmount() { window.removeEventListener("portal:page-change", this.pageHandler); },
     watch: { topTab(value) { if (value === "board") this.loadRecords(); } },
     computed: {
       /* 筛选用户下拉：取自已有的访问记录 */

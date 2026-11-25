@@ -2141,6 +2141,7 @@ function sanitizeHistoryMessage(msg) {
     lines: Array.isArray(msg?.lines) ? msg.lines.slice(0, 80).map(line => String(line).slice(0, 8000)) : [],
     refs: Array.isArray(msg?.refs) ? msg.refs.slice(0, 8).map(ref => String(ref).slice(0, 80)) : undefined,
     html: String(msg?.html || "").slice(0, 120000),
+    rawMarkdown: String(msg?.rawMarkdown || "").slice(0, 120000),
     meta: String(msg?.meta || "").slice(0, 400),
     model: String(msg?.model || "").slice(0, 80),
     reportId: String(msg?.reportId || "").slice(0, 80),
@@ -2647,7 +2648,7 @@ function isPublicApi(method, pathname) {
 
 /* 管理类接口：AI 中心（供应商、模型配置、Skill 管理）、表数据与权限的写操作，以及供应商明细读取 */
 function requiresAdmin(method, pathname) {
-  if (method === "GET") return pathname === "/v1/providers" || pathname === "/v1/model-config" || pathname === "/v1/usage/all" || pathname === "/v1/feedback" || pathname.startsWith("/v1/feedback/images/") || pathname === "/v1/accounts" || pathname === "/v1/audit" || pathname === "/v1/table-fields";
+  if (method === "GET") return pathname === "/v1/providers" || pathname === "/v1/model-config" || pathname === "/v1/usage/all" || pathname === "/v1/feedback" || pathname.startsWith("/v1/feedback/images/") || pathname === "/v1/accounts" || pathname === "/v1/audit" || pathname === "/v1/audit/context" || pathname === "/v1/table-fields";
   return /^\/v1\/(providers|model-config|default-model|table-rows|permissions|quota|org|accounts|skills\/upload)(\/|$)/.test(pathname) || /^\/v1\/skills\/[^/]+\/config$/.test(pathname);
 }
 
@@ -3232,6 +3233,159 @@ async function handleRequest(req, res) {
     const counts = {};
     all.forEach(entry => { counts[entry.type] = (counts[entry.type] || 0) + 1; });
     return sendJson(res, 200, { items: all.slice(0, limit), matched: all.length, counts });
+  }
+
+  // 单条对话记录的完整上下文与模型输出（管理员）：按 requestId / sessionId 精准定位，用于「AI 对话记录」和「AI 反馈」跳转定位
+  if (req.method === "GET" && url.pathname === "/v1/audit/context") {
+    const requestId = String(url.searchParams.get("requestId") || "").trim();
+    const qSessionId = String(url.searchParams.get("sessionId") || "").trim();
+    const qUser = String(url.searchParams.get("user") || "").trim();
+    const qScope = String(url.searchParams.get("scope") || "").trim();
+    const qQuestion = String(url.searchParams.get("question") || "").trim();
+    if (!requestId && !qSessionId) return sendJson(res, 400, { error: "请提供 requestId 或 sessionId" });
+
+    const tail = readAuditTail();
+    const audit = (requestId && tail.find(entry => entry.type === "analysis" && entry.requestId === requestId))
+      || (qSessionId && tail.find(entry => entry.type === "analysis" && entry.sessionId === qSessionId && (!qQuestion || entry.question === qQuestion)))
+      || null;
+    const toolCalls = requestId ? tail.filter(entry => entry.tool && entry.requestId === requestId).reverse() : [];
+    const targetSessionId = qSessionId || audit?.sessionId || "";
+    const targetQuestion = qQuestion || audit?.question || "";
+    const candidateKeys = [...new Set([audit?.scope, qScope, audit?.user, qUser].filter(Boolean))];
+
+    const store = readHistoryStore();
+    const buckets = [];
+    const seenKey = new Set();
+    for (const key of candidateKeys) {
+      if (store.users[key] && !seenKey.has(key)) { seenKey.add(key); buckets.push({ key, box: store.users[key] }); }
+    }
+    for (const [key, box] of Object.entries(store.users || {})) {
+      if (!seenKey.has(key)) { seenKey.add(key); buckets.push({ key, box }); }
+    }
+
+    let matchedSession = null;
+    let matchedReports = [];
+    let targetAnswerIdx = -1;
+    let targetQuestionIdx = -1;
+
+    // 1. 优先按 requestId 在所有会话消息中精准定位
+    if (requestId) {
+      for (const { box } of buckets) {
+        const sessions = Array.isArray(box?.sessions) ? box.sessions : [];
+        for (const s of sessions) {
+          const msgs = Array.isArray(s?.messages) ? s.messages : [];
+          const hit = msgs.findIndex(m => m && m.requestId === requestId);
+          if (hit >= 0) {
+            matchedSession = s;
+            matchedReports = Array.isArray(box?.reports) ? box.reports : [];
+            targetAnswerIdx = hit;
+            break;
+          }
+        }
+        if (matchedSession) break;
+      }
+    }
+    // 2. 其次按 sessionId 定位会话，并按问题文本定位目标轮次
+    if (!matchedSession && targetSessionId) {
+      for (const { box } of buckets) {
+        const sessions = Array.isArray(box?.sessions) ? box.sessions : [];
+        const hitSession = sessions.find(s => s && s.id === targetSessionId);
+        if (hitSession) {
+          matchedSession = hitSession;
+          matchedReports = Array.isArray(box?.reports) ? box.reports : [];
+          const msgs = Array.isArray(hitSession.messages) ? hitSession.messages : [];
+          if (targetQuestion) {
+            const norm = s => String(s || "").replace(/\s+/g, " ").trim();
+            const want = norm(targetQuestion);
+            const qIdx = msgs.findIndex(m => m?.role === "user" && (norm((m.lines || []).join(" ")) === want || want.startsWith(norm((m.lines || []).join(" ")))));
+            if (qIdx >= 0) {
+              targetQuestionIdx = qIdx;
+              if (msgs[qIdx + 1] && msgs[qIdx + 1].role === "assistant") targetAnswerIdx = qIdx + 1;
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    if (matchedSession) {
+      const msgs = Array.isArray(matchedSession.messages) ? matchedSession.messages : [];
+      if (targetAnswerIdx >= 0 && targetQuestionIdx < 0) {
+        for (let i = targetAnswerIdx - 1; i >= 0; i--) {
+          if (msgs[i]?.role === "user") { targetQuestionIdx = i; break; }
+        }
+      }
+      const reportById = Object.fromEntries(matchedReports.map(r => [r.id, r]));
+      const formatted = msgs.map((m, idx) => {
+        const rpt = m.reportId ? reportById[m.reportId] : null;
+        const plainFromHtml = String(m.html || "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+        const text = m.role === "user"
+          ? (m.lines || []).join("\n")
+          : (m.rawMarkdown || rpt?.markdown || (m.lines || []).join("\n") || plainFromHtml);
+        return {
+          index: idx,
+          role: m.role === "user" ? "user" : "assistant",
+          text,
+          html: m.html || "",
+          markdown: m.rawMarkdown || rpt?.markdown || "",
+          reportId: m.reportId || "",
+          reportTitle: rpt?.title || "",
+          leadMsg: m.leadMsg || "",
+          trailMsg: m.trailMsg || "",
+          requestId: m.requestId || "",
+          meta: m.meta || "",
+          refs: m.refs || [],
+          businessLine: m.businessLine || "",
+          plan: m.plan || null,
+          resolved: m.resolved || [],
+          isTargetQuestion: idx === targetQuestionIdx,
+          isTargetAnswer: idx === targetAnswerIdx
+        };
+      });
+      return sendJson(res, 200, {
+        found: true,
+        source: "history",
+        audit,
+        session: { id: matchedSession.id, title: matchedSession.title || audit?.sessionTitle || "未命名会话", channel: matchedSession.channel || "工作台对话", time: matchedSession.time || "" },
+        messages: formatted,
+        targetIndex: targetAnswerIdx >= 0 ? targetAnswerIdx : targetQuestionIdx,
+        toolCalls
+      });
+    }
+
+    // 3. 兜底：从证据账本或反馈记录中还原上下文与输出
+    let ledger = null;
+    if (requestId) {
+      for (const key of candidateKeys) {
+        ledger = evidenceLedger.load(requestId, key);
+        if (ledger) break;
+      }
+    }
+    const fbItem = requestId ? (feedbackStore.list({ limit: 500 }).find(item => item.requestId === requestId) || null) : null;
+    if (ledger || fbItem || audit) {
+      const messages = [];
+      if (fbItem?.context?.conversation?.length) {
+        fbItem.context.conversation.forEach((turn, idx) => {
+          messages.push({ index: idx, role: turn.role === "user" ? "user" : "assistant", text: turn.text || "", html: "", markdown: "", isTargetQuestion: false, isTargetAnswer: false });
+        });
+      }
+      const qText = targetQuestion || ledger?.question || fbItem?.question || "";
+      const aText = ledger?.answer || fbItem?.answer || (audit?.error ? `分析失败：${audit.error}` : "");
+      if (qText) messages.push({ index: messages.length, role: "user", text: qText, html: "", markdown: "", isTargetQuestion: true, isTargetAnswer: false });
+      const ansIdx = messages.length;
+      if (aText) messages.push({ index: ansIdx, role: "assistant", text: aText, html: "", markdown: aText, requestId, isTargetQuestion: false, isTargetAnswer: true });
+      return sendJson(res, 200, {
+        found: Boolean(ledger || fbItem),
+        source: ledger ? "ledger" : fbItem ? "feedback" : "audit",
+        audit,
+        session: { id: targetSessionId, title: audit?.sessionTitle || "单轮记录（原会话已清理或未保存）", channel: "工作台对话", time: audit?.at || fbItem?.at || "" },
+        messages,
+        targetIndex: aText ? ansIdx : Math.max(0, messages.length - 1),
+        toolCalls
+      });
+    }
+
+    return sendJson(res, 200, { found: false, source: "none", audit: null, session: null, messages: [], targetIndex: -1, toolCalls: [] });
   }
 
   // 账号管理（管理员）：新增、停用 / 启用、重置密码。停用立即生效（已签发的令牌下一次请求就被拒绝）。
