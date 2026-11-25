@@ -52,7 +52,26 @@
     "shield-check": '<path d="M12 3l7.5 3v5.2c0 4.6-3.1 8.5-7.5 10.3-4.4-1.8-7.5-5.7-7.5-10.3V6L12 3z"/><path d="M9 12.2l2 2 4.2-4.2"/>',
     expand: '<path d="M15 4h5v5M9 20H4v-5M20 4l-6 6M4 20l6-6"/>',
     star: '<path d="M12 3.5l2.6 5.4 6 .9-4.3 4.2 1 6-5.3-2.8L6.7 20l1-6-4.3-4.2 6-.9L12 3.5z"/>',
-    slash: '<path d="M16 4L8 20"/>'
+    slash: '<path d="M16 4L8 20"/>',
+    /* 业务线专属图标 */
+    "line-general": '<circle cx="12" cy="12" r="8.5"/><polygon points="15.8 8.2 13.8 13.8 8.2 15.8 10.2 10.2 15.8 8.2"/>',
+    "line-equity": '<path d="M6.5 4.5h11l3.5 5-9 10.5L3 9.5l3.5-5z"/><path d="M3 9.5h18M9.5 4.5L7.5 9.5 12 20l4.5-10.5-2-5"/>',
+    "line-retention": '<path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5H7.5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.3M15.5 4.8a3.5 3.5 0 0 1 0 6.4"/>',
+    "line-sim": '<path d="M6 3.5h8.2L19 8.3V19a1.8 1.8 0 0 1-1.8 1.8H6.8A1.8 1.8 0 0 1 5 19V5.3A1.8 1.8 0 0 1 6 3.5z"/><rect x="8.5" y="11" width="7" height="6" rx="1"/><path d="M12 11v6M8.5 14h7"/>',
+    "line-insurance": '<path d="M12 3l7.5 3v5.5c0 4.6-3.1 8.5-7.5 10-4.4-1.5-7.5-5.4-7.5-10V6L12 3z"/><path d="M12 8.5v7M8.5 12h7"/>',
+    "line-drama": '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 9.5h17M8 5l2 4.5M14 5l2 4.5"/><path d="M10.5 12.2l4 2.3-4 2.3v-4.6z" fill="currentColor" stroke="none"/>',
+    "line-earn": '<circle cx="9.5" cy="9.5" r="5.5"/><path d="M15.2 10.6a5.5 5.5 0 1 1-4.6 4.6"/><path d="M9.5 7.2v4.6M7.8 9.5h3.4"/>',
+    /* 大模型品牌图标 */
+    "model-openai": '<circle cx="12" cy="12" r="2.8"/><path d="M12 3.5a4.2 4.2 0 0 1 3.7 2.2l-3.7 6.3M19.4 7.8a4.2 4.2 0 0 1 0 4.4l-7.4 0M19.4 16.2a4.2 4.2 0 0 1-3.7 2.3L12 12M12 20.5a4.2 4.2 0 0 1-3.7-2.2l3.7-6.3M4.6 16.2a4.2 4.2 0 0 1 0-4.4l7.4 0M4.6 7.8a4.2 4.2 0 0 1 3.7-2.3L12 12"/>',
+    "model-claude": '<path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/>',
+    "model-gemini": '<path d="M12 3c.8 5.2 3.8 8.2 9 9-5.2.8-8.2 3.8-9 9-.8-5.2-3.8-8.2-9-9 5.2-.8 8.2-3.8 9-9z" fill="currentColor" stroke="none"/>',
+    "model-qwen": '<polygon points="12 3 19.5 7.3 19.5 16.7 12 21 4.5 16.7 4.5 7.3"/><path d="M12 7.2l1.3 3.5 3.5 1.3-3.5 1.3-1.3 3.5-1.3-3.5-3.5-1.3 3.5-1.3 1.3-3.5z" fill="currentColor" stroke="none"/>',
+    "model-deepseek": '<path d="M4 13.5c1.5-4.5 5.8-7 10.2-5.8 2.8.8 4.8 3 5.8 5.3-1.2 3.8-4.8 6-9 5.5-2.8-.3-5.2-1.8-7-5z"/><path d="M4 13.5L2.5 10.5M4 13.5l-1.8 2.2"/><circle cx="14.5" cy="11.5" r="1.1" fill="currentColor" stroke="none"/>',
+    "model-glm": '<path d="M12 3.5L20 12l-8 8.5L4 12 12 3.5z"/><path d="M12 8.2L15.8 12 12 15.8 8.2 12 12 8.2z"/>',
+    "model-kimi": '<path d="M19.5 14.5A7.8 7.8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/><path d="M17.5 4.5l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6.6-1.7z" fill="currentColor" stroke="none"/>',
+    "model-doubao": '<circle cx="12" cy="12" r="8.2"/><circle cx="9.2" cy="11.2" r="1.2" fill="currentColor" stroke="none"/><circle cx="14.8" cy="11.2" r="1.2" fill="currentColor" stroke="none"/><path d="M9.5 15c.8.9 1.6 1.3 2.5 1.3s1.7-.4 2.5-1.3"/>',
+    "model-llama": '<path d="M7.5 15.5c-2 0-3.5-1.6-3.5-3.5s1.5-3.5 3.5-3.5c2.2 0 3.7 2.2 4.5 3.5.8 1.3 2.3 3.5 4.5 3.5 2 0 3.5-1.6 3.5-3.5s-1.5-3.5-3.5-3.5c-2.2 0-3.7 2.2-4.5 3.5-.8 1.3-2.3 3.5-4.5 3.5z"/>',
+    "model-grok": '<circle cx="12" cy="12" r="7.5"/><path d="M5.5 18.5L19.5 4.5"/>'
   };
   const icon = name => `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_SHAPES[name] || '<path d=""/>'}</svg>`;
 

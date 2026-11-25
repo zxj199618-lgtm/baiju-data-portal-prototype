@@ -604,3 +604,12 @@
 .portal-vue-ai-asset-card-head strong { font-weight: 600; }
 .portal-vue-ai-report-dialog .el-dialog__body { padding: 22px 28px 32px; }
 .portal-vue-ai-report-dialog-body { max-width: 860px; margin: 0 auto; }
+
+/* 业务线与模型下拉项图标对齐 */
+.ai-opt-row { display: inline-flex; align-items: center; gap: 8px; }
+.ai-opt-row .ai-ico { width: 15px; height: 15px; font-size: 15px; color: var(--ai-ink-2); }
+.portal-vue-ai-select-popper .el-select-dropdown__item.is-selected .ai-ico { color: var(--ai-ink); }
+.portal-vue-ai-model-pop .mp-item { display: flex; align-items: center; gap: 8px; }
+.portal-vue-ai-model-pop .mp-item .ai-ico { width: 15px; height: 15px; font-size: 15px; color: var(--ai-ink-2); flex: none; }
+.portal-vue-ai-model-pop .mp-item.active .ai-ico { color: var(--ai-ink); }
+.portal-vue-ai-model-pop .mp-item-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

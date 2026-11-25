@@ -121,7 +121,7 @@ test("输入框里不放「能力」按钮（每次新建会话首页都有入�
   assert.ok(!allCss().includes(".ai-cap-entry"), "不再使用的「能力」按钮样式应删除");
   const html = read("index.html");
   assert.ok(!html.includes("20261124b"), "index.html 里还有旧的静态资源版本号 20261124b");
-  assert.ok(html.includes("?v=20261125d"), "index.html 缺少新的静态资源版本号 20261125d");
+  assert.ok(html.includes("?v=20261125e"), "index.html 缺少新的静态资源版本号 20261125e");
 });
 
 
@@ -257,8 +257,8 @@ test("输入框里的业务线和模型选择：文字标签换成图标，去�
   assert.match(grab(".ai-composer-card .portal-vue-ai-chip-line-select .el-select__wrapper::before"), /content:\s*none/, "不再用伪元素写「线」字");
   assert.match(grab(".ai-composer-card .portal-vue-ai-model-chip"), /background:\s*transparent/);
   const template = workbench();
-  assert.ok(template.includes("<template #prefix><span class=\"ai-ico\" v-html=\"icon('briefcase')\"></span></template>"), "业务线下拉用图标做前缀");
-  assert.ok(template.includes("icon('cpu')") && !template.includes("<b>模型</b>"), "模型按钮用图标，不再写「模型」两个字");
+  assert.ok(template.includes("<template #prefix><span class=\"ai-ico\" v-html=\"icon(lineIconName(activeBusinessLine || '通用'))\"></span></template>"), "业务线下拉按当前业务线显示对应图标前缀");
+  assert.ok(template.includes("icon(modelIconName(model))") && !template.includes("<b>模型</b>"), "模型按钮按当前模型显示对应品牌图标，不再写「模型」两个字");
   assert.ok(template.includes('aria-label="业务线"') || template.includes("title=\"业务线\""), "图标按钮要有文字提示");
   assert.ok(template.includes('class="mp-note"') && template.includes("没有配置思考深度"), "不支持思考的模型要说明原因，而不是悄悄少一项");
 });

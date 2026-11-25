@@ -48,6 +48,26 @@ test("数字核验徽章与引用表提取：准确反映核验状态和引用�
   assert.ok(aiChatHelpers.SLASH_COMMANDS.length >= 5);
 });
 
+test("动态图标映射：不同业务线和不同大模型匹配各自专属图标", () => {
+  const { aiChatHelpers } = loadHelpers();
+  assert.equal(aiChatHelpers.lineIconName("通用"), "line-general");
+  assert.equal(aiChatHelpers.lineIconName("权益"), "line-equity");
+  assert.equal(aiChatHelpers.lineIconName("存量"), "line-retention");
+  assert.equal(aiChatHelpers.lineIconName("号卡"), "line-sim");
+  assert.equal(aiChatHelpers.lineIconName("保险"), "line-insurance");
+  assert.equal(aiChatHelpers.lineIconName("短剧"), "line-drama");
+  assert.equal(aiChatHelpers.lineIconName("自定义业务"), "briefcase");
+  assert.equal(aiChatHelpers.modelIconName("gpt-5.4-mini"), "model-openai");
+  assert.equal(aiChatHelpers.modelIconName("claude-sonnet-4-5"), "model-claude");
+  assert.equal(aiChatHelpers.modelIconName("gemini-2.5-pro"), "model-gemini");
+  assert.equal(aiChatHelpers.modelIconName("qwen3.8-max-0902"), "model-qwen");
+  assert.equal(aiChatHelpers.modelIconName("deepseek-r1"), "model-deepseek");
+  assert.equal(aiChatHelpers.modelIconName("glm-4.5"), "model-glm");
+  assert.equal(aiChatHelpers.modelIconName("kimi-k2"), "model-kimi");
+  assert.equal(aiChatHelpers.modelIconName("doubao-1.5-pro"), "model-doubao");
+  assert.equal(aiChatHelpers.modelIconName("unknown-model"), "cpu");
+});
+
 test("富交互视图：数值解析、涨跌识别、CSV 导出、SVG 图表与大纲提取", () => {
   const { aiRichView } = loadHelpers();
   assert.equal(aiRichView.parseNumericValue("286.4万"), 2864000);

@@ -181,8 +181,38 @@
     { key: "report", cmd: "/报告", title: "生成正式分析报告", desc: "将结论沉淀为可分享的结构化报告", template: "请基于以上分析生成一份结构化分析报告" }
   ];
 
+  /** 业务线对应图标名（通用、权益、存量、号卡、保险、短剧、网赚等）。 */
+  function lineIconName(line) {
+    const name = String(line || "").trim();
+    if (!name || name === "通用" || name === "公共") return "line-general";
+    if (/权益|会员|vip/i.test(name)) return "line-equity";
+    if (/存量|留存|唤醒|用户/.test(name)) return "line-retention";
+    if (/号卡|通信|流量|运营商/.test(name)) return "line-sim";
+    if (/保险|保单|核保/.test(name)) return "line-insurance";
+    if (/短剧|剧场|视频|内容/.test(name)) return "line-drama";
+    if (/网赚|拉新|激励|任务/.test(name)) return "line-earn";
+    return "briefcase";
+  }
+
+  /** 模型 ID 对应品牌图标名（OpenAI / Claude / Gemini / Qwen / DeepSeek / GLM / Kimi / 豆包 / Llama / Grok）。 */
+  function modelIconName(model) {
+    const id = String(model || "").trim().toLowerCase();
+    if (!id) return "cpu";
+    if (/^(gpt|o[134]\b|chatgpt|openai)|gpt[-_.]/.test(id)) return "model-openai";
+    if (/claude|anthropic|sonnet|opus|haiku/.test(id)) return "model-claude";
+    if (/gemini|gemma|google/.test(id)) return "model-gemini";
+    if (/qwen|qwq|tongyi|千问|通义/.test(id)) return "model-qwen";
+    if (/deepseek/.test(id)) return "model-deepseek";
+    if (/glm|zhipu|chatglm|智谱/.test(id)) return "model-glm";
+    if (/kimi|moonshot/.test(id)) return "model-kimi";
+    if (/doubao|seed|skylark|豆包/.test(id)) return "model-doubao";
+    if (/llama|meta/.test(id)) return "model-llama";
+    if (/grok|xai/.test(id)) return "model-grok";
+    return "cpu";
+  }
+
   window.PortalVue.aiChatHelpers = {
     tableIntro, moveIndex, chipWidth, groupSessions, buildTraceRows, estimateSeconds, pushDuration, formatDuration, formatEta, skillsUsed,
-    filterSessions, groupSessionsWithPin, extractMentionedTables, formatVerification, SLASH_COMMANDS
+    filterSessions, groupSessionsWithPin, extractMentionedTables, formatVerification, SLASH_COMMANDS, lineIconName, modelIconName
   };
 })();

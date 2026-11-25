@@ -308,20 +308,20 @@
                     <ai-prompt-input ref="inputBox" v-model="input" placeholder="输入分析问题，@ 引用数据表，/ 快捷指令，支持粘贴或上传图片；回车发送" :can-send="!!input.trim() && !thinking && !isStreaming" :streaming="thinking || isStreaming" :on-stop="abortGeneration" :images="attachments" :busy="attachBusy" @enter="onEnter" @keydown="onComposerKey" @input="onInput" @send="sendMessage" @paste-files="addImageFiles" @remove-image="removeAttachment">
                       <template #tools>
                         <el-select :model-value="activeBusinessLine || '通用'" size="small" class="portal-vue-ai-chip-line-select" :style="{ width: lineSelectWidth }" placeholder="选择业务线" popper-class="portal-vue-ai-select-popper ai-theme" data-test="ai-line-select" title="业务线" @update:model-value="pickLine">
-                          <template #prefix><span class="ai-ico" v-html="icon('briefcase')"></span></template>
-                          <el-option label="通用" value="通用"></el-option>
-                          <el-option v-for="line in lineChoices" :key="line" :label="line" :value="line"></el-option>
+                          <template #prefix><span class="ai-ico" v-html="icon(lineIconName(activeBusinessLine || '通用'))"></span></template>
+                          <el-option label="通用" value="通用"><span class="ai-opt-row"><span class="ai-ico" v-html="icon(lineIconName('通用'))"></span><span>通用</span></span></el-option>
+                          <el-option v-for="line in lineChoices" :key="line" :label="line" :value="line"><span class="ai-opt-row"><span class="ai-ico" v-html="icon(lineIconName(line))"></span><span>{{ line }}</span></span></el-option>
                         </el-select>
                         <span class="ai-tool-divider" aria-hidden="true"></span>
                         <el-popover v-model:visible="modelPop" trigger="click" placement="top-start" :width="320" :disabled="!models.length" popper-class="portal-vue-ai-model-pop ai-theme">
                           <template #reference>
-                            <button type="button" class="portal-vue-ai-model-chip" :class="{ disabled: !models.length }" data-test="model-chip" aria-label="模型" title="模型"><span class="ai-ico" v-html="icon('cpu')"></span><span class="mc-name">{{ model || (modelsLoading ? '加载中…' : '请选择') }}</span><em v-if="reasoningSupported">{{ reasoningLabel }}</em><i class="mc-arrow"></i></button>
+                            <button type="button" class="portal-vue-ai-model-chip" :class="{ disabled: !models.length }" data-test="model-chip" aria-label="模型" title="模型"><span class="ai-ico" v-html="icon(modelIconName(model))"></span><span class="mc-name">{{ model || (modelsLoading ? '加载中…' : '请选择') }}</span><em v-if="reasoningSupported">{{ reasoningLabel }}</em><i class="mc-arrow"></i></button>
                           </template>
                           <div class="mp-section">
                             <div class="mp-title">模型</div>
                             <el-input v-model="modelKeyword" size="small" clearable placeholder="搜索模型" class="mp-search"></el-input>
                             <el-scrollbar max-height="220px">
-                              <div v-for="item in shownModels" :key="item" class="mp-item" :class="{ active: item === model }" @click="pickModel(item)">{{ item }}</div>
+                              <div v-for="item in shownModels" :key="item" class="mp-item" :class="{ active: item === model }" @click="pickModel(item)"><span class="ai-ico" v-html="icon(modelIconName(item))"></span><span class="mp-item-name">{{ item }}</span></div>
                               <div v-if="!shownModels.length" class="mp-empty">没有匹配的模型</div>
                             </el-scrollbar>
                           </div>
@@ -683,6 +683,8 @@
     beforeUnmount(){window.removeEventListener("portal:page-change",this.pageHandler);clearInterval(this.etaTimer);this.abortCtrl?.abort();},
     methods:{
       icon: aiUi.icon,
+      lineIconName: aiChatHelpers.lineIconName,
+      modelIconName: aiChatHelpers.modelIconName,
       /* 打开 / 切换会话后的滚动位置：有消息停在最新一条，空会话（欢迎页）回到顶部，免得标题被卷到上面 */
       scrollChatToStart(){const box=this.$refs.chatBox;if(box)box.scrollTo({top:this.activeSession?.messages?.length?box.scrollHeight:0});},
       openCapabilityDrawer(){this.capDrawer=true;},
