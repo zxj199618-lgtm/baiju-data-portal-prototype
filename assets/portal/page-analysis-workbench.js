@@ -229,7 +229,7 @@
                   </header>
                   <div class="portal-vue-ai-chat" ref="chatBox">
                     <ai-empty v-if="!activeSession.messages.length">
-                      <template #media><span class="portal-vue-ai-welcome-logo">灵</span></template>
+                      <template #media><span class="portal-vue-ai-welcome-logo"><img src="assets/lingxi-mark.svg" alt="灵犀智析" /></span></template>
                       <template #title>你好，想分析点什么？</template>
                       <template #description>不知道问什么？点一张卡片，我带你试一遍</template>
                       <div v-if="capabilityCan.length" class="ai-cap-cards">

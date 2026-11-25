@@ -100,7 +100,8 @@
 .portal-vue-ai-session-status.running { color: var(--ai-amber); padding: 0 6px; border-radius: 4px; background: var(--ai-amber-tint); font-size: 11px; }
 .portal-vue-ai-main { display: flex; flex-direction: column; height: auto; min-height: 0; border: 0; border-radius: 0; background: var(--ai-canvas); overflow: hidden; box-shadow: none; }
 .portal-vue-ai-chat { flex: 1 1 auto; min-height: 0; padding: 24px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; background: var(--ai-canvas); }
-.portal-vue-ai-welcome-logo { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: var(--ai-ink); color: var(--ai-amber); font-family: var(--ai-font-display); font-size: 17px; font-weight: 500; }
+.portal-vue-ai-welcome-logo { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 13px; background: transparent; box-shadow: var(--ai-shadow-2); overflow: hidden; }
+.portal-vue-ai-welcome-logo img { display: block; width: 100%; height: 100%; }
 .ai-cap-open { display: inline-flex; align-items: center; gap: 2px; margin-top: 12px; padding: 0; border: 0; background: none; color: var(--ai-accent); font-size: 12.5px; cursor: pointer; }
 .ai-cap-open:hover { color: var(--ai-accent-hover); }
 .ai-cap-open .ai-ico { width: 14px; height: 14px; font-size: 14px; }
