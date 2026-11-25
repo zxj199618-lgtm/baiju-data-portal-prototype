@@ -121,7 +121,7 @@ test("输入框里不放「能力」按钮（每次新建会话首页都有入�
   assert.ok(!allCss().includes(".ai-cap-entry"), "不再使用的「能力」按钮样式应删除");
   const html = read("index.html");
   assert.ok(!html.includes("20261124b"), "index.html 里还有旧的静态资源版本号 20261124b");
-  assert.ok(html.includes("?v=20261125c"), "index.html 缺少新的静态资源版本号 20261125c");
+  assert.ok(html.includes("?v=20261125d"), "index.html 缺少新的静态资源版本号 20261125d");
 });
 
 

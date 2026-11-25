@@ -328,11 +328,12 @@
 /* ===== 会话栏：顶部两个按钮 + 每条会话两行 ===== */
 .portal-vue-ai-new.el-button { width: 100%; height: 36px; margin: 0; border: 0; border-radius: 10px; background: var(--ai-accent); color: #fff; font-size: 13px; font-weight: 500; }
 .portal-vue-ai-new.el-button:hover, .portal-vue-ai-new.el-button:focus { background: var(--ai-accent-hover); color: #fff; }
-.portal-vue-ai-asset-btn { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; margin: 0; padding: 0 12px; border: 1px solid var(--ai-ink); border-radius: 10px; background: var(--ai-surface); box-shadow: none; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
-.portal-vue-ai-asset-btn:hover { background: var(--ai-sunken); }
-.portal-vue-ai-asset-btn.active { border-color: var(--ai-ink); background: var(--ai-surface); }
-.portal-vue-ai-asset-btn-icon { color: var(--ai-ink); }
-.portal-vue-ai-asset-btn-text { flex: 1; color: var(--ai-ink); font-size: 13px; font-weight: 500; text-align: left; }
+.portal-vue-ai-asset-btn { display: flex; align-items: center; gap: 10px; width: 100%; height: 46px; margin: 0; padding: 0 14px; border: 1px solid var(--ai-ink); border-radius: 12px; background: var(--ai-surface); box-shadow: var(--ai-shadow-1); cursor: pointer; transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.portal-vue-ai-asset-btn:hover { background: var(--ai-sunken); box-shadow: var(--ai-shadow-2); }
+.portal-vue-ai-asset-btn:focus:not(:focus-visible) { outline: none; }
+.portal-vue-ai-asset-btn.active { border-color: var(--ai-ink); background: var(--ai-sunken); box-shadow: var(--ai-shadow-1); }
+.portal-vue-ai-asset-btn-icon { width: 18px !important; height: 18px !important; font-size: 18px !important; color: var(--ai-ink); }
+.portal-vue-ai-asset-btn-text { flex: 1; color: var(--ai-ink); font-size: 14px; font-weight: 600; text-align: left; }
 .portal-vue-ai-session-top { display: block; }
 .portal-vue-ai-session-top strong { display: block; max-width: 100%; overflow: hidden; color: var(--ai-ink); font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .portal-vue-ai-session-meta { display: flex; align-items: center; gap: 4px; margin-top: 2px; color: var(--ai-ink-3); font-size: 11.5px; }
@@ -369,7 +370,7 @@
 .ai-skill-tip.is-light .el-popper__arrow::before { border-color: var(--ai-line); background: var(--ai-surface); }
 
 /* 分析资产：深色描边；报告数是黑底白字的小标 */
-.portal-vue-ai-asset-btn .el-tag { display: inline-flex; height: 20px; padding: 0 8px; border: 0; border-radius: 999px; background: var(--ai-ink); color: #fff; font-size: 11.5px; font-weight: 500; }
+.portal-vue-ai-asset-btn .el-tag { display: inline-flex; height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--ai-ink); color: #fff; font-size: 12px; font-weight: 500; }
 .portal-vue-ai-asset-btn:hover { background: var(--ai-sunken); }
 
 /* 会话栏滚动条：默认隐藏，鼠标移进列表才显示一条 4px 的浅色细条 */
