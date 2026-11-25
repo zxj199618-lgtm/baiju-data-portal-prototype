@@ -96,7 +96,8 @@ for (const imagePath of imagePaths) {
       ? "image/jpeg"
       : "image/png";
   const dataUri = `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
-  html = html.split(imagePath).join(dataUri);
+  const escapedImg = imagePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  html = html.replace(new RegExp(`${escapedImg}(\\?v=[^"'\\s)]*)?`, "g"), () => dataUri);
 }
 
 fs.writeFileSync(outputPath, html);

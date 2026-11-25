@@ -163,7 +163,7 @@
                 </div>
                 <div class="ai-side-filter" role="tablist" aria-label="会话渠道筛选">
                   <button type="button" :class="{ active: sessionChannel === 'all' }" @click="sessionChannel = 'all'">全部</button>
-                  <button type="button" :class="{ active: sessionChannel === 'feishu' }" @click="sessionChannel = 'feishu'"><img class="ai-feishu-inline" src="assets/feishu-icon.svg" alt="" />飞书</button>
+                  <button type="button" :class="{ active: sessionChannel === 'feishu' }" @click="sessionChannel = 'feishu'"><img class="ai-feishu-inline" src="assets/feishu-icon.svg?v=20261125j" alt="" />飞书</button>
                 </div>
               </div>
               <el-scrollbar class="portal-vue-ai-session-scroll">
@@ -180,7 +180,7 @@
                           <button type="button" class="is-danger" title="删除会话" aria-label="删除会话" @click="removeSession(session)"><span class="ai-ico" v-html="icon('trash')"></span></button>
                         </div>
                       </div>
-                      <div class="portal-vue-ai-session-meta"><time :title="session.time">{{ relativeTime(session.time) }}</time><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">· {{ sessionLine(session) }}</span><span v-if="session.channel === '飞书机器人'" class="ai-channel feishu" title="来自飞书机器人" aria-label="来自飞书机器人"><img class="ai-feishu-logo" src="assets/feishu-icon.svg" alt="" /></span></div>
+                      <div class="portal-vue-ai-session-meta"><time :title="session.time">{{ relativeTime(session.time) }}</time><span v-if="sessionLine(session)" class="portal-vue-ai-session-line">· {{ sessionLine(session) }}</span><span v-if="session.channel === '飞书机器人'" class="ai-channel feishu" title="来自飞书机器人" aria-label="来自飞书机器人"><img class="ai-feishu-logo" src="assets/feishu-icon.svg?v=20261125j" alt="" /></span></div>
                     </article>
                   </template>
                   <p v-if="!sessionGroups.length" class="portal-vue-muted">{{ sessionKeyword || sessionChannel !== 'all' ? '没有匹配的会话' : '暂无会话' }}</p>

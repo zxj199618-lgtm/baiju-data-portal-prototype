@@ -658,7 +658,7 @@
             <section class="portal-vue-alert-section">
               <div class="portal-vue-alert-section-title">5 · 配置告警通道</div>
               <el-form-item label="飞书机器人" class="portal-vue-alert-wide">
-                <div class="portal-vue-alert-bot"><span class="portal-vue-ai-bot-icon"><img src="assets/feishu-icon.svg" alt="飞书" style="width:22px;height:22px;display:block" /></span><div><strong>{{ botName }}</strong><span>已接入飞书，触发时按下方群与人员推送卡片消息</span></div><el-tag size="small" type="success" effect="light">已接入</el-tag></div>
+                <div class="portal-vue-alert-bot"><span class="portal-vue-ai-bot-icon"><img src="assets/feishu-icon.svg?v=20261125j" alt="飞书" style="width:22px;height:22px;display:block" /></span><div><strong>{{ botName }}</strong><span>已接入飞书，触发时按下方群与人员推送卡片消息</span></div><el-tag size="small" type="success" effect="light">已接入</el-tag></div>
               </el-form-item>
               <el-form-item label="告警群" prop="channel.groups">
                 <el-select v-model="form.channel.groups" multiple filterable placeholder="选择要通知的飞书群" @change="revalidateChannel">
