@@ -100,7 +100,6 @@ test("工作台专业升级：停止生成、完整操作栏、分屏报告画�
     ':on-stop="abortGeneration"',
     'data-test="ai-copy-btn"',
     'data-test="ai-regen-btn"',
-    'data-test="ai-to-report-btn"',
     'data-test="ai-verify-badge"',
     'data-test="ai-canvas-pane"',
     'data-test="ai-canvas-outline"',

@@ -465,9 +465,6 @@
 .ai-verify-badge.is-ok { background: var(--ai-ok-tint); color: var(--ai-ok); }
 .ai-verify-badge.is-warn { background: var(--ai-amber-tint); color: var(--ai-amber); }
 .portal-vue-ai-feedback { align-items: center; }
-.ai-action-pill { display: inline-flex; align-items: center; gap: 5px; height: 28px !important; width: auto !important; padding: 0 10px !important; border: 1px solid var(--ai-line) !important; border-radius: 999px !important; background: var(--ai-surface) !important; color: var(--ai-ink-2) !important; font-size: 12px !important; opacity: 1 !important; cursor: pointer; }
-.ai-action-pill:hover { border-color: var(--ai-line-strong) !important; background: var(--ai-sunken) !important; color: var(--ai-ink) !important; }
-.ai-action-pill .ai-ico { width: 13px; height: 13px; font-size: 13px; }
 
 /* ===== 输入区扩展：引用胶囊、/ 指令菜单、上传按钮、停止生成 ===== */
 .ai-input-refs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 760px; margin: 0 auto 8px; }
